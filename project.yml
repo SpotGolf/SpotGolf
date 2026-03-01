@@ -1,0 +1,55 @@
+name: SpotGolf
+options:
+  bundleIdPrefix: com.pontarelli
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+  xcodeVersion: "16.0"
+
+targets:
+  SpotGolf:
+    type: application
+    platform: iOS
+    sources:
+      - path: SpotGolf
+      - path: Shared
+    settings:
+      base:
+        INFOPLIST_FILE: SpotGolf/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.pontarelli.SpotGolf
+        SWIFT_VERSION: "5.9"
+    entitlements:
+      path: SpotGolf/SpotGolf.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    info:
+      path: SpotGolf/Info.plist
+      properties:
+        CFBundleDisplayName: SpotGolf
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+
+  SpotGolfWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: SpotGolfWatch
+      - path: Shared
+    settings:
+      base:
+        INFOPLIST_FILE: SpotGolfWatch/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.pontarelli.SpotGolf.watchkitapp
+        SWIFT_VERSION: "5.9"
+    info:
+      path: SpotGolfWatch/Info.plist
+      properties:
+        CFBundleDisplayName: SpotGolf
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        WKCompanionAppBundleIdentifier: com.pontarelli.SpotGolf
+        WKWatchOnly: false
+    dependencies:
+      - sdk: WatchConnectivity.framework

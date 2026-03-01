@@ -1,0 +1,503 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08BDD6810B6AD221D96E9E0D /* RoundMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */; };
+		473C22ECA82021C8C706B976 /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82058F867199D494A9640C07 /* Round.swift */; };
+		4D7A5003C01D50AC34CDD7D2 /* RoundListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */; };
+		4D86CEEAEF793BDFC6735333 /* SpotGolfApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */; };
+		5A7FFC85BD44BFDB71D44C5B /* WatchRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B7DFC806512F8D9C7DA87E /* WatchRoundView.swift */; };
+		5E592BAA75C575F2F0BFD020 /* RoundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F8BC39497B60789363C132 /* RoundStore.swift */; };
+		745AE2230C2F35DE5E0A7AD9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE42B08F3B35F014850DD21 /* ContentView.swift */; };
+		896E0F7D52604356D5EC58EB /* DistanceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */; };
+		97FA5937CA3D8E8AEDD5C53D /* BallMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F25462C700858533535F00 /* BallMark.swift */; };
+		A27CF4EE76E6FF0EC13A45F3 /* PhoneSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AF6E13B4B912611DD9ED42 /* PhoneSyncService.swift */; };
+		B390E081D386C8B608ADDCA4 /* SpotGolfWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */; };
+		D48D19FD18024D7985415B24 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16D85309159B892BBC7B31A /* LocationManager.swift */; };
+		E5CBF3D5673C328548E5F125 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */; };
+		E98CC4FEB4824C1E7E74C7A0 /* BallMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F25462C700858533535F00 /* BallMark.swift */; };
+		EA3D7682FBE3321CEA0CB897 /* RoundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F8BC39497B60789363C132 /* RoundStore.swift */; };
+		EAB6CFD7FD0412D0F4454679 /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82058F867199D494A9640C07 /* Round.swift */; };
+		EF2A0ACA9519F3028057E3C2 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16D85309159B892BBC7B31A /* LocationManager.swift */; };
+		FED65CF491878FFD79AA22C0 /* WatchSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BABE0F172218DDDE62CCC5B5 /* WatchSyncService.swift */; };
+		FF6036F1F49242950E18FC22 /* DistanceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
+		39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
+		3E77429E620B540D93B7534B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4AB6D3A47B242A104417810F /* SpotGolfWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotGolfWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		56F25462C700858533535F00 /* BallMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallMark.swift; sourceTree = "<group>"; };
+		5F78427AA75BA3B8CCADABA4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		64CFC1E0B3C3EAEDD25CE3ED /* SpotGolf.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SpotGolf.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		67AF6E13B4B912611DD9ED42 /* PhoneSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSyncService.swift; sourceTree = "<group>"; };
+		76B7DFC806512F8D9C7DA87E /* WatchRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRoundView.swift; sourceTree = "<group>"; };
+		7BD311E14D2615D816E4995A /* SpotGolf.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotGolf.entitlements; sourceTree = "<group>"; };
+		82058F867199D494A9640C07 /* Round.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Round.swift; sourceTree = "<group>"; };
+		9DE42B08F3B35F014850DD21 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotGolfApp.swift; sourceTree = "<group>"; };
+		AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundMapView.swift; sourceTree = "<group>"; };
+		B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceCalculator.swift; sourceTree = "<group>"; };
+		BABE0F172218DDDE62CCC5B5 /* WatchSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncService.swift; sourceTree = "<group>"; };
+		C16D85309159B892BBC7B31A /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
+		C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotGolfWatchApp.swift; sourceTree = "<group>"; };
+		C3F8BC39497B60789363C132 /* RoundStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8A83DD4021C63A982802D9CE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5CBF3D5673C328548E5F125 /* WatchConnectivity.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		06ABF6538CB9130D7E1649B1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		35CD162F4F36CC4C838D7C8E /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9DE42B08F3B35F014850DD21 /* ContentView.swift */,
+				35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */,
+				AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		4F02FBDD3AF2C0E65ABB280C /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C16D85309159B892BBC7B31A /* LocationManager.swift */,
+				C3F8BC39497B60789363C132 /* RoundStore.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		79FC29DED261192B3BFEA149 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		818B7FA9B34C751B863DB12A /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				BABE0F172218DDDE62CCC5B5 /* WatchSyncService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		891F3D3C6B545C33289E6913 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				67AF6E13B4B912611DD9ED42 /* PhoneSyncService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		960C29F752AF2CCE36485225 /* SpotGolfWatch */ = {
+			isa = PBXGroup;
+			children = (
+				3E77429E620B540D93B7534B /* Info.plist */,
+				C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */,
+				891F3D3C6B545C33289E6913 /* Services */,
+				CF8E059357CA27DA96BA4A42 /* Views */,
+			);
+			path = SpotGolfWatch;
+			sourceTree = "<group>";
+		};
+		98F82F44F9EB2CB5C96AB01C /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B82C9F747CF9E6885A30FED3 /* Models */,
+				4F02FBDD3AF2C0E65ABB280C /* Services */,
+				79FC29DED261192B3BFEA149 /* Utilities */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		B82C9F747CF9E6885A30FED3 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				56F25462C700858533535F00 /* BallMark.swift */,
+				82058F867199D494A9640C07 /* Round.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		C55CD85228F9EBC5C68972B1 /* SpotGolf */ = {
+			isa = PBXGroup;
+			children = (
+				5F78427AA75BA3B8CCADABA4 /* Info.plist */,
+				7BD311E14D2615D816E4995A /* SpotGolf.entitlements */,
+				A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */,
+				818B7FA9B34C751B863DB12A /* Services */,
+				35CD162F4F36CC4C838D7C8E /* Views */,
+			);
+			path = SpotGolf;
+			sourceTree = "<group>";
+		};
+		CF8E059357CA27DA96BA4A42 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				76B7DFC806512F8D9C7DA87E /* WatchRoundView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E58444F88C669B23DB2A04EC = {
+			isa = PBXGroup;
+			children = (
+				98F82F44F9EB2CB5C96AB01C /* Shared */,
+				C55CD85228F9EBC5C68972B1 /* SpotGolf */,
+				960C29F752AF2CCE36485225 /* SpotGolfWatch */,
+				06ABF6538CB9130D7E1649B1 /* Frameworks */,
+				F52E864CA9EE544E2734756D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F52E864CA9EE544E2734756D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				64CFC1E0B3C3EAEDD25CE3ED /* SpotGolf.app */,
+				4AB6D3A47B242A104417810F /* SpotGolfWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		98D032A3E44A652D535A3D35 /* SpotGolf */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 179BCDD16B571EDEE6898B19 /* Build configuration list for PBXNativeTarget "SpotGolf" */;
+			buildPhases = (
+				D0992AD1F77E76D9D805C307 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SpotGolf;
+			packageProductDependencies = (
+			);
+			productName = SpotGolf;
+			productReference = 64CFC1E0B3C3EAEDD25CE3ED /* SpotGolf.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C73A2FC36FDD2ECE1A1A6255 /* SpotGolfWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64B7F45A87C03DE68EE8B251 /* Build configuration list for PBXNativeTarget "SpotGolfWatch" */;
+			buildPhases = (
+				D8BACD5101EBBB6EDD255315 /* Sources */,
+				8A83DD4021C63A982802D9CE /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SpotGolfWatch;
+			packageProductDependencies = (
+			);
+			productName = SpotGolfWatch;
+			productReference = 4AB6D3A47B242A104417810F /* SpotGolfWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2FCEF18B560BCC55F691785D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = D1DF361EB6E8FF6C8219D2E0 /* Build configuration list for PBXProject "SpotGolf" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E58444F88C669B23DB2A04EC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				98D032A3E44A652D535A3D35 /* SpotGolf */,
+				C73A2FC36FDD2ECE1A1A6255 /* SpotGolfWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D0992AD1F77E76D9D805C307 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97FA5937CA3D8E8AEDD5C53D /* BallMark.swift in Sources */,
+				745AE2230C2F35DE5E0A7AD9 /* ContentView.swift in Sources */,
+				FF6036F1F49242950E18FC22 /* DistanceCalculator.swift in Sources */,
+				EF2A0ACA9519F3028057E3C2 /* LocationManager.swift in Sources */,
+				473C22ECA82021C8C706B976 /* Round.swift in Sources */,
+				4D7A5003C01D50AC34CDD7D2 /* RoundListView.swift in Sources */,
+				08BDD6810B6AD221D96E9E0D /* RoundMapView.swift in Sources */,
+				EA3D7682FBE3321CEA0CB897 /* RoundStore.swift in Sources */,
+				4D86CEEAEF793BDFC6735333 /* SpotGolfApp.swift in Sources */,
+				FED65CF491878FFD79AA22C0 /* WatchSyncService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8BACD5101EBBB6EDD255315 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E98CC4FEB4824C1E7E74C7A0 /* BallMark.swift in Sources */,
+				896E0F7D52604356D5EC58EB /* DistanceCalculator.swift in Sources */,
+				D48D19FD18024D7985415B24 /* LocationManager.swift in Sources */,
+				A27CF4EE76E6FF0EC13A45F3 /* PhoneSyncService.swift in Sources */,
+				EAB6CFD7FD0412D0F4454679 /* Round.swift in Sources */,
+				5E592BAA75C575F2F0BFD020 /* RoundStore.swift in Sources */,
+				B390E081D386C8B608ADDCA4 /* SpotGolfWatchApp.swift in Sources */,
+				5A7FFC85BD44BFDB71D44C5B /* WatchRoundView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		16E22256EAA523A4F3BEA0F2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		1B818A155138168354940818 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		460BE9B3BCA15CBA13F348CE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = SpotGolfWatch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolf.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		7DB58180118C6435996CAA49 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SpotGolf/SpotGolf.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = SpotGolf/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolf;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C0664ACA9A7964F2B3A229E1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SpotGolf/SpotGolf.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = SpotGolf/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolf;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C9261919FB7FF0AF3471C19D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				INFOPLIST_FILE = SpotGolfWatch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolf.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		179BCDD16B571EDEE6898B19 /* Build configuration list for PBXNativeTarget "SpotGolf" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DB58180118C6435996CAA49 /* Debug */,
+				C0664ACA9A7964F2B3A229E1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		64B7F45A87C03DE68EE8B251 /* Build configuration list for PBXNativeTarget "SpotGolfWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				460BE9B3BCA15CBA13F348CE /* Debug */,
+				C9261919FB7FF0AF3471C19D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D1DF361EB6E8FF6C8219D2E0 /* Build configuration list for PBXProject "SpotGolf" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				16E22256EAA523A4F3BEA0F2 /* Debug */,
+				1B818A155138168354940818 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2FCEF18B560BCC55F691785D /* Project object */;
+}
