@@ -24,5 +24,10 @@
 	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string></string>
+	</dict>
 </dict>
 </plist>

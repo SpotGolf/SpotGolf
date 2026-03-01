@@ -49,6 +49,32 @@ class RoundStore: ObservableObject {
         }
     }
 
+    func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
+        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
+           let markIndex = rounds[roundIndex].marks.firstIndex(where: { $0.id == mark.id }) {
+            let updated = BallMark(id: mark.id, coordinate: coordinate, timestamp: mark.timestamp)
+            rounds[roundIndex].marks[markIndex] = updated
+            save()
+        }
+    }
+
+    func reorderMark(_ mark: BallMark, to newIndex: Int, in roundID: UUID) {
+        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
+           let markIndex = rounds[roundIndex].marks.firstIndex(where: { $0.id == mark.id }) {
+            let clamped = min(max(newIndex, 0), rounds[roundIndex].marks.count - 1)
+            let removed = rounds[roundIndex].marks.remove(at: markIndex)
+            rounds[roundIndex].marks.insert(removed, at: clamped)
+            save()
+        }
+    }
+
+    func removeMark(_ mark: BallMark, from roundID: UUID) {
+        if let index = rounds.firstIndex(where: { $0.id == roundID }) {
+            rounds[index].marks.removeAll { $0.id == mark.id }
+            save()
+        }
+    }
+
     func deleteRound(_ round: Round) {
         rounds.removeAll { $0.id == round.id }
         save()

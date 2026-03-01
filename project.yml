@@ -30,6 +30,8 @@ targets:
         CFBundleVersion: "1"
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
         NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        UILaunchScreen:
+          UIColorName: ""
 
   SpotGolfWatch:
     type: application
