@@ -11,7 +11,6 @@ struct SpotGolfWatchApp: App {
             WatchRoundView()
                 .environmentObject(roundStore)
                 .environmentObject(locationManager)
-                .environmentObject(phoneSync)
                 .onAppear {
                     phoneSync.roundStore = roundStore
                     locationManager.requestPermission()

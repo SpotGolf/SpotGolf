@@ -3,7 +3,6 @@ import SwiftUI
 struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
-    @EnvironmentObject var phoneSync: PhoneSyncService
 
     @State private var showConfirmation = false
 
@@ -27,14 +26,12 @@ struct WatchRoundView: View {
                     .foregroundStyle(.secondary)
 
                 Button(action: markBall) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "mappin.and.ellipse")
-                            .font(.title2)
-                        Text("At my ball")
-                            .font(.headline)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    Label("At my ball", systemImage: "mappin.and.ellipse")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
@@ -73,7 +70,6 @@ struct WatchRoundView: View {
             guard let location = locationManager.lastLocation else { return }
             let mark = BallMark(coordinate: location.coordinate)
             roundStore.addMark(mark)
-            phoneSync.sendMark(mark)
 
             showConfirmation = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

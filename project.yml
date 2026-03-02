@@ -6,6 +6,21 @@ options:
     watchOS: "10.0"
   xcodeVersion: "16.0"
 
+schemes:
+  SpotGolf:
+    build:
+      targets:
+        SpotGolf: all
+        SpotGolfTests: [test]
+    test:
+      targets:
+        - SpotGolfTests
+
+  SpotGolfWatch:
+    build:
+      targets:
+        SpotGolfWatch: all
+
 targets:
   SpotGolf:
     type: application
@@ -51,7 +66,21 @@ targets:
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        WKApplication: true
         WKCompanionAppBundleIdentifier: com.pontarelli.SpotGolf
         WKWatchOnly: false
     dependencies:
       - sdk: WatchConnectivity.framework
+
+  SpotGolfTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SpotGolfTests
+      - path: Shared
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: SpotGolf

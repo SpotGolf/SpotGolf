@@ -1,9 +1,17 @@
 import Foundation
 import CoreLocation
 
+enum SyncMessage {
+    case startRound(UUID, Date)
+    case endRound(UUID)
+    case addMark(BallMark, UUID)
+}
+
 @MainActor
 class RoundStore: ObservableObject {
     @Published var rounds: [Round] = []
+
+    var onSyncEvent: ((SyncMessage) -> Void)?
 
     var activeRound: Round? {
         rounds.first(where: { $0.isActive })
@@ -18,34 +26,53 @@ class RoundStore: ObservableObject {
         load()
     }
 
-    func startRound() {
+    func startRound(id: UUID = UUID(), date: Date = Date(), fromSync: Bool = false) {
         // End any existing active round
         if let index = rounds.firstIndex(where: { $0.isActive }) {
             rounds[index].end()
         }
-        let round = Round()
+        let round = Round(id: id, date: date)
         rounds.insert(round, at: 0)
         save()
+        if !fromSync {
+            onSyncEvent?(.startRound(id, date))
+        }
     }
 
-    func endRound() {
-        if let index = rounds.firstIndex(where: { $0.isActive }) {
+    func endRound(roundID: UUID? = nil, fromSync: Bool = false) {
+        let predicate: (Round) -> Bool = if let roundID {
+            { $0.id == roundID }
+        } else {
+            { $0.isActive }
+        }
+        if let index = rounds.firstIndex(where: predicate) {
+            let id = rounds[index].id
             rounds[index].end()
             save()
+            if !fromSync {
+                onSyncEvent?(.endRound(id))
+            }
         }
     }
 
-    func addMark(_ mark: BallMark) {
+    func addMark(_ mark: BallMark, fromSync: Bool = false) {
         if let index = rounds.firstIndex(where: { $0.isActive }) {
+            let roundID = rounds[index].id
             rounds[index].addMark(mark)
             save()
+            if !fromSync {
+                onSyncEvent?(.addMark(mark, roundID))
+            }
         }
     }
 
-    func addMark(to roundID: UUID, mark: BallMark) {
+    func addMark(to roundID: UUID, mark: BallMark, fromSync: Bool = false) {
         if let index = rounds.firstIndex(where: { $0.id == roundID }) {
             rounds[index].addMark(mark)
             save()
+            if !fromSync {
+                onSyncEvent?(.addMark(mark, roundID))
+            }
         }
     }
 
