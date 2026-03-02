@@ -7,8 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		023A4C0A7FAA3F7894001104 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 364128AB03054E09B6897A8F /* Assets.xcassets */; };
 		08BDD6810B6AD221D96E9E0D /* RoundMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */; };
 		1D3784E4D8AE664877A8A6A6 /* DistanceCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F18E36C3FB3746F7B72637 /* DistanceCalculatorTests.swift */; };
+		26F86C3E9196432B8F982C6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 82FDA040C8CD2CBE524BC9F8 /* Assets.xcassets */; };
 		3449238D7CFB430619B79954 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16D85309159B892BBC7B31A /* LocationManager.swift */; };
 		473C22ECA82021C8C706B976 /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82058F867199D494A9640C07 /* Round.swift */; };
 		4D7A5003C01D50AC34CDD7D2 /* RoundListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */; };
@@ -50,6 +52,7 @@
 /* Begin PBXFileReference section */
 		2853A17F0D32E041FB6FEFB8 /* BallMarkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallMarkTests.swift; sourceTree = "<group>"; };
 		35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
+		364128AB03054E09B6897A8F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 		3E77429E620B540D93B7534B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4AB6D3A47B242A104417810F /* SpotGolfWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotGolfWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -63,6 +66,7 @@
 		7BD311E14D2615D816E4995A /* SpotGolf.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotGolf.entitlements; sourceTree = "<group>"; };
 		7DD894F03B7D16955567FDAE /* RoundStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundStoreTests.swift; sourceTree = "<group>"; };
 		82058F867199D494A9640C07 /* Round.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Round.swift; sourceTree = "<group>"; };
+		82FDA040C8CD2CBE524BC9F8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9DE42B08F3B35F014850DD21 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotGolfApp.swift; sourceTree = "<group>"; };
 		A3F18E36C3FB3746F7B72637 /* DistanceCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceCalculatorTests.swift; sourceTree = "<group>"; };
@@ -140,6 +144,7 @@
 		960C29F752AF2CCE36485225 /* SpotGolfWatch */ = {
 			isa = PBXGroup;
 			children = (
+				82FDA040C8CD2CBE524BC9F8 /* Assets.xcassets */,
 				3E77429E620B540D93B7534B /* Info.plist */,
 				C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */,
 				891F3D3C6B545C33289E6913 /* Services */,
@@ -170,6 +175,7 @@
 		C55CD85228F9EBC5C68972B1 /* SpotGolf */ = {
 			isa = PBXGroup;
 			children = (
+				364128AB03054E09B6897A8F /* Assets.xcassets */,
 				5F78427AA75BA3B8CCADABA4 /* Info.plist */,
 				7BD311E14D2615D816E4995A /* SpotGolf.entitlements */,
 				A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */,
@@ -228,6 +234,7 @@
 			buildConfigurationList = 179BCDD16B571EDEE6898B19 /* Build configuration list for PBXNativeTarget "SpotGolf" */;
 			buildPhases = (
 				D0992AD1F77E76D9D805C307 /* Sources */,
+				B06B7F81BA0FC0B30DBA511B /* Resources */,
 			);
 			buildRules = (
 			);
@@ -263,6 +270,7 @@
 			buildConfigurationList = 64B7F45A87C03DE68EE8B251 /* Build configuration list for PBXNativeTarget "SpotGolfWatch" */;
 			buildPhases = (
 				D8BACD5101EBBB6EDD255315 /* Sources */,
+				9A362A9F96A1BDF28BCAF4EB /* Resources */,
 				8A83DD4021C63A982802D9CE /* Frameworks */,
 			);
 			buildRules = (
@@ -305,6 +313,25 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9A362A9F96A1BDF28BCAF4EB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				26F86C3E9196432B8F982C6B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B06B7F81BA0FC0B30DBA511B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				023A4C0A7FAA3F7894001104 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		AB1EB4369F6C1AEFAAA071D0 /* Sources */ = {

@@ -6,7 +6,7 @@ struct RoundMapView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
 
-    @State private var position: MapCameraPosition = .automatic
+    @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var selectedMark: BallMark?
     @State private var showDeleteConfirm = false
     @State private var draggingMark: BallMark?
@@ -26,6 +26,14 @@ struct RoundMapView: View {
             set: { if !$0 { selectedMark = nil } }
         )) {
             spotEditSheet
+        }
+        .onAppear {
+            if let location = locationManager.lastLocation {
+                position = .camera(MapCamera(
+                    centerCoordinate: location.coordinate,
+                    distance: 500
+                ))
+            }
         }
         .alert("Delete Spot", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
