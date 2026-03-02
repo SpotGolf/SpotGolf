@@ -8,7 +8,7 @@ struct RoundListView: View {
             if let active = roundStore.activeRound {
                 Section("Active Round") {
                     NavigationLink {
-                        RoundMapView(round: active)
+                        RoundMapView(roundID: active.id)
                     } label: {
                         RoundRow(round: active)
                     }
@@ -18,7 +18,7 @@ struct RoundListView: View {
             Section("Past Rounds") {
                 ForEach(roundStore.rounds.filter { !$0.isActive }) { round in
                     NavigationLink {
-                        RoundMapView(round: round)
+                        RoundMapView(roundID: round.id)
                     } label: {
                         RoundRow(round: round)
                     }

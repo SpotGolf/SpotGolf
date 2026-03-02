@@ -4,9 +4,13 @@ import MapKit
 struct RoundMapView: View {
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
 
-    let round: Round
+    let roundID: UUID
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
+
+    private var round: Round {
+        roundStore.rounds.first(where: { $0.id == roundID })!
+    }
 
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var selectedMark: BallMark?
@@ -150,10 +154,10 @@ struct RoundMapView: View {
     private var statsBar: some View {
         if !round.marks.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                if round.marks.count >= 2 {
-                    let last = round.marks[round.marks.count - 1]
-                    let prev = round.marks[round.marks.count - 2]
-                    Text("Previous: \(DistanceCalculator.formattedYards(from: prev, to: last))")
+                if let lastMark = round.marks.last,
+                   let location = locationManager.lastLocation {
+                    let yards = Int(location.distance(from: lastMark.location) * 1.09361)
+                    Text("Previous: \(yards) yds")
                         .font(.headline)
                 }
                 Text("Strokes: \(max(round.marks.count - 1, 0))")
