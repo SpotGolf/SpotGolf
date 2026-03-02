@@ -29,7 +29,7 @@ struct RoundMapView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: Binding(
             get: { selectedMark != nil && !showDeleteConfirm },
-            set: { if !$0 { selectedMark = nil } }
+            set: { if !$0 && !showDeleteConfirm { selectedMark = nil } }
         )) {
             spotEditSheet
         }
