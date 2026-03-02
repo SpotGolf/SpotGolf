@@ -7,6 +7,7 @@ struct RoundMapView: View {
     @EnvironmentObject var locationManager: LocationManager
 
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
+    @State private var didSetInitialZoom = false
     @State private var selectedMark: BallMark?
     @State private var showDeleteConfirm = false
     @State private var draggingMark: BallMark?
@@ -28,12 +29,13 @@ struct RoundMapView: View {
             spotEditSheet
         }
         .onAppear {
-            if let location = locationManager.lastLocation {
-                position = .camera(MapCamera(
-                    centerCoordinate: location.coordinate,
-                    distance: 150
-                ))
-            }
+            locationManager.requestLocation()
+        }
+        .onReceive(locationManager.$lastLocation) { location in
+            guard !didSetInitialZoom, let location else { return }
+            didSetInitialZoom = true
+            let span = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
+            position = .region(MKCoordinateRegion(center: location.coordinate, span: span))
         }
         .alert("Delete Spot", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -178,7 +180,10 @@ struct RoundMapView: View {
             Spacer()
                 .overlay(alignment: .leading) {
                     Button {
-                        position = .userLocation(fallback: .automatic)
+                        if let location = locationManager.lastLocation {
+                            let span = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
+                            position = .region(MKCoordinateRegion(center: location.coordinate, span: span))
+                        }
                     } label: {
                         Image(systemName: "location.fill")
                             .font(.title3)
