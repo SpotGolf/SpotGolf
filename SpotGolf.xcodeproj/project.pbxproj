@@ -11,24 +11,30 @@
 		08BDD6810B6AD221D96E9E0D /* RoundMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */; };
 		1D3784E4D8AE664877A8A6A6 /* DistanceCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F18E36C3FB3746F7B72637 /* DistanceCalculatorTests.swift */; };
 		26F86C3E9196432B8F982C6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 82FDA040C8CD2CBE524BC9F8 /* Assets.xcassets */; };
+		2BD0DC48C3D34E8A43F37C42 /* LocationTestHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A8EC02B40588235DD6D1CA /* LocationTestHelper.swift */; };
 		3449238D7CFB430619B79954 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16D85309159B892BBC7B31A /* LocationManager.swift */; };
 		473C22ECA82021C8C706B976 /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82058F867199D494A9640C07 /* Round.swift */; };
 		4D7A5003C01D50AC34CDD7D2 /* RoundListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */; };
 		4D86CEEAEF793BDFC6735333 /* SpotGolfApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */; };
+		5441B38F32881D45FFBBDBFA /* test-locations.csv in Resources */ = {isa = PBXBuildFile; fileRef = F556F18DC4DAA2E2CADE824D /* test-locations.csv */; };
 		5A7FFC85BD44BFDB71D44C5B /* WatchRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B7DFC806512F8D9C7DA87E /* WatchRoundView.swift */; };
 		5E592BAA75C575F2F0BFD020 /* RoundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F8BC39497B60789363C132 /* RoundStore.swift */; };
 		6691730BA3E012856A1A12FA /* RoundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AC2F5E7230D396041E3CAB7 /* RoundTests.swift */; };
 		6D63D32A9A575C9EDD8974CA /* RoundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F8BC39497B60789363C132 /* RoundStore.swift */; };
 		745AE2230C2F35DE5E0A7AD9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE42B08F3B35F014850DD21 /* ContentView.swift */; };
+		87834DCFAE927ABDA8F00DC7 /* RoundFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1BF43B5F730DE18DE2B3162 /* RoundFlowUITests.swift */; };
 		896E0F7D52604356D5EC58EB /* DistanceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */; };
 		97FA5937CA3D8E8AEDD5C53D /* BallMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F25462C700858533535F00 /* BallMark.swift */; };
+		9AA63CC294799AD309EA65FE /* test-locations.csv in Resources */ = {isa = PBXBuildFile; fileRef = F556F18DC4DAA2E2CADE824D /* test-locations.csv */; };
 		9CAC63047C39B1DAE85B58E7 /* BallMarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2853A17F0D32E041FB6FEFB8 /* BallMarkTests.swift */; };
 		A27CF4EE76E6FF0EC13A45F3 /* PhoneSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AF6E13B4B912611DD9ED42 /* PhoneSyncService.swift */; };
 		A44DEEC385E6B958FA53D024 /* RoundStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DD894F03B7D16955567FDAE /* RoundStoreTests.swift */; };
 		AB7C4A9138D8D56511692B5C /* DistanceCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */; };
 		AD29E5E4EFF2CE1CF39EC9A4 /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82058F867199D494A9640C07 /* Round.swift */; };
+		AEE8BA47EBEF188EACA9129C /* LocationTestHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A8EC02B40588235DD6D1CA /* LocationTestHelper.swift */; };
 		B390E081D386C8B608ADDCA4 /* SpotGolfWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */; };
 		D48D19FD18024D7985415B24 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16D85309159B892BBC7B31A /* LocationManager.swift */; };
+		DF20170F66E95BC5CAB9ECE5 /* WatchRoundFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AD496DE59E75060B4A7BD23 /* WatchRoundFlowUITests.swift */; };
 		E5CBF3D5673C328548E5F125 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */; };
 		E98CC4FEB4824C1E7E74C7A0 /* BallMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F25462C700858533535F00 /* BallMark.swift */; };
 		EA3D7682FBE3321CEA0CB897 /* RoundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F8BC39497B60789363C132 /* RoundStore.swift */; };
@@ -40,6 +46,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		5D843CFA7D882C2F56843143 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2FCEF18B560BCC55F691785D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C73A2FC36FDD2ECE1A1A6255;
+			remoteInfo = SpotGolfWatch;
+		};
+		7C2AC8CAADE69B7B36369B12 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2FCEF18B560BCC55F691785D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 98D032A3E44A652D535A3D35;
+			remoteInfo = SpotGolf;
+		};
 		F579D91479B46B076C3A315B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2FCEF18B560BCC55F691785D /* Project object */;
@@ -54,6 +74,7 @@
 		35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
 		364128AB03054E09B6897A8F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
+		3DEAF97D211FD5F218896DC3 /* SpotGolfUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SpotGolfUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3E77429E620B540D93B7534B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4AB6D3A47B242A104417810F /* SpotGolfWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotGolfWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		56F25462C700858533535F00 /* BallMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallMark.swift; sourceTree = "<group>"; };
@@ -63,6 +84,7 @@
 		67AF6E13B4B912611DD9ED42 /* PhoneSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSyncService.swift; sourceTree = "<group>"; };
 		76B7DFC806512F8D9C7DA87E /* WatchRoundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRoundView.swift; sourceTree = "<group>"; };
 		7AC2F5E7230D396041E3CAB7 /* RoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundTests.swift; sourceTree = "<group>"; };
+		7AD496DE59E75060B4A7BD23 /* WatchRoundFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRoundFlowUITests.swift; sourceTree = "<group>"; };
 		7BD311E14D2615D816E4995A /* SpotGolf.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotGolf.entitlements; sourceTree = "<group>"; };
 		7DD894F03B7D16955567FDAE /* RoundStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundStoreTests.swift; sourceTree = "<group>"; };
 		82058F867199D494A9640C07 /* Round.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Round.swift; sourceTree = "<group>"; };
@@ -70,12 +92,16 @@
 		9DE42B08F3B35F014850DD21 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotGolfApp.swift; sourceTree = "<group>"; };
 		A3F18E36C3FB3746F7B72637 /* DistanceCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceCalculatorTests.swift; sourceTree = "<group>"; };
+		A8A8EC02B40588235DD6D1CA /* LocationTestHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTestHelper.swift; sourceTree = "<group>"; };
 		AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundMapView.swift; sourceTree = "<group>"; };
 		B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceCalculator.swift; sourceTree = "<group>"; };
 		BABE0F172218DDDE62CCC5B5 /* WatchSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncService.swift; sourceTree = "<group>"; };
 		C16D85309159B892BBC7B31A /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotGolfWatchApp.swift; sourceTree = "<group>"; };
 		C3F8BC39497B60789363C132 /* RoundStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundStore.swift; sourceTree = "<group>"; };
+		DA4CD05137B26E9139031DBD /* SpotGolfWatchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SpotGolfWatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E1BF43B5F730DE18DE2B3162 /* RoundFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundFlowUITests.swift; sourceTree = "<group>"; };
+		F556F18DC4DAA2E2CADE824D /* test-locations.csv */ = {isa = PBXFileReference; path = "test-locations.csv"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -96,6 +122,22 @@
 				39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		1D93BC77B1F25865636741E0 /* TestFixtures */ = {
+			isa = PBXGroup;
+			children = (
+				F556F18DC4DAA2E2CADE824D /* test-locations.csv */,
+			);
+			path = TestFixtures;
+			sourceTree = "<group>";
+		};
+		3416D2F3E7AE730110F436D6 /* SpotGolfWatchUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7AD496DE59E75060B4A7BD23 /* WatchRoundFlowUITests.swift */,
+			);
+			path = SpotGolfWatchUITests;
 			sourceTree = "<group>";
 		};
 		35CD162F4F36CC4C838D7C8E /* Views */ = {
@@ -163,6 +205,14 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
+		ADF2683E91CA8F0DFDA18AF0 /* SpotGolfUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E1BF43B5F730DE18DE2B3162 /* RoundFlowUITests.swift */,
+			);
+			path = SpotGolfUITests;
+			sourceTree = "<group>";
+		};
 		B82C9F747CF9E6885A30FED3 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -193,13 +243,25 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		E4CA2E4383F1AD837FFDD1D0 /* TestHelpers */ = {
+			isa = PBXGroup;
+			children = (
+				A8A8EC02B40588235DD6D1CA /* LocationTestHelper.swift */,
+			);
+			path = TestHelpers;
+			sourceTree = "<group>";
+		};
 		E58444F88C669B23DB2A04EC = {
 			isa = PBXGroup;
 			children = (
 				98F82F44F9EB2CB5C96AB01C /* Shared */,
 				C55CD85228F9EBC5C68972B1 /* SpotGolf */,
 				FE4DF971E9D7159DAEDAA543 /* SpotGolfTests */,
+				ADF2683E91CA8F0DFDA18AF0 /* SpotGolfUITests */,
 				960C29F752AF2CCE36485225 /* SpotGolfWatch */,
+				3416D2F3E7AE730110F436D6 /* SpotGolfWatchUITests */,
+				1D93BC77B1F25865636741E0 /* TestFixtures */,
+				E4CA2E4383F1AD837FFDD1D0 /* TestHelpers */,
 				06ABF6538CB9130D7E1649B1 /* Frameworks */,
 				F52E864CA9EE544E2734756D /* Products */,
 			);
@@ -210,7 +272,9 @@
 			children = (
 				64CFC1E0B3C3EAEDD25CE3ED /* SpotGolf.app */,
 				5BF540A02B7514AD14D4031D /* SpotGolfTests.xctest */,
+				3DEAF97D211FD5F218896DC3 /* SpotGolfUITests.xctest */,
 				4AB6D3A47B242A104417810F /* SpotGolfWatch.app */,
+				DA4CD05137B26E9139031DBD /* SpotGolfWatchUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -229,6 +293,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		91A18933F7416EEE37CF4F5D /* SpotGolfWatchUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2B7BC0F7006EA0E78EC1F1D1 /* Build configuration list for PBXNativeTarget "SpotGolfWatchUITests" */;
+			buildPhases = (
+				66DB4FBACBB86EC535BDAF7F /* Sources */,
+				604AC7ED07DF033157BA2951 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5748356DFE8EBA7EF2953B29 /* PBXTargetDependency */,
+			);
+			name = SpotGolfWatchUITests;
+			packageProductDependencies = (
+			);
+			productName = SpotGolfWatchUITests;
+			productReference = DA4CD05137B26E9139031DBD /* SpotGolfWatchUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		98D032A3E44A652D535A3D35 /* SpotGolf */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 179BCDD16B571EDEE6898B19 /* Build configuration list for PBXNativeTarget "SpotGolf" */;
@@ -246,6 +329,25 @@
 			productName = SpotGolf;
 			productReference = 64CFC1E0B3C3EAEDD25CE3ED /* SpotGolf.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A19261E9FA9C0E50AEB4BF08 /* SpotGolfUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55C692F42C7E0F8AFFF4A296 /* Build configuration list for PBXNativeTarget "SpotGolfUITests" */;
+			buildPhases = (
+				CF6927E62AA3D1D3A3FF33EB /* Sources */,
+				7471026CB416673E6ACC99FB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EC3668FACF2D52D374721207 /* PBXTargetDependency */,
+			);
+			name = SpotGolfUITests;
+			packageProductDependencies = (
+			);
+			productName = SpotGolfUITests;
+			productReference = 3DEAF97D211FD5F218896DC3 /* SpotGolfUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		B1FDABCD1238DF24E9166580 /* SpotGolfTests */ = {
 			isa = PBXNativeTarget;
@@ -292,6 +394,14 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					91A18933F7416EEE37CF4F5D = {
+						TestTargetID = C73A2FC36FDD2ECE1A1A6255;
+					};
+					A19261E9FA9C0E50AEB4BF08 = {
+						TestTargetID = 98D032A3E44A652D535A3D35;
+					};
+				};
 			};
 			buildConfigurationList = D1DF361EB6E8FF6C8219D2E0 /* Build configuration list for PBXProject "SpotGolf" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -309,12 +419,30 @@
 			targets = (
 				98D032A3E44A652D535A3D35 /* SpotGolf */,
 				B1FDABCD1238DF24E9166580 /* SpotGolfTests */,
+				A19261E9FA9C0E50AEB4BF08 /* SpotGolfUITests */,
 				C73A2FC36FDD2ECE1A1A6255 /* SpotGolfWatch */,
+				91A18933F7416EEE37CF4F5D /* SpotGolfWatchUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		604AC7ED07DF033157BA2951 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5441B38F32881D45FFBBDBFA /* test-locations.csv in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7471026CB416673E6ACC99FB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9AA63CC294799AD309EA65FE /* test-locations.csv in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9A362A9F96A1BDF28BCAF4EB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -334,6 +462,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		66DB4FBACBB86EC535BDAF7F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2BD0DC48C3D34E8A43F37C42 /* LocationTestHelper.swift in Sources */,
+				DF20170F66E95BC5CAB9ECE5 /* WatchRoundFlowUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AB1EB4369F6C1AEFAAA071D0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -347,6 +484,15 @@
 				6D63D32A9A575C9EDD8974CA /* RoundStore.swift in Sources */,
 				A44DEEC385E6B958FA53D024 /* RoundStoreTests.swift in Sources */,
 				6691730BA3E012856A1A12FA /* RoundTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CF6927E62AA3D1D3A3FF33EB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEE8BA47EBEF188EACA9129C /* LocationTestHelper.swift in Sources */,
+				87834DCFAE927ABDA8F00DC7 /* RoundFlowUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -385,14 +531,61 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		5748356DFE8EBA7EF2953B29 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C73A2FC36FDD2ECE1A1A6255 /* SpotGolfWatch */;
+			targetProxy = 5D843CFA7D882C2F56843143 /* PBXContainerItemProxy */;
+		};
 		9573E18DF15CC8E9886D13C8 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 98D032A3E44A652D535A3D35 /* SpotGolf */;
 			targetProxy = F579D91479B46B076C3A315B /* PBXContainerItemProxy */;
 		};
+		EC3668FACF2D52D374721207 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 98D032A3E44A652D535A3D35 /* SpotGolf */;
+			targetProxy = 7C2AC8CAADE69B7B36369B12 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		08203DFB7DC91C3B592ABB5E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolfUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SpotGolf;
+			};
+			name = Release;
+		};
+		1220614FF73E1BB69ED55835 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolfWatchUITests;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = SpotGolfWatch;
+			};
+			name = Release;
+		};
 		16E22256EAA523A4F3BEA0F2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -561,6 +754,25 @@
 			};
 			name = Debug;
 		};
+		B0EE79DCF84CC0418267F008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolfWatchUITests;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = SpotGolfWatch;
+			};
+			name = Debug;
+		};
 		C0664ACA9A7964F2B3A229E1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -610,6 +822,24 @@
 			};
 			name = Release;
 		};
+		FC1A2FB2B910DB584139741B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pontarelli.SpotGolfUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SpotGolf;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -627,6 +857,24 @@
 			buildConfigurations = (
 				7DB58180118C6435996CAA49 /* Debug */,
 				C0664ACA9A7964F2B3A229E1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2B7BC0F7006EA0E78EC1F1D1 /* Build configuration list for PBXNativeTarget "SpotGolfWatchUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B0EE79DCF84CC0418267F008 /* Debug */,
+				1220614FF73E1BB69ED55835 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		55C692F42C7E0F8AFFF4A296 /* Build configuration list for PBXNativeTarget "SpotGolfUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC1A2FB2B910DB584139741B /* Debug */,
+				08203DFB7DC91C3B592ABB5E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

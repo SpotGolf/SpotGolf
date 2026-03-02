@@ -31,7 +31,7 @@ struct RoundMapView: View {
             if let location = locationManager.lastLocation {
                 position = .camera(MapCamera(
                     centerCoordinate: location.coordinate,
-                    distance: 500
+                    distance: 150
                 ))
             }
         }

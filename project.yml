@@ -12,14 +12,20 @@ schemes:
       targets:
         SpotGolf: all
         SpotGolfTests: [test]
+        SpotGolfUITests: [test]
     test:
       targets:
         - SpotGolfTests
+        - SpotGolfUITests
 
   SpotGolfWatch:
     build:
       targets:
         SpotGolfWatch: all
+        SpotGolfWatchUITests: [test]
+    test:
+      targets:
+        - SpotGolfWatchUITests
 
 targets:
   SpotGolf:
@@ -84,3 +90,35 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SpotGolf
+
+  SpotGolfUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SpotGolfUITests
+      - path: TestHelpers
+      - path: TestFixtures/test-locations.csv
+        buildPhase: resources
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: SpotGolf
+    dependencies:
+      - target: SpotGolf
+
+  SpotGolfWatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources:
+      - path: SpotGolfWatchUITests
+      - path: TestHelpers
+      - path: TestFixtures/test-locations.csv
+        buildPhase: resources
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: SpotGolfWatch
+    dependencies:
+      - target: SpotGolfWatch

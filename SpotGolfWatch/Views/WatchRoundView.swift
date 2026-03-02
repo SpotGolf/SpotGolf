@@ -72,7 +72,7 @@ struct WatchRoundView: View {
 
     private func startDistanceTimer() {
         stopDistanceTimer()
-        updateLiveDistance()
+        liveDistance = "0 yds"
         distanceTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
             Task { @MainActor in
                 updateLiveDistance()

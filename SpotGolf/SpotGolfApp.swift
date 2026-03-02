@@ -12,6 +12,9 @@ struct SpotGolfApp: App {
                 .environmentObject(roundStore)
                 .environmentObject(locationManager)
                 .onAppear {
+                    if CommandLine.arguments.contains("--ui-testing") {
+                        roundStore.rounds = []
+                    }
                     watchSync.roundStore = roundStore
                     locationManager.requestPermission()
                 }

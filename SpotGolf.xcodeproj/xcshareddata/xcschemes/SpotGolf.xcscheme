@@ -35,6 +35,20 @@
                ReferencedContainer = "container:SpotGolf.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A19261E9FA9C0E50AEB4BF08"
+               BuildableName = "SpotGolfUITests.xctest"
+               BlueprintName = "SpotGolfUITests"
+               ReferencedContainer = "container:SpotGolf.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -61,6 +75,17 @@
                BlueprintIdentifier = "B1FDABCD1238DF24E9166580"
                BuildableName = "SpotGolfTests.xctest"
                BlueprintName = "SpotGolfTests"
+               ReferencedContainer = "container:SpotGolf.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A19261E9FA9C0E50AEB4BF08"
+               BuildableName = "SpotGolfUITests.xctest"
+               BlueprintName = "SpotGolfUITests"
                ReferencedContainer = "container:SpotGolf.xcodeproj">
             </BuildableReference>
          </TestableReference>
