@@ -2,12 +2,13 @@ import SwiftUI
 import MapKit
 
 struct RoundMapView: View {
+    private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
+
     let round: Round
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
 
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
-    @State private var didSetInitialZoom = false
     @State private var selectedMark: BallMark?
     @State private var showDeleteConfirm = false
     @State private var draggingMark: BallMark?
@@ -29,13 +30,14 @@ struct RoundMapView: View {
             spotEditSheet
         }
         .onAppear {
-            locationManager.requestLocation()
+            locationManager.startUpdating()
+        }
+        .onDisappear {
+            locationManager.stopUpdating()
         }
         .onReceive(locationManager.$lastLocation) { location in
-            guard !didSetInitialZoom, let location else { return }
-            didSetInitialZoom = true
-            let span = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
-            position = .region(MKCoordinateRegion(center: location.coordinate, span: span))
+            guard let location else { return }
+            position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
         }
         .alert("Delete Spot", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -181,8 +183,7 @@ struct RoundMapView: View {
                 .overlay(alignment: .leading) {
                     Button {
                         if let location = locationManager.lastLocation {
-                            let span = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
-                            position = .region(MKCoordinateRegion(center: location.coordinate, span: span))
+                            position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
                         }
                     } label: {
                         Image(systemName: "location.fill")
@@ -235,11 +236,8 @@ struct RoundMapView: View {
     }
 
     private func markBall() {
-        locationManager.requestLocation()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            guard let location = locationManager.lastLocation else { return }
-            let mark = BallMark(coordinate: location.coordinate)
-            roundStore.addMark(mark)
-        }
+        guard let location = locationManager.lastLocation else { return }
+        let mark = BallMark(coordinate: location.coordinate)
+        roundStore.addMark(mark)
     }
 }

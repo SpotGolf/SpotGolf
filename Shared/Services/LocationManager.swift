@@ -21,6 +21,14 @@ class LocationManager: NSObject, ObservableObject {
     func requestLocation() {
         manager.requestLocation()
     }
+
+    func startUpdating() {
+        manager.startUpdatingLocation()
+    }
+
+    func stopUpdating() {
+        manager.stopUpdatingLocation()
+    }
 }
 
 extension LocationManager: @preconcurrency CLLocationManagerDelegate {
