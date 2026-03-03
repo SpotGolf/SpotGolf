@@ -1,0 +1,122 @@
+import Foundation
+import CoreLocation
+
+@MainActor
+class RoundStore: ObservableObject {
+    @Published var rounds: [Round] = []
+
+    var onSyncEvent: ((SyncMessage) -> Void)?
+
+    var activeRound: Round? {
+        rounds.first(where: { $0.isActive })
+    }
+
+    private var fileURL: URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("rounds.json")
+    }
+
+    init() {
+        load()
+    }
+
+    func startRound(id: UUID = UUID(), date: Date = Date(), fromSync: Bool = false) {
+        // End any existing active round
+        if let index = rounds.firstIndex(where: { $0.isActive }) {
+            rounds[index].end()
+        }
+        let round = Round(id: id, date: date)
+        rounds.insert(round, at: 0)
+        save()
+        if !fromSync {
+            onSyncEvent?(.startRound(id, date))
+        }
+    }
+
+    func endRound(roundID: UUID? = nil, fromSync: Bool = false) {
+        let predicate: (Round) -> Bool = if let roundID {
+            { $0.id == roundID }
+        } else {
+            { $0.isActive }
+        }
+        if let index = rounds.firstIndex(where: predicate) {
+            let id = rounds[index].id
+            rounds[index].end()
+            save()
+            if !fromSync {
+                onSyncEvent?(.endRound(id))
+            }
+        }
+    }
+
+    func addMark(_ mark: BallMark, fromSync: Bool = false) {
+        if let index = rounds.firstIndex(where: { $0.isActive }) {
+            let roundID = rounds[index].id
+            rounds[index].addMark(mark)
+            save()
+            if !fromSync {
+                onSyncEvent?(.addMark(mark, roundID))
+            }
+        }
+    }
+
+    func addMark(to roundID: UUID, mark: BallMark, fromSync: Bool = false) {
+        if let index = rounds.firstIndex(where: { $0.id == roundID }) {
+            rounds[index].addMark(mark)
+            save()
+            if !fromSync {
+                onSyncEvent?(.addMark(mark, roundID))
+            }
+        }
+    }
+
+    func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
+        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
+           let markIndex = rounds[roundIndex].marks.firstIndex(where: { $0.id == mark.id }) {
+            let updated = BallMark(id: mark.id, coordinate: coordinate, timestamp: mark.timestamp)
+            rounds[roundIndex].marks[markIndex] = updated
+            save()
+        }
+    }
+
+    func reorderMark(_ mark: BallMark, to newIndex: Int, in roundID: UUID) {
+        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
+           let markIndex = rounds[roundIndex].marks.firstIndex(where: { $0.id == mark.id }) {
+            let clamped = min(max(newIndex, 0), rounds[roundIndex].marks.count - 1)
+            let removed = rounds[roundIndex].marks.remove(at: markIndex)
+            rounds[roundIndex].marks.insert(removed, at: clamped)
+            save()
+        }
+    }
+
+    func removeMark(_ mark: BallMark, from roundID: UUID) {
+        if let index = rounds.firstIndex(where: { $0.id == roundID }) {
+            rounds[index].marks.removeAll { $0.id == mark.id }
+            save()
+        }
+    }
+
+    func deleteRound(_ round: Round) {
+        rounds.removeAll { $0.id == round.id }
+        save()
+    }
+
+    private func load() {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            rounds = try JSONDecoder().decode([Round].self, from: data)
+        } catch {
+            print("Failed to load rounds: \(error)")
+        }
+    }
+
+    private func save() {
+        do {
+            let data = try JSONEncoder().encode(rounds)
+            try data.write(to: fileURL)
+        } catch {
+            print("Failed to save rounds: \(error)")
+        }
+    }
+}
