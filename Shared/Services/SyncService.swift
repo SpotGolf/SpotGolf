@@ -56,6 +56,16 @@ class SyncService: NSObject, ObservableObject {
                 "roundId": roundID.uuidString,
                 "mark": data
             ]
+        case .nextHole(let id):
+            payload = [
+                "type": "nextHole",
+                "id": id.uuidString
+            ]
+        case .previousHole(let id):
+            payload = [
+                "type": "previousHole",
+                "id": id.uuidString
+            ]
         }
 
         if session.isReachable {
@@ -89,6 +99,16 @@ class SyncService: NSObject, ObservableObject {
                   let roundID = UUID(uuidString: idString),
                   let mark = try? JSONDecoder().decode(BallMark.self, from: data) else { return }
             roundStore?.addMark(to: roundID, mark: mark, fromSync: true)
+
+        case "nextHole":
+            guard let idString = message["id"] as? String,
+                  let _ = UUID(uuidString: idString) else { return }
+            roundStore?.nextHole(fromSync: true)
+
+        case "previousHole":
+            guard let idString = message["id"] as? String,
+                  let _ = UUID(uuidString: idString) else { return }
+            roundStore?.previousHole(fromSync: true)
 
         default:
             break

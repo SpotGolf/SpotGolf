@@ -222,6 +222,76 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertTrue(syncMessages.isEmpty)
     }
 
+    // MARK: - nextHole / previousHole
+
+    func testNextHole() {
+        store.startRound()
+        syncMessages.removeAll()
+
+        store.nextHole()
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
+        XCTAssertEqual(store.rounds[0].holes.count, 2)
+    }
+
+    func testNextHoleFiresSyncEvent() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        syncMessages.removeAll()
+
+        store.nextHole()
+
+        XCTAssertEqual(syncMessages.count, 1)
+        if case .nextHole(let syncedID) = syncMessages[0] {
+            XCTAssertEqual(syncedID, roundID)
+        } else {
+            XCTFail("Expected nextHole sync message")
+        }
+    }
+
+    func testNextHoleFromSyncDoesNotFireSyncEvent() {
+        store.startRound(fromSync: true)
+
+        store.nextHole(fromSync: true)
+
+        XCTAssertTrue(syncMessages.isEmpty)
+    }
+
+    func testPreviousHole() {
+        store.startRound()
+        store.nextHole(fromSync: true)
+        syncMessages.removeAll()
+
+        store.previousHole()
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
+    func testPreviousHoleFiresSyncEvent() {
+        store.startRound()
+        store.nextHole(fromSync: true)
+        let roundID = store.rounds[0].id
+        syncMessages.removeAll()
+
+        store.previousHole()
+
+        XCTAssertEqual(syncMessages.count, 1)
+        if case .previousHole(let syncedID) = syncMessages[0] {
+            XCTAssertEqual(syncedID, roundID)
+        } else {
+            XCTFail("Expected previousHole sync message")
+        }
+    }
+
+    func testPreviousHoleFromSyncDoesNotFireSyncEvent() {
+        store.startRound(fromSync: true)
+        store.nextHole(fromSync: true)
+
+        store.previousHole(fromSync: true)
+
+        XCTAssertTrue(syncMessages.isEmpty)
+    }
+
     // MARK: - moveMark
 
     func testMoveMark() {
@@ -249,6 +319,20 @@ final class RoundStoreTests: XCTestCase {
         store.moveMark(mark, to: newCoord, in: roundID)
 
         XCTAssertEqual(store.rounds[0].marks[0].timestamp, mark.timestamp)
+    }
+
+    func testMoveMarkAcrossHoles() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+        store.nextHole(fromSync: true)
+
+        // Mark is in hole 0, but we're on hole 1 — should still find it
+        let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
+        store.moveMark(mark, to: newCoord, in: roundID)
+
+        XCTAssertEqual(store.rounds[0].holes[0].marks[0].latitude, 34.0)
     }
 
     // MARK: - reorderMark
@@ -324,6 +408,19 @@ final class RoundStoreTests: XCTestCase {
 
         XCTAssertEqual(store.rounds[0].marks.count, 1)
         XCTAssertEqual(store.rounds[0].marks[0].id, mark2.id)
+    }
+
+    func testRemoveMarkAcrossHoles() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+        store.nextHole(fromSync: true)
+
+        // Mark is in hole 0, we're on hole 1
+        store.removeMark(mark, from: roundID)
+
+        XCTAssertTrue(store.rounds[0].holes[0].marks.isEmpty)
     }
 
     // MARK: - deleteRound

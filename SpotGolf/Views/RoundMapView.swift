@@ -75,11 +75,13 @@ struct RoundMapView: View {
     }
 
     private func mapView(_ round: Round) -> some View {
-        MapReader { proxy in
+        let marksToShow = round.isActive ? round.marks : round.allMarks
+        return MapReader { proxy in
             Map(position: $position) {
-                ForEach(Array(round.marks.enumerated()), id: \.element.id) { index, mark in
+                ForEach(Array(marksToShow.enumerated()), id: \.element.id) { index, mark in
+                    let displayIndex = round.isActive ? index : allMarksDisplayIndex(mark: mark, round: round)
                     Annotation("", coordinate: mark.coordinate) {
-                        spotMarker(index: index, mark: mark, round: round, proxy: proxy)
+                        spotMarker(index: displayIndex, mark: mark, round: round, proxy: proxy)
                     }
                 }
                 UserAnnotation()
@@ -113,6 +115,13 @@ struct RoundMapView: View {
         }
     }
 
+    /// For past rounds, compute the 1-based index within the mark's own hole.
+    private func allMarksDisplayIndex(mark: BallMark, round: Round) -> Int {
+        guard let holeIdx = round.holeIndex(containing: mark.id) else { return 0 }
+        let hole = round.holes[holeIdx]
+        return hole.marks.firstIndex(where: { $0.id == mark.id }) ?? 0
+    }
+
     private func spotMarker(index: Int, mark: BallMark, round: Round, proxy: MapProxy) -> some View {
         let isDragging = draggingMark?.id == mark.id
         return Circle()
@@ -127,8 +136,11 @@ struct RoundMapView: View {
             .shadow(radius: isDragging ? 4 : 2)
             .offset(isDragging ? dragOffset : .zero)
             .onTapGesture {
-                if let index = round.marks.firstIndex(where: { $0.id == mark.id }) {
-                    newSpotIndex = index
+                if let holeIdx = round.holeIndex(containing: mark.id) {
+                    let hole = round.holes[holeIdx]
+                    if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
+                        newSpotIndex = markIdx
+                    }
                 }
                 selectedMark = mark
             }
@@ -169,21 +181,24 @@ struct RoundMapView: View {
             statsBar(round)
             Spacer()
             if round.isActive {
-                buttonBar
+                buttonBar(round)
             }
         }
     }
 
     @ViewBuilder
     private func statsBar(_ round: Round) -> some View {
-        if !round.marks.isEmpty {
+        if !round.marks.isEmpty || round.holes.count > 1 {
             VStack(alignment: .leading, spacing: 4) {
+                Text("Hole \(round.currentHoleNumber)")
+                    .font(.headline)
+                    .accessibilityIdentifier("Hole \(round.currentHoleNumber)")
                 if let lastMark = round.marks.last,
                    let location = locationManager.lastLocation {
                     Text("Previous: \(DistanceCalculator.formattedYards(from: location, to: lastMark.location))")
                         .font(.headline)
                 }
-                Text("Strokes: \(max(round.marks.count - 1, 0))")
+                Text("Strokes: \(round.currentHole.strokeCount)")
                     .font(.headline)
             }
             .padding(.horizontal, 16)
@@ -193,45 +208,81 @@ struct RoundMapView: View {
         }
     }
 
-    private var buttonBar: some View {
-        HStack {
-            Spacer()
-
-            Button(action: markBall) {
-                Label("At my ball", systemImage: "mappin.and.ellipse")
-                    .font(.headline)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 14)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-
-            Spacer()
-                .overlay(alignment: .leading) {
-                    Button {
-                        followsUserLocation = true
-                        if let location = locationManager.lastLocation {
-                            position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
-                        }
-                    } label: {
-                        Image(systemName: followsUserLocation ? "location.fill" : "location")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                            .padding(14)
-                            .background(.thickMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                    }
-                    .padding(.leading, 16)
+    private func buttonBar(_ round: Round) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 16) {
+                Button {
+                    roundStore.previousHole()
+                } label: {
+                    Label("Prev Hole", systemImage: "chevron.left")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
                 }
+                .buttonStyle(.bordered)
+                .disabled(round.currentHoleIndex == 0)
+
+                Button {
+                    roundStore.nextHole()
+                } label: {
+                    Label("Next Hole", systemImage: "chevron.right")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.bordered)
+                .disabled(round.holes.count >= 18 && round.currentHoleIndex == round.holes.count - 1)
+            }
+
+            HStack {
+                Spacer()
+
+                Button(action: markBall) {
+                    Label("At my ball", systemImage: "mappin.and.ellipse")
+                        .font(.headline)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+
+                Spacer()
+                    .overlay(alignment: .leading) {
+                        Button {
+                            followsUserLocation = true
+                            if let location = locationManager.lastLocation {
+                                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                            }
+                        } label: {
+                            Image(systemName: followsUserLocation ? "location.fill" : "location")
+                                .font(.title3)
+                                .foregroundStyle(.blue)
+                                .padding(14)
+                                .background(.thickMaterial)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        }
+                        .padding(.leading, 16)
+                    }
+            }
         }
         .padding(.bottom, 32)
     }
 
     private func spotEditSheet(_ round: Round) -> some View {
-        NavigationStack {
+        let markCount: Int = {
+            guard let mark = selectedMark,
+                  let holeIdx = round.holeIndex(containing: mark.id) else {
+                return round.marks.count
+            }
+            return round.holes[holeIdx].marks.count
+        }()
+
+        return NavigationStack {
             VStack(spacing: 24) {
-                Stepper("Spot: \(newSpotIndex + 1)", value: $newSpotIndex, in: 0...(max(round.marks.count - 1, 0)))
+                Stepper("Spot: \(newSpotIndex + 1)", value: $newSpotIndex, in: 0...(max(markCount - 1, 0)))
                     .font(.title3)
                     .padding(.horizontal)
 

@@ -70,28 +70,53 @@ class RoundStore: ObservableObject {
         }
     }
 
+    func nextHole(fromSync: Bool = false) {
+        if let index = rounds.firstIndex(where: { $0.isActive }) {
+            let roundID = rounds[index].id
+            rounds[index].nextHole()
+            save()
+            if !fromSync {
+                onSyncEvent?(.nextHole(roundID))
+            }
+        }
+    }
+
+    func previousHole(fromSync: Bool = false) {
+        if let index = rounds.firstIndex(where: { $0.isActive }) {
+            let roundID = rounds[index].id
+            rounds[index].previousHole()
+            save()
+            if !fromSync {
+                onSyncEvent?(.previousHole(roundID))
+            }
+        }
+    }
+
     func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
         if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
-           let markIndex = rounds[roundIndex].marks.firstIndex(where: { $0.id == mark.id }) {
+           let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),
+           let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) {
             let updated = BallMark(id: mark.id, coordinate: coordinate, timestamp: mark.timestamp)
-            rounds[roundIndex].marks[markIndex] = updated
+            rounds[roundIndex].holes[holeIndex].marks[markIndex] = updated
             save()
         }
     }
 
     func reorderMark(_ mark: BallMark, to newIndex: Int, in roundID: UUID) {
         if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
-           let markIndex = rounds[roundIndex].marks.firstIndex(where: { $0.id == mark.id }) {
-            let clamped = min(max(newIndex, 0), rounds[roundIndex].marks.count - 1)
-            let removed = rounds[roundIndex].marks.remove(at: markIndex)
-            rounds[roundIndex].marks.insert(removed, at: clamped)
+           let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),
+           let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) {
+            let clamped = min(max(newIndex, 0), rounds[roundIndex].holes[holeIndex].marks.count - 1)
+            let removed = rounds[roundIndex].holes[holeIndex].marks.remove(at: markIndex)
+            rounds[roundIndex].holes[holeIndex].marks.insert(removed, at: clamped)
             save()
         }
     }
 
     func removeMark(_ mark: BallMark, from roundID: UUID) {
-        if let index = rounds.firstIndex(where: { $0.id == roundID }) {
-            rounds[index].marks.removeAll { $0.id == mark.id }
+        if let index = rounds.firstIndex(where: { $0.id == roundID }),
+           let holeIndex = rounds[index].holeIndex(containing: mark.id) {
+            rounds[index].holes[holeIndex].marks.removeAll { $0.id == mark.id }
             save()
         }
     }

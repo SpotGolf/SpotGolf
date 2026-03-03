@@ -8,11 +8,7 @@ struct WatchRoundView: View {
     @State private var showSwingAway = false
     @State private var swingAwayTask: Task<Void, Never>?
 
-    private var liveDistance: String? {
-        guard let location = locationManager.lastLocation,
-              let lastMark = roundStore.activeRound?.marks.last else { return nil }
-        return DistanceCalculator.formattedYards(from: location, to: lastMark.location)
-    }
+    @State private var liveDistance: String?
 
     var body: some View {
         Group {
@@ -22,45 +18,24 @@ struct WatchRoundView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(.green)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let round = roundStore.activeRound {
+                TabView {
+                    playPage(round)
+                    endRoundPage
+                }
+                .tabViewStyle(.page)
             } else {
                 VStack(spacing: 12) {
-                    if let round = roundStore.activeRound {
-                        Text("Previous: \(liveDistance ?? previousDistance(round: round))")
-                            .font(.caption)
-                            .fontWeight(.semibold)
+                    Text("No active round")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
 
-                        Text("Strokes: \(max(round.marks.count - 1, 0))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Button(action: markBall) {
-                            Label("At my ball", systemImage: "mappin.and.ellipse")
-                                .font(.headline)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
-
-                        Button("End Round", role: .destructive) {
-                            locationManager.stopUpdating()
-                            roundStore.endRound()
-                        }
-                        .font(.caption)
-                    } else {
-                        Text("No active round")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-
-                        Button("Start Round") {
-                            roundStore.startRound()
-                            locationManager.startUpdating()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
+                    Button("Start Round") {
+                        roundStore.startRound()
+                        locationManager.startUpdating()
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
                 }
                 .padding()
             }
@@ -74,6 +49,89 @@ struct WatchRoundView: View {
             locationManager.stopUpdating()
             swingAwayTask?.cancel()
         }
+        .onReceive(locationManager.$lastLocation) { _ in
+            updateLiveDistance()
+        }
+        .onReceive(roundStore.$rounds) { _ in
+            updateLiveDistance()
+        }
+    }
+
+    private func playPage(_ round: Round) -> some View {
+        VStack(spacing: 6) {
+            Text("Hole \(round.currentHoleNumber)")
+                .font(.caption)
+                .fontWeight(.semibold)
+
+            Text("Previous: \(liveDistance ?? previousDistance(round: round))")
+                .font(.caption2)
+                .fontWeight(.semibold)
+
+            Text("Strokes: \(round.currentHole.strokeCount)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button(action: markBall) {
+                Label("At my ball", systemImage: "mappin.and.ellipse")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+
+            HStack(spacing: 12) {
+                Button {
+                    roundStore.previousHole()
+                } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left")
+                        Text("Prev")
+                    }
+                }
+                .disabled(round.currentHoleIndex == 0)
+
+                Spacer()
+
+                Button {
+                    roundStore.nextHole()
+                } label: {
+                    HStack(spacing: 2) {
+                        Text("Next")
+                        Image(systemName: "chevron.right")
+                    }
+                }
+                .disabled(round.holes.count >= 18 && round.currentHoleIndex == round.holes.count - 1)
+            }
+            .font(.caption2)
+        }
+        .padding()
+    }
+
+    private var endRoundPage: some View {
+        VStack {
+            Spacer()
+            Button("End Round", role: .destructive) {
+                locationManager.stopUpdating()
+                roundStore.endRound()
+            }
+            .font(.headline)
+            Spacer()
+        }
+        .padding()
+    }
+
+    private func updateLiveDistance() {
+        guard let location = locationManager.lastLocation,
+              let lastMark = roundStore.activeRound?.marks.last else {
+            liveDistance = nil
+            return
+        }
+        liveDistance = DistanceCalculator.formattedYards(from: location, to: lastMark.location)
     }
 
     private func previousDistance(round: Round) -> String {
@@ -93,7 +151,7 @@ struct WatchRoundView: View {
 
         showSwingAway = true
         swingAwayTask = Task {
-            try? await Task.sleep(for: .seconds(15))
+            try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
             showSwingAway = false
         }

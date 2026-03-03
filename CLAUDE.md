@@ -9,3 +9,7 @@ SpotGolf - A simple golf ball tracking app for iOS and watchOS. The core feature
 ## Status
 
 New project, not yet scaffolded.
+
+## Workflow
+
+- All new features must be developed on a new branch (e.g., `feature/<name>`). Never commit feature work directly to `main`.

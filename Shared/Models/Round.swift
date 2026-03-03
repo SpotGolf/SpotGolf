@@ -1,15 +1,25 @@
 import Foundation
 
-struct Round: Identifiable, Codable, Equatable {
+struct Round: Identifiable {
     let id: UUID
     let date: Date
-    var marks: [BallMark]
+    var holes: [Hole]
+    var currentHoleIndex: Int
     var isActive: Bool
 
-    init(id: UUID = UUID(), date: Date = Date(), marks: [BallMark] = [], isActive: Bool = true) {
+    static func == (lhs: Round, rhs: Round) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.date == rhs.date &&
+        lhs.holes == rhs.holes &&
+        lhs.currentHoleIndex == rhs.currentHoleIndex &&
+        lhs.isActive == rhs.isActive
+    }
+
+    init(id: UUID = UUID(), date: Date = Date(), holes: [Hole] = [Hole()], currentHoleIndex: Int = 0, isActive: Bool = true) {
         self.id = id
         self.date = date
-        self.marks = marks
+        self.holes = holes
+        self.currentHoleIndex = currentHoleIndex
         self.isActive = isActive
     }
 
@@ -17,11 +27,86 @@ struct Round: Identifiable, Codable, Equatable {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    var currentHole: Hole {
+        holes[currentHoleIndex]
+    }
+
+    var currentHoleNumber: Int {
+        currentHoleIndex + 1
+    }
+
+    /// Marks for the current hole — preserves existing call sites.
+    var marks: [BallMark] {
+        holes[currentHoleIndex].marks
+    }
+
+    /// All marks across all holes.
+    var allMarks: [BallMark] {
+        holes.flatMap { $0.marks }
+    }
+
     mutating func addMark(_ mark: BallMark) {
-        marks.append(mark)
+        holes[currentHoleIndex].marks.append(mark)
+    }
+
+    mutating func nextHole() {
+        if currentHoleIndex == holes.count - 1 {
+            guard holes.count < 18 else { return }
+            holes.append(Hole())
+        }
+        currentHoleIndex += 1
+    }
+
+    mutating func previousHole() {
+        guard currentHoleIndex > 0 else { return }
+        currentHoleIndex -= 1
     }
 
     mutating func end() {
         isActive = false
+    }
+
+    /// Find which hole contains a given mark by ID.
+    func holeIndex(containing markID: UUID) -> Int? {
+        holes.firstIndex(where: { hole in
+            hole.marks.contains(where: { $0.id == markID })
+        })
+    }
+}
+
+// MARK: - Equatable & Codable
+
+extension Round: Equatable {}
+
+extension Round: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, date, holes, currentHoleIndex, isActive
+        case marks // legacy key
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+
+        if let holes = try container.decodeIfPresent([Hole].self, forKey: .holes) {
+            self.holes = holes
+            self.currentHoleIndex = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
+        } else {
+            // Legacy format: flat marks array → single hole
+            let marks = try container.decodeIfPresent([BallMark].self, forKey: .marks) ?? []
+            self.holes = [Hole(marks: marks)]
+            self.currentHoleIndex = 0
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(date, forKey: .date)
+        try container.encode(holes, forKey: .holes)
+        try container.encode(currentHoleIndex, forKey: .currentHoleIndex)
+        try container.encode(isActive, forKey: .isActive)
     }
 }

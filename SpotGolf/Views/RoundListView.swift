@@ -56,7 +56,7 @@ private struct RoundRow: View {
             VStack(alignment: .leading) {
                 Text(round.formattedDate)
                     .font(.headline)
-                Text("\(round.marks.count) mark\(round.marks.count == 1 ? "" : "s")")
+                Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

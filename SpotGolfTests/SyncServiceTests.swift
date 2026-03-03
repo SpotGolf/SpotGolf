@@ -190,6 +190,80 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertTrue(store.rounds[0].marks.isEmpty)
     }
 
+    // MARK: - nextHole message
+
+    func testHandleNextHoleMessage() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "nextHole",
+            "id": roundID.uuidString
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
+        XCTAssertEqual(store.rounds[0].holes.count, 2)
+    }
+
+    func testHandleNextHoleWithInvalidIDIsIgnored() {
+        store.startRound(fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "nextHole",
+            "id": "not-a-uuid"
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
+    func testHandleNextHoleWithMissingIDIsIgnored() {
+        store.startRound(fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "nextHole"
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
+    // MARK: - previousHole message
+
+    func testHandlePreviousHoleMessage() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        store.nextHole(fromSync: true)
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
+
+        let message: [String: Any] = [
+            "type": "previousHole",
+            "id": roundID.uuidString
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
+    func testHandlePreviousHoleWithInvalidIDIsIgnored() {
+        store.startRound(fromSync: true)
+        store.nextHole(fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "previousHole",
+            "id": "not-a-uuid"
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
+    }
+
     // MARK: - Unknown and empty messages
 
     func testHandleUnknownTypeIsIgnored() {
