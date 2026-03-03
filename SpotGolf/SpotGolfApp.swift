@@ -4,7 +4,7 @@ import SwiftUI
 struct SpotGolfApp: App {
     @StateObject private var roundStore = RoundStore()
     @StateObject private var locationManager = LocationManager()
-    @StateObject private var watchSync = WatchSyncService()
+    @StateObject private var syncService = SyncService()
 
     var body: some Scene {
         WindowGroup {
@@ -15,7 +15,7 @@ struct SpotGolfApp: App {
                     if CommandLine.arguments.contains("--ui-testing") {
                         roundStore.rounds = []
                     }
-                    watchSync.roundStore = roundStore
+                    syncService.roundStore = roundStore
                     locationManager.requestPermission()
                 }
         }

@@ -1,6 +1,6 @@
 import Foundation
 
-struct Round: Identifiable, Codable {
+struct Round: Identifiable, Codable, Equatable {
     let id: UUID
     let date: Date
     var marks: [BallMark]

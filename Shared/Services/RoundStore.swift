@@ -1,12 +1,6 @@
 import Foundation
 import CoreLocation
 
-enum SyncMessage {
-    case startRound(UUID, Date)
-    case endRound(UUID)
-    case addMark(BallMark, UUID)
-}
-
 @MainActor
 class RoundStore: ObservableObject {
     @Published var rounds: [Round] = []

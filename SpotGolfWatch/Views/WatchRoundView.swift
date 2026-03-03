@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import CoreLocation
 
 struct WatchRoundView: View {
@@ -6,8 +7,18 @@ struct WatchRoundView: View {
     @EnvironmentObject var locationManager: LocationManager
 
     @State private var showSwingAway = false
-    @State private var liveDistance: String?
-    @State private var distanceTimer: Timer?
+    @State private var pendingMark = false
+    @State private var distanceTimerActive = false
+    @State private var swingAwayTask: Task<Void, Never>?
+
+    private var liveDistance: String? {
+        guard let location = locationManager.lastLocation,
+              let lastMark = roundStore.activeRound?.marks.last else { return nil }
+        return DistanceCalculator.formattedYards(from: location, to: lastMark.location)
+    }
+
+    private let distanceTimerPublisher = Timer.publish(every: 10, on: .main, in: .common)
+    @State private var distanceTimerCancellable: Cancellable?
 
     var body: some View {
         Group {
@@ -38,6 +49,7 @@ struct WatchRoundView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
+                        .disabled(pendingMark)
 
                         Button("End Round", role: .destructive) {
                             stopDistanceTimer()
@@ -59,6 +71,28 @@ struct WatchRoundView: View {
                 .padding()
             }
         }
+        .onReceive(locationManager.$lastLocation) { newLocation in
+            guard pendingMark, let location = newLocation else { return }
+            pendingMark = false
+            let mark = BallMark(coordinate: location.coordinate)
+            roundStore.addMark(mark)
+
+            showSwingAway = true
+            swingAwayTask = Task {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { return }
+                showSwingAway = false
+                startDistanceTimer()
+            }
+        }
+        .onReceive(distanceTimerPublisher) { _ in
+            guard distanceTimerActive else { return }
+            locationManager.requestLocation()
+        }
+        .onDisappear {
+            stopDistanceTimer()
+            swingAwayTask?.cancel()
+        }
     }
 
     private func previousDistance(round: Round) -> String {
@@ -71,45 +105,21 @@ struct WatchRoundView: View {
     }
 
     private func startDistanceTimer() {
-        stopDistanceTimer()
-        updateLiveDistance()
-        distanceTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
-            Task { @MainActor in
-                updateLiveDistance()
-            }
-        }
+        locationManager.requestLocation()
+        distanceTimerActive = true
+        distanceTimerCancellable = distanceTimerPublisher.connect()
     }
 
     private func stopDistanceTimer() {
-        distanceTimer?.invalidate()
-        distanceTimer = nil
-        liveDistance = nil
-    }
-
-    private func updateLiveDistance() {
-        locationManager.requestLocation()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            guard let location = locationManager.lastLocation,
-                  let lastMark = roundStore.activeRound?.marks.last else { return }
-            let meters = location.distance(from: lastMark.location)
-            let yards = Int(meters * 1.09361)
-            liveDistance = "\(yards) yds"
-        }
+        distanceTimerActive = false
+        distanceTimerCancellable?.cancel()
+        distanceTimerCancellable = nil
     }
 
     private func markBall() {
         stopDistanceTimer()
+        swingAwayTask?.cancel()
+        pendingMark = true
         locationManager.requestLocation()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            guard let location = locationManager.lastLocation else { return }
-            let mark = BallMark(coordinate: location.coordinate)
-            roundStore.addMark(mark)
-
-            showSwingAway = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
-                showSwingAway = false
-                startDistanceTimer()
-            }
-        }
     }
 }

@@ -1,8 +1,11 @@
 import Foundation
 import WatchConnectivity
 
+private let syncDateFormatter = ISO8601DateFormatter()
+
 @MainActor
-class WatchSyncService: NSObject, ObservableObject {
+class SyncService: NSObject, ObservableObject {
+
     var roundStore: RoundStore? {
         didSet { bindSyncHandler() }
     }
@@ -39,7 +42,7 @@ class WatchSyncService: NSObject, ObservableObject {
             payload = [
                 "type": "startRound",
                 "id": id.uuidString,
-                "date": ISO8601DateFormatter().string(from: date)
+                "date": syncDateFormatter.string(from: date)
             ]
         case .endRound(let id):
             payload = [
@@ -57,61 +60,61 @@ class WatchSyncService: NSObject, ObservableObject {
 
         if session.isReachable {
             session.sendMessage(payload, replyHandler: nil) { error in
-                print("Failed to send sync message to watch: \(error)")
+                print("Failed to send sync message: \(error)")
             }
         } else {
             session.transferUserInfo(payload)
         }
     }
+
+    func handleMessage(_ message: [String: Any]) {
+        guard let type = message["type"] as? String else { return }
+
+        switch type {
+        case "startRound":
+            guard let idString = message["id"] as? String,
+                  let id = UUID(uuidString: idString),
+                  let dateString = message["date"] as? String,
+                  let date = syncDateFormatter.date(from: dateString) else { return }
+            roundStore?.startRound(id: id, date: date, fromSync: true)
+
+        case "endRound":
+            guard let idString = message["id"] as? String,
+                  let id = UUID(uuidString: idString) else { return }
+            roundStore?.endRound(roundID: id, fromSync: true)
+
+        case "addMark":
+            guard let data = message["mark"] as? Data,
+                  let idString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: idString),
+                  let mark = try? JSONDecoder().decode(BallMark.self, from: data) else { return }
+            roundStore?.addMark(to: roundID, mark: mark, fromSync: true)
+
+        default:
+            break
+        }
+    }
 }
 
-extension WatchSyncService: @preconcurrency WCSessionDelegate {
+extension SyncService: @preconcurrency WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error {
             print("WCSession activation failed: \(error)")
         }
     }
 
+    #if os(iOS)
     func sessionDidBecomeInactive(_ session: WCSession) {}
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
     }
+    #endif
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        handleMessage(message)
+        Task { @MainActor in self.handleMessage(message) }
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        handleMessage(userInfo)
-    }
-
-    private func handleMessage(_ message: [String: Any]) {
-        guard let type = message["type"] as? String else { return }
-
-        Task { @MainActor in
-            switch type {
-            case "startRound":
-                guard let idString = message["id"] as? String,
-                      let id = UUID(uuidString: idString),
-                      let dateString = message["date"] as? String,
-                      let date = ISO8601DateFormatter().date(from: dateString) else { return }
-                self.roundStore?.startRound(id: id, date: date, fromSync: true)
-
-            case "endRound":
-                guard let idString = message["id"] as? String,
-                      let id = UUID(uuidString: idString) else { return }
-                self.roundStore?.endRound(roundID: id, fromSync: true)
-
-            case "addMark":
-                guard let data = message["mark"] as? Data,
-                      let idString = message["roundId"] as? String,
-                      let roundID = UUID(uuidString: idString),
-                      let mark = try? JSONDecoder().decode(BallMark.self, from: data) else { return }
-                self.roundStore?.addMark(to: roundID, mark: mark, fromSync: true)
-
-            default:
-                break
-            }
-        }
+        Task { @MainActor in self.handleMessage(userInfo) }
     }
 }

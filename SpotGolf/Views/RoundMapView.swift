@@ -7,12 +7,14 @@ struct RoundMapView: View {
     let roundID: UUID
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
+    @Environment(\.dismiss) private var dismiss
 
-    private var round: Round {
-        roundStore.rounds.first(where: { $0.id == roundID })!
+    private var round: Round? {
+        roundStore.rounds.first(where: { $0.id == roundID })
     }
 
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
+    @State private var followsUserLocation = true
     @State private var selectedMark: BallMark?
     @State private var showDeleteConfirm = false
     @State private var draggingMark: BallMark?
@@ -20,18 +22,10 @@ struct RoundMapView: View {
     @State private var newSpotIndex: Int = 0
 
     var body: some View {
-        ZStack(alignment: .top) {
-            mapView
-            overlayView
-        }
-        .ignoresSafeArea(edges: .bottom)
-        .navigationTitle(round.formattedDate)
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: Binding(
-            get: { selectedMark != nil && !showDeleteConfirm },
-            set: { if !$0 && !showDeleteConfirm { selectedMark = nil } }
-        )) {
-            spotEditSheet
+        Group {
+            if let round {
+                roundContent(round)
+            }
         }
         .onAppear {
             locationManager.startUpdating()
@@ -40,8 +34,30 @@ struct RoundMapView: View {
             locationManager.stopUpdating()
         }
         .onReceive(locationManager.$lastLocation) { location in
-            guard let location else { return }
+            guard followsUserLocation, let location else { return }
             position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+        }
+        .onChange(of: roundStore.rounds) {
+            if round == nil {
+                dismiss()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func roundContent(_ round: Round) -> some View {
+        ZStack(alignment: .top) {
+            mapView(round)
+            overlayView(round)
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .navigationTitle(round.formattedDate)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: Binding(
+            get: { selectedMark != nil && !showDeleteConfirm },
+            set: { if !$0 && !showDeleteConfirm { selectedMark = nil } }
+        )) {
+            spotEditSheet(round)
         }
         .alert("Delete Spot", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -58,18 +74,26 @@ struct RoundMapView: View {
         }
     }
 
-    private var mapView: some View {
+    private func mapView(_ round: Round) -> some View {
         MapReader { proxy in
             Map(position: $position) {
                 ForEach(Array(round.marks.enumerated()), id: \.element.id) { index, mark in
                     Annotation("", coordinate: mark.coordinate) {
-                        spotMarker(index: index, mark: mark, proxy: proxy)
+                        spotMarker(index: index, mark: mark, round: round, proxy: proxy)
                     }
                 }
                 UserAnnotation()
             }
             .mapControls {
                 MapCompass()
+            }
+            .onMapCameraChange(frequency: .onEnd) { context in
+                guard followsUserLocation, let userLocation = locationManager.lastLocation else { return }
+                let mapCenter = CLLocation(latitude: context.region.center.latitude,
+                                           longitude: context.region.center.longitude)
+                if mapCenter.distance(from: userLocation) > 30 {
+                    followsUserLocation = false
+                }
             }
             .gesture(
                 LongPressGesture(minimumDuration: 0.5)
@@ -89,13 +113,13 @@ struct RoundMapView: View {
         }
     }
 
-    private func spotMarker(index: Int, mark: BallMark, proxy: MapProxy) -> some View {
+    private func spotMarker(index: Int, mark: BallMark, round: Round, proxy: MapProxy) -> some View {
         let isDragging = draggingMark?.id == mark.id
         return Circle()
             .fill(isDragging ? Color.orange : Color(.systemBackground))
             .frame(width: 28, height: 28)
             .overlay {
-                Text("\(index)")
+                Text("\(index + 1)")
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(isDragging ? .white : .primary)
@@ -140,9 +164,9 @@ struct RoundMapView: View {
             )
     }
 
-    private var overlayView: some View {
+    private func overlayView(_ round: Round) -> some View {
         VStack {
-            statsBar
+            statsBar(round)
             Spacer()
             if round.isActive {
                 buttonBar
@@ -151,13 +175,12 @@ struct RoundMapView: View {
     }
 
     @ViewBuilder
-    private var statsBar: some View {
+    private func statsBar(_ round: Round) -> some View {
         if !round.marks.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 if let lastMark = round.marks.last,
                    let location = locationManager.lastLocation {
-                    let yards = Int(location.distance(from: lastMark.location) * 1.09361)
-                    Text("Previous: \(yards) yds")
+                    Text("Previous: \(DistanceCalculator.formattedYards(from: location, to: lastMark.location))")
                         .font(.headline)
                 }
                 Text("Strokes: \(max(round.marks.count - 1, 0))")
@@ -186,11 +209,12 @@ struct RoundMapView: View {
             Spacer()
                 .overlay(alignment: .leading) {
                     Button {
+                        followsUserLocation = true
                         if let location = locationManager.lastLocation {
                             position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
                         }
                     } label: {
-                        Image(systemName: "location.fill")
+                        Image(systemName: followsUserLocation ? "location.fill" : "location")
                             .font(.title3)
                             .foregroundStyle(.blue)
                             .padding(14)
@@ -204,10 +228,10 @@ struct RoundMapView: View {
         .padding(.bottom, 32)
     }
 
-    private var spotEditSheet: some View {
+    private func spotEditSheet(_ round: Round) -> some View {
         NavigationStack {
             VStack(spacing: 24) {
-                Stepper("Spot: \(newSpotIndex)", value: $newSpotIndex, in: 0...(max(round.marks.count - 1, 0)))
+                Stepper("Spot: \(newSpotIndex + 1)", value: $newSpotIndex, in: 0...(max(round.marks.count - 1, 0)))
                     .font(.title3)
                     .padding(.horizontal)
 

@@ -67,4 +67,41 @@ final class DistanceCalculatorTests: XCTestCase {
         let numberPart = formatted.replacingOccurrences(of: " yds", with: "")
         XCTAssertNotNil(Int(numberPart), "Expected whole number, got: \(numberPart)")
     }
+
+    // MARK: - CLLocation overloads
+
+    func testYardsFromCLLocations() {
+        let a = CLLocation(latitude: 33.45, longitude: -112.07)
+        let b = CLLocation(latitude: 33.46, longitude: -112.07)
+
+        let yards = DistanceCalculator.yards(from: a, to: b)
+        XCTAssertGreaterThan(yards, 0)
+    }
+
+    func testYardsFromCLLocationsMatchesBallMarkOverload() {
+        let coordA = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let coordB = CLLocationCoordinate2D(latitude: 33.46, longitude: -112.08)
+        let markA = BallMark(coordinate: coordA)
+        let markB = BallMark(coordinate: coordB)
+
+        let fromMarks = DistanceCalculator.yards(from: markA, to: markB)
+        let fromLocations = DistanceCalculator.yards(from: markA.location, to: markB.location)
+
+        XCTAssertEqual(fromMarks, fromLocations, accuracy: 0.01)
+    }
+
+    func testFormattedYardsFromCLLocations() {
+        let a = CLLocation(latitude: 33.45, longitude: -112.07)
+        let b = CLLocation(latitude: 33.46, longitude: -112.07)
+
+        let formatted = DistanceCalculator.formattedYards(from: a, to: b)
+        XCTAssertTrue(formatted.hasSuffix(" yds"))
+    }
+
+    func testFormattedYardsFromCLLocationsZeroDistance() {
+        let location = CLLocation(latitude: 33.45, longitude: -112.07)
+
+        let formatted = DistanceCalculator.formattedYards(from: location, to: location)
+        XCTAssertEqual(formatted, "0 yds")
+    }
 }
