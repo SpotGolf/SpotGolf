@@ -292,6 +292,48 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertTrue(syncMessages.isEmpty)
     }
 
+    func testPreviousHoleAtZeroDoesNotSync() {
+        store.startRound()
+        syncMessages.removeAll()
+
+        store.previousHole()
+
+        XCTAssertTrue(syncMessages.isEmpty)
+    }
+
+    func testNextHoleAt18DoesNotSync() {
+        store.startRound()
+        store.rounds[0] = Round(id: store.rounds[0].id, date: store.rounds[0].date,
+                                holes: (0..<18).map { _ in Hole() }, currentHoleIndex: 17)
+        syncMessages.removeAll()
+
+        store.nextHole()
+
+        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 17)
+    }
+
+    func testNextHoleByRoundID() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        syncMessages.removeAll()
+
+        store.nextHole(roundID: roundID)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
+    }
+
+    func testPreviousHoleByRoundID() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        store.nextHole(fromSync: true)
+        syncMessages.removeAll()
+
+        store.previousHole(roundID: roundID)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
     // MARK: - moveMark
 
     func testMoveMark() {

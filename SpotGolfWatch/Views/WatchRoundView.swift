@@ -49,11 +49,11 @@ struct WatchRoundView: View {
             locationManager.stopUpdating()
             swingAwayTask?.cancel()
         }
-        .onReceive(locationManager.$lastLocation) { _ in
-            updateLiveDistance()
+        .onReceive(locationManager.$lastLocation) { location in
+            updateLiveDistance(location: location)
         }
         .onReceive(roundStore.$rounds) { _ in
-            updateLiveDistance()
+            updateLiveDistance(location: locationManager.lastLocation)
         }
     }
 
@@ -125,8 +125,8 @@ struct WatchRoundView: View {
         .padding()
     }
 
-    private func updateLiveDistance() {
-        guard let location = locationManager.lastLocation,
+    private func updateLiveDistance(location: CLLocation?) {
+        guard let location,
               let lastMark = roundStore.activeRound?.marks.last else {
             liveDistance = nil
             return

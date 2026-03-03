@@ -102,13 +102,13 @@ class SyncService: NSObject, ObservableObject {
 
         case "nextHole":
             guard let idString = message["id"] as? String,
-                  let _ = UUID(uuidString: idString) else { return }
-            roundStore?.nextHole(fromSync: true)
+                  let id = UUID(uuidString: idString) else { return }
+            roundStore?.nextHole(roundID: id, fromSync: true)
 
         case "previousHole":
             guard let idString = message["id"] as? String,
-                  let _ = UUID(uuidString: idString) else { return }
-            roundStore?.previousHole(fromSync: true)
+                  let id = UUID(uuidString: idString) else { return }
+            roundStore?.previousHole(roundID: id, fromSync: true)
 
         default:
             break

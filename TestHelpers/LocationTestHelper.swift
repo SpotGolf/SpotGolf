@@ -5,6 +5,7 @@ import XCTest
 struct TestLocation {
     let latitude: Double
     let longitude: Double
+    let hole: Int
 }
 
 enum LocationTestHelper {
@@ -21,10 +22,11 @@ enum LocationTestHelper {
             .split(separator: "\n")
             .compactMap { line -> TestLocation? in
                 let parts = line.split(separator: ",")
-                guard parts.count == 2,
+                guard parts.count >= 2,
                       let lat = Double(parts[0]),
                       let lon = Double(parts[1]) else { return nil }
-                return TestLocation(latitude: lat, longitude: lon)
+                let hole = parts.count >= 3 ? Int(parts[2]) ?? 1 : 1
+                return TestLocation(latitude: lat, longitude: lon, hole: hole)
             }
     }
 

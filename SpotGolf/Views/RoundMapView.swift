@@ -188,24 +188,34 @@ struct RoundMapView: View {
 
     @ViewBuilder
     private func statsBar(_ round: Round) -> some View {
-        if !round.marks.isEmpty || round.holes.count > 1 {
+        if round.isActive || !round.allMarks.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Hole \(round.currentHoleNumber)")
-                    .font(.headline)
-                    .accessibilityIdentifier("Hole \(round.currentHoleNumber)")
-                if let lastMark = round.marks.last,
-                   let location = locationManager.lastLocation {
-                    Text("Previous: \(DistanceCalculator.formattedYards(from: location, to: lastMark.location))")
+                if round.isActive {
+                    Text("Hole \(round.currentHoleNumber)")
+                        .font(.headline)
+                        .accessibilityIdentifier("Hole \(round.currentHoleNumber)")
+                    Text("Previous: \(previousDistance(round))")
+                        .font(.headline)
+                    Text("Strokes: \(round.currentHole.strokeCount)")
+                        .font(.headline)
+                } else {
+                    Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
                         .font(.headline)
                 }
-                Text("Strokes: \(round.currentHole.strokeCount)")
-                    .font(.headline)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial)
         }
+    }
+
+    private func previousDistance(_ round: Round) -> String {
+        if let lastMark = round.marks.last,
+           let location = locationManager.lastLocation {
+            return DistanceCalculator.formattedYards(from: location, to: lastMark.location)
+        }
+        return "0 yds"
     }
 
     private func buttonBar(_ round: Round) -> some View {

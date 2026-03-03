@@ -28,7 +28,7 @@ struct Round: Identifiable {
     }
 
     var currentHole: Hole {
-        holes[currentHoleIndex]
+        holes[min(currentHoleIndex, holes.count - 1)]
     }
 
     var currentHoleNumber: Int {
@@ -37,7 +37,7 @@ struct Round: Identifiable {
 
     /// Marks for the current hole — preserves existing call sites.
     var marks: [BallMark] {
-        holes[currentHoleIndex].marks
+        holes[min(currentHoleIndex, holes.count - 1)].marks
     }
 
     /// All marks across all holes.
@@ -46,23 +46,35 @@ struct Round: Identifiable {
     }
 
     mutating func addMark(_ mark: BallMark) {
-        holes[currentHoleIndex].marks.append(mark)
+        let safeIndex = min(currentHoleIndex, holes.count - 1)
+        holes[safeIndex].marks.append(mark)
     }
 
-    mutating func nextHole() {
+    /// Returns `true` if the hole index actually changed.
+    @discardableResult
+    mutating func nextHole() -> Bool {
         if currentHoleIndex == holes.count - 1 {
-            guard holes.count < 18 else { return }
+            guard holes.count < 18 else { return false }
             holes.append(Hole())
         }
         currentHoleIndex += 1
+        return true
     }
 
-    mutating func previousHole() {
-        guard currentHoleIndex > 0 else { return }
+    /// Returns `true` if the hole index actually changed.
+    @discardableResult
+    mutating func previousHole() -> Bool {
+        guard currentHoleIndex > 0 else { return false }
         currentHoleIndex -= 1
+        return true
     }
 
     mutating func end() {
+        // Trim trailing empty holes
+        while holes.count > 1 && holes.last!.marks.isEmpty {
+            holes.removeLast()
+        }
+        currentHoleIndex = min(currentHoleIndex, holes.count - 1)
         isActive = false
     }
 
@@ -91,8 +103,9 @@ extension Round: Codable {
         isActive = try container.decode(Bool.self, forKey: .isActive)
 
         if let holes = try container.decodeIfPresent([Hole].self, forKey: .holes) {
-            self.holes = holes
-            self.currentHoleIndex = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
+            self.holes = holes.isEmpty ? [Hole()] : holes
+            let decoded = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
+            self.currentHoleIndex = min(max(decoded, 0), self.holes.count - 1)
         } else {
             // Legacy format: flat marks array → single hole
             let marks = try container.decodeIfPresent([BallMark].self, forKey: .marks) ?? []

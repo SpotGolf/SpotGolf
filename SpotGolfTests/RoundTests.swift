@@ -114,8 +114,9 @@ final class RoundTests: XCTestCase {
     func testNextHoleDoesNotExceed18() {
         var round = Round(holes: (0..<18).map { _ in Hole() }, currentHoleIndex: 17)
 
-        round.nextHole()
+        let changed = round.nextHole()
 
+        XCTAssertFalse(changed)
         XCTAssertEqual(round.holes.count, 18)
         XCTAssertEqual(round.currentHoleIndex, 17) // stays on hole 18
     }
@@ -140,8 +141,9 @@ final class RoundTests: XCTestCase {
     func testPreviousHoleClampsAtZero() {
         var round = Round()
 
-        round.previousHole()
+        let changed = round.previousHole()
 
+        XCTAssertFalse(changed)
         XCTAssertEqual(round.currentHoleIndex, 0)
     }
 
@@ -211,6 +213,62 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(decoded.holes.count, 1)
         XCTAssertEqual(decoded.holes[0].marks.count, 1)
         XCTAssertEqual(decoded.currentHoleIndex, 0)
+    }
+
+    func testEndTrimsTrailingEmptyHoles() {
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        var round = Round(holes: [Hole(marks: [mark]), Hole(), Hole()], currentHoleIndex: 2)
+
+        round.end()
+
+        XCTAssertEqual(round.holes.count, 1)
+        XCTAssertEqual(round.currentHoleIndex, 0)
+        XCTAssertFalse(round.isActive)
+    }
+
+    func testEndPreservesNonEmptyHoles() {
+        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        var round = Round(holes: [Hole(marks: [mark1]), Hole(marks: [mark2])], currentHoleIndex: 1)
+
+        round.end()
+
+        XCTAssertEqual(round.holes.count, 2)
+        XCTAssertEqual(round.currentHoleIndex, 1)
+    }
+
+    func testDecoderClampsOutOfBoundsIndex() throws {
+        let json = """
+        {
+            "id": "\(UUID().uuidString)",
+            "date": 1000000.0,
+            "holes": [{"id": "\(UUID().uuidString)", "marks": []}],
+            "currentHoleIndex": 99,
+            "isActive": true
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Round.self, from: data)
+
+        XCTAssertEqual(decoded.currentHoleIndex, 0)
+    }
+
+    func testNextHoleReturnsTrueWhenAdvanced() {
+        var round = Round()
+
+        let changed = round.nextHole()
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(round.currentHoleIndex, 1)
+    }
+
+    func testPreviousHoleReturnsTrueWhenMoved() {
+        var round = Round(holes: [Hole(), Hole()], currentHoleIndex: 1)
+
+        let changed = round.previousHole()
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(round.currentHoleIndex, 0)
     }
 
     func testCodableRoundTripWithMultipleHoles() throws {

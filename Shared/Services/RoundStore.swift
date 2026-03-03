@@ -70,24 +70,34 @@ class RoundStore: ObservableObject {
         }
     }
 
-    func nextHole(fromSync: Bool = false) {
-        if let index = rounds.firstIndex(where: { $0.isActive }) {
-            let roundID = rounds[index].id
-            rounds[index].nextHole()
+    func nextHole(roundID: UUID? = nil, fromSync: Bool = false) {
+        let predicate: (Round) -> Bool = if let roundID {
+            { $0.id == roundID }
+        } else {
+            { $0.isActive }
+        }
+        if let index = rounds.firstIndex(where: predicate) {
+            let id = rounds[index].id
+            guard rounds[index].nextHole() else { return }
             save()
             if !fromSync {
-                onSyncEvent?(.nextHole(roundID))
+                onSyncEvent?(.nextHole(id))
             }
         }
     }
 
-    func previousHole(fromSync: Bool = false) {
-        if let index = rounds.firstIndex(where: { $0.isActive }) {
-            let roundID = rounds[index].id
-            rounds[index].previousHole()
+    func previousHole(roundID: UUID? = nil, fromSync: Bool = false) {
+        let predicate: (Round) -> Bool = if let roundID {
+            { $0.id == roundID }
+        } else {
+            { $0.isActive }
+        }
+        if let index = rounds.firstIndex(where: predicate) {
+            let id = rounds[index].id
+            guard rounds[index].previousHole() else { return }
             save()
             if !fromSync {
-                onSyncEvent?(.previousHole(roundID))
+                onSyncEvent?(.previousHole(id))
             }
         }
     }
