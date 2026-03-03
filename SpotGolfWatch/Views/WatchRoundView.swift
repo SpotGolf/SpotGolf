@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 import CoreLocation
 
 struct WatchRoundView: View {
@@ -7,8 +6,6 @@ struct WatchRoundView: View {
     @EnvironmentObject var locationManager: LocationManager
 
     @State private var showSwingAway = false
-    @State private var pendingMark = false
-    @State private var distanceTimerActive = false
     @State private var swingAwayTask: Task<Void, Never>?
 
     private var liveDistance: String? {
@@ -16,9 +13,6 @@ struct WatchRoundView: View {
               let lastMark = roundStore.activeRound?.marks.last else { return nil }
         return DistanceCalculator.formattedYards(from: location, to: lastMark.location)
     }
-
-    private let distanceTimerPublisher = Timer.publish(every: 10, on: .main, in: .common)
-    @State private var distanceTimerCancellable: Cancellable?
 
     var body: some View {
         Group {
@@ -49,10 +43,9 @@ struct WatchRoundView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
-                        .disabled(pendingMark)
 
                         Button("End Round", role: .destructive) {
-                            stopDistanceTimer()
+                            locationManager.stopUpdating()
                             roundStore.endRound()
                         }
                         .font(.caption)
@@ -63,6 +56,7 @@ struct WatchRoundView: View {
 
                         Button("Start Round") {
                             roundStore.startRound()
+                            locationManager.startUpdating()
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
@@ -71,26 +65,13 @@ struct WatchRoundView: View {
                 .padding()
             }
         }
-        .onReceive(locationManager.$lastLocation) { newLocation in
-            guard pendingMark, let location = newLocation else { return }
-            pendingMark = false
-            let mark = BallMark(coordinate: location.coordinate)
-            roundStore.addMark(mark)
-
-            showSwingAway = true
-            swingAwayTask = Task {
-                try? await Task.sleep(for: .seconds(15))
-                guard !Task.isCancelled else { return }
-                showSwingAway = false
-                startDistanceTimer()
+        .onAppear {
+            if roundStore.activeRound != nil {
+                locationManager.startUpdating()
             }
         }
-        .onReceive(distanceTimerPublisher) { _ in
-            guard distanceTimerActive else { return }
-            locationManager.requestLocation()
-        }
         .onDisappear {
-            stopDistanceTimer()
+            locationManager.stopUpdating()
             swingAwayTask?.cancel()
         }
     }
@@ -104,22 +85,17 @@ struct WatchRoundView: View {
         return "0 yds"
     }
 
-    private func startDistanceTimer() {
-        locationManager.requestLocation()
-        distanceTimerActive = true
-        distanceTimerCancellable = distanceTimerPublisher.connect()
-    }
-
-    private func stopDistanceTimer() {
-        distanceTimerActive = false
-        distanceTimerCancellable?.cancel()
-        distanceTimerCancellable = nil
-    }
-
     private func markBall() {
-        stopDistanceTimer()
         swingAwayTask?.cancel()
-        pendingMark = true
-        locationManager.requestLocation()
+        guard let location = locationManager.lastLocation else { return }
+        let mark = BallMark(coordinate: location.coordinate)
+        roundStore.addMark(mark)
+
+        showSwingAway = true
+        swingAwayTask = Task {
+            try? await Task.sleep(for: .seconds(15))
+            guard !Task.isCancelled else { return }
+            showSwingAway = false
+        }
     }
 }
