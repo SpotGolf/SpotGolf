@@ -10,6 +10,8 @@ class SyncService: NSObject, ObservableObject {
         didSet { bindSyncHandler() }
     }
 
+    @Published var isConnected = false
+
     private var session: WCSession?
 
     override init() {
@@ -34,7 +36,10 @@ class SyncService: NSObject, ObservableObject {
     }
 
     private func sendOnMain(_ message: SyncMessage) {
-        guard let session, session.activationState == .activated else { return }
+        guard let session, session.activationState == .activated else {
+            print("[Sync] Cannot send – session not activated")
+            return
+        }
 
         let payload: [String: Any]
         switch message {
@@ -68,13 +73,7 @@ class SyncService: NSObject, ObservableObject {
             ]
         }
 
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
-                print("Failed to send sync message: \(error)")
-            }
-        } else {
-            session.transferUserInfo(payload)
-        }
+        session.transferUserInfo(payload)
     }
 
     func handleMessage(_ message: [String: Any]) {
@@ -114,13 +113,24 @@ class SyncService: NSObject, ObservableObject {
             break
         }
     }
+
+    private func updateConnectionStatus() {
+        guard let session else {
+            isConnected = false
+            return
+        }
+        isConnected = session.activationState == .activated && session.isReachable
+    }
 }
 
 extension SyncService: @preconcurrency WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error {
-            print("WCSession activation failed: \(error)")
+            print("[Sync] WCSession activation failed: \(error)")
+        } else {
+            print("[Sync] WCSession activated – state: \(activationState.rawValue), reachable: \(session.isReachable)")
         }
+        Task { @MainActor in self.updateConnectionStatus() }
     }
 
     #if os(iOS)
@@ -136,5 +146,10 @@ extension SyncService: @preconcurrency WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         Task { @MainActor in self.handleMessage(userInfo) }
+    }
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        print("[Sync] Reachability changed: \(session.isReachable)")
+        Task { @MainActor in self.updateConnectionStatus() }
     }
 }

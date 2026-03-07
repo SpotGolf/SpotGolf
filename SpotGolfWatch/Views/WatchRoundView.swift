@@ -4,6 +4,7 @@ import CoreLocation
 struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var syncService: SyncService
 
     @State private var showSwingAway = false
     @State private var swingAwayTask: Task<Void, Never>?
@@ -26,9 +27,14 @@ struct WatchRoundView: View {
                 .tabViewStyle(.page)
             } else {
                 VStack(spacing: 12) {
-                    Text("No active round")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                            .font(.system(size: 10))
+                            .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                        Text("No active round")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Button("Start Round") {
                         roundStore.startRound()
@@ -59,9 +65,14 @@ struct WatchRoundView: View {
 
     private func playPage(_ round: Round) -> some View {
         VStack(spacing: 6) {
-            Text("Hole \(round.currentHoleNumber)")
-                .font(.caption)
-                .fontWeight(.semibold)
+            HStack(spacing: 4) {
+                Image(systemName: syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                    .font(.system(size: 10))
+                    .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                Text("Hole \(round.currentHoleNumber)")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
 
             Text("Previous: \(liveDistance ?? previousDistance(round: round))")
                 .font(.caption2)

@@ -12,6 +12,7 @@ class LocationManager: NSObject, ObservableObject {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 3 // meters — avoids excessive updates
     }
 
     func requestPermission() {

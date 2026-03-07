@@ -122,58 +122,76 @@ struct RoundMapView: View {
         return hole.marks.firstIndex(where: { $0.id == mark.id }) ?? 0
     }
 
+    private static let dragLiftOffset: CGFloat = -30
+
     private func spotMarker(index: Int, mark: BallMark, round: Round, proxy: MapProxy) -> some View {
         let isDragging = draggingMark?.id == mark.id
-        return Circle()
-            .fill(isDragging ? Color.orange : Color(.systemBackground))
-            .frame(width: 28, height: 28)
-            .overlay {
-                Text("\(index + 1)")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(isDragging ? .white : .primary)
-            }
-            .shadow(radius: isDragging ? 4 : 2)
-            .offset(isDragging ? dragOffset : .zero)
-            .onTapGesture {
-                if let holeIdx = round.holeIndex(containing: mark.id) {
-                    let hole = round.holes[holeIdx]
-                    if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
-                        newSpotIndex = markIdx
-                    }
+        return VStack(spacing: 0) {
+            Circle()
+                .fill(isDragging ? Color.orange : Color(.systemBackground))
+                .frame(width: isDragging ? 42 : 28, height: isDragging ? 42 : 28)
+                .overlay {
+                    Text("\(index + 1)")
+                        .font(isDragging ? .body : .caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(isDragging ? .white : .primary)
                 }
-                selectedMark = mark
+                .shadow(color: isDragging ? .orange.opacity(0.4) : .black.opacity(0.2),
+                        radius: isDragging ? 8 : 2, y: isDragging ? 2 : 1)
+
+            // Callout line from lifted marker down to map position
+            if isDragging {
+                Rectangle()
+                    .fill(Color.orange.opacity(0.6))
+                    .frame(width: 2, height: -Self.dragLiftOffset)
             }
-            .gesture(
-                LongPressGesture(minimumDuration: 0.3)
-                    .sequenced(before: DragGesture(coordinateSpace: .global))
-                    .onChanged { value in
-                        switch value {
-                        case .second(true, let drag):
-                            if draggingMark == nil {
+        }
+        .offset(y: isDragging ? Self.dragLiftOffset : 0)
+        .offset(isDragging ? dragOffset : .zero)
+        .onTapGesture {
+            if let holeIdx = round.holeIndex(containing: mark.id) {
+                let hole = round.holes[holeIdx]
+                if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
+                    newSpotIndex = markIdx
+                }
+            }
+            selectedMark = mark
+        }
+        .gesture(
+            LongPressGesture(minimumDuration: 0.3)
+                .sequenced(before: DragGesture(coordinateSpace: .global))
+                .onChanged { value in
+                    switch value {
+                    case .second(true, let drag):
+                        if draggingMark == nil {
+                            withAnimation(.easeOut(duration: 0.15)) {
                                 draggingMark = mark
                             }
-                            if let drag {
-                                dragOffset = drag.translation
-                            }
-                        default:
-                            break
+                            #if os(iOS)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
                         }
-                    }
-                    .onEnded { value in
-                        switch value {
-                        case .second(true, let drag):
-                            if let drag,
-                               let coordinate = proxy.convert(drag.location, from: .global) {
-                                roundStore.moveMark(mark, to: coordinate, in: round.id)
-                            }
-                        default:
-                            break
+                        if let drag {
+                            dragOffset = drag.translation
                         }
-                        draggingMark = nil
-                        dragOffset = .zero
+                    default:
+                        break
                     }
-            )
+                }
+                .onEnded { value in
+                    switch value {
+                    case .second(true, let drag):
+                        if let drag,
+                           let coordinate = proxy.convert(drag.location, from: .global) {
+                            roundStore.moveMark(mark, to: coordinate, in: round.id)
+                        }
+                    default:
+                        break
+                    }
+                    draggingMark = nil
+                    dragOffset = .zero
+                }
+        )
     }
 
     private func overlayView(_ round: Round) -> some View {

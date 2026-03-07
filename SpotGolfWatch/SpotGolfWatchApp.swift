@@ -11,6 +11,7 @@ struct SpotGolfWatchApp: App {
             WatchRoundView()
                 .environmentObject(roundStore)
                 .environmentObject(locationManager)
+                .environmentObject(syncService)
                 .onAppear {
                     if CommandLine.arguments.contains("--ui-testing") {
                         roundStore.rounds = []

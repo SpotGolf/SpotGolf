@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RoundListView: View {
     @EnvironmentObject var roundStore: RoundStore
+    @EnvironmentObject var syncService: SyncService
 
     var body: some View {
         List {
@@ -33,6 +34,11 @@ struct RoundListView: View {
         }
         .navigationTitle("SpotGolf")
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Image(systemName: syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
+                    .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                    .imageScale(.small)
+            }
             ToolbarItem(placement: .primaryAction) {
                 if roundStore.activeRound != nil {
                     Button("End Round") {
