@@ -3,6 +3,7 @@ import SwiftUI
 struct RoundListView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var syncService: SyncService
+    @State private var showCourseSelection = false
 
     var body: some View {
         List {
@@ -46,10 +47,13 @@ struct RoundListView: View {
                     }
                 } else {
                     Button("New Round") {
-                        roundStore.startRound()
+                        showCourseSelection = true
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showCourseSelection) {
+            CourseSelectionView()
         }
     }
 }
