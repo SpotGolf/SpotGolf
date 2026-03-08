@@ -104,4 +104,100 @@ final class DistanceCalculatorTests: XCTestCase {
         let formatted = DistanceCalculator.formattedYards(from: location, to: location)
         XCTAssertEqual(formatted, "0 yds")
     }
+
+    // MARK: - Green distances
+
+    func testDistancesToGreen() {
+        // Player is south of a green that runs south-to-north (front closest, back farthest)
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+
+        let green = CourseGreen(
+            front: CourseCoordinate(latitude: 33.4420, longitude: -112.07),
+            middle: CourseCoordinate(latitude: 33.4425, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4430, longitude: -112.07)
+        )
+
+        let distances = DistanceCalculator.greenDistances(from: playerLocation, green: green)
+
+        XCTAssertLessThan(distances.front, distances.middle)
+        XCTAssertLessThan(distances.middle, distances.back)
+        XCTAssertGreaterThan(distances.front, 0)
+    }
+
+    // MARK: - Features ahead
+
+    func testFeaturesAhead() {
+        // Player at south, green to the north
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+
+        let green = CourseGreen(
+            front: CourseCoordinate(latitude: 33.4450, longitude: -112.07),
+            middle: CourseCoordinate(latitude: 33.4455, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4460, longitude: -112.07)
+        )
+
+        // Bunker ahead (between player and green)
+        let bunkerAhead = CourseFeature(
+            id: "bunker-ahead",
+            type: .bunker,
+            front: CourseCoordinate(latitude: 33.4420, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4425, longitude: -112.07)
+        )
+
+        // Bunker behind player (south of player)
+        let bunkerBehind = CourseFeature(
+            id: "bunker-behind",
+            type: .bunker,
+            front: CourseCoordinate(latitude: 33.4380, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4385, longitude: -112.07)
+        )
+
+        let result = DistanceCalculator.featuresAhead(
+            from: playerLocation,
+            features: [bunkerAhead, bunkerBehind],
+            green: green
+        )
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.feature.id, "bunker-ahead")
+        XCTAssertGreaterThan(result.first?.distanceYards ?? 0, 0)
+    }
+
+    func testFeaturesAheadSortedByDistance() {
+        // Player at south, green to the north
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+
+        let green = CourseGreen(
+            front: CourseCoordinate(latitude: 33.4460, longitude: -112.07),
+            middle: CourseCoordinate(latitude: 33.4465, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4470, longitude: -112.07)
+        )
+
+        // Closer feature
+        let closerBunker = CourseFeature(
+            id: "bunker-close",
+            type: .bunker,
+            front: CourseCoordinate(latitude: 33.4410, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4415, longitude: -112.07)
+        )
+
+        // Farther feature
+        let fartherWater = CourseFeature(
+            id: "water-far",
+            type: .water,
+            front: CourseCoordinate(latitude: 33.4435, longitude: -112.07),
+            back: CourseCoordinate(latitude: 33.4440, longitude: -112.07)
+        )
+
+        let result = DistanceCalculator.featuresAhead(
+            from: playerLocation,
+            features: [fartherWater, closerBunker],  // intentionally out of order
+            green: green
+        )
+
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0].feature.id, "bunker-close")
+        XCTAssertEqual(result[1].feature.id, "water-far")
+        XCTAssertLessThan(result[0].distanceYards, result[1].distanceYards)
+    }
 }
