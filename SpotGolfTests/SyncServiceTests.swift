@@ -293,6 +293,75 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertTrue(store.rounds.isEmpty)
     }
 
+    // MARK: - setCourse message
+
+    func testSendAndHandleCourseSelection() throws {
+        // Create a CourseSelection, encode it, verify it round-trips through the message format
+        let selection = CourseSelection(
+            course: Course(id: "C1", name: "Test", clubName: "Test",
+                           location: CourseLocation(address: nil, city: "Denver",
+                                                    coordinate: CourseCoordinate(latitude: 39.0, longitude: -105.0),
+                                                    country: "US", state: "CO"),
+                           subCourses: []),
+            selectedSubCourseIndices: [0, 1]
+        )
+
+        let data = try JSONEncoder().encode(selection)
+        let decoded = try JSONDecoder().decode(CourseSelection.self, from: data)
+        XCTAssertEqual(decoded.course.id, "C1")
+        XCTAssertEqual(decoded.selectedSubCourseIndices, [0, 1])
+    }
+
+    func testHandleSetCourseMessage() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+
+        let selection = CourseSelection(
+            course: Course(id: "C1", name: "Test", clubName: "Test",
+                           location: CourseLocation(address: nil, city: "Denver",
+                                                    coordinate: CourseCoordinate(latitude: 39.0, longitude: -105.0),
+                                                    country: "US", state: "CO"),
+                           subCourses: []),
+            selectedSubCourseIndices: [0, 1]
+        )
+        let data = try! JSONEncoder().encode(selection)
+
+        let message: [String: Any] = [
+            "type": "setCourse",
+            "roundId": roundID.uuidString,
+            "courseSelection": data
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].courseSelection?.course.id, "C1")
+        XCTAssertEqual(store.rounds[0].courseSelection?.selectedSubCourseIndices, [0, 1])
+    }
+
+    func testHandleSetCourseWithInvalidRoundIDIsIgnored() {
+        store.startRound(fromSync: true)
+
+        let selection = CourseSelection(
+            course: Course(id: "C1", name: "Test", clubName: "Test",
+                           location: CourseLocation(address: nil, city: "Denver",
+                                                    coordinate: CourseCoordinate(latitude: 39.0, longitude: -105.0),
+                                                    country: "US", state: "CO"),
+                           subCourses: []),
+            selectedSubCourseIndices: []
+        )
+        let data = try! JSONEncoder().encode(selection)
+
+        let message: [String: Any] = [
+            "type": "setCourse",
+            "roundId": "not-a-uuid",
+            "courseSelection": data
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertNil(store.rounds[0].courseSelection)
+    }
+
     // MARK: - Messages are applied via fromSync
 
     func testHandleMessagesDoNotTriggerSyncEvents() {

@@ -71,6 +71,13 @@ class SyncService: NSObject, ObservableObject {
                 "type": "previousHole",
                 "id": id.uuidString
             ]
+        case .setCourse(let selection, let roundID):
+            guard let data = try? JSONEncoder().encode(selection) else { return }
+            payload = [
+                "type": "setCourse",
+                "roundId": roundID.uuidString,
+                "courseSelection": data
+            ]
         }
 
         session.transferUserInfo(payload)
@@ -108,6 +115,13 @@ class SyncService: NSObject, ObservableObject {
             guard let idString = message["id"] as? String,
                   let id = UUID(uuidString: idString) else { return }
             roundStore?.previousHole(roundID: id, fromSync: true)
+
+        case "setCourse":
+            guard let data = message["courseSelection"] as? Data,
+                  let idString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: idString),
+                  let selection = try? JSONDecoder().decode(CourseSelection.self, from: data) else { return }
+            roundStore?.setCourse(selection, for: roundID, fromSync: true)
 
         default:
             break

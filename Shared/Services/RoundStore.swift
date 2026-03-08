@@ -102,6 +102,22 @@ class RoundStore: ObservableObject {
         }
     }
 
+    func setCourse(_ selection: CourseSelection, for roundID: UUID? = nil, fromSync: Bool = false) {
+        let predicate: (Round) -> Bool = if let roundID {
+            { $0.id == roundID }
+        } else {
+            { $0.isActive }
+        }
+        if let index = rounds.firstIndex(where: predicate) {
+            let id = rounds[index].id
+            rounds[index].courseSelection = selection
+            save()
+            if !fromSync {
+                onSyncEvent?(.setCourse(selection, id))
+            }
+        }
+    }
+
     func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
         if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
            let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),

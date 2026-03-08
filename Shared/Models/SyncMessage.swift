@@ -6,4 +6,5 @@ enum SyncMessage {
     case addMark(BallMark, UUID)
     case nextHole(UUID)
     case previousHole(UUID)
+    case setCourse(CourseSelection, UUID)
 }
