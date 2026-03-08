@@ -45,12 +45,13 @@ enum DistanceCalculator {
 
     /// Returns features that are ahead of the user (between user and green), sorted by distance.
     static func featuresAhead(from location: CLLocation, features: [CourseFeature], green: CourseGreen) -> [FeatureDistance] {
-        let distToGreen = location.distance(from: green.middle.clLocation)
+        let greenBack = green.back.clLocation
+        let distToGreen = location.distance(from: greenBack)
 
         return features.compactMap { feature in
             let featureLocation = feature.middle
             let distToFeature = location.distance(from: featureLocation)
-            let featureToGreen = featureLocation.distance(from: green.middle.clLocation)
+            let featureToGreen = featureLocation.distance(from: greenBack)
 
             // Feature is "ahead" if it's closer to the green than we are
             // and closer to us than the green is

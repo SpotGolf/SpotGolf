@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RoundListView: View {
+    @Binding var navigationPath: NavigationPath
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var syncService: SyncService
     @State private var showCourseSelection = false
@@ -9,9 +10,7 @@ struct RoundListView: View {
         List {
             if let active = roundStore.activeRound {
                 Section("Active Round") {
-                    NavigationLink {
-                        RoundMapView(roundID: active.id)
-                    } label: {
+                    NavigationLink(value: active.id) {
                         RoundRow(round: active)
                     }
                 }
@@ -19,9 +18,7 @@ struct RoundListView: View {
 
             Section("Past Rounds") {
                 ForEach(roundStore.rounds.filter { !$0.isActive }) { round in
-                    NavigationLink {
-                        RoundMapView(roundID: round.id)
-                    } label: {
+                    NavigationLink(value: round.id) {
                         RoundRow(round: round)
                     }
                 }
@@ -53,7 +50,9 @@ struct RoundListView: View {
             }
         }
         .sheet(isPresented: $showCourseSelection) {
-            CourseSelectionView()
+            CourseSelectionView(onRoundStarted: { roundID in
+                navigationPath.append(roundID)
+            })
         }
     }
 }

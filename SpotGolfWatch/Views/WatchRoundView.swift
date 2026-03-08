@@ -158,8 +158,9 @@ struct WatchRoundView: View {
                     .foregroundStyle(.green)
 
                 if let round, let courseHole = round.currentCourseHole,
+                   let green = courseHole.green,
                    let location = locationManager.lastLocation {
-                    let greenDist = DistanceCalculator.greenDistances(from: location, green: courseHole.green)
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green)
 
                     Divider()
 
@@ -188,7 +189,7 @@ struct WatchRoundView: View {
                     }
 
                     let features = DistanceCalculator.featuresAhead(
-                        from: location, features: courseHole.features, green: courseHole.green
+                        from: location, features: courseHole.features ?? [], green: green
                     )
                     if !features.isEmpty {
                         Divider()

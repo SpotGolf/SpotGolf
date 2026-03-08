@@ -2,6 +2,8 @@ import SwiftUI
 import CoreLocation
 
 struct CourseSelectionView: View {
+    var onRoundStarted: ((UUID) -> Void)?
+
     @EnvironmentObject var courseService: CourseService
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var roundStore: RoundStore
@@ -35,9 +37,16 @@ struct CourseSelectionView: View {
                     }
                 } else {
                     ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
                         Button("Skip") {
                             roundStore.startRound()
+                            let roundID = roundStore.activeRound!.id
                             dismiss()
+                            onRoundStarted?(roundID)
                         }
                     }
                 }
@@ -150,7 +159,9 @@ struct CourseSelectionView: View {
                 let selection = CourseSelection(course: course, selectedSubCourseIndices: indices)
                 roundStore.startRound()
                 roundStore.setCourse(selection)
+                let roundID = roundStore.activeRound!.id
                 dismiss()
+                onRoundStarted?(roundID)
             } else {
                 selectedCourse = course
                 selectedIndices = defaultIndices(for: course)
@@ -196,7 +207,9 @@ struct CourseSelectionView: View {
                     let selection = CourseSelection(course: course, selectedSubCourseIndices: selectedIndices)
                     roundStore.startRound()
                     roundStore.setCourse(selection)
+                    let roundID = roundStore.activeRound!.id
                     dismiss()
+                    onRoundStarted?(roundID)
                 } label: {
                     HStack {
                         Spacer()

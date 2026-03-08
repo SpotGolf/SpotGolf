@@ -116,16 +116,16 @@ final class CourseTests: XCTestCase {
         XCTAssertEqual(hole.par, 4)
         XCTAssertEqual(hole.maleHandicap, 7)
         XCTAssertEqual(hole.femaleHandicap, 9)
-        XCTAssertEqual(hole.green.front.latitude, 39.7880)
-        XCTAssertEqual(hole.green.middle.latitude, 39.7881)
-        XCTAssertEqual(hole.green.back.latitude, 39.7882)
-        XCTAssertEqual(hole.tees["blue"]?.latitude, 39.7870)
-        XCTAssertEqual(hole.tees["white"]?.latitude, 39.7871)
-        XCTAssertEqual(hole.yardages["blue"], 425)
-        XCTAssertEqual(hole.yardages["white"], 400)
-        XCTAssertEqual(hole.features.count, 2)
-        XCTAssertEqual(hole.features[0].type, .bunker)
-        XCTAssertEqual(hole.features[1].type, .water)
+        XCTAssertEqual(hole.green?.front.latitude, 39.7880)
+        XCTAssertEqual(hole.green?.middle.latitude, 39.7881)
+        XCTAssertEqual(hole.green?.back.latitude, 39.7882)
+        XCTAssertEqual(hole.tees?["blue"]?.latitude, 39.7870)
+        XCTAssertEqual(hole.tees?["white"]?.latitude, 39.7871)
+        XCTAssertEqual(hole.yardages?["blue"], 425)
+        XCTAssertEqual(hole.yardages?["white"], 400)
+        XCTAssertEqual(hole.features?.count, 2)
+        XCTAssertEqual(hole.features?[0].type, .bunker)
+        XCTAssertEqual(hole.features?[1].type, .water)
     }
 
     func testDecodeSubCourseWithName() throws {
@@ -156,14 +156,14 @@ final class CourseTests: XCTestCase {
         let hole = course.subCourses[0].holes[0]
 
         // Test CourseCoordinate CLLocation conversions
-        let greenFront = hole.green.front
+        let greenFront = hole.green!.front
         XCTAssertEqual(greenFront.clLocationCoordinate2D.latitude, 39.7880)
         XCTAssertEqual(greenFront.clLocationCoordinate2D.longitude, -74.9680)
         XCTAssertEqual(greenFront.clLocation.coordinate.latitude, 39.7880)
         XCTAssertEqual(greenFront.clLocation.coordinate.longitude, -74.9680)
 
         // Test feature middle computed property
-        let bunker = hole.features[0]
+        let bunker = hole.features![0]
         let expectedMiddleLat = (bunker.front.latitude + bunker.back.latitude) / 2.0
         let expectedMiddleLon = (bunker.front.longitude + bunker.back.longitude) / 2.0
         XCTAssertEqual(bunker.middle.coordinate.latitude, expectedMiddleLat, accuracy: 0.0001)

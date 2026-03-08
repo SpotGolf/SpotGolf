@@ -16,12 +16,39 @@ struct HoleAdvancer {
         var closestDistance = Double.greatestFiniteMagnitude
 
         for (index, hole) in orderedHoles.enumerated() {
-            for (_, teeCoord) in hole.tees {
+            for (_, teeCoord) in hole.tees ?? [:] {
                 let distance = location.distance(from: teeCoord.clLocation)
                 if distance < teeProximityMeters && distance < closestDistance {
                     closestDistance = distance
                     closestIndex = index
                 }
+            }
+        }
+        return closestIndex
+    }
+
+    /// Finds the nearest hole using tees, green, and features as reference points.
+    /// Always returns a result (no proximity threshold).
+    static func nearestHole(location: CLLocation, courseSelection: CourseSelection) -> Int? {
+        let orderedHoles = courseSelection.orderedHoles
+        guard !orderedHoles.isEmpty else { return nil }
+        var closestIndex = 0
+        var closestDistance = Double.greatestFiniteMagnitude
+
+        for (index, hole) in orderedHoles.enumerated() {
+            for (_, teeCoord) in hole.tees ?? [:] {
+                let d = location.distance(from: teeCoord.clLocation)
+                if d < closestDistance { closestDistance = d; closestIndex = index }
+            }
+            if let green = hole.green {
+                for coord in [green.front, green.middle, green.back] {
+                    let d = location.distance(from: coord.clLocation)
+                    if d < closestDistance { closestDistance = d; closestIndex = index }
+                }
+            }
+            for feature in hole.features ?? [] {
+                let d = location.distance(from: feature.middle)
+                if d < closestDistance { closestDistance = d; closestIndex = index }
             }
         }
         return closestIndex

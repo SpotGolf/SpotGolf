@@ -204,8 +204,7 @@ struct RoundMapView: View {
 
     private func overlayView(_ round: Round) -> some View {
         VStack {
-            statsBar(round)
-            distancePanel(round)
+            informationPanel(round)
             Spacer()
             if round.isActive {
                 buttonBar(round)
@@ -214,50 +213,50 @@ struct RoundMapView: View {
     }
 
     @ViewBuilder
-    private func distancePanel(_ round: Round) -> some View {
-        if let courseHole = round.currentCourseHole, let location = locationManager.lastLocation {
-            let greenDist = DistanceCalculator.greenDistances(from: location, green: courseHole.green)
-            let features = DistanceCalculator.featuresAhead(from: location, features: courseHole.features, green: courseHole.green)
+    private func informationPanel(_ round: Round) -> some View {
+        if round.isActive {
+            VStack(spacing: 6) {
+                if let courseHole = round.currentCourseHole, let green = courseHole.green, let location = locationManager.lastLocation {
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green)
+                    let features = DistanceCalculator.featuresAhead(from: location, features: courseHole.features ?? [], green: green)
 
-            VStack(spacing: 8) {
-                Text("Par \(courseHole.par)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text("Par \(courseHole.par)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                HStack(spacing: 24) {
-                    distanceLabel("Front", greenDist.front)
-                    distanceLabel("Mid", greenDist.middle)
-                    distanceLabel("Back", greenDist.back)
-                }
-
-                if !features.isEmpty {
-                    Divider()
-                    ForEach(features, id: \.feature.id) { fd in
-                        HStack(spacing: 6) {
-                            Image(systemName: fd.feature.type == .water ? "drop.fill" : "square.fill")
-                                .foregroundStyle(fd.feature.type == .water ? .blue : .yellow)
-                            Text(fd.feature.type.rawValue.capitalized)
-                                .font(.caption)
-                            Spacer()
-                            Text("\(fd.distanceYards) yds")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                        }
+                    HStack(spacing: 20) {
+                        distanceLabel("Front", greenDist.front)
+                        distanceLabel("Mid", greenDist.middle)
+                        distanceLabel("Back", greenDist.back)
                     }
+
+                    Divider()
+
+                    let detailItems = detailRows(round: round, features: features)
+                    detailGrid(detailItems)
+                } else {
+                    detailGrid(detailRows(round: round, features: []))
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .background(.ultraThinMaterial)
             .cornerRadius(12)
             .padding(.horizontal, 16)
+        } else if !round.allMarks.isEmpty {
+            Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
+                .font(.headline)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.ultraThinMaterial)
         }
     }
 
     private func distanceLabel(_ label: String, _ yards: Int) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             Text("\(yards)")
-                .font(.title3)
+                .font(.body)
                 .fontWeight(.bold)
             Text(label)
                 .font(.caption2)
@@ -265,28 +264,71 @@ struct RoundMapView: View {
         }
     }
 
-    @ViewBuilder
-    private func statsBar(_ round: Round) -> some View {
-        if round.isActive || !round.allMarks.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                if round.isActive {
-                    Text("Hole \(round.currentHoleNumber)")
-                        .font(.headline)
-                        .accessibilityIdentifier("Hole \(round.currentHoleNumber)")
-                    Text("Previous: \(previousDistance(round))")
-                        .font(.headline)
-                    Text("Strokes: \(round.currentHole.strokeCount)")
-                        .font(.headline)
-                } else {
-                    Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
-                        .font(.headline)
+    private struct DetailRow: Identifiable {
+        let id = UUID()
+        let left: DetailItem
+        let right: DetailItem?
+    }
+
+    private struct DetailItem {
+        let icon: String?
+        let iconColor: Color?
+        let label: String
+        let value: String
+    }
+
+    private func detailRows(round: Round, features: [FeatureDistance]) -> [DetailRow] {
+        var items: [DetailItem] = [
+            DetailItem(icon: nil, iconColor: nil, label: "Previous", value: previousDistance(round)),
+            DetailItem(icon: nil, iconColor: nil, label: "Strokes", value: "\(round.currentHole.strokeCount)")
+        ]
+        for fd in features {
+            items.append(DetailItem(
+                icon: fd.feature.type == .water ? "drop.fill" : "square.fill",
+                iconColor: fd.feature.type == .water ? .blue : .yellow,
+                label: fd.feature.type.rawValue.capitalized,
+                value: "\(fd.distanceYards) yds"
+            ))
+        }
+        var rows: [DetailRow] = []
+        for i in stride(from: 0, to: items.count, by: 2) {
+            rows.append(DetailRow(left: items[i], right: i + 1 < items.count ? items[i + 1] : nil))
+        }
+        return rows
+    }
+
+    private func detailGrid(_ rows: [DetailRow]) -> some View {
+        VStack(spacing: 4) {
+            ForEach(rows) { row in
+                HStack(spacing: 0) {
+                    detailCell(row.left)
+                    if let right = row.right {
+                        detailCell(right)
+                    } else {
+                        Spacer().frame(maxWidth: .infinity)
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
         }
+    }
+
+    private func detailCell(_ item: DetailItem) -> some View {
+        HStack(spacing: 4) {
+            if let icon = item.icon, let color = item.iconColor {
+                Image(systemName: icon)
+                    .font(.system(size: 8))
+                    .foregroundStyle(color)
+            }
+            Text(item.label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(item.value)
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 4)
     }
 
     private func previousDistance(_ round: Round) -> String {
@@ -304,8 +346,12 @@ struct RoundMapView: View {
                     holeAdvancer.resume()
                     if let round = self.round, let selection = round.courseSelection,
                        let location = locationManager.lastLocation,
-                       let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection) {
+                       let detected = HoleAdvancer.nearestHole(location: location, courseSelection: selection) {
                         roundStore.setHoleIndex(detected)
+                    }
+                    followsUserLocation = true
+                    if let location = locationManager.lastLocation {
+                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
                     }
                 }
                 .buttonStyle(.bordered)
@@ -316,8 +362,9 @@ struct RoundMapView: View {
                 Button {
                     holeAdvancer.pause()
                     roundStore.previousHole()
+                    panToCurrentTee()
                 } label: {
-                    Label("Prev Hole", systemImage: "chevron.left")
+                    Label("Prev", systemImage: "chevron.left")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 12)
@@ -326,11 +373,16 @@ struct RoundMapView: View {
                 .buttonStyle(.bordered)
                 .disabled(round.currentHoleIndex == 0)
 
+                Text("Hole \(round.currentHoleNumber)")
+                    .font(.headline)
+                    .accessibilityIdentifier("Hole \(round.currentHoleNumber)")
+
                 Button {
                     holeAdvancer.pause()
                     roundStore.nextHole()
+                    panToCurrentTee()
                 } label: {
-                    Label("Next Hole", systemImage: "chevron.right")
+                    Label("Next", systemImage: "chevron.right")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 12)
@@ -422,5 +474,12 @@ struct RoundMapView: View {
         guard let location = locationManager.lastLocation else { return }
         let mark = BallMark(coordinate: location.coordinate)
         roundStore.addMark(mark)
+    }
+
+    private func panToCurrentTee() {
+        guard let round, let courseHole = round.currentCourseHole,
+              let tees = courseHole.tees, let firstTee = tees.values.first else { return }
+        followsUserLocation = false
+        position = .region(MKCoordinateRegion(center: firstTee.clLocationCoordinate2D, span: Self.defaultSpan))
     }
 }

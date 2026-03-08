@@ -23,7 +23,6 @@
 		4421AFB746A2D297B7A96619 /* CourseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1602718B166ABF2653676E4 /* CourseService.swift */; };
 		473C22ECA82021C8C706B976 /* Round.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82058F867199D494A9640C07 /* Round.swift */; };
 		4D7A5003C01D50AC34CDD7D2 /* RoundListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */; };
-		C8A1B2D3E4F5A6B7C9D0E1F2 /* CourseSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* CourseSelectionView.swift */; };
 		4D86CEEAEF793BDFC6735333 /* SpotGolfApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15DB95E8A4998752FD616E1 /* SpotGolfApp.swift */; };
 		5441B38F32881D45FFBBDBFA /* test-locations.csv in Resources */ = {isa = PBXBuildFile; fileRef = F556F18DC4DAA2E2CADE824D /* test-locations.csv */; };
 		5A7FFC85BD44BFDB71D44C5B /* WatchRoundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B7DFC806512F8D9C7DA87E /* WatchRoundView.swift */; };
@@ -57,6 +56,7 @@
 		D48D19FD18024D7985415B24 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16D85309159B892BBC7B31A /* LocationManager.swift */; };
 		D5953BDA13656B5217A1A090 /* Course.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF1F8D2C11DDDE512F662102 /* Course.swift */; };
 		DF20170F66E95BC5CAB9ECE5 /* WatchRoundFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AD496DE59E75060B4A7BD23 /* WatchRoundFlowUITests.swift */; };
+		E35AF691AB8F1D771C5AF70B /* CourseSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6171C9E09B98388AD0604B2 /* CourseSelectionView.swift */; };
 		E5CBF3D5673C328548E5F125 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */; };
 		E98CC4FEB4824C1E7E74C7A0 /* BallMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F25462C700858533535F00 /* BallMark.swift */; };
 		EA3D7682FBE3321CEA0CB897 /* RoundStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F8BC39497B60789363C132 /* RoundStore.swift */; };
@@ -97,7 +97,6 @@
 		2853A17F0D32E041FB6FEFB8 /* BallMarkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallMarkTests.swift; sourceTree = "<group>"; };
 		32FD53566F1D648AB6A93CFD /* Hole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hole.swift; sourceTree = "<group>"; };
 		35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundListView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F3 /* CourseSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseSelectionView.swift; sourceTree = "<group>"; };
 		364128AB03054E09B6897A8F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		39D56A30B0D74C05175B5853 /* WatchConnectivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchConnectivity.framework; path = System/Library/Frameworks/WatchConnectivity.framework; sourceTree = SDKROOT; };
 		3A681B176B3D35D46FC3D2DB /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
@@ -126,6 +125,7 @@
 		B1602718B166ABF2653676E4 /* CourseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseService.swift; sourceTree = "<group>"; };
 		B279E140F6499DEA099D9634 /* HoleAdvancer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoleAdvancer.swift; sourceTree = "<group>"; };
 		B28318D4F46C63FFD65EF397 /* DistanceCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistanceCalculator.swift; sourceTree = "<group>"; };
+		B6171C9E09B98388AD0604B2 /* CourseSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseSelectionView.swift; sourceTree = "<group>"; };
 		C0948C09DA83F95F01BB4157 /* CourseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseTests.swift; sourceTree = "<group>"; };
 		C16D85309159B892BBC7B31A /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		C31ACF31764647C859591C6C /* SpotGolfWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotGolfWatchApp.swift; sourceTree = "<group>"; };
@@ -178,7 +178,7 @@
 			isa = PBXGroup;
 			children = (
 				9DE42B08F3B35F014850DD21 /* ContentView.swift */,
-				A1B2C3D4E5F6A7B8C9D0E1F3 /* CourseSelectionView.swift */,
+				B6171C9E09B98388AD0604B2 /* CourseSelectionView.swift */,
 				35D2FA43C6C1658BE2AA02D3 /* RoundListView.swift */,
 				AD881E8D654A6A4DBEC314DB /* RoundMapView.swift */,
 			);
@@ -544,13 +544,13 @@
 				97FA5937CA3D8E8AEDD5C53D /* BallMark.swift in Sources */,
 				745AE2230C2F35DE5E0A7AD9 /* ContentView.swift in Sources */,
 				EE656707A4C89C53E6692986 /* Course.swift in Sources */,
+				E35AF691AB8F1D771C5AF70B /* CourseSelectionView.swift in Sources */,
 				4421AFB746A2D297B7A96619 /* CourseService.swift in Sources */,
 				FF6036F1F49242950E18FC22 /* DistanceCalculator.swift in Sources */,
 				6C511BDF9609CCD5B8E87D5D /* Hole.swift in Sources */,
 				EA7DC684E7795085BBB3BE9D /* HoleAdvancer.swift in Sources */,
 				EF2A0ACA9519F3028057E3C2 /* LocationManager.swift in Sources */,
 				473C22ECA82021C8C706B976 /* Round.swift in Sources */,
-				C8A1B2D3E4F5A6B7C9D0E1F2 /* CourseSelectionView.swift in Sources */,
 				4D7A5003C01D50AC34CDD7D2 /* RoundListView.swift in Sources */,
 				08BDD6810B6AD221D96E9E0D /* RoundMapView.swift in Sources */,
 				EA3D7682FBE3321CEA0CB897 /* RoundStore.swift in Sources */,

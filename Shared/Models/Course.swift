@@ -61,10 +61,10 @@ struct CourseHole: Identifiable, Codable, Equatable {
     let par: Int
     let maleHandicap: Int?
     let femaleHandicap: Int?
-    let green: CourseGreen
-    let tees: [String: CourseCoordinate]
-    let yardages: [String: Int]
-    let features: [CourseFeature]
+    let green: CourseGreen?
+    let tees: [String: CourseCoordinate]?
+    let yardages: [String: Int]?
+    let features: [CourseFeature]?
 }
 
 // MARK: - SubCourse

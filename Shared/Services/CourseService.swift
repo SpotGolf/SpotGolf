@@ -28,7 +28,7 @@ class CourseService: ObservableObject {
     static let maxCacheBytes = 5 * 1024 * 1024
     private static let tenMilesInMeters: Double = 16093.44
 
-    private static let baseURL = "https://raw.githubusercontent.com/SpotGolf/CourseData/refs/heads/main/"
+    private static let baseURL = "https://raw.githubusercontent.com/SpotGolf/CourseData/main/"
 
     private let cacheDirectory: URL
     private let fileManager = FileManager.default
