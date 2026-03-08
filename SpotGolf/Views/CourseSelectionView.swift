@@ -103,7 +103,13 @@ struct CourseSelectionView: View {
         }
         .searchable(text: $searchText, prompt: "Search courses")
         .task {
+            locationManager.startUpdating()
             await courseService.refreshIndex()
+        }
+        .onDisappear {
+            if roundStore.activeRound == nil {
+                locationManager.stopUpdating()
+            }
         }
     }
 

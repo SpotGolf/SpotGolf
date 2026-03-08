@@ -20,6 +20,9 @@ struct SpotGolfApp: App {
                     }
                     syncService.roundStore = roundStore
                     locationManager.requestPermission()
+                    Task {
+                        await courseService.refreshIndex()
+                    }
                 }
         }
     }
