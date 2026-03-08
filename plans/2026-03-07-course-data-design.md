@@ -16,16 +16,13 @@ A single `index.json` in the CourseData repo listing all courses. Versioned via 
 ```json
 {
   "name": "Broadlands Golf Course",
-  "clubName": "Broadlands Golf Course",
-  "location": {
-    "coordinate": { "latitude": 39.956543, "longitude": -105.040375 },
-    "city": "Broomfield",
-    "state": "CO",
-    "country": "United States"
-  },
+  "coordinate": { "latitude": 39.956543, "longitude": -105.040375 },
+  "holes": 18,
   "path": "US/CO/Broomfield/Broadlands-Golf-Course.json"
 }
 ```
+
+City, state, and country are derived from the path (e.g., `US/CO/Broomfield/...`).
 
 ### Course JSON
 

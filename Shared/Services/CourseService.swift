@@ -163,7 +163,7 @@ class CourseService: ObservableObject {
 
     func nearbyCourses(from location: CLLocation) -> [NearbyResult] {
         index.compactMap { entry in
-            let courseLocation = entry.location.coordinate.clLocation
+            let courseLocation = entry.coordinate.clLocation
             let distanceMeters = location.distance(from: courseLocation)
             guard distanceMeters <= Self.tenMilesInMeters else { return nil }
             let distanceMiles = distanceMeters / 1609.344
@@ -176,8 +176,7 @@ class CourseService: ObservableObject {
         guard !query.isEmpty else { return [] }
         let lowered = query.lowercased()
         return index.filter { entry in
-            entry.name.lowercased().contains(lowered) ||
-            entry.clubName.lowercased().contains(lowered)
+            entry.name.lowercased().contains(lowered)
         }
     }
 

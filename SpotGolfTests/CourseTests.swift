@@ -87,14 +87,9 @@ final class CourseTests: XCTestCase {
     private let indexEntryJSON = """
     {
         "name": "Championship Course",
-        "clubName": "Pine Valley Golf Club",
-        "location": {
-            "coordinate": { "latitude": 39.7879, "longitude": -74.9681 },
-            "city": "Pine Valley",
-            "state": "NJ",
-            "country": "US"
-        },
-        "path": "us/nj/pine-valley.json"
+        "coordinate": { "latitude": 39.7879, "longitude": -74.9681 },
+        "holes": 18,
+        "path": "US/NJ/Pine Valley/Championship-Course.json"
     }
     """
 
@@ -146,13 +141,13 @@ final class CourseTests: XCTestCase {
         let entry = try JSONDecoder().decode(CourseIndexEntry.self, from: data)
 
         XCTAssertEqual(entry.name, "Championship Course")
-        XCTAssertEqual(entry.clubName, "Pine Valley Golf Club")
-        XCTAssertEqual(entry.location.city, "Pine Valley")
-        XCTAssertEqual(entry.location.state, "NJ")
-        XCTAssertEqual(entry.location.country, "US")
-        XCTAssertEqual(entry.location.coordinate.latitude, 39.7879)
-        XCTAssertEqual(entry.location.coordinate.longitude, -74.9681)
-        XCTAssertEqual(entry.path, "us/nj/pine-valley.json")
+        XCTAssertEqual(entry.coordinate.latitude, 39.7879)
+        XCTAssertEqual(entry.coordinate.longitude, -74.9681)
+        XCTAssertEqual(entry.holes, 18)
+        XCTAssertEqual(entry.path, "US/NJ/Pine Valley/Championship-Course.json")
+        XCTAssertEqual(entry.city, "Pine Valley")
+        XCTAssertEqual(entry.state, "NJ")
+        XCTAssertEqual(entry.country, "US")
     }
 
     func testCourseHoleCoordinateAccessors() throws {

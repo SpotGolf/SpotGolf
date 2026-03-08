@@ -118,7 +118,7 @@ struct CourseSelectionView: View {
                     Text(entry.name)
                         .font(.headline)
                         .foregroundStyle(.primary)
-                    Text("\(entry.location.city), \(entry.location.state)")
+                    Text([entry.city, entry.state].compactMap { $0 }.joined(separator: ", "))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

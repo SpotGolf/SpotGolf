@@ -94,22 +94,34 @@ struct Course: Identifiable, Codable, Equatable {
     let subCourses: [SubCourse]
 }
 
-// MARK: - CourseIndexLocation
-
-struct CourseIndexLocation: Codable, Equatable {
-    let coordinate: CourseCoordinate
-    let city: String
-    let state: String
-    let country: String
-}
-
 // MARK: - CourseIndexEntry
 
 struct CourseIndexEntry: Codable, Equatable {
     let name: String
-    let clubName: String
-    let location: CourseIndexLocation
+    let coordinate: CourseCoordinate
+    let holes: Int
     let path: String
+
+    /// Derives city from path (e.g. "US/CO/Broomfield/Course.json" → "Broomfield")
+    var city: String? {
+        let components = path.split(separator: "/")
+        guard components.count >= 4 else { return nil }
+        return String(components[2])
+    }
+
+    /// Derives state from path (e.g. "US/CO/Broomfield/Course.json" → "CO")
+    var state: String? {
+        let components = path.split(separator: "/")
+        guard components.count >= 2 else { return nil }
+        return String(components[1])
+    }
+
+    /// Derives country from path (e.g. "US/CO/Broomfield/Course.json" → "US")
+    var country: String? {
+        let components = path.split(separator: "/")
+        guard components.count >= 1 else { return nil }
+        return String(components[0])
+    }
 }
 
 // MARK: - CourseSelection

@@ -118,25 +118,15 @@ final class CourseServiceTests: XCTestCase {
         let entries = [
             CourseIndexEntry(
                 name: "Test Course",
-                clubName: "Test Club",
-                location: CourseIndexLocation(
-                    coordinate: CourseCoordinate(latitude: 33.45, longitude: -112.07),
-                    city: "Phoenix",
-                    state: "AZ",
-                    country: "US"
-                ),
-                path: "us/az/test-course.json"
+                coordinate: CourseCoordinate(latitude: 33.45, longitude: -112.07),
+                holes: 18,
+                path: "US/AZ/Phoenix/Test-Course.json"
             ),
             CourseIndexEntry(
                 name: "Another Course",
-                clubName: "Another Club",
-                location: CourseIndexLocation(
-                    coordinate: CourseCoordinate(latitude: 34.0, longitude: -111.0),
-                    city: "Scottsdale",
-                    state: "AZ",
-                    country: "US"
-                ),
-                path: "us/az/another-course.json"
+                coordinate: CourseCoordinate(latitude: 34.0, longitude: -111.0),
+                holes: 9,
+                path: "US/AZ/Scottsdale/Another-Course.json"
             )
         ]
 
@@ -151,7 +141,7 @@ final class CourseServiceTests: XCTestCase {
         XCTAssertEqual(loaded?.count, 2)
         XCTAssertEqual(loaded?[0].name, "Test Course")
         XCTAssertEqual(loaded?[1].name, "Another Course")
-        XCTAssertEqual(loaded?[0].path, "us/az/test-course.json")
+        XCTAssertEqual(loaded?[0].path, "US/AZ/Phoenix/Test-Course.json")
     }
 
     func testCachedIndexVersionReturnsNilWhenNoCache() {
@@ -165,24 +155,19 @@ final class CourseServiceTests: XCTestCase {
 
     // MARK: - Nearby Courses
 
-    private func makeEntry(name: String, clubName: String, lat: Double, lon: Double) -> CourseIndexEntry {
+    private func makeEntry(name: String, lat: Double, lon: Double, holes: Int = 18) -> CourseIndexEntry {
         CourseIndexEntry(
             name: name,
-            clubName: clubName,
-            location: CourseIndexLocation(
-                coordinate: CourseCoordinate(latitude: lat, longitude: lon),
-                city: "City",
-                state: "ST",
-                country: "US"
-            ),
-            path: "us/st/\(name.lowercased().replacingOccurrences(of: " ", with: "-")).json"
+            coordinate: CourseCoordinate(latitude: lat, longitude: lon),
+            holes: holes,
+            path: "US/ST/City/\(name.replacingOccurrences(of: " ", with: "-")).json"
         )
     }
 
     func testNearbyCourses() {
         // Phoenix: 33.4484, -112.0740
-        let close = makeEntry(name: "Close Course", clubName: "Close Club", lat: 33.46, lon: -112.08) // ~1 mile
-        let far = makeEntry(name: "Far Course", clubName: "Far Club", lat: 34.5, lon: -111.0) // ~100 miles
+        let close = makeEntry(name: "Close Course", lat: 33.46, lon: -112.08) // ~1 mile
+        let far = makeEntry(name: "Far Course", lat: 34.5, lon: -111.0) // ~100 miles
         service.index = [close, far]
 
         let location = CLLocation(latitude: 33.4484, longitude: -112.0740)
@@ -194,8 +179,8 @@ final class CourseServiceTests: XCTestCase {
 
     func testNearbyCourseSortedByDistance() {
         // Two courses within 10 miles but at different distances
-        let closer = makeEntry(name: "Closer Course", clubName: "Closer Club", lat: 33.45, lon: -112.08) // very close
-        let farther = makeEntry(name: "Farther Course", clubName: "Farther Club", lat: 33.50, lon: -112.10) // a few miles
+        let closer = makeEntry(name: "Closer Course", lat: 33.45, lon: -112.08) // very close
+        let farther = makeEntry(name: "Farther Course", lat: 33.50, lon: -112.10) // a few miles
         service.index = [farther, closer] // insert farther first
 
         let location = CLLocation(latitude: 33.4484, longitude: -112.0740)
@@ -210,8 +195,8 @@ final class CourseServiceTests: XCTestCase {
     // MARK: - Search Courses
 
     func testSearchCoursesByName() {
-        let course1 = makeEntry(name: "Pine Valley Golf", clubName: "Pine Club", lat: 33.0, lon: -112.0)
-        let course2 = makeEntry(name: "Oak Hills Golf", clubName: "Oak Club", lat: 34.0, lon: -111.0)
+        let course1 = makeEntry(name: "Pine Valley Golf", lat: 33.0, lon: -112.0)
+        let course2 = makeEntry(name: "Oak Hills Golf", lat: 34.0, lon: -111.0)
         service.index = [course1, course2]
 
         let results = service.searchCourses(query: "Pine")
@@ -221,7 +206,7 @@ final class CourseServiceTests: XCTestCase {
     }
 
     func testSearchCoursesCaseInsensitive() {
-        let course = makeEntry(name: "Pine Valley Golf", clubName: "Pine Club", lat: 33.0, lon: -112.0)
+        let course = makeEntry(name: "Pine Valley Golf", lat: 33.0, lon: -112.0)
         service.index = [course]
 
         let results = service.searchCourses(query: "PINE VALLEY")
