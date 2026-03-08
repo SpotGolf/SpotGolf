@@ -6,21 +6,25 @@ struct Round: Identifiable {
     var holes: [Hole]
     var currentHoleIndex: Int
     var isActive: Bool
+    var courseSelection: CourseSelection?
 
     static func == (lhs: Round, rhs: Round) -> Bool {
         lhs.id == rhs.id &&
         lhs.date == rhs.date &&
         lhs.holes == rhs.holes &&
         lhs.currentHoleIndex == rhs.currentHoleIndex &&
-        lhs.isActive == rhs.isActive
+        lhs.isActive == rhs.isActive &&
+        lhs.courseSelection == rhs.courseSelection
     }
 
-    init(id: UUID = UUID(), date: Date = Date(), holes: [Hole] = [Hole()], currentHoleIndex: Int = 0, isActive: Bool = true) {
+    init(id: UUID = UUID(), date: Date = Date(), holes: [Hole] = [Hole()],
+         currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection? = nil) {
         self.id = id
         self.date = date
         self.holes = holes
         self.currentHoleIndex = currentHoleIndex
         self.isActive = isActive
+        self.courseSelection = courseSelection
     }
 
     var formattedDate: String {
@@ -33,6 +37,13 @@ struct Round: Identifiable {
 
     var currentHoleNumber: Int {
         currentHoleIndex + 1
+    }
+
+    var currentCourseHole: CourseHole? {
+        guard let selection = courseSelection else { return nil }
+        let orderedHoles = selection.orderedHoles
+        guard currentHoleIndex < orderedHoles.count else { return nil }
+        return orderedHoles[currentHoleIndex]
     }
 
     /// Marks for the current hole — preserves existing call sites.
@@ -92,7 +103,7 @@ extension Round: Equatable {}
 
 extension Round: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, date, holes, currentHoleIndex, isActive
+        case id, date, holes, currentHoleIndex, isActive, courseSelection
         case marks // legacy key
     }
 
@@ -112,6 +123,7 @@ extension Round: Codable {
             self.holes = [Hole(marks: marks)]
             self.currentHoleIndex = 0
         }
+        self.courseSelection = try container.decodeIfPresent(CourseSelection.self, forKey: .courseSelection)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -121,5 +133,6 @@ extension Round: Codable {
         try container.encode(holes, forKey: .holes)
         try container.encode(currentHoleIndex, forKey: .currentHoleIndex)
         try container.encode(isActive, forKey: .isActive)
+        try container.encodeIfPresent(courseSelection, forKey: .courseSelection)
     }
 }
