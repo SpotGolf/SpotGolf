@@ -1,4 +1,5 @@
 import XCTest
+import CoreLocation
 @testable import SpotGolf
 
 @MainActor
@@ -160,5 +161,72 @@ final class CourseServiceTests: XCTestCase {
     func testLoadCachedIndexReturnsNilWhenNoCache() throws {
         let loaded = try service.loadCachedIndex()
         XCTAssertNil(loaded)
+    }
+
+    // MARK: - Nearby Courses
+
+    private func makeEntry(name: String, clubName: String, lat: Double, lon: Double) -> CourseIndexEntry {
+        CourseIndexEntry(
+            name: name,
+            clubName: clubName,
+            location: CourseIndexLocation(
+                coordinate: CourseCoordinate(latitude: lat, longitude: lon),
+                city: "City",
+                state: "ST",
+                country: "US"
+            ),
+            path: "us/st/\(name.lowercased().replacingOccurrences(of: " ", with: "-")).json"
+        )
+    }
+
+    func testNearbyCourses() {
+        // Phoenix: 33.4484, -112.0740
+        let close = makeEntry(name: "Close Course", clubName: "Close Club", lat: 33.46, lon: -112.08) // ~1 mile
+        let far = makeEntry(name: "Far Course", clubName: "Far Club", lat: 34.5, lon: -111.0) // ~100 miles
+        service.index = [close, far]
+
+        let location = CLLocation(latitude: 33.4484, longitude: -112.0740)
+        let results = service.nearbyCourses(from: location)
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].entry.name, "Close Course")
+    }
+
+    func testNearbyCourseSortedByDistance() {
+        // Two courses within 10 miles but at different distances
+        let closer = makeEntry(name: "Closer Course", clubName: "Closer Club", lat: 33.45, lon: -112.08) // very close
+        let farther = makeEntry(name: "Farther Course", clubName: "Farther Club", lat: 33.50, lon: -112.10) // a few miles
+        service.index = [farther, closer] // insert farther first
+
+        let location = CLLocation(latitude: 33.4484, longitude: -112.0740)
+        let results = service.nearbyCourses(from: location)
+
+        XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(results[0].entry.name, "Closer Course")
+        XCTAssertEqual(results[1].entry.name, "Farther Course")
+        XCTAssertLessThan(results[0].distanceMiles, results[1].distanceMiles)
+    }
+
+    // MARK: - Search Courses
+
+    func testSearchCoursesByName() {
+        let course1 = makeEntry(name: "Pine Valley Golf", clubName: "Pine Club", lat: 33.0, lon: -112.0)
+        let course2 = makeEntry(name: "Oak Hills Golf", clubName: "Oak Club", lat: 34.0, lon: -111.0)
+        service.index = [course1, course2]
+
+        let results = service.searchCourses(query: "Pine")
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].name, "Pine Valley Golf")
+    }
+
+    func testSearchCoursesCaseInsensitive() {
+        let course = makeEntry(name: "Pine Valley Golf", clubName: "Pine Club", lat: 33.0, lon: -112.0)
+        service.index = [course]
+
+        let results = service.searchCourses(query: "PINE VALLEY")
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].name, "Pine Valley Golf")
     }
 }

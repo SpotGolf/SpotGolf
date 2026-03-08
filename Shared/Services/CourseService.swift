@@ -1,5 +1,13 @@
 import Foundation
 import Compression
+import CoreLocation
+
+// MARK: - NearbyResult
+
+struct NearbyResult {
+    let entry: CourseIndexEntry
+    let distanceMiles: Double
+}
 
 // MARK: - CourseServiceError
 
@@ -18,6 +26,7 @@ class CourseService: ObservableObject {
     @Published var index: [CourseIndexEntry] = []
 
     static let maxCacheBytes = 5 * 1024 * 1024
+    private static let tenMilesInMeters: Double = 16093.44
 
     private static let baseURL = "https://raw.githubusercontent.com/SpotGolf/CourseData/refs/heads/main/"
 
@@ -148,6 +157,28 @@ class CourseService: ObservableObject {
         let compressed = try Data(contentsOf: fileURL)
         let decompressed = try decompress(compressed)
         return try JSONDecoder().decode(Course.self, from: decompressed)
+    }
+
+    // MARK: - Nearby & Search
+
+    func nearbyCourses(from location: CLLocation) -> [NearbyResult] {
+        index.compactMap { entry in
+            let courseLocation = entry.location.coordinate.clLocation
+            let distanceMeters = location.distance(from: courseLocation)
+            guard distanceMeters <= Self.tenMilesInMeters else { return nil }
+            let distanceMiles = distanceMeters / 1609.344
+            return NearbyResult(entry: entry, distanceMiles: distanceMiles)
+        }
+        .sorted { $0.distanceMiles < $1.distanceMiles }
+    }
+
+    func searchCourses(query: String) -> [CourseIndexEntry] {
+        guard !query.isEmpty else { return [] }
+        let lowered = query.lowercased()
+        return index.filter { entry in
+            entry.name.lowercased().contains(lowered) ||
+            entry.clubName.lowercased().contains(lowered)
+        }
     }
 
     // MARK: - Cache Management
