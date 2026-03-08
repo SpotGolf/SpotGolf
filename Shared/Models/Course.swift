@@ -114,7 +114,7 @@ struct CourseIndexEntry: Codable, Equatable {
 
 // MARK: - CourseSelection
 
-struct CourseSelection: Equatable {
+struct CourseSelection: Codable, Equatable {
     let course: Course
     let selectedSubCourseIndices: [Int]
 
