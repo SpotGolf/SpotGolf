@@ -45,12 +45,6 @@ struct CourseFeature: Identifiable, Codable, Equatable {
         return CLLocation(latitude: lat, longitude: lon)
     }
 
-    static func == (lhs: CourseFeature, rhs: CourseFeature) -> Bool {
-        lhs.id == rhs.id &&
-        lhs.type == rhs.type &&
-        lhs.front == rhs.front &&
-        lhs.back == rhs.back
-    }
 }
 
 // MARK: - CourseHole
@@ -132,7 +126,8 @@ struct CourseSelection: Codable, Equatable {
 
     var orderedHoles: [CourseHole] {
         selectedSubCourseIndices.flatMap { index in
-            course.subCourses[index].holes
+            guard index >= 0, index < course.subCourses.count else { return [CourseHole]() }
+            return course.subCourses[index].holes
         }
     }
 }

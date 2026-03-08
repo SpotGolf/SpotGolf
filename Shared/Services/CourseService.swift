@@ -73,7 +73,7 @@ class CourseService: ObservableObject {
                 }
             }
         } catch {
-            // Fall back to cached index if offline/error
+            print("[CourseService] refreshIndex failed: \(error)")
             if let cached = try? loadCachedIndex() {
                 index = cached
             }
@@ -201,7 +201,8 @@ class CourseService: ObservableObject {
     }
 
     private func enforceCacheLimit() {
-        guard cacheSizeBytes() > Self.maxCacheBytes else { return }
+        let totalSize = cacheSizeBytes()
+        guard totalSize > Self.maxCacheBytes else { return }
 
         let coursesDir = cacheDirectory.appendingPathComponent("courses")
         guard let enumerator = fileManager.enumerator(
@@ -226,7 +227,7 @@ class CourseService: ObservableObject {
         // Sort oldest-accessed first
         files.sort { $0.accessDate < $1.accessDate }
 
-        var currentSize = cacheSizeBytes()
+        var currentSize = totalSize
         for file in files {
             guard currentSize > Self.maxCacheBytes else { break }
             try? fileManager.removeItem(at: file.url)
@@ -271,6 +272,11 @@ class CourseService: ObservableObject {
 
         let originalSize: UInt64 = data.withUnsafeBytes { ptr in
             ptr.load(as: UInt64.self).littleEndian
+        }
+
+        let maxDecompressedSize: UInt64 = 50 * 1024 * 1024
+        guard originalSize > 0, originalSize <= maxDecompressedSize else {
+            throw CourseServiceError.decompressionFailed
         }
 
         let compressedData = data.dropFirst(8)
