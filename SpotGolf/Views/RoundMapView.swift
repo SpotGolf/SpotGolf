@@ -20,6 +20,7 @@ struct RoundMapView: View {
     @State private var draggingMark: BallMark?
     @State private var dragOffset: CGSize = .zero
     @State private var newSpotIndex: Int = 0
+    @State private var holeAdvancer = HoleAdvancer()
 
     var body: some View {
         Group {
@@ -34,8 +35,15 @@ struct RoundMapView: View {
             locationManager.stopUpdating()
         }
         .onReceive(locationManager.$lastLocation) { location in
-            guard followsUserLocation, let location else { return }
-            position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+            if followsUserLocation, let location {
+                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+            }
+            if let round, let selection = round.courseSelection, !holeAdvancer.isPaused, let location {
+                if let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection),
+                   detected != round.currentHoleIndex {
+                    roundStore.setHoleIndex(detected)
+                }
+            }
         }
         .onChange(of: roundStore.rounds) {
             if round == nil {
@@ -197,10 +205,63 @@ struct RoundMapView: View {
     private func overlayView(_ round: Round) -> some View {
         VStack {
             statsBar(round)
+            distancePanel(round)
             Spacer()
             if round.isActive {
                 buttonBar(round)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func distancePanel(_ round: Round) -> some View {
+        if let courseHole = round.currentCourseHole, let location = locationManager.lastLocation {
+            let greenDist = DistanceCalculator.greenDistances(from: location, green: courseHole.green)
+            let features = DistanceCalculator.featuresAhead(from: location, features: courseHole.features, green: courseHole.green)
+
+            VStack(spacing: 8) {
+                Text("Par \(courseHole.par)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 24) {
+                    distanceLabel("Front", greenDist.front)
+                    distanceLabel("Mid", greenDist.middle)
+                    distanceLabel("Back", greenDist.back)
+                }
+
+                if !features.isEmpty {
+                    Divider()
+                    ForEach(features, id: \.feature.id) { fd in
+                        HStack(spacing: 6) {
+                            Image(systemName: fd.feature.type == .water ? "drop.fill" : "square.fill")
+                                .foregroundStyle(fd.feature.type == .water ? .blue : .yellow)
+                            Text(fd.feature.type.rawValue.capitalized)
+                                .font(.caption)
+                            Spacer()
+                            Text("\(fd.distanceYards) yds")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .cornerRadius(12)
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func distanceLabel(_ label: String, _ yards: Int) -> some View {
+        VStack(spacing: 2) {
+            Text("\(yards)")
+                .font(.title3)
+                .fontWeight(.bold)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -238,8 +299,22 @@ struct RoundMapView: View {
 
     private func buttonBar(_ round: Round) -> some View {
         VStack(spacing: 12) {
+            if holeAdvancer.isPaused {
+                Button("Resume round") {
+                    holeAdvancer.resume()
+                    if let round = self.round, let selection = round.courseSelection,
+                       let location = locationManager.lastLocation,
+                       let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection) {
+                        roundStore.setHoleIndex(detected)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(.blue)
+            }
+
             HStack(spacing: 16) {
                 Button {
+                    holeAdvancer.pause()
                     roundStore.previousHole()
                 } label: {
                     Label("Prev Hole", systemImage: "chevron.left")
@@ -252,6 +327,7 @@ struct RoundMapView: View {
                 .disabled(round.currentHoleIndex == 0)
 
                 Button {
+                    holeAdvancer.pause()
                     roundStore.nextHole()
                 } label: {
                     Label("Next Hole", systemImage: "chevron.right")

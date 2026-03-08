@@ -102,6 +102,23 @@ class RoundStore: ObservableObject {
         }
     }
 
+    func setHoleIndex(_ index: Int, roundID: UUID? = nil, fromSync: Bool = false) {
+        let predicate: (Round) -> Bool = if let roundID {
+            { $0.id == roundID }
+        } else {
+            { $0.isActive }
+        }
+        if let i = rounds.firstIndex(where: predicate) {
+            while rounds[i].holes.count <= index && rounds[i].holes.count < 18 {
+                rounds[i].holes.append(Hole())
+            }
+            let clamped = min(index, rounds[i].holes.count - 1)
+            guard clamped != rounds[i].currentHoleIndex else { return }
+            rounds[i].currentHoleIndex = clamped
+            save()
+        }
+    }
+
     func setCourse(_ selection: CourseSelection, for roundID: UUID? = nil, fromSync: Bool = false) {
         let predicate: (Round) -> Bool = if let roundID {
             { $0.id == roundID }
