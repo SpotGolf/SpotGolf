@@ -243,6 +243,8 @@ struct RoundMapView: View {
             .background(.ultraThinMaterial)
             .cornerRadius(12)
             .padding(.horizontal, 16)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("InformationPanel")
         } else if !round.allMarks.isEmpty {
             Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
                 .font(.headline)

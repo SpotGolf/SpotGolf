@@ -68,10 +68,15 @@ final class WatchRoundFlowUITests: XCTestCase {
             XCTAssertTrue(atMyBall.waitForExistence(timeout: 10), "At my ball button should exist")
             atMyBall.tap()
 
-            // Wait for "Swing away" to dismiss (~5s) — "At my ball" reappears.
+            // Swing away screen appears — tap Dismiss
+            let dismissButton = app.buttons["Dismiss"]
+            XCTAssertTrue(dismissButton.waitForExistence(timeout: 5), "Dismiss button should appear on swing away")
+            dismissButton.tap()
+
+            // At my ball should reappear
             let atMyBallAgain = app.buttons["At my ball"]
-            XCTAssertTrue(atMyBallAgain.waitForExistence(timeout: 15),
-                          "At my ball should reappear after Swing away clears")
+            XCTAssertTrue(atMyBallAgain.waitForExistence(timeout: 10),
+                          "At my ball should reappear after dismissing swing away")
         }
 
         // ── Verify stroke counts per hole ──
