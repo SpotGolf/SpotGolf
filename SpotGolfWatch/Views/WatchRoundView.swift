@@ -7,18 +7,13 @@ struct WatchRoundView: View {
     @EnvironmentObject var syncService: SyncService
 
     @State private var showSwingAway = false
-    @State private var swingAwayTask: Task<Void, Never>?
 
     @State private var liveDistance: String?
 
     var body: some View {
         Group {
             if showSwingAway {
-                Text("Swing away")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.green)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                swingAwayView(round: roundStore.activeRound)
             } else if let round = roundStore.activeRound {
                 TabView {
                     playPage(round)
@@ -53,7 +48,6 @@ struct WatchRoundView: View {
         }
         .onDisappear {
             locationManager.stopUpdating()
-            swingAwayTask?.cancel()
         }
         .onReceive(locationManager.$lastLocation) { location in
             updateLiveDistance(location: location)
@@ -154,17 +148,82 @@ struct WatchRoundView: View {
         return "0 yds"
     }
 
+    @ViewBuilder
+    private func swingAwayView(round: Round?) -> some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                Text("Swing away")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.green)
+
+                if let round, let courseHole = round.currentCourseHole,
+                   let green = courseHole.green,
+                   let location = locationManager.lastLocation {
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green)
+
+                    Divider()
+
+                    HStack(spacing: 12) {
+                        VStack(spacing: 1) {
+                            Text("\(greenDist.front)")
+                                .font(.body).fontWeight(.bold)
+                            Text("Front")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                        VStack(spacing: 1) {
+                            Text("\(greenDist.middle)")
+                                .font(.body).fontWeight(.bold)
+                            Text("Mid")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                        VStack(spacing: 1) {
+                            Text("\(greenDist.back)")
+                                .font(.body).fontWeight(.bold)
+                            Text("Back")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    let features = DistanceCalculator.featuresAhead(
+                        from: location, features: courseHole.features ?? [], green: green
+                    )
+                    if !features.isEmpty {
+                        Divider()
+                        ForEach(features, id: \.feature.id) { fd in
+                            HStack {
+                                Image(systemName: fd.feature.type == .water ? "drop.fill" : "square.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(fd.feature.type == .water ? .blue : .yellow)
+                                Text(fd.feature.type == .water ? "Water" : "Bunker")
+                                    .font(.caption2)
+                                Spacer()
+                                Text("\(fd.distanceYards)")
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+
+                Button("Dismiss") {
+                    showSwingAway = false
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+        }
+    }
+
     private func markBall() {
-        swingAwayTask?.cancel()
         guard let location = locationManager.lastLocation else { return }
         let mark = BallMark(coordinate: location.coordinate)
         roundStore.addMark(mark)
-
         showSwingAway = true
-        swingAwayTask = Task {
-            try? await Task.sleep(for: .seconds(5))
-            guard !Task.isCancelled else { return }
-            showSwingAway = false
-        }
     }
 }

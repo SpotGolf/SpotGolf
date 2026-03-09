@@ -271,6 +271,80 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.currentHoleIndex, 0)
     }
 
+    // MARK: - Course data
+
+    private func makeCourseSelection() -> CourseSelection {
+        let green = CourseGreen(
+            front: CourseCoordinate(latitude: 33.0, longitude: -112.0),
+            middle: CourseCoordinate(latitude: 33.001, longitude: -112.001),
+            back: CourseCoordinate(latitude: 33.002, longitude: -112.002)
+        )
+        let hole1 = CourseHole(
+            id: "h1", number: 1, par: 4,
+            maleHandicap: 1, femaleHandicap: 1,
+            green: green, tees: [:], yardages: [:], features: []
+        )
+        let hole2 = CourseHole(
+            id: "h2", number: 2, par: 3,
+            maleHandicap: 2, femaleHandicap: 2,
+            green: green, tees: [:], yardages: [:], features: []
+        )
+        let subCourse = SubCourse(name: "Front", holes: [hole1, hole2])
+        let location = CourseLocation(
+            address: nil, city: "Phoenix",
+            coordinate: CourseCoordinate(latitude: 33.0, longitude: -112.0),
+            country: "US", state: "AZ"
+        )
+        let course = Course(id: "c1", name: "Test Course", clubName: "Test Club",
+                            location: location, subCourses: [subCourse])
+        return CourseSelection(course: course, selectedSubCourseIndices: [0])
+    }
+
+    func testRoundWithCourseData() {
+        let selection = makeCourseSelection()
+        let round = Round(courseSelection: selection)
+
+        XCTAssertNotNil(round.courseSelection)
+        XCTAssertEqual(round.courseSelection?.course.id, "c1")
+        XCTAssertEqual(round.courseSelection?.selectedSubCourseIndices, [0])
+    }
+
+    func testRoundWithoutCourseData() {
+        let round = Round()
+
+        XCTAssertNil(round.courseSelection)
+    }
+
+    func testRoundCourseSelectionEncodeDecode() throws {
+        let selection = makeCourseSelection()
+        let round = Round(courseSelection: selection)
+
+        let data = try JSONEncoder().encode(round)
+        let decoded = try JSONDecoder().decode(Round.self, from: data)
+
+        XCTAssertEqual(decoded.courseSelection, selection)
+        XCTAssertEqual(decoded.courseSelection?.course.name, "Test Course")
+        XCTAssertEqual(decoded.courseSelection?.orderedHoles.count, 2)
+    }
+
+    func testCurrentCourseHole() {
+        let selection = makeCourseSelection()
+        var round = Round(courseSelection: selection)
+
+        XCTAssertEqual(round.currentCourseHole?.id, "h1")
+        XCTAssertEqual(round.currentCourseHole?.par, 4)
+
+        round.nextHole()
+
+        XCTAssertEqual(round.currentCourseHole?.id, "h2")
+        XCTAssertEqual(round.currentCourseHole?.par, 3)
+
+        // Beyond available course holes
+        round.nextHole()
+
+        XCTAssertNil(round.currentCourseHole)
+    }
+
     func testCodableRoundTripWithMultipleHoles() throws {
         var round = Round()
         round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)))

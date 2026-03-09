@@ -10,10 +10,9 @@ final class RoundFlowUITests: XCTestCase {
         app.launchArguments = ["--ui-testing"]
     }
 
-    func testFullRoundFlow() throws {
-        app.launch()
+    // MARK: - Helpers
 
-        // Dismiss the system location permission alert if it appears.
+    private func dismissLocationAlert() {
         addUIInterruptionMonitor(withDescription: "Location Permission") { alert in
             let allow = alert.buttons["Allow While Using App"]
             if allow.exists {
@@ -22,8 +21,14 @@ final class RoundFlowUITests: XCTestCase {
             }
             return false
         }
-        // Interaction is needed to trigger the interruption monitor.
         app.tap()
+    }
+
+    // MARK: - Skip Course Selection (No Course)
+
+    func testFullRoundFlowWithSkip() throws {
+        app.launch()
+        dismissLocationAlert()
 
         let locations = LocationTestHelper.loadTestLocations()
         XCTAssertGreaterThanOrEqual(locations.count, 2, "Need at least 2 test locations")
@@ -34,21 +39,31 @@ final class RoundFlowUITests: XCTestCase {
             if result.last != hole { result.append(hole) }
         }
 
-        // ── Start a new round ──
+        // ── Start a new round (skip course selection) ──
         let newRoundButton = app.buttons["New Round"]
         XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5), "New Round button should exist")
         newRoundButton.tap()
 
-        // Tap the Active row to navigate into RoundMapView.
-        let activeText = app.staticTexts["Active"]
-        XCTAssertTrue(activeText.waitForExistence(timeout: 5), "Active round row should appear")
-        activeText.tap()
+        // CourseSelectionView should appear — tap Skip
+        let skipButton = app.buttons["Skip"]
+        XCTAssertTrue(skipButton.waitForExistence(timeout: 5), "Skip button should exist")
+        skipButton.tap()
 
-        // Verify stats bar is visible immediately with defaults
+        // Should navigate directly to RoundMapView
         let hole1Label = app.staticTexts["Hole 1"]
-        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Hole 1 label should be visible immediately")
-        let previousDefault = app.staticTexts["Previous: 0 yds"]
-        XCTAssertTrue(previousDefault.waitForExistence(timeout: 5), "Previous should default to 0 yds")
+        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Hole 1 label should be visible")
+
+        // Verify information panel is visible with defaults
+        let informationPanel = app.descendants(matching: .any).matching(identifier: "InformationPanel").firstMatch
+        XCTAssertTrue(informationPanel.waitForExistence(timeout: 5), "Information panel should be visible")
+
+        // Previous and Strokes should show in the detail grid
+        XCTAssertTrue(app.staticTexts["Previous"].waitForExistence(timeout: 5), "Previous label should exist")
+        XCTAssertTrue(app.staticTexts["Strokes"].waitForExistence(timeout: 5), "Strokes label should exist")
+
+        // No course data — Par label should NOT appear
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Par'")).firstMatch.exists,
+                       "Par should not appear without course data")
 
         var currentHole = 1
 
@@ -56,11 +71,10 @@ final class RoundFlowUITests: XCTestCase {
         for (index, location) in locations.enumerated() {
             let targetHole = location.hole
 
-            // Navigate to the correct hole if needed
             while currentHole < targetHole {
-                let nextHoleButton = app.buttons["Next Hole"]
-                XCTAssertTrue(nextHoleButton.waitForExistence(timeout: 5), "Next Hole button should exist")
-                nextHoleButton.tap()
+                let nextButton = app.buttons["Next"]
+                XCTAssertTrue(nextButton.waitForExistence(timeout: 5), "Next button should exist")
+                nextButton.tap()
                 currentHole += 1
                 sleep(1)
 
@@ -69,7 +83,6 @@ final class RoundFlowUITests: XCTestCase {
                               "Hole \(currentHole) label should appear after navigating")
             }
 
-            // Verify we're on the expected hole
             let holeLabel = app.staticTexts["Hole \(targetHole)"]
             XCTAssertTrue(holeLabel.exists, "Should be on Hole \(targetHole) for location \(index)")
 
@@ -84,11 +97,10 @@ final class RoundFlowUITests: XCTestCase {
         }
 
         // ── Verify stroke counts per hole ──
-        // Navigate back to hole 1
         while currentHole > 1 {
-            let prevHoleButton = app.buttons["Prev Hole"]
-            XCTAssertTrue(prevHoleButton.waitForExistence(timeout: 5), "Prev Hole button should exist")
-            prevHoleButton.tap()
+            let prevButton = app.buttons["Prev"]
+            XCTAssertTrue(prevButton.waitForExistence(timeout: 5), "Prev button should exist")
+            prevButton.tap()
             currentHole -= 1
             sleep(1)
         }
@@ -99,14 +111,13 @@ final class RoundFlowUITests: XCTestCase {
 
             let markCount = locations.filter { $0.hole == hole }.count
             let expectedStrokes = max(markCount - 1, 0)
-            let strokesLabel = app.staticTexts["Strokes: \(expectedStrokes)"]
-            XCTAssertTrue(strokesLabel.waitForExistence(timeout: 5),
-                          "Hole \(hole) should show Strokes: \(expectedStrokes)")
+            let strokesText = app.staticTexts["\(expectedStrokes)"]
+            XCTAssertTrue(strokesText.waitForExistence(timeout: 5),
+                          "Hole \(hole) should show stroke count \(expectedStrokes)")
 
-            // Navigate to next hole for verification (unless it's the last)
             if hole != uniqueHoles.last {
-                let nextHoleButton = app.buttons["Next Hole"]
-                nextHoleButton.tap()
+                let nextButton = app.buttons["Next"]
+                nextButton.tap()
                 currentHole += 1
                 sleep(1)
             }
@@ -120,8 +131,27 @@ final class RoundFlowUITests: XCTestCase {
         XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist")
         endRoundButton.tap()
 
-        // Verify we're back to the idle state.
         XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5),
                       "New Round button should reappear after ending round")
+    }
+
+    // MARK: - Cancel Course Selection
+
+    func testCancelCourseSelection() throws {
+        app.launch()
+        dismissLocationAlert()
+
+        let newRoundButton = app.buttons["New Round"]
+        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5))
+        newRoundButton.tap()
+
+        // CourseSelectionView should appear
+        let cancelButton = app.buttons["Cancel"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Cancel button should exist")
+        cancelButton.tap()
+
+        // Should return to list without starting a round
+        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5), "Should be back on list")
+        XCTAssertFalse(app.staticTexts["Active"].exists, "No active round should exist")
     }
 }
