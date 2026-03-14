@@ -54,22 +54,13 @@ class SyncService: NSObject, ObservableObject {
                 "type": "endRound",
                 "id": id.uuidString
             ]
-        case .addMark(let mark, let roundID):
+        case .addMark(let mark, let holeIndex, let roundID):
             guard let data = try? JSONEncoder().encode(mark) else { return }
             payload = [
                 "type": "addMark",
                 "roundId": roundID.uuidString,
+                "holeIndex": holeIndex,
                 "mark": data
-            ]
-        case .nextHole(let id):
-            payload = [
-                "type": "nextHole",
-                "id": id.uuidString
-            ]
-        case .previousHole(let id):
-            payload = [
-                "type": "previousHole",
-                "id": id.uuidString
             ]
         case .setCourse(let selection, let roundID):
             guard let data = try? JSONEncoder().encode(selection) else { return }
@@ -77,6 +68,13 @@ class SyncService: NSObject, ObservableObject {
                 "type": "setCourse",
                 "roundId": roundID.uuidString,
                 "courseSelection": data
+            ]
+        case .setMarkType(let markID, let markType, let roundID):
+            payload = [
+                "type": "setMarkType",
+                "markId": markID.uuidString,
+                "markType": markType.rawValue,
+                "roundId": roundID.uuidString
             ]
         }
 
@@ -103,18 +101,9 @@ class SyncService: NSObject, ObservableObject {
             guard let data = message["mark"] as? Data,
                   let idString = message["roundId"] as? String,
                   let roundID = UUID(uuidString: idString),
+                  let holeIndex = message["holeIndex"] as? Int,
                   let mark = try? JSONDecoder().decode(BallMark.self, from: data) else { return }
-            roundStore?.addMark(to: roundID, mark: mark, fromSync: true)
-
-        case "nextHole":
-            guard let idString = message["id"] as? String,
-                  let id = UUID(uuidString: idString) else { return }
-            roundStore?.nextHole(roundID: id, fromSync: true)
-
-        case "previousHole":
-            guard let idString = message["id"] as? String,
-                  let id = UUID(uuidString: idString) else { return }
-            roundStore?.previousHole(roundID: id, fromSync: true)
+            roundStore?.addMark(to: roundID, holeIndex: holeIndex, mark: mark, fromSync: true)
 
         case "setCourse":
             guard let data = message["courseSelection"] as? Data,
@@ -122,6 +111,15 @@ class SyncService: NSObject, ObservableObject {
                   let roundID = UUID(uuidString: idString),
                   let selection = try? JSONDecoder().decode(CourseSelection.self, from: data) else { return }
             roundStore?.setCourse(selection, for: roundID, fromSync: true)
+
+        case "setMarkType":
+            guard let markIdString = message["markId"] as? String,
+                  let markID = UUID(uuidString: markIdString),
+                  let typeString = message["markType"] as? String,
+                  let markType = BallMarkType(rawValue: typeString),
+                  let roundIdString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: roundIdString) else { return }
+            roundStore?.setMarkType(markID: markID, type: markType, in: roundID, fromSync: true)
 
         default:
             break

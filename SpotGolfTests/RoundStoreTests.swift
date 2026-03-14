@@ -150,8 +150,9 @@ final class RoundStoreTests: XCTestCase {
         store.addMark(mark)
 
         XCTAssertEqual(syncMessages.count, 1)
-        if case .addMark(let syncedMark, let syncedRoundID) = syncMessages[0] {
+        if case .addMark(let syncedMark, let holeIndex, let syncedRoundID) = syncMessages[0] {
             XCTAssertEqual(syncedMark.id, mark.id)
+            XCTAssertEqual(holeIndex, 0)
             XCTAssertEqual(syncedRoundID, roundID)
         } else {
             XCTFail("Expected addMark sync message")
@@ -184,7 +185,7 @@ final class RoundStoreTests: XCTestCase {
         syncMessages.removeAll()
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, mark: mark)
+        store.addMark(to: roundID, holeIndex: 0, mark: mark)
 
         XCTAssertEqual(store.rounds[0].marks.count, 1)
     }
@@ -195,10 +196,11 @@ final class RoundStoreTests: XCTestCase {
         syncMessages.removeAll()
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, mark: mark)
+        store.addMark(to: roundID, holeIndex: 0, mark: mark)
 
         XCTAssertEqual(syncMessages.count, 1)
-        if case .addMark(_, let syncedRoundID) = syncMessages[0] {
+        if case .addMark(_, let holeIndex, let syncedRoundID) = syncMessages[0] {
+            XCTAssertEqual(holeIndex, 0)
             XCTAssertEqual(syncedRoundID, roundID)
         } else {
             XCTFail("Expected addMark sync message")
@@ -210,16 +212,29 @@ final class RoundStoreTests: XCTestCase {
         let roundID = store.rounds[0].id
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, mark: mark, fromSync: true)
+        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
 
         XCTAssertTrue(syncMessages.isEmpty)
     }
 
     func testAddMarkToNonexistentRoundIsNoOp() {
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: UUID(), mark: mark)
+        store.addMark(to: UUID(), holeIndex: 0, mark: mark)
 
         XCTAssertTrue(syncMessages.isEmpty)
+    }
+
+    func testAddMarkToSpecificHoleIndex() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        store.nextHole() // now on hole 1
+        syncMessages.removeAll()
+
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true) // add to hole 0
+
+        XCTAssertEqual(store.rounds[0].holes[0].marks.count, 1, "Mark should be added to hole 0")
+        XCTAssertTrue(store.rounds[0].holes[1].marks.isEmpty, "Hole 1 should have no marks")
     }
 
     // MARK: - nextHole / previousHole
@@ -234,32 +249,18 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].holes.count, 2)
     }
 
-    func testNextHoleFiresSyncEvent() {
+    func testNextHoleDoesNotFireSyncEvent() {
         store.startRound()
-        let roundID = store.rounds[0].id
         syncMessages.removeAll()
 
         store.nextHole()
-
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .nextHole(let syncedID) = syncMessages[0] {
-            XCTAssertEqual(syncedID, roundID)
-        } else {
-            XCTFail("Expected nextHole sync message")
-        }
-    }
-
-    func testNextHoleFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
-
-        store.nextHole(fromSync: true)
 
         XCTAssertTrue(syncMessages.isEmpty)
     }
 
     func testPreviousHole() {
         store.startRound()
-        store.nextHole(fromSync: true)
+        store.nextHole()
         syncMessages.removeAll()
 
         store.previousHole()
@@ -267,33 +268,9 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
     }
 
-    func testPreviousHoleFiresSyncEvent() {
+    func testPreviousHoleDoesNotFireSyncEvent() {
         store.startRound()
-        store.nextHole(fromSync: true)
-        let roundID = store.rounds[0].id
-        syncMessages.removeAll()
-
-        store.previousHole()
-
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .previousHole(let syncedID) = syncMessages[0] {
-            XCTAssertEqual(syncedID, roundID)
-        } else {
-            XCTFail("Expected previousHole sync message")
-        }
-    }
-
-    func testPreviousHoleFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
-        store.nextHole(fromSync: true)
-
-        store.previousHole(fromSync: true)
-
-        XCTAssertTrue(syncMessages.isEmpty)
-    }
-
-    func testPreviousHoleAtZeroDoesNotSync() {
-        store.startRound()
+        store.nextHole()
         syncMessages.removeAll()
 
         store.previousHole()
@@ -301,15 +278,21 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertTrue(syncMessages.isEmpty)
     }
 
-    func testNextHoleAt18DoesNotSync() {
+    func testPreviousHoleAtZeroIsNoOp() {
+        store.startRound()
+
+        store.previousHole()
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
+    func testNextHoleAt18IsNoOp() {
         store.startRound()
         store.rounds[0] = Round(id: store.rounds[0].id, date: store.rounds[0].date,
                                 holes: (0..<18).map { _ in Hole() }, currentHoleIndex: 17)
-        syncMessages.removeAll()
 
         store.nextHole()
 
-        XCTAssertTrue(syncMessages.isEmpty)
         XCTAssertEqual(store.rounds[0].currentHoleIndex, 17)
     }
 
@@ -326,7 +309,7 @@ final class RoundStoreTests: XCTestCase {
     func testPreviousHoleByRoundID() {
         store.startRound()
         let roundID = store.rounds[0].id
-        store.nextHole(fromSync: true)
+        store.nextHole()
         syncMessages.removeAll()
 
         store.previousHole(roundID: roundID)
@@ -368,7 +351,7 @@ final class RoundStoreTests: XCTestCase {
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
-        store.nextHole(fromSync: true)
+        store.nextHole()
 
         // Mark is in hole 0, but we're on hole 1 — should still find it
         let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
@@ -457,12 +440,93 @@ final class RoundStoreTests: XCTestCase {
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
-        store.nextHole(fromSync: true)
+        store.nextHole()
 
         // Mark is in hole 0, we're on hole 1
         store.removeMark(mark, from: roundID)
 
         XCTAssertTrue(store.rounds[0].holes[0].marks.isEmpty)
+    }
+
+    // MARK: - setMarkType
+
+    func testSetMarkType() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+        syncMessages.removeAll()
+
+        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
+    }
+
+    func testSetMarkTypeToOutOfBounds() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+
+        store.setMarkType(markID: mark.id, type: .outOfBounds, in: roundID)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .outOfBounds)
+    }
+
+    func testSetMarkTypeBackToRegular() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+
+        store.setMarkType(markID: mark.id, type: .regular, in: roundID)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .regular)
+    }
+
+    func testSetMarkTypeFiresSyncEvent() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+        syncMessages.removeAll()
+
+        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+
+        XCTAssertEqual(syncMessages.count, 1)
+        if case .setMarkType(let markID, let type, let syncedRoundID) = syncMessages[0] {
+            XCTAssertEqual(markID, mark.id)
+            XCTAssertEqual(type, .penalty)
+            XCTAssertEqual(syncedRoundID, roundID)
+        } else {
+            XCTFail("Expected setMarkType sync message")
+        }
+    }
+
+    func testSetMarkTypeFromSyncDoesNotFireSyncEvent() {
+        store.startRound(fromSync: true)
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark, fromSync: true)
+
+        store.setMarkType(markID: mark.id, type: .outOfBounds, in: roundID, fromSync: true)
+
+        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertEqual(store.rounds[0].marks[0].type, .outOfBounds)
+    }
+
+    func testMoveMarkPreservesType() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(mark)
+        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+
+        let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
+        store.moveMark(store.rounds[0].marks[0], to: newCoord, in: roundID)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
     }
 
     // MARK: - deleteRound
@@ -535,7 +599,7 @@ final class RoundStoreTests: XCTestCase {
 
         // Simulate watch adds a mark (fromSync)
         let watchMark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, mark: watchMark, fromSync: true)
+        store.addMark(to: roundID, holeIndex: 0, mark: watchMark, fromSync: true)
         XCTAssertTrue(syncMessages.isEmpty, "fromSync should not trigger sync event")
 
         // Phone adds a mark (local)

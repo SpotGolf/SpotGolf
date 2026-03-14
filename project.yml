@@ -39,6 +39,9 @@ targets:
         INFOPLIST_FILE: SpotGolf/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf
         SWIFT_VERSION: "5.9"
+        DEVELOPMENT_TEAM: 5CRT56YETR
+    dependencies:
+      - target: SpotGolfWatch
     entitlements:
       path: SpotGolf/SpotGolf.entitlements
       properties:
@@ -51,6 +54,11 @@ targets:
         CFBundleVersion: "1"
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
         NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortraitUpsideDown
         UILaunchScreen:
           UIColorName: ""
 
@@ -65,6 +73,7 @@ targets:
         INFOPLIST_FILE: SpotGolfWatch/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf.watchkitapp
         SWIFT_VERSION: "5.9"
+        DEVELOPMENT_TEAM: 5CRT56YETR
     info:
       path: SpotGolfWatch/Info.plist
       properties:
@@ -98,6 +107,8 @@ targets:
       - path: SpotGolfUITests
       - path: TestHelpers
       - path: TestFixtures/test-locations.csv
+        buildPhase: resources
+      - path: TestFixtures/test-locations-penalties.csv
         buildPhase: resources
     settings:
       base:

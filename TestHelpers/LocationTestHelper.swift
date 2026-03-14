@@ -6,16 +6,18 @@ struct TestLocation {
     let latitude: Double
     let longitude: Double
     let hole: Int
+    let markType: String // "regular", "penalty", "outOfBounds"
 }
 
 enum LocationTestHelper {
 
-    /// Loads test GPS coordinates from `test-locations.csv` bundled in the test target.
-    /// Each row is `latitude,longitude`.
-    static func loadTestLocations(for bundle: Bundle = .init(for: BundleToken.self)) -> [TestLocation] {
-        guard let url = bundle.url(forResource: "test-locations", withExtension: "csv"),
+    /// Loads test GPS coordinates from a CSV bundled in the test target.
+    /// Each row is `latitude,longitude,hole[,type]`.
+    static func loadTestLocations(from filename: String = "test-locations",
+                                   for bundle: Bundle = .init(for: BundleToken.self)) -> [TestLocation] {
+        guard let url = bundle.url(forResource: filename, withExtension: "csv"),
               let contents = try? String(contentsOf: url, encoding: .utf8) else {
-            fatalError("Missing test-locations.csv in test bundle")
+            fatalError("Missing \(filename).csv in test bundle")
         }
 
         return contents
@@ -26,7 +28,8 @@ enum LocationTestHelper {
                       let lat = Double(parts[0]),
                       let lon = Double(parts[1]) else { return nil }
                 let hole = parts.count >= 3 ? Int(parts[2]) ?? 1 : 1
-                return TestLocation(latitude: lat, longitude: lon, hole: hole)
+                let markType = parts.count >= 4 ? String(parts[3]) : "regular"
+                return TestLocation(latitude: lat, longitude: lon, hole: hole, markType: markType)
             }
     }
 

@@ -8,15 +8,6 @@ struct Round: Identifiable {
     var isActive: Bool
     var courseSelection: CourseSelection?
 
-    static func == (lhs: Round, rhs: Round) -> Bool {
-        lhs.id == rhs.id &&
-        lhs.date == rhs.date &&
-        lhs.holes == rhs.holes &&
-        lhs.currentHoleIndex == rhs.currentHoleIndex &&
-        lhs.isActive == rhs.isActive &&
-        lhs.courseSelection == rhs.courseSelection
-    }
-
     init(id: UUID = UUID(), date: Date = Date(), holes: [Hole] = [Hole()],
          currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection? = nil) {
         self.id = id
@@ -58,6 +49,14 @@ struct Round: Identifiable {
 
     mutating func addMark(_ mark: BallMark) {
         let safeIndex = min(currentHoleIndex, holes.count - 1)
+        holes[safeIndex].marks.append(mark)
+    }
+
+    mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
+        while holes.count <= holeIndex && holes.count < 18 {
+            holes.append(Hole())
+        }
+        let safeIndex = min(holeIndex, holes.count - 1)
         holes[safeIndex].marks.append(mark)
     }
 

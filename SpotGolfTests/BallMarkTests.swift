@@ -83,4 +83,58 @@ final class BallMarkTests: XCTestCase {
 
         XCTAssertNotEqual(mark1, mark2)
     }
+
+    // MARK: - BallMarkType
+
+    func testDefaultTypeIsRegular() {
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let mark = BallMark(coordinate: coord)
+
+        XCTAssertEqual(mark.type, .regular)
+    }
+
+    func testInitWithPenaltyType() {
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let mark = BallMark(coordinate: coord, type: .penalty)
+
+        XCTAssertEqual(mark.type, .penalty)
+    }
+
+    func testInitWithOutOfBoundsType() {
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let mark = BallMark(coordinate: coord, type: .outOfBounds)
+
+        XCTAssertEqual(mark.type, .outOfBounds)
+    }
+
+    func testCodableRoundTripWithType() throws {
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let mark = BallMark(coordinate: coord, type: .penalty)
+
+        let data = try JSONEncoder().encode(mark)
+        let decoded = try JSONDecoder().decode(BallMark.self, from: data)
+
+        XCTAssertEqual(decoded.type, .penalty)
+    }
+
+    func testCodableBackwardCompatibility() throws {
+        // Simulate legacy JSON without a "type" field
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","latitude":33.45,"longitude":-112.07,"timestamp":0}
+        """
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(BallMark.self, from: data)
+
+        XCTAssertEqual(decoded.type, .regular)
+    }
+
+    func testNotEqualWithDifferentTypes() {
+        let id = UUID()
+        let date = Date()
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let mark1 = BallMark(id: id, coordinate: coord, timestamp: date, type: .regular)
+        let mark2 = BallMark(id: id, coordinate: coord, timestamp: date, type: .penalty)
+
+        XCTAssertNotEqual(mark1, mark2)
+    }
 }

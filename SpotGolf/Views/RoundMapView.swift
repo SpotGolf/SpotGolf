@@ -86,13 +86,13 @@ struct RoundMapView: View {
         let marksToShow = round.isActive ? round.marks : round.allMarks
         return MapReader { proxy in
             Map(position: $position) {
+                UserAnnotation()
                 ForEach(Array(marksToShow.enumerated()), id: \.element.id) { index, mark in
                     let displayIndex = round.isActive ? index : allMarksDisplayIndex(mark: mark, round: round)
                     Annotation("", coordinate: mark.coordinate) {
                         spotMarker(index: displayIndex, mark: mark, round: round, proxy: proxy)
                     }
                 }
-                UserAnnotation()
             }
             .mapControls {
                 MapCompass()
@@ -114,7 +114,9 @@ struct RoundMapView: View {
                             guard round.isActive, let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
                             let mark = BallMark(coordinate: coordinate)
+                            newSpotIndex = round.marks.count // capture before append
                             roundStore.addMark(mark)
+                            selectedMark = mark
                         default:
                             break
                         }
@@ -132,20 +134,47 @@ struct RoundMapView: View {
 
     private static let dragLiftOffset: CGFloat = -30
 
+    private func markColor(for type: BallMarkType) -> Color {
+        switch type {
+        case .regular: return .blue
+        case .penalty: return .red
+        case .outOfBounds: return .white
+        }
+    }
+
     private func spotMarker(index: Int, mark: BallMark, round: Round, proxy: MapProxy) -> some View {
         let isDragging = draggingMark?.id == mark.id
+        let pinColor = markColor(for: mark.type)
+        let textColor: Color = mark.type == .outOfBounds ? .black : .white
         return VStack(spacing: 0) {
-            Circle()
-                .fill(isDragging ? Color.orange : Color(.systemBackground))
-                .frame(width: isDragging ? 42 : 28, height: isDragging ? 42 : 28)
-                .overlay {
-                    Text("\(index + 1)")
-                        .font(isDragging ? .body : .caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(isDragging ? .white : .primary)
+            Button {
+                if let holeIdx = round.holeIndex(containing: mark.id) {
+                    let hole = round.holes[holeIdx]
+                    if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
+                        newSpotIndex = markIdx
+                    }
                 }
-                .shadow(color: isDragging ? .orange.opacity(0.4) : .black.opacity(0.2),
-                        radius: isDragging ? 8 : 2, y: isDragging ? 2 : 1)
+                selectedMark = mark
+            } label: {
+                Circle()
+                    .fill(isDragging ? Color.orange : pinColor)
+                    .frame(width: isDragging ? 42 : 28, height: isDragging ? 42 : 28)
+                    .overlay {
+                        Text("\(index + 1)")
+                            .font(isDragging ? .body : .caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(isDragging ? .white : textColor)
+                    }
+                    .overlay {
+                        if !isDragging && mark.type == .outOfBounds {
+                            Circle().stroke(Color.gray, lineWidth: 1.5)
+                        }
+                    }
+                    .shadow(color: isDragging ? .orange.opacity(0.4) : .black.opacity(0.2),
+                            radius: isDragging ? 8 : 2, y: isDragging ? 2 : 1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("SpotMark_\(index + 1)")
 
             // Callout line from lifted marker down to map position
             if isDragging {
@@ -156,15 +185,6 @@ struct RoundMapView: View {
         }
         .offset(y: isDragging ? Self.dragLiftOffset : 0)
         .offset(isDragging ? dragOffset : .zero)
-        .onTapGesture {
-            if let holeIdx = round.holeIndex(containing: mark.id) {
-                let hole = round.holes[holeIdx]
-                if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
-                    newSpotIndex = markIdx
-                }
-            }
-            selectedMark = mark
-        }
         .gesture(
             LongPressGesture(minimumDuration: 0.3)
                 .sequenced(before: DragGesture(coordinateSpace: .global))
@@ -343,7 +363,7 @@ struct RoundMapView: View {
 
     private func buttonBar(_ round: Round) -> some View {
         VStack(spacing: 12) {
-            if holeAdvancer.isPaused {
+            if holeAdvancer.isPaused && round.courseSelection != nil {
                 Button("Resume round") {
                     holeAdvancer.resume()
                     if let round = self.round, let selection = round.courseSelection,
@@ -443,6 +463,37 @@ struct RoundMapView: View {
                 Stepper("Spot: \(newSpotIndex + 1)", value: $newSpotIndex, in: 0...(max(markCount - 1, 0)))
                     .font(.title3)
                     .padding(.horizontal)
+
+                if round.isActive, let mark = selectedMark {
+                    Divider()
+
+                    if mark.type == .regular {
+                        Button {
+                            roundStore.setMarkType(markID: mark.id, type: .penalty, in: round.id)
+                            selectedMark = nil
+                        } label: {
+                            Label("Mark as penalty", systemImage: "exclamationmark.triangle.fill")
+                        }
+                        .tint(.red)
+                        .accessibilityIdentifier("MarkAsPenalty")
+
+                        Button {
+                            roundStore.setMarkType(markID: mark.id, type: .outOfBounds, in: round.id)
+                            selectedMark = nil
+                        } label: {
+                            Label("Mark out of bounds", systemImage: "xmark.circle.fill")
+                        }
+                        .accessibilityIdentifier("MarkOutOfBounds")
+                    } else {
+                        Button {
+                            roundStore.setMarkType(markID: mark.id, type: .regular, in: round.id)
+                            selectedMark = nil
+                        } label: {
+                            Label("Clear penalty", systemImage: "arrow.uturn.backward.circle")
+                        }
+                        .accessibilityIdentifier("ClearPenalty")
+                    }
+                }
 
                 Button("Delete Spot", role: .destructive) {
                     showDeleteConfirm = true

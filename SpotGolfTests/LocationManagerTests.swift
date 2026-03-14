@@ -62,4 +62,14 @@ final class LocationManagerTests: XCTestCase {
         XCTAssertEqual(locationManager.lastLocation?.coordinate.latitude, 40.0)
         XCTAssertEqual(locationManager.lastLocation?.coordinate.longitude, -74.0)
     }
+
+    // MARK: - didFailWithError
+
+    func testDidFailWithErrorDoesNotCrash() {
+        let error = NSError(domain: kCLErrorDomain, code: CLError.locationUnknown.rawValue)
+        locationManager.locationManager(CLLocationManager(), didFailWithError: error)
+
+        // Should not crash — location stays nil
+        XCTAssertNil(locationManager.lastLocation)
+    }
 }

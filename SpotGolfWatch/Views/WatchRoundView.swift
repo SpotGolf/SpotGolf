@@ -7,6 +7,7 @@ struct WatchRoundView: View {
     @EnvironmentObject var syncService: SyncService
 
     @State private var showSwingAway = false
+    @State private var showNoLocation = false
 
     @State private var liveDistance: String?
 
@@ -54,6 +55,11 @@ struct WatchRoundView: View {
         }
         .onReceive(roundStore.$rounds) { _ in
             updateLiveDistance(location: locationManager.lastLocation)
+        }
+        .alert("Waiting for GPS", isPresented: $showNoLocation) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Location not available yet. Please wait a moment and try again.")
         }
     }
 
@@ -221,7 +227,11 @@ struct WatchRoundView: View {
     }
 
     private func markBall() {
-        guard let location = locationManager.lastLocation else { return }
+        guard let location = locationManager.lastLocation else {
+            locationManager.requestLocation()
+            showNoLocation = true
+            return
+        }
         let mark = BallMark(coordinate: location.coordinate)
         roundStore.addMark(mark)
         showSwingAway = true

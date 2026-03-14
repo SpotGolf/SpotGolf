@@ -52,57 +52,50 @@ class RoundStore: ObservableObject {
     func addMark(_ mark: BallMark, fromSync: Bool = false) {
         if let index = rounds.firstIndex(where: { $0.isActive }) {
             let roundID = rounds[index].id
+            let holeIndex = rounds[index].currentHoleIndex
             rounds[index].addMark(mark)
             save()
             if !fromSync {
-                onSyncEvent?(.addMark(mark, roundID))
+                onSyncEvent?(.addMark(mark, holeIndex, roundID))
             }
         }
     }
 
-    func addMark(to roundID: UUID, mark: BallMark, fromSync: Bool = false) {
+    func addMark(to roundID: UUID, holeIndex: Int, mark: BallMark, fromSync: Bool = false) {
         if let index = rounds.firstIndex(where: { $0.id == roundID }) {
-            rounds[index].addMark(mark)
+            rounds[index].addMark(mark, toHoleIndex: holeIndex)
             save()
             if !fromSync {
-                onSyncEvent?(.addMark(mark, roundID))
+                onSyncEvent?(.addMark(mark, holeIndex, roundID))
             }
         }
     }
 
-    func nextHole(roundID: UUID? = nil, fromSync: Bool = false) {
+    func nextHole(roundID: UUID? = nil) {
         let predicate: (Round) -> Bool = if let roundID {
             { $0.id == roundID }
         } else {
             { $0.isActive }
         }
         if let index = rounds.firstIndex(where: predicate) {
-            let id = rounds[index].id
             guard rounds[index].nextHole() else { return }
             save()
-            if !fromSync {
-                onSyncEvent?(.nextHole(id))
-            }
         }
     }
 
-    func previousHole(roundID: UUID? = nil, fromSync: Bool = false) {
+    func previousHole(roundID: UUID? = nil) {
         let predicate: (Round) -> Bool = if let roundID {
             { $0.id == roundID }
         } else {
             { $0.isActive }
         }
         if let index = rounds.firstIndex(where: predicate) {
-            let id = rounds[index].id
             guard rounds[index].previousHole() else { return }
             save()
-            if !fromSync {
-                onSyncEvent?(.previousHole(id))
-            }
         }
     }
 
-    func setHoleIndex(_ index: Int, roundID: UUID? = nil, fromSync: Bool = false) {
+    func setHoleIndex(_ index: Int, roundID: UUID? = nil) {
         let predicate: (Round) -> Bool = if let roundID {
             { $0.id == roundID }
         } else {
@@ -139,9 +132,21 @@ class RoundStore: ObservableObject {
         if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
            let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),
            let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) {
-            let updated = BallMark(id: mark.id, coordinate: coordinate, timestamp: mark.timestamp)
+            let updated = BallMark(id: mark.id, coordinate: coordinate, timestamp: mark.timestamp, type: mark.type)
             rounds[roundIndex].holes[holeIndex].marks[markIndex] = updated
             save()
+        }
+    }
+
+    func setMarkType(markID: UUID, type: BallMarkType, in roundID: UUID, fromSync: Bool = false) {
+        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
+           let holeIndex = rounds[roundIndex].holeIndex(containing: markID),
+           let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == markID }) {
+            rounds[roundIndex].holes[holeIndex].marks[markIndex].type = type
+            save()
+            if !fromSync {
+                onSyncEvent?(.setMarkType(markID, type, roundID))
+            }
         }
     }
 

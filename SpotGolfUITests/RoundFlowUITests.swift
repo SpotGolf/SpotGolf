@@ -135,6 +135,38 @@ final class RoundFlowUITests: XCTestCase {
                       "New Round button should reappear after ending round")
     }
 
+    // MARK: - Resume Round Hidden Without Course
+
+    func testResumeRoundNotShownWithoutCourse() throws {
+        app.launch()
+        dismissLocationAlert()
+
+        // Start round without course (skip)
+        let newRoundButton = app.buttons["New Round"]
+        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5))
+        newRoundButton.tap()
+
+        let skipButton = app.buttons["Skip"]
+        XCTAssertTrue(skipButton.waitForExistence(timeout: 5))
+        skipButton.tap()
+
+        let hole1Label = app.staticTexts["Hole 1"]
+        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5))
+
+        // Manually navigate to Hole 2 (would normally pause auto-advance)
+        let nextButton = app.buttons["Next"]
+        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
+        nextButton.tap()
+        sleep(1)
+
+        let hole2Label = app.staticTexts["Hole 2"]
+        XCTAssertTrue(hole2Label.waitForExistence(timeout: 5))
+
+        // Resume round button should NOT appear since there is no course
+        XCTAssertFalse(app.buttons["Resume round"].exists,
+                       "Resume round should not appear without a course selected")
+    }
+
     // MARK: - Cancel Course Selection
 
     func testCancelCourseSelection() throws {

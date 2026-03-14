@@ -134,6 +134,7 @@ final class SyncServiceTests: XCTestCase {
         let message: [String: Any] = [
             "type": "addMark",
             "roundId": roundID.uuidString,
+            "holeIndex": 0,
             "mark": markData
         ]
 
@@ -142,6 +143,28 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].marks.count, 1)
         XCTAssertEqual(store.rounds[0].marks[0].id, mark.id)
         XCTAssertEqual(store.rounds[0].marks[0].latitude, 33.45)
+    }
+
+    func testHandleAddMarkToSpecificHole() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        store.nextHole() // iOS is on hole 1
+
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        let markData = try! JSONEncoder().encode(mark)
+
+        // Watch sends mark for hole 0
+        let message: [String: Any] = [
+            "type": "addMark",
+            "roundId": roundID.uuidString,
+            "holeIndex": 0,
+            "mark": markData
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].holes[0].marks.count, 1, "Mark should go to hole 0")
+        XCTAssertTrue(store.rounds[0].holes[1].marks.isEmpty, "Hole 1 should have no marks")
     }
 
     func testHandleAddMarkWithInvalidRoundIDIsIgnored() {
@@ -153,6 +176,7 @@ final class SyncServiceTests: XCTestCase {
         let message: [String: Any] = [
             "type": "addMark",
             "roundId": "not-a-uuid",
+            "holeIndex": 0,
             "mark": markData
         ]
 
@@ -168,6 +192,7 @@ final class SyncServiceTests: XCTestCase {
         let message: [String: Any] = [
             "type": "addMark",
             "roundId": roundID.uuidString,
+            "holeIndex": 0,
             "mark": Data([0x00, 0x01, 0x02])
         ]
 
@@ -176,92 +201,22 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertTrue(store.rounds[0].marks.isEmpty)
     }
 
-    func testHandleAddMarkWithMissingMarkDataIsIgnored() {
+    func testHandleAddMarkWithMissingHoleIndexIsIgnored() {
         let roundID = UUID()
         store.startRound(id: roundID, fromSync: true)
 
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        let markData = try! JSONEncoder().encode(mark)
+
         let message: [String: Any] = [
             "type": "addMark",
-            "roundId": roundID.uuidString
+            "roundId": roundID.uuidString,
+            "mark": markData
         ]
 
         service.handleMessage(message)
 
         XCTAssertTrue(store.rounds[0].marks.isEmpty)
-    }
-
-    // MARK: - nextHole message
-
-    func testHandleNextHoleMessage() {
-        let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
-
-        let message: [String: Any] = [
-            "type": "nextHole",
-            "id": roundID.uuidString
-        ]
-
-        service.handleMessage(message)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
-        XCTAssertEqual(store.rounds[0].holes.count, 2)
-    }
-
-    func testHandleNextHoleWithInvalidIDIsIgnored() {
-        store.startRound(fromSync: true)
-
-        let message: [String: Any] = [
-            "type": "nextHole",
-            "id": "not-a-uuid"
-        ]
-
-        service.handleMessage(message)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
-    }
-
-    func testHandleNextHoleWithMissingIDIsIgnored() {
-        store.startRound(fromSync: true)
-
-        let message: [String: Any] = [
-            "type": "nextHole"
-        ]
-
-        service.handleMessage(message)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
-    }
-
-    // MARK: - previousHole message
-
-    func testHandlePreviousHoleMessage() {
-        let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
-        store.nextHole(fromSync: true)
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
-
-        let message: [String: Any] = [
-            "type": "previousHole",
-            "id": roundID.uuidString
-        ]
-
-        service.handleMessage(message)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
-    }
-
-    func testHandlePreviousHoleWithInvalidIDIsIgnored() {
-        store.startRound(fromSync: true)
-        store.nextHole(fromSync: true)
-
-        let message: [String: Any] = [
-            "type": "previousHole",
-            "id": "not-a-uuid"
-        ]
-
-        service.handleMessage(message)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
     }
 
     // MARK: - Unknown and empty messages
@@ -360,6 +315,80 @@ final class SyncServiceTests: XCTestCase {
         service.handleMessage(message)
 
         XCTAssertNil(store.rounds[0].courseSelection)
+    }
+
+    // MARK: - setMarkType message
+
+    func testHandleSetMarkTypeMessage() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "setMarkType",
+            "markId": mark.id.uuidString,
+            "markType": "penalty",
+            "roundId": roundID.uuidString
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
+    }
+
+    func testHandleSetMarkTypeOutOfBoundsMessage() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "setMarkType",
+            "markId": mark.id.uuidString,
+            "markType": "outOfBounds",
+            "roundId": roundID.uuidString
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .outOfBounds)
+    }
+
+    func testHandleSetMarkTypeWithInvalidMarkIDIsIgnored() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "setMarkType",
+            "markId": UUID().uuidString,
+            "markType": "penalty",
+            "roundId": roundID.uuidString
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .regular)
+    }
+
+    func testHandleSetMarkTypeWithInvalidTypeIsIgnored() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
+
+        let message: [String: Any] = [
+            "type": "setMarkType",
+            "markId": mark.id.uuidString,
+            "markType": "invalidType",
+            "roundId": roundID.uuidString
+        ]
+
+        service.handleMessage(message)
+
+        XCTAssertEqual(store.rounds[0].marks[0].type, .regular)
     }
 
     // MARK: - Messages are applied via fromSync
