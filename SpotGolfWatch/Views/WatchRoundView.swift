@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import CourseData
 
 struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore
@@ -164,9 +165,15 @@ struct WatchRoundView: View {
                     .foregroundStyle(.green)
 
                 if let round, let courseHole = round.currentCourseHole,
-                   let green = courseHole.green,
+                   let course = round.courseSelection?.course,
+                   let green = courseHole.green(from: course.features),
                    let location = locationManager.lastLocation {
-                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green)
+                    let direction: Vector2D = courseHole.vector(for: green.id, from: course.features)
+                        ?? Vector2D(
+                            dx: green.center.latitude - location.coordinate.latitude,
+                            dy: green.center.longitude - location.coordinate.longitude
+                        ).normalized()
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
 
                     Divider()
 
@@ -194,8 +201,9 @@ struct WatchRoundView: View {
                         }
                     }
 
+                    let holeFeatures = course.features(for: courseHole)
                     let features = DistanceCalculator.featuresAhead(
-                        from: location, features: courseHole.features ?? [], green: green
+                        from: location, features: holeFeatures, green: green
                     )
                     if !features.isEmpty {
                         Divider()

@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CourseData
 
 struct RoundMapView: View {
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
@@ -236,9 +237,18 @@ struct RoundMapView: View {
     private func informationPanel(_ round: Round) -> some View {
         if round.isActive {
             VStack(spacing: 6) {
-                if let courseHole = round.currentCourseHole, let green = courseHole.green, let location = locationManager.lastLocation {
-                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green)
-                    let features = DistanceCalculator.featuresAhead(from: location, features: courseHole.features ?? [], green: green)
+                if let courseHole = round.currentCourseHole,
+                   let course = round.courseSelection?.course,
+                   let green = courseHole.green(from: course.features),
+                   let location = locationManager.lastLocation {
+                    let direction: Vector2D = courseHole.vector(for: green.id, from: course.features)
+                        ?? Vector2D(
+                            dx: green.center.latitude - location.coordinate.latitude,
+                            dy: green.center.longitude - location.coordinate.longitude
+                        ).normalized()
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
+                    let holeFeatures = course.features(for: courseHole)
+                    let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green)
 
                     Text("Par \(courseHole.par)")
                         .font(.caption)
@@ -531,8 +541,10 @@ struct RoundMapView: View {
 
     private func panToCurrentTee() {
         guard let round, let courseHole = round.currentCourseHole,
-              let tees = courseHole.tees, let firstTee = tees.values.first else { return }
+              let course = round.courseSelection?.course,
+              let firstTeeID = courseHole.tees.values.first,
+              let teeFeature = course.findFeature(id: firstTeeID) else { return }
         followsUserLocation = false
-        position = .region(MKCoordinateRegion(center: firstTee.clLocationCoordinate2D, span: Self.defaultSpan))
+        position = .region(MKCoordinateRegion(center: teeFeature.center.clCoordinate, span: Self.defaultSpan))
     }
 }

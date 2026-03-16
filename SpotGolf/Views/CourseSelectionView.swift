@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import CourseData
 
 struct CourseSelectionView: View {
     var onRoundStarted: ((UUID) -> Void)?
@@ -182,7 +183,7 @@ struct CourseSelectionView: View {
                 } label: {
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(subCourse.name ?? "Course \(index + 1)")
+                            Text(subCourse.name)
                                 .font(.headline)
                                 .foregroundStyle(.primary)
                             Text("\(subCourse.holes.count) holes")
@@ -237,7 +238,7 @@ struct CourseSelectionView: View {
     }
 
     private func defaultIndices(for course: Course) -> [Int] {
-        let names = course.subCourses.enumerated().map { ($0.offset, $0.element.name?.lowercased() ?? "") }
+        let names = course.subCourses.enumerated().map { ($0.offset, $0.element.name.lowercased()) }
         let frontIndex = names.first(where: { $0.1 == "front" })?.0
         let backIndex = names.first(where: { $0.1 == "back" })?.0
 
