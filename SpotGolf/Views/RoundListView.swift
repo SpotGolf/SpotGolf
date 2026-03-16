@@ -21,11 +21,22 @@ struct RoundListView: View {
                     NavigationLink(value: round.id) {
                         RoundRow(round: round)
                     }
-                }
-                .onDelete { offsets in
-                    let pastRounds = roundStore.rounds.filter { !$0.isActive }
-                    for index in offsets {
-                        roundStore.deleteRound(pastRounds[index])
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            roundStore.deleteRound(round)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        if roundStore.activeRound == nil {
+                            Button {
+                                roundStore.reactivateRound(round.id)
+                            } label: {
+                                Label("Resume", systemImage: "play.fill")
+                            }
+                            .tint(.green)
+                        }
                     }
                 }
             }

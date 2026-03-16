@@ -170,6 +170,13 @@ class RoundStore: ObservableObject {
         }
     }
 
+    func reactivateRound(_ roundID: UUID) {
+        guard activeRound == nil,
+              let index = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        rounds[index].isActive = true
+        save()
+    }
+
     func deleteRound(_ round: Round) {
         rounds.removeAll { $0.id == round.id }
         save()
