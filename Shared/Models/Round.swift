@@ -1,4 +1,5 @@
 import Foundation
+import CourseData
 
 struct Round: Identifiable {
     let id: UUID
@@ -30,7 +31,7 @@ struct Round: Identifiable {
         currentHoleIndex + 1
     }
 
-    var currentCourseHole: CourseHole? {
+    var currentCourseHole: Hole? {
         guard let selection = courseSelection else { return nil }
         let orderedHoles = selection.orderedHoles
         guard currentHoleIndex < orderedHoles.count else { return nil }
