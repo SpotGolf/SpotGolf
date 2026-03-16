@@ -19,6 +19,7 @@ struct WatchRoundView: View {
             } else if let round = roundStore.activeRound {
                 TabView {
                     playPage(round)
+                    infoPage(round)
                     endRoundPage
                 }
                 .tabViewStyle(.page)
@@ -44,6 +45,11 @@ struct WatchRoundView: View {
             }
         }
         .onAppear {
+            if roundStore.activeRound != nil {
+                locationManager.startUpdating()
+            }
+        }
+        .onChange(of: roundStore.activeRound != nil) {
             if roundStore.activeRound != nil {
                 locationManager.startUpdating()
             }
@@ -124,6 +130,84 @@ struct WatchRoundView: View {
         .padding()
     }
 
+    // MARK: - Info Page
+
+    private func infoPage(_ round: Round) -> some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                if let courseHole = round.currentCourseHole,
+                   let course = round.courseSelection?.course,
+                   let green = courseHole.green(from: course.features),
+                   let location = locationManager.lastLocation {
+                    let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
+
+                    Text("Hole \(courseHole.number) · Par \(courseHole.par)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+
+                    Divider()
+
+                    greenDistancesView(greenDist)
+
+                    let holeFeatures = course.features(for: courseHole)
+                    let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green)
+                    if !features.isEmpty {
+                        Divider()
+                        featuresView(features)
+                    }
+
+                    Divider()
+
+                    HStack {
+                        Text("Previous")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(liveDistance ?? previousDistance(round: round))
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    HStack {
+                        Text("Strokes")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(round.currentHole.strokeCount)")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                } else {
+                    Text("Hole \(round.currentHoleNumber)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+
+                    Divider()
+
+                    HStack {
+                        Text("Previous")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(liveDistance ?? previousDistance(round: round))
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    HStack {
+                        Text("Strokes")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(round.currentHole.strokeCount)")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+
     private var endRoundPage: some View {
         VStack {
             Spacer()
@@ -136,6 +220,96 @@ struct WatchRoundView: View {
         }
         .padding()
     }
+
+    // MARK: - Swing Away
+
+    @ViewBuilder
+    private func swingAwayView(round: Round?) -> some View {
+        VStack(spacing: 6) {
+            Text("Swing away")
+                .font(.headline)
+                .foregroundStyle(.green)
+
+            if let round, let courseHole = round.currentCourseHole,
+               let course = round.courseSelection?.course,
+               let green = courseHole.green(from: course.features),
+               let location = locationManager.lastLocation {
+                let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
+                let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
+
+                greenDistancesView(greenDist)
+
+                let holeFeatures = course.features(for: courseHole)
+                let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green)
+                if !features.isEmpty {
+                    Divider()
+                    featuresView(features)
+                }
+            }
+
+            Spacer()
+
+            Button("Dismiss") {
+                showSwingAway = false
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding()
+    }
+
+    // MARK: - Shared Components
+
+    private func greenDistancesView(_ distances: GreenDistances) -> some View {
+        HStack(spacing: 12) {
+            VStack(spacing: 1) {
+                Text("\(distances.front)")
+                    .font(.body).fontWeight(.bold)
+                Text("Front")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+            VStack(spacing: 1) {
+                Text("\(distances.middle)")
+                    .font(.body).fontWeight(.bold)
+                Text("Mid")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+            VStack(spacing: 1) {
+                Text("\(distances.back)")
+                    .font(.body).fontWeight(.bold)
+                Text("Back")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func featuresView(_ features: [FeatureDistance]) -> some View {
+        ForEach(features, id: \.feature.id) { fd in
+            HStack {
+                Image(systemName: fd.feature.type == .water ? "drop.fill" : "square.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(fd.feature.type == .water ? .blue : .yellow)
+                Text(fd.feature.type == .water ? "Water" : "Bunker")
+                    .font(.caption2)
+                Spacer()
+                Text("\(fd.distanceYards)")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+            }
+        }
+    }
+
+    private func courseDirection(hole: Hole, green: Feature, location: CLLocation, course: Course) -> Vector2D {
+        hole.vector(for: green.id, from: course.features)
+            ?? Vector2D(
+                dx: green.center.latitude - location.coordinate.latitude,
+                dy: green.center.longitude - location.coordinate.longitude
+            ).normalized()
+    }
+
+    // MARK: - Helpers
 
     private func updateLiveDistance(location: CLLocation?) {
         guard let location,
@@ -153,85 +327,6 @@ struct WatchRoundView: View {
             return DistanceCalculator.formattedYards(from: prev, to: last)
         }
         return "0 yds"
-    }
-
-    @ViewBuilder
-    private func swingAwayView(round: Round?) -> some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                Text("Swing away")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.green)
-
-                if let round, let courseHole = round.currentCourseHole,
-                   let course = round.courseSelection?.course,
-                   let green = courseHole.green(from: course.features),
-                   let location = locationManager.lastLocation {
-                    let direction: Vector2D = courseHole.vector(for: green.id, from: course.features)
-                        ?? Vector2D(
-                            dx: green.center.latitude - location.coordinate.latitude,
-                            dy: green.center.longitude - location.coordinate.longitude
-                        ).normalized()
-                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
-
-                    Divider()
-
-                    HStack(spacing: 12) {
-                        VStack(spacing: 1) {
-                            Text("\(greenDist.front)")
-                                .font(.body).fontWeight(.bold)
-                            Text("Front")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(spacing: 1) {
-                            Text("\(greenDist.middle)")
-                                .font(.body).fontWeight(.bold)
-                            Text("Mid")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(spacing: 1) {
-                            Text("\(greenDist.back)")
-                                .font(.body).fontWeight(.bold)
-                            Text("Back")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    let holeFeatures = course.features(for: courseHole)
-                    let features = DistanceCalculator.featuresAhead(
-                        from: location, features: holeFeatures, green: green
-                    )
-                    if !features.isEmpty {
-                        Divider()
-                        ForEach(features, id: \.feature.id) { fd in
-                            HStack {
-                                Image(systemName: fd.feature.type == .water ? "drop.fill" : "square.fill")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(fd.feature.type == .water ? .blue : .yellow)
-                                Text(fd.feature.type == .water ? "Water" : "Bunker")
-                                    .font(.caption2)
-                                Spacer()
-                                Text("\(fd.distanceYards)")
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                    }
-                }
-
-                Spacer()
-
-                Button("Dismiss") {
-                    showSwingAway = false
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding()
-        }
     }
 
     private func markBall() {
