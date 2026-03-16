@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import CourseData
 @testable import SpotGolf
 
 @MainActor
@@ -253,17 +254,17 @@ final class SyncServiceTests: XCTestCase {
     func testSendAndHandleCourseSelection() throws {
         // Create a CourseSelection, encode it, verify it round-trips through the message format
         let selection = CourseSelection(
-            course: Course(id: "C1", name: "Test", clubName: "Test",
-                           location: CourseLocation(address: nil, city: "Denver",
-                                                    coordinate: CourseCoordinate(latitude: 39.0, longitude: -105.0),
-                                                    country: "US", state: "CO"),
+            course: Course(name: "Test", clubName: "Test",
+                           location: CourseLocation(address: "", city: "Denver",
+                                                    state: "CO", country: "US",
+                                                    coordinate: Coordinate(latitude: 39.0, longitude: -105.0)),
                            subCourses: []),
             selectedSubCourseIndices: [0, 1]
         )
 
         let data = try JSONEncoder().encode(selection)
         let decoded = try JSONDecoder().decode(CourseSelection.self, from: data)
-        XCTAssertEqual(decoded.course.id, "C1")
+        XCTAssertEqual(decoded.course.name, "Test")
         XCTAssertEqual(decoded.selectedSubCourseIndices, [0, 1])
     }
 
@@ -272,10 +273,10 @@ final class SyncServiceTests: XCTestCase {
         store.startRound(id: roundID, fromSync: true)
 
         let selection = CourseSelection(
-            course: Course(id: "C1", name: "Test", clubName: "Test",
-                           location: CourseLocation(address: nil, city: "Denver",
-                                                    coordinate: CourseCoordinate(latitude: 39.0, longitude: -105.0),
-                                                    country: "US", state: "CO"),
+            course: Course(name: "Test", clubName: "Test",
+                           location: CourseLocation(address: "", city: "Denver",
+                                                    state: "CO", country: "US",
+                                                    coordinate: Coordinate(latitude: 39.0, longitude: -105.0)),
                            subCourses: []),
             selectedSubCourseIndices: [0, 1]
         )
@@ -289,7 +290,7 @@ final class SyncServiceTests: XCTestCase {
 
         service.handleMessage(message)
 
-        XCTAssertEqual(store.rounds[0].courseSelection?.course.id, "C1")
+        XCTAssertEqual(store.rounds[0].courseSelection?.course.name, "Test")
         XCTAssertEqual(store.rounds[0].courseSelection?.selectedSubCourseIndices, [0, 1])
     }
 
@@ -297,10 +298,10 @@ final class SyncServiceTests: XCTestCase {
         store.startRound(fromSync: true)
 
         let selection = CourseSelection(
-            course: Course(id: "C1", name: "Test", clubName: "Test",
-                           location: CourseLocation(address: nil, city: "Denver",
-                                                    coordinate: CourseCoordinate(latitude: 39.0, longitude: -105.0),
-                                                    country: "US", state: "CO"),
+            course: Course(name: "Test", clubName: "Test",
+                           location: CourseLocation(address: "", city: "Denver",
+                                                    state: "CO", country: "US",
+                                                    coordinate: Coordinate(latitude: 39.0, longitude: -105.0)),
                            subCourses: []),
             selectedSubCourseIndices: []
         )

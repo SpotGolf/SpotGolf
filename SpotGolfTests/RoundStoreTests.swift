@@ -239,7 +239,7 @@ final class RoundStoreTests: XCTestCase {
 
     // MARK: - nextHole / previousHole
 
-    func testNextHole() {
+    func testNextRoundHole() {
         store.startRound()
         syncMessages.removeAll()
 
@@ -258,7 +258,7 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertTrue(syncMessages.isEmpty)
     }
 
-    func testPreviousHole() {
+    func testPreviousRoundHole() {
         store.startRound()
         store.nextHole()
         syncMessages.removeAll()
@@ -289,7 +289,7 @@ final class RoundStoreTests: XCTestCase {
     func testNextHoleAt18IsNoOp() {
         store.startRound()
         store.rounds[0] = Round(id: store.rounds[0].id, date: store.rounds[0].date,
-                                holes: (0..<18).map { _ in Hole() }, currentHoleIndex: 17)
+                                holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17)
 
         store.nextHole()
 

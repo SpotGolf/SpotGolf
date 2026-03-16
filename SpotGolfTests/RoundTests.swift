@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import CourseData
 @testable import SpotGolf
 
 final class RoundTests: XCTestCase {
@@ -18,7 +19,7 @@ final class RoundTests: XCTestCase {
         let id = UUID()
         let date = Date(timeIntervalSince1970: 1_000_000)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let hole = Hole(marks: [mark])
+        let hole = RoundHole(marks: [mark])
         let round = Round(id: id, date: date, holes: [hole], isActive: false)
 
         XCTAssertEqual(round.id, id)
@@ -112,7 +113,7 @@ final class RoundTests: XCTestCase {
     }
 
     func testNextHoleDoesNotExceed18() {
-        var round = Round(holes: (0..<18).map { _ in Hole() }, currentHoleIndex: 17)
+        var round = Round(holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17)
 
         let changed = round.nextHole()
 
@@ -122,7 +123,7 @@ final class RoundTests: XCTestCase {
     }
 
     func testNextHoleAdvancesWithoutAppendingWhenNotOnLast() {
-        var round = Round(holes: [Hole(), Hole(), Hole()], currentHoleIndex: 0)
+        var round = Round(holes: [RoundHole(), RoundHole(), RoundHole()], currentHoleIndex: 0)
 
         round.nextHole()
 
@@ -131,7 +132,7 @@ final class RoundTests: XCTestCase {
     }
 
     func testPreviousHole() {
-        var round = Round(holes: [Hole(), Hole()], currentHoleIndex: 1)
+        var round = Round(holes: [RoundHole(), RoundHole()], currentHoleIndex: 1)
 
         round.previousHole()
 
@@ -150,8 +151,8 @@ final class RoundTests: XCTestCase {
     func testMarksReturnsCurrentHoleMarks() {
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let hole1 = Hole(marks: [mark1])
-        let hole2 = Hole(marks: [mark2])
+        let hole1 = RoundHole(marks: [mark1])
+        let hole2 = RoundHole(marks: [mark2])
         let round = Round(holes: [hole1, hole2], currentHoleIndex: 1)
 
         XCTAssertEqual(round.marks.count, 1)
@@ -161,8 +162,8 @@ final class RoundTests: XCTestCase {
     func testAllMarks() {
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let hole1 = Hole(marks: [mark1])
-        let hole2 = Hole(marks: [mark2])
+        let hole1 = RoundHole(marks: [mark1])
+        let hole2 = RoundHole(marks: [mark2])
         let round = Round(holes: [hole1, hole2])
 
         XCTAssertEqual(round.allMarks.count, 2)
@@ -171,8 +172,8 @@ final class RoundTests: XCTestCase {
     func testHoleIndexContaining() {
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let hole1 = Hole(marks: [mark1])
-        let hole2 = Hole(marks: [mark2])
+        let hole1 = RoundHole(marks: [mark1])
+        let hole2 = RoundHole(marks: [mark2])
         let round = Round(holes: [hole1, hole2])
 
         XCTAssertEqual(round.holeIndex(containing: mark1.id), 0)
@@ -181,7 +182,7 @@ final class RoundTests: XCTestCase {
     }
 
     func testAddMarkAppendsToCurrentHole() {
-        var round = Round(holes: [Hole(), Hole()], currentHoleIndex: 1)
+        var round = Round(holes: [RoundHole(), RoundHole()], currentHoleIndex: 1)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
 
         round.addMark(mark)
@@ -217,7 +218,7 @@ final class RoundTests: XCTestCase {
 
     func testEndTrimsTrailingEmptyHoles() {
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        var round = Round(holes: [Hole(marks: [mark]), Hole(), Hole()], currentHoleIndex: 2)
+        var round = Round(holes: [RoundHole(marks: [mark]), RoundHole(), RoundHole()], currentHoleIndex: 2)
 
         round.end()
 
@@ -229,7 +230,7 @@ final class RoundTests: XCTestCase {
     func testEndPreservesNonEmptyHoles() {
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        var round = Round(holes: [Hole(marks: [mark1]), Hole(marks: [mark2])], currentHoleIndex: 1)
+        var round = Round(holes: [RoundHole(marks: [mark1]), RoundHole(marks: [mark2])], currentHoleIndex: 1)
 
         round.end()
 
@@ -263,7 +264,7 @@ final class RoundTests: XCTestCase {
     }
 
     func testPreviousHoleReturnsTrueWhenMoved() {
-        var round = Round(holes: [Hole(), Hole()], currentHoleIndex: 1)
+        var round = Round(holes: [RoundHole(), RoundHole()], currentHoleIndex: 1)
 
         let changed = round.previousHole()
 
@@ -274,29 +275,20 @@ final class RoundTests: XCTestCase {
     // MARK: - Course data
 
     private func makeCourseSelection() -> CourseSelection {
-        let green = CourseGreen(
-            front: CourseCoordinate(latitude: 33.0, longitude: -112.0),
-            middle: CourseCoordinate(latitude: 33.001, longitude: -112.001),
-            back: CourseCoordinate(latitude: 33.002, longitude: -112.002)
-        )
-        let hole1 = CourseHole(
-            id: "h1", number: 1, par: 4,
-            maleHandicap: 1, femaleHandicap: 1,
-            green: green, tees: [:], yardages: [:], features: []
-        )
-        let hole2 = CourseHole(
-            id: "h2", number: 2, par: 3,
-            maleHandicap: 2, femaleHandicap: 2,
-            green: green, tees: [:], yardages: [:], features: []
-        )
+        let greenFeature = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.0, longitude: -112.0),
+            Coordinate(latitude: 33.0, longitude: -112.002),
+            Coordinate(latitude: 33.002, longitude: -112.002),
+            Coordinate(latitude: 33.002, longitude: -112.0),
+            Coordinate(latitude: 33.0, longitude: -112.0),
+        ])
+        let hole1 = Hole(number: 1, par: 4, features: [1], tees: [:], centerline: [])
+        let hole2 = Hole(number: 2, par: 3, features: [1], tees: [:], centerline: [])
         let subCourse = SubCourse(name: "Front", holes: [hole1, hole2])
-        let location = CourseLocation(
-            address: nil, city: "Phoenix",
-            coordinate: CourseCoordinate(latitude: 33.0, longitude: -112.0),
-            country: "US", state: "AZ"
-        )
-        let course = Course(id: "c1", name: "Test Course", clubName: "Test Club",
-                            location: location, subCourses: [subCourse])
+        let location = CourseLocation(address: "", city: "Phoenix", state: "AZ", country: "US",
+                                      coordinate: Coordinate(latitude: 33.0, longitude: -112.0))
+        let course = Course(name: "Test Course", clubName: "Test Club",
+                            location: location, features: [greenFeature], subCourses: [subCourse])
         return CourseSelection(course: course, selectedSubCourseIndices: [0])
     }
 
@@ -305,7 +297,7 @@ final class RoundTests: XCTestCase {
         let round = Round(courseSelection: selection)
 
         XCTAssertNotNil(round.courseSelection)
-        XCTAssertEqual(round.courseSelection?.course.id, "c1")
+        XCTAssertEqual(round.courseSelection?.course.name, "Test Course")
         XCTAssertEqual(round.courseSelection?.selectedSubCourseIndices, [0])
     }
 
@@ -331,12 +323,12 @@ final class RoundTests: XCTestCase {
         let selection = makeCourseSelection()
         var round = Round(courseSelection: selection)
 
-        XCTAssertEqual(round.currentCourseHole?.id, "h1")
+        XCTAssertEqual(round.currentCourseHole?.id, 1)
         XCTAssertEqual(round.currentCourseHole?.par, 4)
 
         round.nextHole()
 
-        XCTAssertEqual(round.currentCourseHole?.id, "h2")
+        XCTAssertEqual(round.currentCourseHole?.id, 2)
         XCTAssertEqual(round.currentCourseHole?.par, 3)
 
         // Beyond available course holes

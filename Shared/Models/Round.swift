@@ -1,14 +1,15 @@
 import Foundation
+import CourseData
 
 struct Round: Identifiable {
     let id: UUID
     let date: Date
-    var holes: [Hole]
+    var holes: [RoundHole]
     var currentHoleIndex: Int
     var isActive: Bool
     var courseSelection: CourseSelection?
 
-    init(id: UUID = UUID(), date: Date = Date(), holes: [Hole] = [Hole()],
+    init(id: UUID = UUID(), date: Date = Date(), holes: [RoundHole] = [RoundHole()],
          currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection? = nil) {
         self.id = id
         self.date = date
@@ -22,7 +23,7 @@ struct Round: Identifiable {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 
-    var currentHole: Hole {
+    var currentHole: RoundHole {
         holes[min(currentHoleIndex, holes.count - 1)]
     }
 
@@ -30,7 +31,7 @@ struct Round: Identifiable {
         currentHoleIndex + 1
     }
 
-    var currentCourseHole: CourseHole? {
+    var currentCourseHole: Hole? {
         guard let selection = courseSelection else { return nil }
         let orderedHoles = selection.orderedHoles
         guard currentHoleIndex < orderedHoles.count else { return nil }
@@ -54,7 +55,7 @@ struct Round: Identifiable {
 
     mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
         while holes.count <= holeIndex && holes.count < 18 {
-            holes.append(Hole())
+            holes.append(RoundHole())
         }
         let safeIndex = min(holeIndex, holes.count - 1)
         holes[safeIndex].marks.append(mark)
@@ -65,7 +66,7 @@ struct Round: Identifiable {
     mutating func nextHole() -> Bool {
         if currentHoleIndex == holes.count - 1 {
             guard holes.count < 18 else { return false }
-            holes.append(Hole())
+            holes.append(RoundHole())
         }
         currentHoleIndex += 1
         return true
@@ -112,14 +113,14 @@ extension Round: Codable {
         date = try container.decode(Date.self, forKey: .date)
         isActive = try container.decode(Bool.self, forKey: .isActive)
 
-        if let holes = try container.decodeIfPresent([Hole].self, forKey: .holes) {
-            self.holes = holes.isEmpty ? [Hole()] : holes
+        if let holes = try container.decodeIfPresent([RoundHole].self, forKey: .holes) {
+            self.holes = holes.isEmpty ? [RoundHole()] : holes
             let decoded = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
             self.currentHoleIndex = min(max(decoded, 0), self.holes.count - 1)
         } else {
             // Legacy format: flat marks array → single hole
             let marks = try container.decodeIfPresent([BallMark].self, forKey: .marks) ?? []
-            self.holes = [Hole(marks: marks)]
+            self.holes = [RoundHole(marks: marks)]
             self.currentHoleIndex = 0
         }
         self.courseSelection = try container.decodeIfPresent(CourseSelection.self, forKey: .courseSelection)

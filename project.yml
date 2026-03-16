@@ -6,6 +6,10 @@ options:
     watchOS: "10.0"
   xcodeVersion: "16.0"
 
+packages:
+  CourseData:
+    path: ../CourseData
+
 schemes:
   SpotGolf:
     build:
@@ -42,6 +46,7 @@ targets:
         DEVELOPMENT_TEAM: 5CRT56YETR
     dependencies:
       - target: SpotGolfWatch
+      - package: CourseData
     entitlements:
       path: SpotGolf/SpotGolf.entitlements
       properties:
@@ -86,6 +91,7 @@ targets:
         WKWatchOnly: false
     dependencies:
       - sdk: WatchConnectivity.framework
+      - package: CourseData
 
   SpotGolfTests:
     type: bundle.unit-test
@@ -99,6 +105,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SpotGolf
+      - package: CourseData
 
   SpotGolfUITests:
     type: bundle.ui-testing

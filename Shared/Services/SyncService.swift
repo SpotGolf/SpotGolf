@@ -1,5 +1,6 @@
 import Foundation
 import WatchConnectivity
+import CourseData
 
 private let syncDateFormatter = ISO8601DateFormatter()
 

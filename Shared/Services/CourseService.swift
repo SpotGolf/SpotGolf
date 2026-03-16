@@ -1,6 +1,6 @@
 import Foundation
-import Compression
 import CoreLocation
+import CourseData
 
 // MARK: - NearbyResult
 
@@ -14,8 +14,6 @@ struct NearbyResult {
 enum CourseServiceError: Error {
     case invalidVersion
     case invalidURL
-    case compressionFailed
-    case decompressionFailed
 }
 
 // MARK: - CourseService
@@ -28,7 +26,7 @@ class CourseService: ObservableObject {
     static let maxCacheBytes = 5 * 1024 * 1024
     private static let tenMilesInMeters: Double = 16093.44
 
-    private static let baseURL = "https://raw.githubusercontent.com/SpotGolf/CourseData/main/"
+    private static let baseURL = "https://raw.githubusercontent.com/SpotGolf/CourseData/main/Data/"
 
     private let cacheDirectory: URL
     private let fileManager = FileManager.default
@@ -94,7 +92,7 @@ class CourseService: ObservableObject {
     }
 
     func cacheIndex(data: Data, version: Int) throws {
-        let compressed = try compress(data)
+        let compressed = try data.gzipCompressed()
 
         let indexFile = cacheDirectory.appendingPathComponent("index.json.gz")
         try compressed.write(to: indexFile)
@@ -110,7 +108,7 @@ class CourseService: ObservableObject {
         }
 
         let compressed = try Data(contentsOf: indexFile)
-        let decompressed = try decompress(compressed)
+        let decompressed = try compressed.gzipDecompressed()
         return try JSONDecoder().decode([CourseIndexEntry].self, from: decompressed)
     }
 
@@ -124,7 +122,8 @@ class CourseService: ObservableObject {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             try cacheCourseData(data, forPath: path)
-            return try JSONDecoder().decode(Course.self, from: data)
+            let decompressed = try data.gzipDecompressed()
+            return try JSONDecoder().decode(Course.self, from: decompressed)
         } catch {
             if let cached = try loadCachedCourse(path: path) {
                 return cached
@@ -135,27 +134,25 @@ class CourseService: ObservableObject {
 
     func cacheCourseData(_ data: Data, forPath path: String) throws {
         let coursesDir = cacheDirectory.appendingPathComponent("courses")
-        let fileURL = coursesDir.appendingPathComponent(sanitizedPath(path) + ".gz")
+        let fileURL = coursesDir.appendingPathComponent(sanitizedPath(path))
         let parentDir = fileURL.deletingLastPathComponent()
 
         try fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
-
-        let compressed = try compress(data)
-        try compressed.write(to: fileURL)
+        try data.write(to: fileURL)
 
         enforceCacheLimit()
     }
 
     func loadCachedCourse(path: String) throws -> Course? {
         let coursesDir = cacheDirectory.appendingPathComponent("courses")
-        let fileURL = coursesDir.appendingPathComponent(sanitizedPath(path) + ".gz")
+        let fileURL = coursesDir.appendingPathComponent(sanitizedPath(path))
 
         guard fileManager.fileExists(atPath: fileURL.path) else {
             return nil
         }
 
         let compressed = try Data(contentsOf: fileURL)
-        let decompressed = try decompress(compressed)
+        let decompressed = try compressed.gzipDecompressed()
         return try JSONDecoder().decode(Course.self, from: decompressed)
     }
 
@@ -233,73 +230,6 @@ class CourseService: ObservableObject {
             try? fileManager.removeItem(at: file.url)
             currentSize -= file.size
         }
-    }
-
-    // MARK: - Compression Helpers
-
-    private func compress(_ data: Data) throws -> Data {
-        let sourceSize = data.count
-        let destinationSize = sourceSize + 512 // zlib may slightly expand incompressible data
-        var destinationBuffer = [UInt8](repeating: 0, count: destinationSize)
-
-        let compressedSize = data.withUnsafeBytes { sourcePtr -> Int in
-            guard let baseAddress = sourcePtr.baseAddress else { return 0 }
-            return compression_encode_buffer(
-                &destinationBuffer,
-                destinationSize,
-                baseAddress.assumingMemoryBound(to: UInt8.self),
-                sourceSize,
-                nil,
-                COMPRESSION_ZLIB
-            )
-        }
-
-        guard compressedSize > 0 else {
-            throw CourseServiceError.compressionFailed
-        }
-
-        // Prepend original size as 8-byte little-endian for decompression
-        var size = UInt64(sourceSize).littleEndian
-        var result = Data(bytes: &size, count: 8)
-        result.append(Data(bytes: destinationBuffer, count: compressedSize))
-        return result
-    }
-
-    private func decompress(_ data: Data) throws -> Data {
-        guard data.count > 8 else {
-            throw CourseServiceError.decompressionFailed
-        }
-
-        let originalSize: UInt64 = data.withUnsafeBytes { ptr in
-            ptr.load(as: UInt64.self).littleEndian
-        }
-
-        let maxDecompressedSize: UInt64 = 50 * 1024 * 1024
-        guard originalSize > 0, originalSize <= maxDecompressedSize else {
-            throw CourseServiceError.decompressionFailed
-        }
-
-        let compressedData = data.dropFirst(8)
-        let destinationSize = Int(originalSize)
-        var destinationBuffer = [UInt8](repeating: 0, count: destinationSize)
-
-        let decompressedSize = compressedData.withUnsafeBytes { sourcePtr -> Int in
-            guard let baseAddress = sourcePtr.baseAddress else { return 0 }
-            return compression_decode_buffer(
-                &destinationBuffer,
-                destinationSize,
-                baseAddress.assumingMemoryBound(to: UInt8.self),
-                compressedData.count,
-                nil,
-                COMPRESSION_ZLIB
-            )
-        }
-
-        guard decompressedSize > 0 else {
-            throw CourseServiceError.decompressionFailed
-        }
-
-        return Data(bytes: destinationBuffer, count: decompressedSize)
     }
 
     // MARK: - Path Helpers

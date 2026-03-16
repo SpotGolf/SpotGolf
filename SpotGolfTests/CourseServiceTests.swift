@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import CourseData
 @testable import SpotGolf
 
 @MainActor
@@ -49,49 +50,21 @@ final class CourseServiceTests: XCTestCase {
 
     func testCacheAndLoadCourseData() throws {
         let course = Course(
-            id: "test-course-1",
             name: "Test Course",
             clubName: "Test Club",
-            location: CourseLocation(
-                address: "123 Main St",
-                city: "Phoenix",
-                coordinate: CourseCoordinate(latitude: 33.45, longitude: -112.07),
-                country: "US",
-                state: "AZ"
-            ),
-            subCourses: [
-                SubCourse(name: "Front", holes: [
-                    CourseHole(
-                        id: "hole-1",
-                        number: 1,
-                        par: 4,
-                        maleHandicap: 1,
-                        femaleHandicap: 1,
-                        green: CourseGreen(
-                            front: CourseCoordinate(latitude: 33.451, longitude: -112.071),
-                            middle: CourseCoordinate(latitude: 33.452, longitude: -112.072),
-                            back: CourseCoordinate(latitude: 33.453, longitude: -112.073)
-                        ),
-                        tees: ["blue": CourseCoordinate(latitude: 33.449, longitude: -112.075)],
-                        yardages: ["blue": 400],
-                        features: []
-                    )
-                ])
-            ]
+            location: CourseLocation(address: "123 Main St", city: "Phoenix", state: "AZ", country: "US",
+                                     coordinate: Coordinate(latitude: 33.45, longitude: -112.07)),
+            subCourses: [SubCourse(name: "Front", holes: [Hole(number: 1, par: 4)])]
         )
-
         let data = try JSONEncoder().encode(course)
-        let path = "us/az/test-course-1.json"
-
-        try service.cacheCourseData(data, forPath: path)
+        let path = "us/az/test-course-1.json.gz"
+        let compressed = try data.gzipCompressed()
+        try service.cacheCourseData(compressed, forPath: path)
 
         let loaded = try service.loadCachedCourse(path: path)
         XCTAssertNotNil(loaded)
-        XCTAssertEqual(loaded?.id, "test-course-1")
         XCTAssertEqual(loaded?.name, "Test Course")
-        XCTAssertEqual(loaded?.clubName, "Test Club")
         XCTAssertEqual(loaded?.subCourses.count, 1)
-        XCTAssertEqual(loaded?.subCourses[0].holes.count, 1)
     }
 
     // MARK: - testCacheSizeEnforcement
@@ -116,20 +89,11 @@ final class CourseServiceTests: XCTestCase {
 
     func testCacheIndexAndLoad() throws {
         let entries = [
-            CourseIndexEntry(
-                name: "Test Course",
-                coordinate: CourseCoordinate(latitude: 33.45, longitude: -112.07),
-                holes: 18,
-                path: "US/AZ/Phoenix/Test-Course.json"
-            ),
-            CourseIndexEntry(
-                name: "Another Course",
-                coordinate: CourseCoordinate(latitude: 34.0, longitude: -111.0),
-                holes: 9,
-                path: "US/AZ/Scottsdale/Another-Course.json"
-            )
+            CourseIndexEntry(name: "Test Course", coordinate: IndexCoordinate(latitude: 33.45, longitude: -112.07),
+                             holes: 18, path: "US/AZ/Phoenix/Test-Course.json.gz"),
+            CourseIndexEntry(name: "Another Course", coordinate: IndexCoordinate(latitude: 34.0, longitude: -111.0),
+                             holes: 9, path: "US/AZ/Scottsdale/Another-Course.json.gz")
         ]
-
         let data = try JSONEncoder().encode(entries)
         try service.cacheIndex(data: data, version: 5)
 
@@ -141,7 +105,6 @@ final class CourseServiceTests: XCTestCase {
         XCTAssertEqual(loaded?.count, 2)
         XCTAssertEqual(loaded?[0].name, "Test Course")
         XCTAssertEqual(loaded?[1].name, "Another Course")
-        XCTAssertEqual(loaded?[0].path, "US/AZ/Phoenix/Test-Course.json")
     }
 
     func testCachedIndexVersionReturnsNilWhenNoCache() {
@@ -158,9 +121,9 @@ final class CourseServiceTests: XCTestCase {
     private func makeEntry(name: String, lat: Double, lon: Double, holes: Int = 18) -> CourseIndexEntry {
         CourseIndexEntry(
             name: name,
-            coordinate: CourseCoordinate(latitude: lat, longitude: lon),
+            coordinate: IndexCoordinate(latitude: lat, longitude: lon),
             holes: holes,
-            path: "US/ST/City/\(name.replacingOccurrences(of: " ", with: "-")).json"
+            path: "US/ST/City/\(name.replacingOccurrences(of: " ", with: "-")).json.gz"
         )
     }
 

@@ -1,4 +1,5 @@
 import CoreLocation
+import CourseData
 
 struct GreenDistances {
     let front: Int
@@ -7,54 +8,48 @@ struct GreenDistances {
 }
 
 struct FeatureDistance {
-    let feature: CourseFeature
+    let feature: Feature
     let distanceYards: Int
 }
 
 enum DistanceCalculator {
     private static let metersToYards = 1.09361
 
-    /// Returns distance in yards between two locations
     static func yards(from a: CLLocation, to b: CLLocation) -> Double {
         a.distance(from: b) * metersToYards
     }
 
-    /// Returns distance in yards between two ball marks
     static func yards(from a: BallMark, to b: BallMark) -> Double {
         yards(from: a.location, to: b.location)
     }
 
-    /// Returns a formatted distance string in yards
     static func formattedYards(from a: CLLocation, to b: CLLocation) -> String {
         "\(Int(yards(from: a, to: b))) yds"
     }
 
-    /// Returns a formatted distance string in yards between two ball marks
     static func formattedYards(from a: BallMark, to b: BallMark) -> String {
         formattedYards(from: a.location, to: b.location)
     }
 
-    /// Returns distances in yards to the front, middle, and back of the green
-    static func greenDistances(from location: CLLocation, green: CourseGreen) -> GreenDistances {
+    static func greenDistances(from location: CLLocation, green: Feature, direction: Vector2D) -> GreenDistances {
         GreenDistances(
-            front: Int(yards(from: location, to: green.front.clLocation)),
-            middle: Int(yards(from: location, to: green.middle.clLocation)),
-            back: Int(yards(from: location, to: green.back.clLocation))
+            front: Int(yards(from: location, to: green.front(vector: direction).clLocation)),
+            middle: Int(yards(from: location, to: green.middle().clLocation)),
+            back: Int(yards(from: location, to: green.back(vector: direction).clLocation))
         )
     }
 
-    /// Returns features that are ahead of the user (between user and green), sorted by distance.
-    static func featuresAhead(from location: CLLocation, features: [CourseFeature], green: CourseGreen) -> [FeatureDistance] {
-        let greenBack = green.back.clLocation
-        let distToGreen = location.distance(from: greenBack)
+    static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature) -> [FeatureDistance] {
+        let greenCenter = green.center.clLocation
+        let distToGreen = location.distance(from: greenCenter)
 
         return features.compactMap { feature in
-            let featureLocation = feature.middle
-            let distToFeature = location.distance(from: featureLocation)
-            let featureToGreen = featureLocation.distance(from: greenBack)
+            guard feature.type == .bunker || feature.type == .water else { return nil }
 
-            // Feature is "ahead" if it's closer to the green than we are
-            // and closer to us than the green is
+            let featureLocation = feature.center.clLocation
+            let distToFeature = location.distance(from: featureLocation)
+            let featureToGreen = featureLocation.distance(from: greenCenter)
+
             guard featureToGreen < distToGreen && distToFeature < distToGreen else { return nil }
 
             return FeatureDistance(

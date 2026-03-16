@@ -1,4 +1,5 @@
 import Foundation
+import CourseData
 
 enum SyncMessage {
     case startRound(UUID, Date)
