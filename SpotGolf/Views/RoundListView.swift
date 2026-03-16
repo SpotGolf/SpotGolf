@@ -60,11 +60,21 @@ struct RoundListView: View {
 private struct RoundRow: View {
     let round: Round
 
+    private var title: String {
+        let date = round.date.formatted(date: .long, time: .omitted)
+        if let name = round.courseSelection?.course.name {
+            return "\(name) on \(date)"
+        }
+        return date
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(round.formattedDate)
+                Text(title)
                     .font(.headline)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
                 Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
