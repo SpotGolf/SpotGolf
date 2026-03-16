@@ -32,6 +32,7 @@ struct RoundListView: View {
                         if roundStore.activeRound == nil {
                             Button {
                                 roundStore.reactivateRound(round.id)
+                                navigationPath.append(round.id)
                             } label: {
                                 Label("Resume", systemImage: "play.fill")
                             }
