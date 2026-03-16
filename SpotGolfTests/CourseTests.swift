@@ -12,6 +12,7 @@ final class CourseTests: XCTestCase {
         "id": "00000000-0000-0000-0000-000000000001",
         "name": "Championship Course",
         "clubName": "Pine Valley Golf Club",
+        "golfCourseAPIIds": [],
         "location": {
             "address": "1 Pine Valley Rd",
             "city": "Pine Valley",
@@ -19,6 +20,10 @@ final class CourseTests: XCTestCase {
             "country": "US",
             "state": "NJ"
         },
+        "tees": [
+            { "name": "blue", "color": "#0000FF" },
+            { "name": "white", "color": "#FFFFFF" }
+        ],
         "features": [
             {
                 "id": 10,
@@ -74,6 +79,8 @@ final class CourseTests: XCTestCase {
                     {
                         "number": 10,
                         "par": 5,
+                        "maleHandicap": 1,
+                        "femaleHandicap": 3,
                         "yardages": {
                             "blue": 550
                         },
@@ -120,9 +127,9 @@ final class CourseTests: XCTestCase {
         XCTAssertEqual(hole.par, 4)
         XCTAssertEqual(hole.maleHandicap, 7)
         XCTAssertEqual(hole.femaleHandicap, 9)
-        XCTAssertEqual(hole.yardages["Blue"], 425)
-        XCTAssertEqual(hole.yardages["White"], 400)
-        XCTAssertEqual(hole.features.count, 5)
+        XCTAssertEqual(hole.yardages["blue"], 425)
+        XCTAssertEqual(hole.yardages["white"], 400)
+        XCTAssertEqual(hole.features.count, 2)
 
         XCTAssertEqual(course.features.count, 2)
         XCTAssertEqual(course.features[0].id, 10)
