@@ -351,4 +351,42 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(decoded.holes[0].marks.count, 1)
         XCTAssertEqual(decoded.holes[1].marks.count, 1)
     }
+
+    // MARK: - Course name shortening
+
+    func testShortenGolfCourse() {
+        XCTAssertEqual(Round.shortenCourseName("Broadlands Golf Course"), "Broadlands GC")
+    }
+
+    func testShortenGolfClub() {
+        XCTAssertEqual(Round.shortenCourseName("Pine Valley Golf Club"), "Pine Valley GC")
+    }
+
+    func testShortenGolfResort() {
+        XCTAssertEqual(Round.shortenCourseName("Omni Interlocken Golf Resort"), "Omni Interlocken GC")
+    }
+
+    func testShortenResort() {
+        XCTAssertEqual(Round.shortenCourseName("Pebble Beach Resort"), "Pebble Beach GC")
+    }
+
+    func testShortenCountryClub() {
+        XCTAssertEqual(Round.shortenCourseName("Augusta National Country Club"), "Augusta National CC")
+    }
+
+    func testShortenStripThe() {
+        XCTAssertEqual(Round.shortenCourseName("The Olympic Club"), "Olympic Club")
+    }
+
+    func testShortenStripTheClubAt() {
+        XCTAssertEqual(Round.shortenCourseName("The Club at Pradera"), "Pradera")
+    }
+
+    func testShortenCombinedPrefixAndSuffix() {
+        XCTAssertEqual(Round.shortenCourseName("The Broadlands Golf Course"), "Broadlands GC")
+    }
+
+    func testShortenNoChange() {
+        XCTAssertEqual(Round.shortenCourseName("Pebble Beach"), "Pebble Beach")
+    }
 }

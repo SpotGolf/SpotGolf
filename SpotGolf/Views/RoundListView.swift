@@ -60,13 +60,7 @@ struct RoundListView: View {
 private struct RoundRow: View {
     let round: Round
 
-    private var title: String {
-        let date = round.date.formatted(date: .long, time: .omitted)
-        if let name = round.courseSelection?.course.name {
-            return "\(name) on \(date)"
-        }
-        return date
-    }
+    private var title: String { round.displayTitle }
 
     var body: some View {
         HStack {

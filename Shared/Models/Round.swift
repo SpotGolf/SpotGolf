@@ -23,6 +23,43 @@ struct Round: Identifiable {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    var displayTitle: String {
+        let dateStr = date.formatted(date: .long, time: .omitted)
+        if let name = courseSelection?.course.name {
+            return "\(Self.shortenCourseName(name)) on \(dateStr)"
+        }
+        return dateStr
+    }
+
+    static func shortenCourseName(_ name: String) -> String {
+        var s = name
+
+        // Strip leading "The Club at " or "The "
+        if s.lowercased().hasPrefix("the club at ") {
+            s = String(s.dropFirst("the club at ".count))
+        } else if s.lowercased().hasPrefix("the ") {
+            s = String(s.dropFirst("the ".count))
+        }
+
+        // Replace trailing suffixes (case-insensitive, longest match first)
+        let replacements: [(suffix: String, replacement: String)] = [
+            ("country club", "CC"),
+            ("golf course", "GC"),
+            ("golf resort", "GC"),
+            ("golf club", "GC"),
+            ("resort", "GC"),
+        ]
+        let lower = s.lowercased()
+        for (suffix, replacement) in replacements {
+            if lower.hasSuffix(suffix) {
+                s = String(s.dropLast(suffix.count)) + replacement
+                break
+            }
+        }
+
+        return s.trimmingCharacters(in: .whitespaces)
+    }
+
     var currentHole: RoundHole {
         holes[min(currentHoleIndex, holes.count - 1)]
     }

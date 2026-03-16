@@ -62,18 +62,11 @@ struct RoundMapView: View {
         .ignoresSafeArea(edges: .bottom)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 0) {
-                    if let courseName = round.courseSelection?.course.name {
-                        Text("\(courseName) on \(round.date.formatted(date: .long, time: .omitted))")
-                            .font(.headline)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.7)
-                            .multilineTextAlignment(.center)
-                    } else {
-                        Text(round.date.formatted(date: .long, time: .omitted))
-                            .font(.headline)
-                    }
-                }
+                Text(round.displayTitle)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.center)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
