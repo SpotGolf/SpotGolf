@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild *)",
+      "Bash(xcodegen generate *)",
+      "Bash(xcrun simctl *)",
+      "WebSearch",
+      "WebFetch(domain:golfapi.io)",
+      "WebFetch(domain:golfcourseapi.com)",
+      "WebFetch(domain:golfbert.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:wiki.openstreetmap.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(cd *)",
+      "Bash(gunzip *)",
+      "Bash(jq *)",
+      "Bash(python3 *)",
+      "Bash(find *)"
+    ]
+  }
+}
