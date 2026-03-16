@@ -103,7 +103,7 @@ class RoundStore: ObservableObject {
         }
         if let i = rounds.firstIndex(where: predicate) {
             while rounds[i].holes.count <= index && rounds[i].holes.count < 18 {
-                rounds[i].holes.append(Hole())
+                rounds[i].holes.append(RoundHole())
             }
             let clamped = min(index, rounds[i].holes.count - 1)
             guard clamped != rounds[i].currentHoleIndex else { return }
