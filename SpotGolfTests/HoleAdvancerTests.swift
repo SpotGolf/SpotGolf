@@ -1,83 +1,112 @@
 import XCTest
 import CoreLocation
+import CourseData
 @testable import SpotGolf
 
 final class HoleAdvancerTests: XCTestCase {
 
-    // MARK: - Helpers
+    private var nextFeatureID = 1
 
-    private func makeHole(number: Int, tees: [String: CourseCoordinate]) -> CourseHole {
-        CourseHole(
-            id: "hole-\(number)",
-            number: number,
-            par: 4,
-            maleHandicap: nil,
-            femaleHandicap: nil,
-            green: CourseGreen(
-                front: CourseCoordinate(latitude: 0, longitude: 0),
-                middle: CourseCoordinate(latitude: 0, longitude: 0),
-                back: CourseCoordinate(latitude: 0, longitude: 0)
-            ),
-            tees: tees,
-            yardages: [:],
-            features: []
-        )
+    override func setUp() {
+        super.setUp()
+        nextFeatureID = 1
     }
 
-    private func makeSelection(holes: [CourseHole]) -> CourseSelection {
+    private func makeTeeFeature(latitude: Double, longitude: Double) -> Feature {
+        let id = nextFeatureID
+        nextFeatureID += 1
+        return Feature(id: id, type: .tee, polygon: [
+            Coordinate(latitude: latitude - 0.00005, longitude: longitude - 0.00005),
+            Coordinate(latitude: latitude - 0.00005, longitude: longitude + 0.00005),
+            Coordinate(latitude: latitude + 0.00005, longitude: longitude + 0.00005),
+            Coordinate(latitude: latitude + 0.00005, longitude: longitude - 0.00005),
+            Coordinate(latitude: latitude - 0.00005, longitude: longitude - 0.00005),
+        ])
+    }
+
+    private func makeGreenFeature(latitude: Double, longitude: Double) -> Feature {
+        let id = nextFeatureID
+        nextFeatureID += 1
+        return Feature(id: id, type: .green, polygon: [
+            Coordinate(latitude: latitude - 0.0001, longitude: longitude - 0.0001),
+            Coordinate(latitude: latitude - 0.0001, longitude: longitude + 0.0001),
+            Coordinate(latitude: latitude + 0.0001, longitude: longitude + 0.0001),
+            Coordinate(latitude: latitude + 0.0001, longitude: longitude - 0.0001),
+            Coordinate(latitude: latitude - 0.0001, longitude: longitude - 0.0001),
+        ])
+    }
+
+    private func makeSelection(holes: [Hole], features: [Feature]) -> CourseSelection {
         let subCourse = SubCourse(name: "Test", holes: holes)
         let course = Course(
-            id: "test-course",
-            name: "Test Course",
-            clubName: "Test Club",
-            location: CourseLocation(
-                address: nil,
-                city: "Test",
-                coordinate: CourseCoordinate(latitude: 0, longitude: 0),
-                country: "US",
-                state: "TX"
-            ),
-            subCourses: [subCourse]
+            name: "Test Course", clubName: "Test Club",
+            location: CourseLocation(address: "", city: "Test", state: "TX", country: "US",
+                                     coordinate: Coordinate(latitude: 0, longitude: 0)),
+            features: features, subCourses: [subCourse]
         )
         return CourseSelection(course: course, selectedSubCourseIndices: [0])
     }
 
-    // MARK: - Tests
-
     func testDetectsCorrectHole() {
-        // Hole 1 tee at (33.0, -97.0), Hole 2 tee at (33.001, -97.0), Hole 3 tee at (33.002, -97.0)
-        let holes = [
-            makeHole(number: 1, tees: ["blue": CourseCoordinate(latitude: 33.0, longitude: -97.0)]),
-            makeHole(number: 2, tees: ["blue": CourseCoordinate(latitude: 33.001, longitude: -97.0)]),
-            makeHole(number: 3, tees: ["blue": CourseCoordinate(latitude: 33.002, longitude: -97.0)]),
-        ]
-        let selection = makeSelection(holes: holes)
+        let tee1 = makeTeeFeature(latitude: 33.0, longitude: -97.0)
+        let green1 = makeGreenFeature(latitude: 33.005, longitude: -97.0)
+        let tee2 = makeTeeFeature(latitude: 33.001, longitude: -97.0)
+        let green2 = makeGreenFeature(latitude: 33.006, longitude: -97.0)
+        let tee3 = makeTeeFeature(latitude: 33.002, longitude: -97.0)
+        let green3 = makeGreenFeature(latitude: 33.007, longitude: -97.0)
 
-        // User is near hole 2 tee (index 1)
+        let holes = [
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
+            Hole(number: 3, par: 4, features: [tee3.id, green3.id], tees: ["Blue": tee3.id], centerline: []),
+        ]
+        let features = [tee1, green1, tee2, green2, tee3, green3]
+        let selection = makeSelection(holes: holes, features: features)
+
         let userLocation = CLLocation(latitude: 33.001, longitude: -97.0)
         let result = HoleAdvancer.detectHole(location: userLocation, courseSelection: selection)
-
         XCTAssertEqual(result, 1)
     }
 
     func testReturnsNilWhenNotNearAnyTee() {
-        let holes = [
-            makeHole(number: 1, tees: ["blue": CourseCoordinate(latitude: 33.0, longitude: -97.0)]),
-            makeHole(number: 2, tees: ["blue": CourseCoordinate(latitude: 33.001, longitude: -97.0)]),
-        ]
-        let selection = makeSelection(holes: holes)
+        let tee1 = makeTeeFeature(latitude: 33.0, longitude: -97.0)
+        let green1 = makeGreenFeature(latitude: 33.005, longitude: -97.0)
+        let tee2 = makeTeeFeature(latitude: 33.001, longitude: -97.0)
+        let green2 = makeGreenFeature(latitude: 33.006, longitude: -97.0)
 
-        // User is far from all tees
+        let holes = [
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
+        ]
+        let features = [tee1, green1, tee2, green2]
+        let selection = makeSelection(holes: holes, features: features)
+
         let userLocation = CLLocation(latitude: 34.0, longitude: -96.0)
         let result = HoleAdvancer.detectHole(location: userLocation, courseSelection: selection)
-
         XCTAssertNil(result)
+    }
+
+    func testNearestHole() {
+        let tee1 = makeTeeFeature(latitude: 33.0, longitude: -97.0)
+        let green1 = makeGreenFeature(latitude: 33.005, longitude: -97.0)
+        let tee2 = makeTeeFeature(latitude: 33.01, longitude: -97.0)
+        let green2 = makeGreenFeature(latitude: 33.015, longitude: -97.0)
+
+        let holes = [
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
+        ]
+        let features = [tee1, green1, tee2, green2]
+        let selection = makeSelection(holes: holes, features: features)
+
+        let userLocation = CLLocation(latitude: 33.012, longitude: -97.0)
+        let result = HoleAdvancer.nearestHole(location: userLocation, courseSelection: selection)
+        XCTAssertEqual(result, 1)
     }
 
     func testManualOverridePausesAutoAdvance() {
         var advancer = HoleAdvancer()
         XCTAssertFalse(advancer.isPaused)
-
         advancer.pause()
         XCTAssertTrue(advancer.isPaused)
     }
@@ -85,8 +114,6 @@ final class HoleAdvancerTests: XCTestCase {
     func testResumeReEnablesAutoAdvance() {
         var advancer = HoleAdvancer()
         advancer.pause()
-        XCTAssertTrue(advancer.isPaused)
-
         advancer.resume()
         XCTAssertFalse(advancer.isPaused)
     }

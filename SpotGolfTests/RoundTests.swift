@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import CourseData
 @testable import SpotGolf
 
 final class RoundTests: XCTestCase {
@@ -274,29 +275,20 @@ final class RoundTests: XCTestCase {
     // MARK: - Course data
 
     private func makeCourseSelection() -> CourseSelection {
-        let green = CourseGreen(
-            front: CourseCoordinate(latitude: 33.0, longitude: -112.0),
-            middle: CourseCoordinate(latitude: 33.001, longitude: -112.001),
-            back: CourseCoordinate(latitude: 33.002, longitude: -112.002)
-        )
-        let hole1 = CourseRoundHole(
-            id: "h1", number: 1, par: 4,
-            maleHandicap: 1, femaleHandicap: 1,
-            green: green, tees: [:], yardages: [:], features: []
-        )
-        let hole2 = CourseRoundHole(
-            id: "h2", number: 2, par: 3,
-            maleHandicap: 2, femaleHandicap: 2,
-            green: green, tees: [:], yardages: [:], features: []
-        )
+        let greenFeature = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.0, longitude: -112.0),
+            Coordinate(latitude: 33.0, longitude: -112.002),
+            Coordinate(latitude: 33.002, longitude: -112.002),
+            Coordinate(latitude: 33.002, longitude: -112.0),
+            Coordinate(latitude: 33.0, longitude: -112.0),
+        ])
+        let hole1 = Hole(number: 1, par: 4, features: [1], tees: [:], centerline: [])
+        let hole2 = Hole(number: 2, par: 3, features: [1], tees: [:], centerline: [])
         let subCourse = SubCourse(name: "Front", holes: [hole1, hole2])
-        let location = CourseLocation(
-            address: nil, city: "Phoenix",
-            coordinate: CourseCoordinate(latitude: 33.0, longitude: -112.0),
-            country: "US", state: "AZ"
-        )
-        let course = Course(id: "c1", name: "Test Course", clubName: "Test Club",
-                            location: location, subCourses: [subCourse])
+        let location = CourseLocation(address: "", city: "Phoenix", state: "AZ", country: "US",
+                                      coordinate: Coordinate(latitude: 33.0, longitude: -112.0))
+        let course = Course(name: "Test Course", clubName: "Test Club",
+                            location: location, features: [greenFeature], subCourses: [subCourse])
         return CourseSelection(course: course, selectedSubCourseIndices: [0])
     }
 
@@ -305,7 +297,7 @@ final class RoundTests: XCTestCase {
         let round = Round(courseSelection: selection)
 
         XCTAssertNotNil(round.courseSelection)
-        XCTAssertEqual(round.courseSelection?.course.id, "c1")
+        XCTAssertEqual(round.courseSelection?.course.name, "Test Course")
         XCTAssertEqual(round.courseSelection?.selectedSubCourseIndices, [0])
     }
 
@@ -331,12 +323,12 @@ final class RoundTests: XCTestCase {
         let selection = makeCourseSelection()
         var round = Round(courseSelection: selection)
 
-        XCTAssertEqual(round.currentCourseHole?.id, "h1")
+        XCTAssertEqual(round.currentCourseHole?.id, 1)
         XCTAssertEqual(round.currentCourseHole?.par, 4)
 
         round.nextRoundHole()
 
-        XCTAssertEqual(round.currentCourseHole?.id, "h2")
+        XCTAssertEqual(round.currentCourseHole?.id, 2)
         XCTAssertEqual(round.currentCourseHole?.par, 3)
 
         // Beyond available course holes
