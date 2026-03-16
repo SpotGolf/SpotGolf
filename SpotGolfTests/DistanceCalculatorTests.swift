@@ -124,6 +124,44 @@ final class DistanceCalculatorTests: XCTestCase {
         XCTAssertGreaterThan(distances.front, 0)
     }
 
+    func testDistancesToGreenNegativeWhenPast() {
+        // Player is north of the green (past the back)
+        let playerLocation = CLLocation(latitude: 33.4435, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0695),
+            Coordinate(latitude: 33.4430, longitude: -112.0695),
+            Coordinate(latitude: 33.4430, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+        ])
+        // Direction of play: south to north
+        let direction = Vector2D(dx: 1, dy: 0).normalized()
+        let distances = DistanceCalculator.greenDistances(from: playerLocation, green: green, direction: direction)
+
+        // Player is past all three points — all should be negative
+        XCTAssertLessThan(distances.front, 0)
+        XCTAssertLessThan(distances.middle, 0)
+        XCTAssertLessThan(distances.back, 0)
+    }
+
+    func testDistancesToGreenPartiallyPast() {
+        // Player is on the green, past the front but before the back
+        let playerLocation = CLLocation(latitude: 33.4425, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0695),
+            Coordinate(latitude: 33.4430, longitude: -112.0695),
+            Coordinate(latitude: 33.4430, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+        ])
+        let direction = Vector2D(dx: 1, dy: 0).normalized()
+        let distances = DistanceCalculator.greenDistances(from: playerLocation, green: green, direction: direction)
+
+        // Past the front, at/near middle, before the back
+        XCTAssertLessThan(distances.front, 0)
+        XCTAssertGreaterThan(distances.back, 0)
+    }
+
     // MARK: - Features ahead
 
     func testFeaturesAhead() {

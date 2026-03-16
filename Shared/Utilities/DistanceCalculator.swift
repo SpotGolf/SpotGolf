@@ -32,10 +32,19 @@ enum DistanceCalculator {
     }
 
     static func greenDistances(from location: CLLocation, green: Feature, direction: Vector2D) -> GreenDistances {
-        GreenDistances(
-            front: Int(yards(from: location, to: green.front(vector: direction).clLocation)),
-            middle: Int(yards(from: location, to: green.middle().clLocation)),
-            back: Int(yards(from: location, to: green.back(vector: direction).clLocation))
+        let playerCoord = Coordinate(location.coordinate)
+        let playerProj = playerCoord.latitude * direction.dx + playerCoord.longitude * direction.dy
+
+        func signedYards(to point: Coordinate) -> Int {
+            let dist = Int(yards(from: location, to: point.clLocation))
+            let pointProj = point.latitude * direction.dx + point.longitude * direction.dy
+            return playerProj > pointProj ? -dist : dist
+        }
+
+        return GreenDistances(
+            front: signedYards(to: green.front(vector: direction)),
+            middle: signedYards(to: green.middle()),
+            back: signedYards(to: green.back(vector: direction))
         )
     }
 

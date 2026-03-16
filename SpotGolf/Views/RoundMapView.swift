@@ -60,7 +60,22 @@ struct RoundMapView: View {
             overlayView(round)
         }
         .ignoresSafeArea(edges: .bottom)
-        .navigationTitle(round.formattedDate)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 0) {
+                    if let courseName = round.courseSelection?.course.name {
+                        Text("\(courseName) on \(round.date.formatted(date: .long, time: .omitted))")
+                            .font(.headline)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text(round.date.formatted(date: .long, time: .omitted))
+                            .font(.headline)
+                    }
+                }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: Binding(
             get: { selectedMark != nil && !showDeleteConfirm },
