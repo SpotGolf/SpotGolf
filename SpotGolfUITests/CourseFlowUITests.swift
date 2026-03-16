@@ -215,9 +215,9 @@ final class CourseFlowUITests: XCTestCase {
         // Par should still show (hole 2 is also par 4 in test data)
         XCTAssertTrue(par4.waitForExistence(timeout: 5), "Par 4 should appear for hole 2")
 
-        // Water hazard should appear for hole 2
-        let waterLabel = app.staticTexts["Water"]
-        XCTAssertTrue(waterLabel.waitForExistence(timeout: 5), "Water hazard should appear for hole 2")
+        // Bunker should appear for hole 2 (4 bunkers between tee and green)
+        let bunkerLabel = app.staticTexts["Bunker"]
+        XCTAssertTrue(bunkerLabel.waitForExistence(timeout: 5), "Bunker should appear for hole 2")
     }
 
     // MARK: - Helpers
