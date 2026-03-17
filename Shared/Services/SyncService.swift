@@ -12,8 +12,33 @@ class SyncService: NSObject, ObservableObject {
     }
 
     @Published var isConnected = false
+    @Published var isReceivingCourse = false
 
     private var session: WCSession?
+
+    // Chunked transfer reassembly
+    private var pendingChunks: [String: ChunkedTransfer] = [:]
+
+    private struct ChunkedTransfer {
+        let totalChunks: Int
+        let totalBytes: Int
+        let metadata: [String: Any]
+        var receivedChunks: [Int: Data]
+
+        var isComplete: Bool { receivedChunks.count == totalChunks }
+
+        var assembledData: Data? {
+            guard isComplete else { return nil }
+            var result = Data(capacity: totalBytes)
+            for i in 0..<totalChunks {
+                guard let chunk = receivedChunks[i] else { return nil }
+                result.append(chunk)
+            }
+            return result
+        }
+    }
+
+    private static let chunkSize = 40_000 // ~40KB per chunk, well under 64KB sendMessage limit
 
     override init() {
         super.init()
@@ -42,47 +67,132 @@ class SyncService: NSObject, ObservableObject {
             return
         }
 
-        let payload: [String: Any]
         switch message {
         case .startRound(let id, let date):
-            payload = [
+            sendPayload([
                 "type": "startRound",
                 "id": id.uuidString,
                 "date": syncDateFormatter.string(from: date)
-            ]
+            ], via: session)
+
         case .endRound(let id):
-            payload = [
+            sendPayload([
                 "type": "endRound",
                 "id": id.uuidString
-            ]
+            ], via: session)
+
         case .addMark(let mark, let holeIndex, let roundID):
             guard let data = try? JSONEncoder().encode(mark) else { return }
-            payload = [
+            sendPayload([
                 "type": "addMark",
                 "roundId": roundID.uuidString,
                 "holeIndex": holeIndex,
                 "mark": data
-            ]
+            ], via: session)
+
         case .setCourse(let selection, let roundID):
-            guard let data = try? JSONEncoder().encode(selection) else { return }
-            payload = [
-                "type": "setCourse",
-                "roundId": roundID.uuidString,
-                "courseSelection": data
-            ]
+            guard let data = try? JSONEncoder().encode(selection.trimmed),
+                  let compressed = try? data.gzipCompressed() else { return }
+            sendChunked(
+                data: compressed,
+                metadata: ["type": "setCourse", "roundId": roundID.uuidString],
+                via: session
+            )
+
         case .setMarkType(let markID, let markType, let roundID):
-            payload = [
+            sendPayload([
                 "type": "setMarkType",
                 "markId": markID.uuidString,
                 "markType": markType.rawValue,
                 "roundId": roundID.uuidString
-            ]
+            ], via: session)
         }
-
-        session.transferUserInfo(payload)
     }
 
+    // MARK: - Send Helpers
+
+    private func sendPayload(_ payload: [String: Any], via session: WCSession) {
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                print("[Sync] sendMessage failed: \(error)")
+            }
+        } else {
+            session.transferUserInfo(payload)
+        }
+    }
+
+    private func sendChunked(data: Data, metadata: [String: Any], via session: WCSession) {
+        let transferID = UUID().uuidString
+        let totalChunks = (data.count + Self.chunkSize - 1) / Self.chunkSize
+
+        // Send header
+        var header = metadata
+        header["_chunked"] = true
+        header["_transferId"] = transferID
+        header["_totalChunks"] = totalChunks
+        header["_totalBytes"] = data.count
+        print("[Sync] Sending chunked: \(totalChunks) chunks, \(data.count) bytes")
+
+        session.sendMessage(header, replyHandler: nil) { error in
+            print("[Sync] Chunk header failed: \(error)")
+        }
+
+        // Send chunks
+        for i in 0..<totalChunks {
+            let start = i * Self.chunkSize
+            let end = min(start + Self.chunkSize, data.count)
+            let chunkData = data[start..<end]
+
+            let chunkPayload: [String: Any] = [
+                "_chunk": true,
+                "_transferId": transferID,
+                "_chunkIndex": i,
+                "_data": Data(chunkData)
+            ]
+            session.sendMessage(chunkPayload, replyHandler: nil) { error in
+                print("[Sync] Chunk \(i) failed: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Receive
+
     func handleMessage(_ message: [String: Any]) {
+        // Chunked transfer: header
+        if message["_chunked"] as? Bool == true {
+            guard let transferID = message["_transferId"] as? String,
+                  let totalChunks = message["_totalChunks"] as? Int,
+                  let totalBytes = message["_totalBytes"] as? Int else { return }
+            pendingChunks[transferID] = ChunkedTransfer(
+                totalChunks: totalChunks,
+                totalBytes: totalBytes,
+                metadata: message,
+                receivedChunks: [:]
+            )
+            isReceivingCourse = true
+            print("[Sync] Receiving chunked: \(totalChunks) chunks, \(totalBytes) bytes")
+            return
+        }
+
+        // Chunked transfer: chunk
+        if message["_chunk"] as? Bool == true {
+            guard let transferID = message["_transferId"] as? String,
+                  let chunkIndex = message["_chunkIndex"] as? Int,
+                  let data = message["_data"] as? Data else { return }
+            pendingChunks[transferID]?.receivedChunks[chunkIndex] = data
+
+            if let transfer = pendingChunks[transferID], transfer.isComplete {
+                pendingChunks.removeValue(forKey: transferID)
+                isReceivingCourse = false
+                print("[Sync] Chunked transfer complete")
+                if let assembled = transfer.assembledData {
+                    handleChunkedPayload(metadata: transfer.metadata, data: assembled)
+                }
+            }
+            return
+        }
+
+        // Regular messages
         guard let type = message["type"] as? String else { return }
 
         switch type {
@@ -106,13 +216,6 @@ class SyncService: NSObject, ObservableObject {
                   let mark = try? JSONDecoder().decode(BallMark.self, from: data) else { return }
             roundStore?.addMark(to: roundID, holeIndex: holeIndex, mark: mark, fromSync: true)
 
-        case "setCourse":
-            guard let data = message["courseSelection"] as? Data,
-                  let idString = message["roundId"] as? String,
-                  let roundID = UUID(uuidString: idString),
-                  let selection = try? JSONDecoder().decode(CourseSelection.self, from: data) else { return }
-            roundStore?.setCourse(selection, for: roundID, fromSync: true)
-
         case "setMarkType":
             guard let markIdString = message["markId"] as? String,
                   let markID = UUID(uuidString: markIdString),
@@ -121,6 +224,25 @@ class SyncService: NSObject, ObservableObject {
                   let roundIdString = message["roundId"] as? String,
                   let roundID = UUID(uuidString: roundIdString) else { return }
             roundStore?.setMarkType(markID: markID, type: markType, in: roundID, fromSync: true)
+
+        default:
+            break
+        }
+    }
+
+    private func handleChunkedPayload(metadata: [String: Any], data: Data) {
+        guard let type = metadata["type"] as? String else { return }
+
+        switch type {
+        case "setCourse":
+            guard let idString = metadata["roundId"] as? String,
+                  let roundID = UUID(uuidString: idString),
+                  let decompressed = try? data.gzipDecompressed(),
+                  let selection = try? JSONDecoder().decode(CourseSelection.self, from: decompressed) else {
+                print("[Sync] Failed to decode chunked course data")
+                return
+            }
+            roundStore?.setCourse(selection, for: roundID, fromSync: true)
 
         default:
             break

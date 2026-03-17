@@ -5,7 +5,11 @@ options:
     iOS: "17.0"
     watchOS: "10.0"
   xcodeVersion: "16.0"
-
+fileGroups:
+  - CLAUDE.md
+  - README.md
+  - project.yml
+  - plans
 packages:
   CourseData:
     path: ../CourseData
