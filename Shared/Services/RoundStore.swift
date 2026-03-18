@@ -26,6 +26,12 @@ class RoundStore: ObservableObject {
         if let index = rounds.firstIndex(where: { $0.isActive }) {
             rounds[index].end()
         }
+        // If the round already exists (e.g. reactivation from the other device), reactivate it
+        if let index = rounds.firstIndex(where: { $0.id == id }) {
+            rounds[index].isActive = true
+            save()
+            return
+        }
         let round = Round(id: id, date: date)
         rounds.insert(round, at: 0)
         save()
@@ -175,6 +181,7 @@ class RoundStore: ObservableObject {
               let index = rounds.firstIndex(where: { $0.id == roundID }) else { return }
         rounds[index].isActive = true
         save()
+        onSyncEvent?(.startRound(roundID, rounds[index].date))
     }
 
     func deleteRound(_ round: Round) {

@@ -40,6 +40,9 @@ class SyncService: NSObject, ObservableObject {
 
     private static let chunkSize = 40_000 // ~40KB per chunk, well under 64KB sendMessage limit
 
+    // Queued chunked transfer for when watch is unreachable
+    private var pendingChunkedSend: (data: Data, metadata: [String: Any])?
+
     override init() {
         super.init()
         if WCSession.isSupported() {
@@ -122,6 +125,13 @@ class SyncService: NSObject, ObservableObject {
     }
 
     private func sendChunked(data: Data, metadata: [String: Any], via session: WCSession) {
+        guard session.isReachable else {
+            print("[Sync] Watch unreachable – queuing chunked transfer")
+            pendingChunkedSend = (data, metadata)
+            return
+        }
+        pendingChunkedSend = nil
+
         let transferID = UUID().uuidString
         let totalChunks = (data.count + Self.chunkSize - 1) / Self.chunkSize
 
@@ -285,6 +295,12 @@ extension SyncService: @preconcurrency WCSessionDelegate {
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         print("[Sync] Reachability changed: \(session.isReachable)")
-        Task { @MainActor in self.updateConnectionStatus() }
+        Task { @MainActor in
+            self.updateConnectionStatus()
+            if session.isReachable, let pending = self.pendingChunkedSend {
+                print("[Sync] Watch reachable – sending queued chunked transfer")
+                self.sendChunked(data: pending.data, metadata: pending.metadata, via: session)
+            }
+        }
     }
 }

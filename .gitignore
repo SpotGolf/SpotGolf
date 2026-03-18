@@ -18,5 +18,8 @@ build/
 .build/
 Packages/
 
+# Export
+ExportOptions.plist
+
 # OS
 .DS_Store

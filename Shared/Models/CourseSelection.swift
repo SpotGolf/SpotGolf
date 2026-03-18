@@ -18,7 +18,10 @@ struct CourseSelection: Codable, Equatable {
             guard index >= 0, index < course.subCourses.count else { return nil }
             return course.subCourses[index]
         }
-        let usedFeatureIDs = Set(selectedSubCourses.flatMap { $0.holes.flatMap { $0.features } })
+        let usedFeatureIDs = Set(
+            selectedSubCourses.flatMap { $0.holes.flatMap { $0.features } } +
+            selectedSubCourses.flatMap { $0.holes.flatMap { $0.tees.values } }
+        )
         let trimmedCourse = Course(
             id: course.id,
             name: course.name,

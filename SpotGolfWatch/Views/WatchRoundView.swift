@@ -59,6 +59,13 @@ struct WatchRoundView: View {
         }
         .onReceive(locationManager.$lastLocation) { location in
             updateLiveDistance(location: location)
+            if let round = roundStore.activeRound,
+               let selection = round.courseSelection,
+               let location,
+               let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection),
+               detected != round.currentHoleIndex {
+                roundStore.setHoleIndex(detected)
+            }
         }
         .onReceive(roundStore.$rounds) { _ in
             updateLiveDistance(location: locationManager.lastLocation)
