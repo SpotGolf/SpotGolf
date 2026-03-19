@@ -8,6 +8,7 @@ fi
 lat=$(echo "$line" | cut -d, -f1)
 lon=$(echo "$line" | cut -d, -f2)
 hole=$(echo "$line" | cut -d, -f3)
-echo "Setting location to $lat,$lon (hole $hole)"
+type=$(echo "$line" | cut -d, -f4)
+echo "Setting location to $lat,$lon (hole $hole, $type)"
 xcrun simctl location "SpotGolf phone" set "$lat,$lon"
 xcrun simctl location "SpotGolf watch" set "$lat,$lon"

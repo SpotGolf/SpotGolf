@@ -70,7 +70,7 @@ final class PenaltyFlowUITests: XCTestCase {
             sleep(2)
 
             // If this mark needs a type, re-center map and tap the mark
-            if location.markType == "outOfBounds" || location.markType == "penalty" {
+            if location.type == .outOfBounds || location.type == .penalty {
                 // Re-center map on current location so the mark is visible
                 let locationButton = app.buttons.matching(NSPredicate(
                     format: "identifier == 'location' OR identifier == 'location.fill'")).firstMatch
@@ -84,7 +84,7 @@ final class PenaltyFlowUITests: XCTestCase {
                 spotButton.tap()
                 sleep(1)
 
-                if location.markType == "outOfBounds" {
+                if location.type == .outOfBounds {
                     let obButton = app.buttons["Mark out of bounds"]
                     XCTAssertTrue(obButton.waitForExistence(timeout: 5),
                                   "Mark out of bounds button should exist in edit sheet")
