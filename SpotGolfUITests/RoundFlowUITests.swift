@@ -67,7 +67,7 @@ final class RoundFlowUITests: XCTestCase {
 
         var currentHole = 1
 
-        // ── Mark locations per hole ──
+        // ── Process locations per hole ──
         for (index, location) in locations.enumerated() {
             let targetHole = location.hole
 
@@ -90,10 +90,12 @@ final class RoundFlowUITests: XCTestCase {
                                                     longitude: location.longitude)
             sleep(2)
 
-            let atMyBall = app.buttons["At my ball"]
-            XCTAssertTrue(atMyBall.waitForExistence(timeout: 5), "At my ball button should exist")
-            atMyBall.tap()
-            sleep(2)
+            if location.isMark {
+                let atMyBall = app.buttons["At my ball"]
+                XCTAssertTrue(atMyBall.waitForExistence(timeout: 5), "At my ball button should exist")
+                atMyBall.tap()
+                sleep(2)
+            }
         }
 
         // ── Verify stroke counts per hole ──
@@ -109,7 +111,7 @@ final class RoundFlowUITests: XCTestCase {
             let holeLabel = app.staticTexts["Hole \(hole)"]
             XCTAssertTrue(holeLabel.waitForExistence(timeout: 5), "Hole \(hole) label should be visible")
 
-            let markCount = locations.filter { $0.hole == hole }.count
+            let markCount = locations.filter { $0.hole == hole && $0.isMark }.count
             let expectedStrokes = max(markCount - 1, 0)
             let strokesText = app.staticTexts["\(expectedStrokes)"]
             XCTAssertTrue(strokesText.waitForExistence(timeout: 5),

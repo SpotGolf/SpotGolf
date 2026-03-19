@@ -32,25 +32,58 @@ enum DistanceCalculator {
     }
 
     static func greenDistances(from location: CLLocation, green: Feature, direction: Vector2D) -> GreenDistances {
-        GreenDistances(
-            front: Int(yards(from: location, to: green.front(vector: direction).clLocation)),
-            middle: Int(yards(from: location, to: green.middle().clLocation)),
-            back: Int(yards(from: location, to: green.back(vector: direction).clLocation))
+        let playerCoord = Coordinate(location.coordinate)
+        let playerProj = playerCoord.latitude * direction.dx + playerCoord.longitude * direction.dy
+
+        func signedYards(to point: Coordinate) -> Int {
+            let dist = Int(yards(from: location, to: point.clLocation))
+            let pointProj = point.latitude * direction.dx + point.longitude * direction.dy
+            return playerProj > pointProj ? -dist : dist
+        }
+
+        return GreenDistances(
+            front: signedYards(to: green.front(vector: direction)),
+            middle: signedYards(to: green.middle()),
+            back: signedYards(to: green.back(vector: direction))
         )
     }
 
-    static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature) -> [FeatureDistance] {
-        let greenCenter = green.center.clLocation
-        let distToGreen = location.distance(from: greenCenter)
+    private static let maxAngle = 45.0 * .pi / 180 // features beyond 45° off line of play are excluded
+
+    static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature, limit: Int = 3) -> [FeatureDistance] {
+        let coord = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        if PolygonGeometry.contains(coord, in: green.polygon) { return [] }
+
+        let greenCenter = green.center
+        let greenLoc = greenCenter.clLocation
+        let distToGreen = location.distance(from: greenLoc)
+
+        // Player → green vector for angle check
+        let toGreenLat = greenCenter.latitude - coord.latitude
+        let toGreenLon = greenCenter.longitude - coord.longitude
+        let toGreenMag = sqrt(toGreenLat * toGreenLat + toGreenLon * toGreenLon)
+
+        guard toGreenMag > 0 else { return [] }
 
         return features.compactMap { feature in
             guard feature.type == .bunker || feature.type == .water else { return nil }
 
-            let featureLocation = feature.center.clLocation
-            let distToFeature = location.distance(from: featureLocation)
-            let featureToGreen = featureLocation.distance(from: greenCenter)
+            let nearest = PolygonGeometry.nearestPoint(on: feature.polygon, to: coord)
+            let nearestLoc = nearest.clLocation
+            let distToFeature = location.distance(from: nearestLoc)
+            let featureToGreen = nearestLoc.distance(from: greenLoc)
 
-            guard featureToGreen < distToGreen && distToFeature < distToGreen else { return nil }
+            guard featureToGreen < distToGreen else { return nil }
+
+            // Angle between player→nearest point and player→green
+            let toFeatLat = nearest.latitude - coord.latitude
+            let toFeatLon = nearest.longitude - coord.longitude
+            let toFeatMag = sqrt(toFeatLat * toFeatLat + toFeatLon * toFeatLon)
+            guard toFeatMag > 0 else { return nil }
+
+            let dot = toFeatLat * toGreenLat + toFeatLon * toGreenLon
+            let cosAngle = min(max(dot / (toFeatMag * toGreenMag), -1), 1)
+            guard acos(cosAngle) <= maxAngle else { return nil }
 
             return FeatureDistance(
                 feature: feature,
@@ -58,5 +91,7 @@ enum DistanceCalculator {
             )
         }
         .sorted { $0.distanceYards < $1.distanceYards }
+        .prefix(limit)
+        .map { $0 }
     }
 }

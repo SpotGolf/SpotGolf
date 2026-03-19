@@ -112,14 +112,14 @@ final class RoundTests: XCTestCase {
         XCTAssertTrue(round.marks.isEmpty) // new hole has no marks
     }
 
-    func testNextHoleDoesNotExceed18() {
-        var round = Round(holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17)
+    func testNextHoleDoesNotExceedMaxHoles() {
+        var round = Round(holes: (0..<Round.maxHoles).map { _ in RoundHole() }, currentHoleIndex: Round.maxHoles - 1)
 
         let changed = round.nextHole()
 
         XCTAssertFalse(changed)
-        XCTAssertEqual(round.holes.count, 18)
-        XCTAssertEqual(round.currentHoleIndex, 17) // stays on hole 18
+        XCTAssertEqual(round.holes.count, Round.maxHoles)
+        XCTAssertEqual(round.currentHoleIndex, Round.maxHoles - 1)
     }
 
     func testNextHoleAdvancesWithoutAppendingWhenNotOnLast() {
@@ -350,5 +350,85 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(decoded.currentHoleIndex, 1)
         XCTAssertEqual(decoded.holes[0].marks.count, 1)
         XCTAssertEqual(decoded.holes[1].marks.count, 1)
+    }
+
+    // MARK: - Course name shortening
+
+    func testShortenGolfCourse() {
+        XCTAssertEqual(Round.shortenCourseName("Broadlands Golf Course"), "Broadlands GC")
+    }
+
+    func testShortenGolfClub() {
+        XCTAssertEqual(Round.shortenCourseName("Pine Valley Golf Club"), "Pine Valley GC")
+    }
+
+    func testShortenGolfResort() {
+        XCTAssertEqual(Round.shortenCourseName("Omni Interlocken Golf Resort"), "Omni Interlocken GC")
+    }
+
+    func testShortenResort() {
+        XCTAssertEqual(Round.shortenCourseName("Pebble Beach Resort"), "Pebble Beach Resort")
+    }
+
+    func testShortenCountryClub() {
+        XCTAssertEqual(Round.shortenCourseName("Augusta National Country Club"), "Augusta National CC")
+    }
+
+    func testShortenStripThe() {
+        XCTAssertEqual(Round.shortenCourseName("The Olympic Club"), "Olympic Club")
+    }
+
+    func testShortenStripTheClubAt() {
+        XCTAssertEqual(Round.shortenCourseName("The Club at Pradera"), "Pradera")
+    }
+
+    func testShortenCombinedPrefixAndSuffix() {
+        XCTAssertEqual(Round.shortenCourseName("The Broadlands Golf Course"), "Broadlands GC")
+    }
+
+    func testShortenNoChange() {
+        XCTAssertEqual(Round.shortenCourseName("Pebble Beach"), "Pebble Beach")
+    }
+
+    func testShortenEmptyString() {
+        XCTAssertEqual(Round.shortenCourseName(""), "")
+    }
+
+    func testShortenTheCountryClub() {
+        XCTAssertEqual(Round.shortenCourseName("The Country Club"), "CC")
+    }
+
+    func testShortenCaseInsensitive() {
+        XCTAssertEqual(Round.shortenCourseName("the broadlands golf course"), "broadlands GC")
+    }
+
+    // MARK: - Duplicate mark detection
+
+    func testAddMarkIgnoresDuplicate() {
+        var round = Round()
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addMark(mark)
+        round.addMark(mark) // same UUID
+
+        XCTAssertEqual(round.marks.count, 1)
+    }
+
+    func testAddMarkToHoleIgnoresDuplicate() {
+        var round = Round()
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addMark(mark, toHoleIndex: 0)
+        round.addMark(mark, toHoleIndex: 0) // same UUID
+
+        XCTAssertEqual(round.holes[0].marks.count, 1)
+    }
+
+    func testAddMarkToHoleIgnoresDuplicateAcrossHoles() {
+        var round = Round(holes: [RoundHole(), RoundHole()])
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addMark(mark, toHoleIndex: 0)
+        round.addMark(mark, toHoleIndex: 1) // same UUID, different hole
+
+        XCTAssertEqual(round.holes[0].marks.count, 1)
+        XCTAssertEqual(round.holes[1].marks.count, 0)
     }
 }

@@ -22,6 +22,8 @@ struct RoundMapView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var newSpotIndex: Int = 0
     @State private var holeAdvancer = HoleAdvancer()
+    @State private var hasInitialPan = false
+    @State private var pendingPanToHole = false
 
     var body: some View {
         Group {
@@ -36,19 +38,30 @@ struct RoundMapView: View {
             locationManager.stopUpdating()
         }
         .onReceive(locationManager.$lastLocation) { location in
-            if followsUserLocation, let location {
-                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+            if !hasInitialPan, location != nil, round?.courseSelection != nil {
+                hasInitialPan = true
+                panToHole()
+            } else if followsUserLocation, let location {
+                if let heading = currentHoleHeading() {
+                    position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                } else {
+                    position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                }
             }
             if let round, let selection = round.courseSelection, !holeAdvancer.isPaused, let location {
-                if let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection),
-                   detected != round.currentHoleIndex {
+                if let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection, currentHoleIndex: round.currentHoleIndex) {
                     roundStore.setHoleIndex(detected)
+                    pendingPanToHole = true
                 }
             }
         }
         .onChange(of: roundStore.rounds) {
             if round == nil {
                 dismiss()
+            }
+            if pendingPanToHole {
+                pendingPanToHole = false
+                panToHole()
             }
         }
     }
@@ -60,7 +73,15 @@ struct RoundMapView: View {
             overlayView(round)
         }
         .ignoresSafeArea(edges: .bottom)
-        .navigationTitle(round.formattedDate)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(round.displayTitle)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.center)
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: Binding(
             get: { selectedMark != nil && !showDeleteConfirm },
@@ -270,7 +291,7 @@ struct RoundMapView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
+            .background(.thinMaterial.opacity(0.8))
             .cornerRadius(12)
             .padding(.horizontal, 16)
             .accessibilityElement(children: .contain)
@@ -381,10 +402,7 @@ struct RoundMapView: View {
                        let detected = HoleAdvancer.nearestHole(location: location, courseSelection: selection) {
                         roundStore.setHoleIndex(detected)
                     }
-                    followsUserLocation = true
-                    if let location = locationManager.lastLocation {
-                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
-                    }
+                    pendingPanToHole = true
                 }
                 .buttonStyle(.bordered)
                 .tint(.blue)
@@ -394,7 +412,7 @@ struct RoundMapView: View {
                 Button {
                     holeAdvancer.pause()
                     roundStore.previousHole()
-                    panToCurrentTee()
+                    pendingPanToHole = true
                 } label: {
                     Label("Prev", systemImage: "chevron.left")
                         .font(.subheadline)
@@ -412,7 +430,7 @@ struct RoundMapView: View {
                 Button {
                     holeAdvancer.pause()
                     roundStore.nextHole()
-                    panToCurrentTee()
+                    pendingPanToHole = true
                 } label: {
                     Label("Next", systemImage: "chevron.right")
                         .font(.subheadline)
@@ -421,7 +439,7 @@ struct RoundMapView: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.bordered)
-                .disabled(round.holes.count >= 18 && round.currentHoleIndex == round.holes.count - 1)
+                .disabled(round.holes.count >= Round.maxHoles && round.currentHoleIndex == round.holes.count - 1)
             }
 
             HStack {
@@ -441,7 +459,11 @@ struct RoundMapView: View {
                         Button {
                             followsUserLocation = true
                             if let location = locationManager.lastLocation {
-                                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                                if let heading = currentHoleHeading() {
+                                    position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                                } else {
+                                    position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                                }
                             }
                         } label: {
                             Image(systemName: followsUserLocation ? "location.fill" : "location")
@@ -539,12 +561,69 @@ struct RoundMapView: View {
         roundStore.addMark(mark)
     }
 
-    private func panToCurrentTee() {
+    private func currentHoleHeading() -> Double? {
         guard let round, let courseHole = round.currentCourseHole,
               let course = round.courseSelection?.course,
+              let green = courseHole.green(from: course.features),
               let firstTeeID = courseHole.tees.values.first,
-              let teeFeature = course.findFeature(id: firstTeeID) else { return }
+              let teeFeature = course.findFeature(id: firstTeeID) else { return nil }
+        return Self.bearing(from: teeFeature.center, to: green.center)
+    }
+
+    private func panToHole() {
+        guard let round, let courseHole = round.currentCourseHole,
+              let course = round.courseSelection?.course,
+              let green = courseHole.green(from: course.features) else { return }
+
+        let holeFeatures = course.features(for: courseHole)
+        let allCoords = holeFeatures.flatMap(\.polygon)
+        guard !allCoords.isEmpty else { return }
+
+        let minLat = allCoords.map(\.latitude).min()!
+        let maxLat = allCoords.map(\.latitude).max()!
+        let minLon = allCoords.map(\.longitude).min()!
+        let maxLon = allCoords.map(\.longitude).max()!
+        let midLat = (minLat + maxLat) / 2
+        let midLon = (minLon + maxLon) / 2
+
+        // Bearing from tee to green → heading so green is at top
+        let teeCenter: Coordinate
+        if let firstTeeID = courseHole.tees.values.first,
+           let teeFeature = course.findFeature(id: firstTeeID) {
+            teeCenter = teeFeature.center
+        } else {
+            teeCenter = Coordinate(latitude: midLat, longitude: midLon)
+        }
+        let heading = Self.bearing(from: teeCenter, to: green.center)
+
+        // Offset center towards the tee so the user's location (near tee)
+        // appears above the button bar instead of hidden behind it
+        let headingRad = heading * .pi / 180
+        let offsetFraction = 0.08 // shift 8% of hole length towards tee
+        let latSpan = maxLat - minLat
+        let lonSpan = maxLon - minLon
+        let center = CLLocationCoordinate2D(
+            latitude: midLat - cos(headingRad) * latSpan * offsetFraction,
+            longitude: midLon - sin(headingRad) * lonSpan * offsetFraction
+        )
+
+        // Camera distance: must show all features + padding from the offset center.
+        // Compute the farthest point from center, then double (center→edge is half the view).
+        let padMeters = 18.3 // ~20 yards
+        let centerLoc = CLLocation(latitude: center.latitude, longitude: center.longitude)
+        let farthest = allCoords.map { centerLoc.distance(from: $0.clLocation) }.max() ?? 0
+        let cameraDistance = (farthest + padMeters) * 3.5
+
         followsUserLocation = false
-        position = .region(MKCoordinateRegion(center: teeFeature.center.clCoordinate, span: Self.defaultSpan))
+        position = .camera(MapCamera(centerCoordinate: center, distance: cameraDistance, heading: heading, pitch: 0))
+    }
+
+    private static func bearing(from start: Coordinate, to end: Coordinate) -> Double {
+        let lat1 = start.latitude * .pi / 180
+        let lat2 = end.latitude * .pi / 180
+        let dLon = (end.longitude - start.longitude) * .pi / 180
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
     }
 }

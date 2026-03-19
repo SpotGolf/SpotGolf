@@ -5,6 +5,7 @@ struct SpotGolfWatchApp: App {
     @StateObject private var roundStore = RoundStore()
     @StateObject private var locationManager = LocationManager()
     @StateObject private var syncService = SyncService()
+    @StateObject private var workoutManager = WorkoutManager()
 
     var body: some Scene {
         WindowGroup {
@@ -12,6 +13,7 @@ struct SpotGolfWatchApp: App {
                 .environmentObject(roundStore)
                 .environmentObject(locationManager)
                 .environmentObject(syncService)
+                .environmentObject(workoutManager)
                 .onAppear {
                     if CommandLine.arguments.contains("--ui-testing") {
                         roundStore.rounds = []

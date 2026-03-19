@@ -9,6 +9,8 @@ struct Round: Identifiable {
     var isActive: Bool
     var courseSelection: CourseSelection?
 
+    static let maxHoles = 18
+
     init(id: UUID = UUID(), date: Date = Date(), holes: [RoundHole] = [RoundHole()],
          currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection? = nil) {
         self.id = id
@@ -21,6 +23,43 @@ struct Round: Identifiable {
 
     var formattedDate: String {
         date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    var displayTitle: String {
+        let dateStr = date.formatted(date: .long, time: .omitted)
+        if let name = courseSelection?.course.name {
+            return "\(Self.shortenCourseName(name)) on \(dateStr)"
+        }
+        return dateStr
+    }
+
+    static func shortenCourseName(_ name: String) -> String {
+        var s = name
+
+        // Strip leading "The Club at " or "The "
+        if s.lowercased().hasPrefix("the club at ") {
+            s = String(s.dropFirst("the club at ".count))
+        } else if s.lowercased().hasPrefix("the ") {
+            s = String(s.dropFirst("the ".count))
+        }
+
+        // Replace trailing suffixes (case-insensitive, longest match first)
+        let replacements: [(suffix: String, replacement: String)] = [
+            ("country club", "CC"),
+            ("golf course", "GC"),
+            ("golf resort", "GC"),
+            ("golf club", "GC"),
+            ("resort", "Resort"),
+        ]
+        let lower = s.lowercased()
+        for (suffix, replacement) in replacements {
+            if lower.hasSuffix(suffix) {
+                s = String(s.dropLast(suffix.count)) + replacement
+                break
+            }
+        }
+
+        return s.trimmingCharacters(in: .whitespaces)
     }
 
     var currentHole: RoundHole {
@@ -49,23 +88,29 @@ struct Round: Identifiable {
     }
 
     mutating func addMark(_ mark: BallMark) {
+        guard !hasMark(id: mark.id) else { return }
         let safeIndex = min(currentHoleIndex, holes.count - 1)
         holes[safeIndex].marks.append(mark)
     }
 
     mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
-        while holes.count <= holeIndex && holes.count < 18 {
+        guard !hasMark(id: mark.id) else { return }
+        while holes.count <= holeIndex && holes.count < Self.maxHoles {
             holes.append(RoundHole())
         }
         let safeIndex = min(holeIndex, holes.count - 1)
         holes[safeIndex].marks.append(mark)
     }
 
+    func hasMark(id: UUID) -> Bool {
+        holes.contains { $0.marks.contains { $0.id == id } }
+    }
+
     /// Returns `true` if the hole index actually changed.
     @discardableResult
     mutating func nextHole() -> Bool {
         if currentHoleIndex == holes.count - 1 {
-            guard holes.count < 18 else { return false }
+            guard holes.count < Self.maxHoles else { return false }
             holes.append(RoundHole())
         }
         currentHoleIndex += 1

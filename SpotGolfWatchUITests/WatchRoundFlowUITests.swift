@@ -64,19 +64,21 @@ final class WatchRoundFlowUITests: XCTestCase {
                                                     longitude: location.longitude)
             sleep(2)
 
-            let atMyBall = app.buttons["At my ball"]
-            XCTAssertTrue(atMyBall.waitForExistence(timeout: 10), "At my ball button should exist")
-            atMyBall.tap()
+            if location.isMark {
+                let atMyBall = app.buttons["At my ball"]
+                XCTAssertTrue(atMyBall.waitForExistence(timeout: 10), "At my ball button should exist")
+                atMyBall.tap()
 
-            // Swing away screen appears — tap Dismiss
-            let dismissButton = app.buttons["Dismiss"]
-            XCTAssertTrue(dismissButton.waitForExistence(timeout: 5), "Dismiss button should appear on swing away")
-            dismissButton.tap()
+                // Swing away screen appears — tap Dismiss
+                let dismissButton = app.buttons["Dismiss"]
+                XCTAssertTrue(dismissButton.waitForExistence(timeout: 5), "Dismiss button should appear on swing away")
+                dismissButton.tap()
 
-            // At my ball should reappear
-            let atMyBallAgain = app.buttons["At my ball"]
-            XCTAssertTrue(atMyBallAgain.waitForExistence(timeout: 10),
-                          "At my ball should reappear after dismissing swing away")
+                // At my ball should reappear
+                let atMyBallAgain = app.buttons["At my ball"]
+                XCTAssertTrue(atMyBallAgain.waitForExistence(timeout: 10),
+                              "At my ball should reappear after dismissing swing away")
+            }
         }
 
         // ── Verify stroke counts per hole ──
@@ -92,7 +94,7 @@ final class WatchRoundFlowUITests: XCTestCase {
             let holeLabel = app.staticTexts["Hole \(hole)"]
             XCTAssertTrue(holeLabel.waitForExistence(timeout: 5), "Hole \(hole) label should be visible")
 
-            let markCount = locations.filter { $0.hole == hole }.count
+            let markCount = locations.filter { $0.hole == hole && $0.isMark }.count
             let expectedStrokes = max(markCount - 1, 0)
             let strokesLabel = app.staticTexts["Strokes: \(expectedStrokes)"]
             XCTAssertTrue(strokesLabel.waitForExistence(timeout: 5),

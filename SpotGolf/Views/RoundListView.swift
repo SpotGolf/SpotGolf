@@ -21,11 +21,23 @@ struct RoundListView: View {
                     NavigationLink(value: round.id) {
                         RoundRow(round: round)
                     }
-                }
-                .onDelete { offsets in
-                    let pastRounds = roundStore.rounds.filter { !$0.isActive }
-                    for index in offsets {
-                        roundStore.deleteRound(pastRounds[index])
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            roundStore.deleteRound(round)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        if roundStore.activeRound == nil {
+                            Button {
+                                roundStore.reactivateRound(round.id)
+                                navigationPath.append(round.id)
+                            } label: {
+                                Label("Resume", systemImage: "play.fill")
+                            }
+                            .tint(.green)
+                        }
                     }
                 }
             }
@@ -49,6 +61,14 @@ struct RoundListView: View {
                 }
             }
         }
+        .alert("Sync Error", isPresented: Binding(
+            get: { syncService.syncError != nil },
+            set: { if !$0 { syncService.syncError = nil } }
+        )) {
+            Button("OK") { syncService.syncError = nil }
+        } message: {
+            Text(syncService.syncError ?? "")
+        }
         .sheet(isPresented: $showCourseSelection) {
             CourseSelectionView(onRoundStarted: { roundID in
                 navigationPath.append(roundID)
@@ -60,11 +80,15 @@ struct RoundListView: View {
 private struct RoundRow: View {
     let round: Round
 
+    private var title: String { round.displayTitle }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(round.formattedDate)
+                Text(title)
                     .font(.headline)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
                 Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

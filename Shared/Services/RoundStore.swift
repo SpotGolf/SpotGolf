@@ -26,6 +26,15 @@ class RoundStore: ObservableObject {
         if let index = rounds.firstIndex(where: { $0.isActive }) {
             rounds[index].end()
         }
+        // If the round already exists (e.g. reactivation from the other device), reactivate it
+        if let index = rounds.firstIndex(where: { $0.id == id }) {
+            rounds[index].isActive = true
+            save()
+            if !fromSync {
+                onSyncEvent?(.startRound(id, rounds[index].date))
+            }
+            return
+        }
         let round = Round(id: id, date: date)
         rounds.insert(round, at: 0)
         save()
@@ -103,7 +112,7 @@ class RoundStore: ObservableObject {
             { $0.isActive }
         }
         if let i = rounds.firstIndex(where: predicate) {
-            while rounds[i].holes.count <= index && rounds[i].holes.count < 18 {
+            while rounds[i].holes.count <= index && rounds[i].holes.count < Round.maxHoles {
                 rounds[i].holes.append(RoundHole())
             }
             let clamped = min(index, rounds[i].holes.count - 1)
@@ -167,6 +176,16 @@ class RoundStore: ObservableObject {
            let holeIndex = rounds[index].holeIndex(containing: mark.id) {
             rounds[index].holes[holeIndex].marks.removeAll { $0.id == mark.id }
             save()
+        }
+    }
+
+    func reactivateRound(_ roundID: UUID, fromSync: Bool = false) {
+        guard activeRound == nil,
+              let index = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        rounds[index].isActive = true
+        save()
+        if !fromSync {
+            onSyncEvent?(.startRound(roundID, rounds[index].date))
         }
     }
 
