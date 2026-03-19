@@ -121,12 +121,14 @@ class SyncService: NSObject, ObservableObject {
     // MARK: - Send Helpers
 
     private func sendPayload(_ payload: [String: Any], via session: WCSession) {
+        // Always queue via transferUserInfo for guaranteed delivery
+        session.transferUserInfo(payload)
+
+        // Also try sendMessage for instant delivery when reachable
         if session.isReachable {
             session.sendMessage(payload, replyHandler: nil) { error in
-                print("[Sync] sendMessage failed: \(error)")
+                print("[Sync] sendMessage failed (transferUserInfo will deliver): \(error)")
             }
-        } else {
-            session.transferUserInfo(payload)
         }
     }
 

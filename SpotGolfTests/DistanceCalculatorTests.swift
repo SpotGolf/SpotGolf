@@ -193,6 +193,75 @@ final class DistanceCalculatorTests: XCTestCase {
         XCTAssertGreaterThan(result.first?.distanceYards ?? 0, 0)
     }
 
+    func testFeaturesAheadLimitedToThree() {
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4470, longitude: -112.0705),
+            Coordinate(latitude: 33.4470, longitude: -112.0695),
+            Coordinate(latitude: 33.4480, longitude: -112.0695),
+            Coordinate(latitude: 33.4480, longitude: -112.0705),
+            Coordinate(latitude: 33.4470, longitude: -112.0705),
+        ])
+        // 5 bunkers ahead of player, between player and green
+        let bunkers = (0..<5).map { i in
+            let lat = 33.4410 + Double(i) * 0.001
+            return Feature(id: 2 + i, type: .bunker, polygon: [
+                Coordinate(latitude: lat, longitude: -112.0705),
+                Coordinate(latitude: lat, longitude: -112.0695),
+                Coordinate(latitude: lat + 0.0005, longitude: -112.0695),
+                Coordinate(latitude: lat + 0.0005, longitude: -112.0705),
+                Coordinate(latitude: lat, longitude: -112.0705),
+            ])
+        }
+        let result = DistanceCalculator.featuresAhead(from: playerLocation, features: bunkers, green: green)
+        XCTAssertEqual(result.count, 3)
+    }
+
+    func testFeaturesAheadCustomLimit() {
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4470, longitude: -112.0705),
+            Coordinate(latitude: 33.4470, longitude: -112.0695),
+            Coordinate(latitude: 33.4480, longitude: -112.0695),
+            Coordinate(latitude: 33.4480, longitude: -112.0705),
+            Coordinate(latitude: 33.4470, longitude: -112.0705),
+        ])
+        // 5 bunkers ahead of player, between player and green
+        let bunkers = (0..<5).map { i in
+            let lat = 33.4410 + Double(i) * 0.001
+            return Feature(id: 2 + i, type: .bunker, polygon: [
+                Coordinate(latitude: lat, longitude: -112.0705),
+                Coordinate(latitude: lat, longitude: -112.0695),
+                Coordinate(latitude: lat + 0.0005, longitude: -112.0695),
+                Coordinate(latitude: lat + 0.0005, longitude: -112.0705),
+                Coordinate(latitude: lat, longitude: -112.0705),
+            ])
+        }
+        let result = DistanceCalculator.featuresAhead(from: playerLocation, features: bunkers, green: green, limit: 5)
+        XCTAssertEqual(result.count, 5)
+    }
+
+    func testFeaturesAheadEmptyWhenOnGreen() {
+        // Player standing on the green
+        let playerLocation = CLLocation(latitude: 33.4455, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4450, longitude: -112.0705),
+            Coordinate(latitude: 33.4450, longitude: -112.0695),
+            Coordinate(latitude: 33.4460, longitude: -112.0695),
+            Coordinate(latitude: 33.4460, longitude: -112.0705),
+            Coordinate(latitude: 33.4450, longitude: -112.0705),
+        ])
+        let bunker = Feature(id: 2, type: .bunker, polygon: [
+            Coordinate(latitude: 33.4445, longitude: -112.0705),
+            Coordinate(latitude: 33.4445, longitude: -112.0695),
+            Coordinate(latitude: 33.4448, longitude: -112.0695),
+            Coordinate(latitude: 33.4448, longitude: -112.0705),
+            Coordinate(latitude: 33.4445, longitude: -112.0705),
+        ])
+        let result = DistanceCalculator.featuresAhead(from: playerLocation, features: [bunker], green: green)
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func testFeaturesAheadSortedByDistance() {
         let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
         let green = Feature(id: 1, type: .green, polygon: [

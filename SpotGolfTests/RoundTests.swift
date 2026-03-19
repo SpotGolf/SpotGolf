@@ -401,4 +401,34 @@ final class RoundTests: XCTestCase {
     func testShortenCaseInsensitive() {
         XCTAssertEqual(Round.shortenCourseName("the broadlands golf course"), "broadlands GC")
     }
+
+    // MARK: - Duplicate mark detection
+
+    func testAddMarkIgnoresDuplicate() {
+        var round = Round()
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addMark(mark)
+        round.addMark(mark) // same UUID
+
+        XCTAssertEqual(round.marks.count, 1)
+    }
+
+    func testAddMarkToHoleIgnoresDuplicate() {
+        var round = Round()
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addMark(mark, toHoleIndex: 0)
+        round.addMark(mark, toHoleIndex: 0) // same UUID
+
+        XCTAssertEqual(round.holes[0].marks.count, 1)
+    }
+
+    func testAddMarkToHoleIgnoresDuplicateAcrossHoles() {
+        var round = Round(holes: [RoundHole(), RoundHole()])
+        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addMark(mark, toHoleIndex: 0)
+        round.addMark(mark, toHoleIndex: 1) // same UUID, different hole
+
+        XCTAssertEqual(round.holes[0].marks.count, 1)
+        XCTAssertEqual(round.holes[1].marks.count, 0)
+    }
 }

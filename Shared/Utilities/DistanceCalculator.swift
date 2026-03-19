@@ -48,7 +48,10 @@ enum DistanceCalculator {
         )
     }
 
-    static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature) -> [FeatureDistance] {
+    static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature, limit: Int = 3) -> [FeatureDistance] {
+        let coord = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        if PolygonGeometry.contains(coord, in: green.polygon) { return [] }
+
         let greenCenter = green.center.clLocation
         let distToGreen = location.distance(from: greenCenter)
 
@@ -67,5 +70,7 @@ enum DistanceCalculator {
             )
         }
         .sorted { $0.distanceYards < $1.distanceYards }
+        .prefix(limit)
+        .map { $0 }
     }
 }

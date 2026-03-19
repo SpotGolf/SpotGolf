@@ -88,16 +88,22 @@ struct Round: Identifiable {
     }
 
     mutating func addMark(_ mark: BallMark) {
+        guard !hasMark(id: mark.id) else { return }
         let safeIndex = min(currentHoleIndex, holes.count - 1)
         holes[safeIndex].marks.append(mark)
     }
 
     mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
+        guard !hasMark(id: mark.id) else { return }
         while holes.count <= holeIndex && holes.count < Self.maxHoles {
             holes.append(RoundHole())
         }
         let safeIndex = min(holeIndex, holes.count - 1)
         holes[safeIndex].marks.append(mark)
+    }
+
+    func hasMark(id: UUID) -> Bool {
+        holes.contains { $0.marks.contains { $0.id == id } }
     }
 
     /// Returns `true` if the hole index actually changed.

@@ -66,8 +66,7 @@ struct WatchRoundView: View {
             if let round = roundStore.activeRound,
                let selection = round.courseSelection,
                let location,
-               let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection),
-               detected != round.currentHoleIndex {
+               let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection, currentHoleIndex: round.currentHoleIndex) {
                 roundStore.setHoleIndex(detected)
             }
         }
@@ -162,7 +161,7 @@ struct WatchRoundView: View {
                     greenDistancesView(greenDist)
 
                     let holeFeatures = course.features(for: courseHole)
-                    let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green)
+                    let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green, limit: 7)
                     if !features.isEmpty {
                         Divider()
                         featuresView(features)
