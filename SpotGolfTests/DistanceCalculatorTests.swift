@@ -193,6 +193,37 @@ final class DistanceCalculatorTests: XCTestCase {
         XCTAssertGreaterThan(result.first?.distanceYards ?? 0, 0)
     }
 
+    func testFeaturesAheadExcludesOffLineFeatures() {
+        // Player at south, green to the north
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4450, longitude: -112.0705),
+            Coordinate(latitude: 33.4450, longitude: -112.0695),
+            Coordinate(latitude: 33.4460, longitude: -112.0695),
+            Coordinate(latitude: 33.4460, longitude: -112.0705),
+            Coordinate(latitude: 33.4450, longitude: -112.0705),
+        ])
+        // Bunker ahead and in line — should be included
+        let bunkerInLine = Feature(id: 2, type: .bunker, polygon: [
+            Coordinate(latitude: 33.4420, longitude: -112.0702),
+            Coordinate(latitude: 33.4420, longitude: -112.0698),
+            Coordinate(latitude: 33.4425, longitude: -112.0698),
+            Coordinate(latitude: 33.4425, longitude: -112.0702),
+            Coordinate(latitude: 33.4420, longitude: -112.0702),
+        ])
+        // Bunker ahead in distance but far off to the side (>45° off line)
+        let bunkerOffLine = Feature(id: 3, type: .bunker, polygon: [
+            Coordinate(latitude: 33.4410, longitude: -112.0760),
+            Coordinate(latitude: 33.4410, longitude: -112.0750),
+            Coordinate(latitude: 33.4415, longitude: -112.0750),
+            Coordinate(latitude: 33.4415, longitude: -112.0760),
+            Coordinate(latitude: 33.4410, longitude: -112.0760),
+        ])
+        let result = DistanceCalculator.featuresAhead(from: playerLocation, features: [bunkerInLine, bunkerOffLine], green: green)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.feature.id, 2)
+    }
+
     func testFeaturesAheadLimitedToThree() {
         let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
         let green = Feature(id: 1, type: .green, polygon: [

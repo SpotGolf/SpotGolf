@@ -48,21 +48,42 @@ enum DistanceCalculator {
         )
     }
 
+    private static let maxAngle = 45.0 * .pi / 180 // features beyond 45° off line of play are excluded
+
     static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature, limit: Int = 3) -> [FeatureDistance] {
         let coord = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
         if PolygonGeometry.contains(coord, in: green.polygon) { return [] }
 
-        let greenCenter = green.center.clLocation
-        let distToGreen = location.distance(from: greenCenter)
+        let greenCenter = green.center
+        let greenLoc = greenCenter.clLocation
+        let distToGreen = location.distance(from: greenLoc)
+
+        // Player → green vector for angle check
+        let toGreenLat = greenCenter.latitude - coord.latitude
+        let toGreenLon = greenCenter.longitude - coord.longitude
+        let toGreenMag = sqrt(toGreenLat * toGreenLat + toGreenLon * toGreenLon)
+
+        guard toGreenMag > 0 else { return [] }
 
         return features.compactMap { feature in
             guard feature.type == .bunker || feature.type == .water else { return nil }
 
-            let featureLocation = feature.center.clLocation
-            let distToFeature = location.distance(from: featureLocation)
-            let featureToGreen = featureLocation.distance(from: greenCenter)
+            let nearest = PolygonGeometry.nearestPoint(on: feature.polygon, to: coord)
+            let nearestLoc = nearest.clLocation
+            let distToFeature = location.distance(from: nearestLoc)
+            let featureToGreen = nearestLoc.distance(from: greenLoc)
 
-            guard featureToGreen < distToGreen && distToFeature < distToGreen else { return nil }
+            guard featureToGreen < distToGreen else { return nil }
+
+            // Angle between player→nearest point and player→green
+            let toFeatLat = nearest.latitude - coord.latitude
+            let toFeatLon = nearest.longitude - coord.longitude
+            let toFeatMag = sqrt(toFeatLat * toFeatLat + toFeatLon * toFeatLon)
+            guard toFeatMag > 0 else { return nil }
+
+            let dot = toFeatLat * toGreenLat + toFeatLon * toGreenLon
+            let cosAngle = min(max(dot / (toFeatMag * toGreenMag), -1), 1)
+            guard acos(cosAngle) <= maxAngle else { return nil }
 
             return FeatureDistance(
                 feature: feature,

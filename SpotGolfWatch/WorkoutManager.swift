@@ -16,11 +16,12 @@ class WorkoutManager: NSObject, ObservableObject {
             HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
         ]
 
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] success, error in
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] _, error in
             if let error {
                 print("WorkoutManager: authorization error – \(error)")
             }
-            guard success else { return }
+            // Start session regardless of authorization — the session keeps the app
+            // active even if the user denies permissions. Data just won't be saved.
             Task { @MainActor in
                 self?.beginSession()
             }
