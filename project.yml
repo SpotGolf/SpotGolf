@@ -83,18 +83,27 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf.watchkitapp
         SWIFT_VERSION: "5.9"
         DEVELOPMENT_TEAM: 5CRT56YETR
+    entitlements:
+      path: SpotGolfWatch/SpotGolfWatch.entitlements
+      properties:
+        com.apple.developer.healthkit: true
     info:
       path: SpotGolfWatch/Info.plist
       properties:
         CFBundleDisplayName: SpotGolf
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        NSHealthShareUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
+        NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        WKBackgroundModes:
+          - workout-processing
         WKApplication: true
         WKCompanionAppBundleIdentifier: golf.spot.SpotGolf
         WKWatchOnly: false
     dependencies:
       - sdk: WatchConnectivity.framework
+      - sdk: HealthKit.framework
       - package: CourseData
 
   SpotGolfTests:

@@ -61,6 +61,14 @@ struct RoundListView: View {
                 }
             }
         }
+        .alert("Sync Error", isPresented: Binding(
+            get: { syncService.syncError != nil },
+            set: { if !$0 { syncService.syncError = nil } }
+        )) {
+            Button("OK") { syncService.syncError = nil }
+        } message: {
+            Text(syncService.syncError ?? "")
+        }
         .sheet(isPresented: $showCourseSelection) {
             CourseSelectionView(onRoundStarted: { roundID in
                 navigationPath.append(roundID)

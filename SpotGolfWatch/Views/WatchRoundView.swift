@@ -6,6 +6,7 @@ struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var syncService: SyncService
+    @EnvironmentObject var workoutManager: WorkoutManager
 
     @State private var showSwingAway = false
     @State private var showNoLocation = false
@@ -37,6 +38,7 @@ struct WatchRoundView: View {
                     Button("Start Round") {
                         roundStore.startRound()
                         locationManager.startUpdating()
+                        workoutManager.start()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
@@ -47,11 +49,13 @@ struct WatchRoundView: View {
         .onAppear {
             if roundStore.activeRound != nil {
                 locationManager.startUpdating()
+                workoutManager.start()
             }
         }
         .onChange(of: roundStore.activeRound != nil) {
             if roundStore.activeRound != nil {
                 locationManager.startUpdating()
+                workoutManager.start()
             }
         }
         .onDisappear {
@@ -130,7 +134,7 @@ struct WatchRoundView: View {
                         Image(systemName: "chevron.right")
                     }
                 }
-                .disabled(round.holes.count >= 18 && round.currentHoleIndex == round.holes.count - 1)
+                .disabled(round.holes.count >= Round.maxHoles && round.currentHoleIndex == round.holes.count - 1)
             }
             .font(.caption2)
         }
@@ -166,24 +170,7 @@ struct WatchRoundView: View {
 
                     Divider()
 
-                    HStack {
-                        Text("Previous")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(liveDistance ?? previousDistance(round: round))
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                    }
-                    HStack {
-                        Text("Strokes")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(round.currentHole.strokeCount)")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                    }
+                    holeStatsView(round)
                 } else {
                     Text("Hole \(round.currentHoleNumber)")
                         .font(.caption)
@@ -191,24 +178,7 @@ struct WatchRoundView: View {
 
                     Divider()
 
-                    HStack {
-                        Text("Previous")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(liveDistance ?? previousDistance(round: round))
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                    }
-                    HStack {
-                        Text("Strokes")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(round.currentHole.strokeCount)")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                    }
+                    holeStatsView(round)
                 }
             }
             .padding()
@@ -220,6 +190,7 @@ struct WatchRoundView: View {
             Spacer()
             Button("End Round", role: .destructive) {
                 locationManager.stopUpdating()
+                workoutManager.stop()
                 roundStore.endRound()
             }
             .font(.headline)
@@ -265,6 +236,28 @@ struct WatchRoundView: View {
     }
 
     // MARK: - Shared Components
+
+    @ViewBuilder
+    private func holeStatsView(_ round: Round) -> some View {
+        HStack {
+            Text("Previous")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(liveDistance ?? previousDistance(round: round))
+                .font(.caption2)
+                .fontWeight(.semibold)
+        }
+        HStack {
+            Text("Strokes")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("\(round.currentHole.strokeCount)")
+                .font(.caption2)
+                .fontWeight(.semibold)
+        }
+    }
 
     private func greenDistancesView(_ distances: GreenDistances) -> some View {
         HStack(spacing: 12) {

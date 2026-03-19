@@ -112,14 +112,14 @@ final class RoundTests: XCTestCase {
         XCTAssertTrue(round.marks.isEmpty) // new hole has no marks
     }
 
-    func testNextHoleDoesNotExceed18() {
-        var round = Round(holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17)
+    func testNextHoleDoesNotExceedMaxHoles() {
+        var round = Round(holes: (0..<Round.maxHoles).map { _ in RoundHole() }, currentHoleIndex: Round.maxHoles - 1)
 
         let changed = round.nextHole()
 
         XCTAssertFalse(changed)
-        XCTAssertEqual(round.holes.count, 18)
-        XCTAssertEqual(round.currentHoleIndex, 17) // stays on hole 18
+        XCTAssertEqual(round.holes.count, Round.maxHoles)
+        XCTAssertEqual(round.currentHoleIndex, Round.maxHoles - 1)
     }
 
     func testNextHoleAdvancesWithoutAppendingWhenNotOnLast() {
@@ -388,5 +388,17 @@ final class RoundTests: XCTestCase {
 
     func testShortenNoChange() {
         XCTAssertEqual(Round.shortenCourseName("Pebble Beach"), "Pebble Beach")
+    }
+
+    func testShortenEmptyString() {
+        XCTAssertEqual(Round.shortenCourseName(""), "")
+    }
+
+    func testShortenTheCountryClub() {
+        XCTAssertEqual(Round.shortenCourseName("The Country Club"), "CC")
+    }
+
+    func testShortenCaseInsensitive() {
+        XCTAssertEqual(Round.shortenCourseName("the broadlands golf course"), "broadlands GC")
     }
 }

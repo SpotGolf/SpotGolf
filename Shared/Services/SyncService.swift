@@ -13,6 +13,7 @@ class SyncService: NSObject, ObservableObject {
 
     @Published var isConnected = false
     @Published var isReceivingCourse = false
+    @Published var syncError: String?
 
     private var session: WCSession?
 
@@ -94,13 +95,18 @@ class SyncService: NSObject, ObservableObject {
             ], via: session)
 
         case .setCourse(let selection, let roundID):
-            guard let data = try? JSONEncoder().encode(selection.trimmed),
-                  let compressed = try? data.gzipCompressed() else { return }
-            sendChunked(
-                data: compressed,
-                metadata: ["type": "setCourse", "roundId": roundID.uuidString],
-                via: session
-            )
+            do {
+                let data = try JSONEncoder().encode(selection.trimmed)
+                let compressed = try data.gzipCompressed()
+                sendChunked(
+                    data: compressed,
+                    metadata: ["type": "setCourse", "roundId": roundID.uuidString],
+                    via: session
+                )
+            } catch {
+                print("[Sync] Failed to encode/compress course: \(error)")
+                syncError = "Could not sync course data to the watch."
+            }
 
         case .setMarkType(let markID, let markType, let roundID):
             sendPayload([
@@ -246,13 +252,14 @@ class SyncService: NSObject, ObservableObject {
         switch type {
         case "setCourse":
             guard let idString = metadata["roundId"] as? String,
-                  let roundID = UUID(uuidString: idString),
-                  let decompressed = try? data.gzipDecompressed(),
-                  let selection = try? JSONDecoder().decode(CourseSelection.self, from: decompressed) else {
-                print("[Sync] Failed to decode chunked course data")
-                return
+                  let roundID = UUID(uuidString: idString) else { return }
+            do {
+                let decompressed = try data.gzipDecompressed()
+                let selection = try JSONDecoder().decode(CourseSelection.self, from: decompressed)
+                roundStore?.setCourse(selection, for: roundID, fromSync: true)
+            } catch {
+                print("[Sync] Failed to decode chunked course data: \(error)")
             }
-            roundStore?.setCourse(selection, for: roundID, fromSync: true)
 
         default:
             break

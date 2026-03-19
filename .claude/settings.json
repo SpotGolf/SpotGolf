@@ -3,6 +3,7 @@
     "allow": [
       "Bash(xcodebuild *)",
       "Bash(xcodegen generate *)",
+      "Bash(xcrun devicectl *)",
       "Bash(xcrun simctl *)",
       "WebSearch",
       "WebFetch(domain:golfapi.io)",

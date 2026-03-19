@@ -429,7 +429,7 @@ struct RoundMapView: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.bordered)
-                .disabled(round.holes.count >= 18 && round.currentHoleIndex == round.holes.count - 1)
+                .disabled(round.holes.count >= Round.maxHoles && round.currentHoleIndex == round.holes.count - 1)
             }
 
             HStack {

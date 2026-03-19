@@ -9,6 +9,8 @@ struct Round: Identifiable {
     var isActive: Bool
     var courseSelection: CourseSelection?
 
+    static let maxHoles = 18
+
     init(id: UUID = UUID(), date: Date = Date(), holes: [RoundHole] = [RoundHole()],
          currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection? = nil) {
         self.id = id
@@ -91,7 +93,7 @@ struct Round: Identifiable {
     }
 
     mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
-        while holes.count <= holeIndex && holes.count < 18 {
+        while holes.count <= holeIndex && holes.count < Self.maxHoles {
             holes.append(RoundHole())
         }
         let safeIndex = min(holeIndex, holes.count - 1)
@@ -102,7 +104,7 @@ struct Round: Identifiable {
     @discardableResult
     mutating func nextHole() -> Bool {
         if currentHoleIndex == holes.count - 1 {
-            guard holes.count < 18 else { return false }
+            guard holes.count < Self.maxHoles else { return false }
             holes.append(RoundHole())
         }
         currentHoleIndex += 1
