@@ -367,7 +367,7 @@ final class RoundTests: XCTestCase {
     }
 
     func testShortenResort() {
-        XCTAssertEqual(Round.shortenCourseName("Pebble Beach Resort"), "Pebble Beach GC")
+        XCTAssertEqual(Round.shortenCourseName("Pebble Beach Resort"), "Pebble Beach Resort")
     }
 
     func testShortenCountryClub() {

@@ -30,6 +30,9 @@ class RoundStore: ObservableObject {
         if let index = rounds.firstIndex(where: { $0.id == id }) {
             rounds[index].isActive = true
             save()
+            if !fromSync {
+                onSyncEvent?(.startRound(id, rounds[index].date))
+            }
             return
         }
         let round = Round(id: id, date: date)
@@ -176,12 +179,14 @@ class RoundStore: ObservableObject {
         }
     }
 
-    func reactivateRound(_ roundID: UUID) {
+    func reactivateRound(_ roundID: UUID, fromSync: Bool = false) {
         guard activeRound == nil,
               let index = rounds.firstIndex(where: { $0.id == roundID }) else { return }
         rounds[index].isActive = true
         save()
-        onSyncEvent?(.startRound(roundID, rounds[index].date))
+        if !fromSync {
+            onSyncEvent?(.startRound(roundID, rounds[index].date))
+        }
     }
 
     func deleteRound(_ round: Round) {

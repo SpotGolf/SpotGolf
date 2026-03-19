@@ -29,35 +29,40 @@ final class LocationManagerTests: XCTestCase {
 
     // MARK: - didUpdateLocations
 
-    func testDidUpdateLocationsSetsLastLocation() {
+    func testDidUpdateLocationsSetsLastLocation() async {
         let location = CLLocation(latitude: 33.45, longitude: -112.07)
         locationManager.locationManager(CLLocationManager(), didUpdateLocations: [location])
+        await Task.yield()
 
         XCTAssertEqual(locationManager.lastLocation?.coordinate.latitude, 33.45)
         XCTAssertEqual(locationManager.lastLocation?.coordinate.longitude, -112.07)
     }
 
-    func testDidUpdateLocationsUsesLastLocationInArray() {
+    func testDidUpdateLocationsUsesLastLocationInArray() async {
         let first = CLLocation(latitude: 33.0, longitude: -112.0)
         let second = CLLocation(latitude: 34.0, longitude: -113.0)
         locationManager.locationManager(CLLocationManager(), didUpdateLocations: [first, second])
+        await Task.yield()
 
         XCTAssertEqual(locationManager.lastLocation?.coordinate.latitude, 34.0)
         XCTAssertEqual(locationManager.lastLocation?.coordinate.longitude, -113.0)
     }
 
-    func testDidUpdateLocationsWithEmptyArrayLeavesNil() {
+    func testDidUpdateLocationsWithEmptyArrayLeavesNil() async {
         locationManager.locationManager(CLLocationManager(), didUpdateLocations: [])
+        await Task.yield()
 
         XCTAssertNil(locationManager.lastLocation)
     }
 
-    func testDidUpdateLocationsOverwritesPreviousLocation() {
+    func testDidUpdateLocationsOverwritesPreviousLocation() async {
         let first = CLLocation(latitude: 33.0, longitude: -112.0)
         locationManager.locationManager(CLLocationManager(), didUpdateLocations: [first])
+        await Task.yield()
 
         let second = CLLocation(latitude: 40.0, longitude: -74.0)
         locationManager.locationManager(CLLocationManager(), didUpdateLocations: [second])
+        await Task.yield()
 
         XCTAssertEqual(locationManager.lastLocation?.coordinate.latitude, 40.0)
         XCTAssertEqual(locationManager.lastLocation?.coordinate.longitude, -74.0)

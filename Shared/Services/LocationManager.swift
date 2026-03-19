@@ -27,6 +27,7 @@ class LocationManager: NSObject, ObservableObject {
     }
 
     func startUpdating() {
+        recentLocations.removeAll()
         manager.startUpdatingLocation()
     }
 
@@ -64,8 +65,15 @@ extension LocationManager: @preconcurrency CLLocationManagerDelegate {
                 totalWeight += weight
             }
 
-            let smoothed = CLLocation(latitude: totalLat / totalWeight,
-                                      longitude: totalLon / totalWeight)
+            let bestAccuracy = recentLocations.map(\.horizontalAccuracy).min() ?? location.horizontalAccuracy
+            let smoothed = CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: totalLat / totalWeight,
+                                                   longitude: totalLon / totalWeight),
+                altitude: location.altitude,
+                horizontalAccuracy: bestAccuracy,
+                verticalAccuracy: location.verticalAccuracy,
+                timestamp: location.timestamp
+            )
             lastLocation = smoothed
         }
         #endif

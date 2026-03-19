@@ -281,14 +281,27 @@ final class SyncServiceTests: XCTestCase {
             selectedSubCourseIndices: [0, 1]
         )
         let data = try! JSONEncoder().encode(selection)
+        let compressed = try! data.gzipCompressed()
 
-        let message: [String: Any] = [
+        // Simulate chunked transfer: header then single chunk
+        let transferID = UUID().uuidString
+        let header: [String: Any] = [
             "type": "setCourse",
             "roundId": roundID.uuidString,
-            "courseSelection": data
+            "_chunked": true,
+            "_transferId": transferID,
+            "_totalChunks": 1,
+            "_totalBytes": compressed.count
         ]
+        service.handleMessage(header)
 
-        service.handleMessage(message)
+        let chunk: [String: Any] = [
+            "_chunk": true,
+            "_transferId": transferID,
+            "_chunkIndex": 0,
+            "_data": compressed
+        ]
+        service.handleMessage(chunk)
 
         XCTAssertEqual(store.rounds[0].courseSelection?.course.name, "Test")
         XCTAssertEqual(store.rounds[0].courseSelection?.selectedSubCourseIndices, [0, 1])

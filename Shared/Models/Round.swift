@@ -49,7 +49,7 @@ struct Round: Identifiable {
             ("golf course", "GC"),
             ("golf resort", "GC"),
             ("golf club", "GC"),
-            ("resort", "GC"),
+            ("resort", "Resort"),
         ]
         let lower = s.lowercased()
         for (suffix, replacement) in replacements {
