@@ -23,6 +23,7 @@ struct RoundMapView: View {
     @State private var newSpotIndex: Int = 0
     @State private var holeAdvancer = HoleAdvancer()
     @State private var hasInitialPan = false
+    @State private var pendingPanToHole = false
 
     var body: some View {
         Group {
@@ -41,18 +42,26 @@ struct RoundMapView: View {
                 hasInitialPan = true
                 panToHole()
             } else if followsUserLocation, let location {
-                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                if let heading = currentHoleHeading() {
+                    position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                } else {
+                    position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                }
             }
             if let round, let selection = round.courseSelection, !holeAdvancer.isPaused, let location {
                 if let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection, currentHoleIndex: round.currentHoleIndex) {
                     roundStore.setHoleIndex(detected)
-                    panToHole()
+                    pendingPanToHole = true
                 }
             }
         }
         .onChange(of: roundStore.rounds) {
             if round == nil {
                 dismiss()
+            }
+            if pendingPanToHole {
+                pendingPanToHole = false
+                panToHole()
             }
         }
     }
@@ -282,7 +291,7 @@ struct RoundMapView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
+            .background(.thinMaterial.opacity(0.8))
             .cornerRadius(12)
             .padding(.horizontal, 16)
             .accessibilityElement(children: .contain)
@@ -393,10 +402,7 @@ struct RoundMapView: View {
                        let detected = HoleAdvancer.nearestHole(location: location, courseSelection: selection) {
                         roundStore.setHoleIndex(detected)
                     }
-                    followsUserLocation = true
-                    if let location = locationManager.lastLocation {
-                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
-                    }
+                    pendingPanToHole = true
                 }
                 .buttonStyle(.bordered)
                 .tint(.blue)
@@ -406,7 +412,7 @@ struct RoundMapView: View {
                 Button {
                     holeAdvancer.pause()
                     roundStore.previousHole()
-                    panToHole()
+                    pendingPanToHole = true
                 } label: {
                     Label("Prev", systemImage: "chevron.left")
                         .font(.subheadline)
@@ -424,7 +430,7 @@ struct RoundMapView: View {
                 Button {
                     holeAdvancer.pause()
                     roundStore.nextHole()
-                    panToHole()
+                    pendingPanToHole = true
                 } label: {
                     Label("Next", systemImage: "chevron.right")
                         .font(.subheadline)
@@ -453,7 +459,11 @@ struct RoundMapView: View {
                         Button {
                             followsUserLocation = true
                             if let location = locationManager.lastLocation {
-                                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                                if let heading = currentHoleHeading() {
+                                    position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                                } else {
+                                    position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                                }
                             }
                         } label: {
                             Image(systemName: followsUserLocation ? "location.fill" : "location")
@@ -551,19 +561,23 @@ struct RoundMapView: View {
         roundStore.addMark(mark)
     }
 
+    private func currentHoleHeading() -> Double? {
+        guard let round, let courseHole = round.currentCourseHole,
+              let course = round.courseSelection?.course,
+              let green = courseHole.green(from: course.features),
+              let firstTeeID = courseHole.tees.values.first,
+              let teeFeature = course.findFeature(id: firstTeeID) else { return nil }
+        return Self.bearing(from: teeFeature.center, to: green.center)
+    }
+
     private func panToHole() {
         guard let round, let courseHole = round.currentCourseHole,
               let course = round.courseSelection?.course,
               let green = courseHole.green(from: course.features) else { return }
 
         let holeFeatures = course.features(for: courseHole)
-        var allCoords = holeFeatures.flatMap(\.polygon)
+        let allCoords = holeFeatures.flatMap(\.polygon)
         guard !allCoords.isEmpty else { return }
-
-        // Include the user's location so the view doesn't exclude where they are
-        if let location = locationManager.lastLocation {
-            allCoords.append(Coordinate(location.coordinate))
-        }
 
         let minLat = allCoords.map(\.latitude).min()!
         let maxLat = allCoords.map(\.latitude).max()!

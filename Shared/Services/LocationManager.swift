@@ -37,8 +37,14 @@ class LocationManager: NSObject, ObservableObject {
 
 extension LocationManager: @preconcurrency CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last,
-              location.horizontalAccuracy >= 0,
+        guard let location = locations.last else { return }
+
+        #if targetEnvironment(simulator)
+        Task { @MainActor in
+            lastLocation = location
+        }
+        #else
+        guard location.horizontalAccuracy >= 0,
               location.horizontalAccuracy <= Self.maxAccuracy else { return }
 
         Task { @MainActor in
@@ -62,6 +68,7 @@ extension LocationManager: @preconcurrency CLLocationManagerDelegate {
                                       longitude: totalLon / totalWeight)
             lastLocation = smoothed
         }
+        #endif
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
