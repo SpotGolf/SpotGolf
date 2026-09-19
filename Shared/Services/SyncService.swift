@@ -10,6 +10,8 @@ class SyncService: NSObject, ObservableObject {
     var roundStore: RoundStore? {
         didSet { bindSyncHandler() }
     }
+    var guessStore: GuessStore?
+    var settingsStore: SettingsStore?
 
     @Published var isConnected = false
     @Published var isReceivingCourse = false
@@ -59,7 +61,7 @@ class SyncService: NSObject, ObservableObject {
         }
     }
 
-    private nonisolated func send(_ message: SyncMessage) {
+    nonisolated func send(_ message: SyncMessage) {
         Task { @MainActor in
             self.sendOnMain(message)
         }
@@ -114,6 +116,35 @@ class SyncService: NSObject, ObservableObject {
                 "markId": markID.uuidString,
                 "markType": markType.rawValue,
                 "roundId": roundID.uuidString
+            ], via: session)
+
+        case .addGuess(let guess, let roundID):
+            guard let data = try? JSONEncoder().encode(guess) else { return }
+            sendPayload([
+                "type": "addGuess",
+                "roundId": roundID.uuidString,
+                "guess": data
+            ], via: session)
+
+        case .removeGuess(let guessID, let roundID):
+            sendPayload([
+                "type": "removeGuess",
+                "guessId": guessID.uuidString,
+                "roundId": roundID.uuidString
+            ], via: session)
+
+        case .clearGuesses(let roundID, let holeIndex):
+            sendPayload([
+                "type": "clearGuesses",
+                "roundId": roundID.uuidString,
+                "holeIndex": holeIndex
+            ], via: session)
+
+        case .updateSettings(let settings):
+            guard let data = try? JSONEncoder().encode(settings) else { return }
+            sendPayload([
+                "type": "updateSettings",
+                "settings": data
             ], via: session)
         }
     }
@@ -242,6 +273,29 @@ class SyncService: NSObject, ObservableObject {
                   let roundIdString = message["roundId"] as? String,
                   let roundID = UUID(uuidString: roundIdString) else { return }
             roundStore?.setMarkType(markID: markID, type: markType, in: roundID, fromSync: true)
+
+        case "addGuess":
+            guard let data = message["guess"] as? Data,
+                  let guess = try? JSONDecoder().decode(MissedMarkGuess.self, from: data) else { return }
+            guessStore?.add(guess)
+
+        case "removeGuess":
+            guard let guessIdString = message["guessId"] as? String,
+                  let guessID = UUID(uuidString: guessIdString),
+                  let roundIdString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: roundIdString) else { return }
+            guessStore?.remove(guessID: guessID, roundID: roundID)
+
+        case "clearGuesses":
+            guard let roundIdString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: roundIdString),
+                  let holeIndex = message["holeIndex"] as? Int else { return }
+            guessStore?.clearHole(roundID: roundID, holeIndex: holeIndex)
+
+        case "updateSettings":
+            guard let data = message["settings"] as? Data,
+                  let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else { return }
+            settingsStore?.apply(settings)
 
         default:
             break

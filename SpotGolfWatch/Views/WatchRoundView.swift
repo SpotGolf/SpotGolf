@@ -1,17 +1,23 @@
 import SwiftUI
 import CoreLocation
 import CourseData
+import WatchKit
 
 struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var syncService: SyncService
     @EnvironmentObject var workoutManager: WorkoutManager
+    @EnvironmentObject var guessStore: GuessStore
+    @EnvironmentObject var settingsStore: SettingsStore
+    @EnvironmentObject var breadcrumbRecorder: BreadcrumbRecorder
+    @EnvironmentObject var swingDetector: SwingDetector
 
     @State private var showSwingAway = false
     @State private var showNoLocation = false
 
     @State private var liveDistance: String?
+    @State private var showMarkReminder = false
 
     var body: some View {
         Group {
@@ -39,6 +45,7 @@ struct WatchRoundView: View {
                         roundStore.startRound()
                         locationManager.startUpdating()
                         workoutManager.start()
+                        startGuessDetection()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
@@ -50,12 +57,14 @@ struct WatchRoundView: View {
             if roundStore.activeRound != nil {
                 locationManager.startUpdating()
                 workoutManager.start()
+                startGuessDetection()
             }
         }
         .onChange(of: roundStore.activeRound != nil) {
             if roundStore.activeRound != nil {
                 locationManager.startUpdating()
                 workoutManager.start()
+                startGuessDetection()
             }
         }
         .onDisappear {
@@ -69,14 +78,29 @@ struct WatchRoundView: View {
                let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection, currentHoleIndex: round.currentHoleIndex) {
                 roundStore.setHoleIndex(detected)
             }
+            if let location, roundStore.activeRound != nil {
+                breadcrumbRecorder.updateLocation(location)
+                swingDetector.updateLocation(location.coordinate)
+                checkForSwingGuess()
+            }
         }
         .onReceive(roundStore.$rounds) { _ in
             updateLiveDistance(location: locationManager.lastLocation)
+        }
+        .onChange(of: breadcrumbRecorder.isStationary) {
+            if breadcrumbRecorder.isStationary {
+                checkForStationaryGuess()
+            }
         }
         .alert("Waiting for GPS", isPresented: $showNoLocation) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Location not available yet. Please wait a moment and try again.")
+        }
+        .alert("Reminder", isPresented: $showMarkReminder) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Don't forget to mark your ball")
         }
     }
 
@@ -190,6 +214,7 @@ struct WatchRoundView: View {
             Button("End Round", role: .destructive) {
                 locationManager.stopUpdating()
                 workoutManager.stop()
+                stopGuessDetection()
                 roundStore.endRound()
             }
             .font(.headline)
@@ -336,6 +361,78 @@ struct WatchRoundView: View {
         }
         let mark = BallMark(coordinate: location.coordinate)
         roundStore.addMark(mark)
+        if let pendingCoord = breadcrumbRecorder.markPlaced(),
+           let round = roundStore.activeRound {
+            let guess = MissedMarkGuess(
+                coordinate: pendingCoord,
+                timestamp: Date(),
+                holeIndex: round.currentHoleIndex,
+                reason: .stationary,
+                roundID: round.id
+            )
+            guessStore.add(guess)
+            syncService.send(.addGuess(guess, round.id))
+        }
         showSwingAway = true
+    }
+
+    // MARK: - Guess Detection
+
+    private func startGuessDetection() {
+        guard settingsStore.settings.missedMarkGuessesEnabled else { return }
+        breadcrumbRecorder.updateThreshold(settingsStore.settings.stationaryThreshold)
+        breadcrumbRecorder.reset()
+        breadcrumbRecorder.start()
+        swingDetector.start()
+    }
+
+    private func stopGuessDetection() {
+        swingDetector.stop()
+        breadcrumbRecorder.reset()
+    }
+
+    private func checkForSwingGuess() {
+        guard settingsStore.settings.missedMarkGuessesEnabled,
+              let round = roundStore.activeRound,
+              let swing = swingDetector.consumeSwing() else { return }
+
+        let guess = MissedMarkGuess(
+            coordinate: swing.coordinate,
+            timestamp: swing.timestamp,
+            holeIndex: round.currentHoleIndex,
+            reason: .swing,
+            roundID: round.id
+        )
+        guessStore.add(guess)
+        syncService.send(.addGuess(guess, round.id))
+    }
+
+    private func checkForStationaryGuess() {
+        guard settingsStore.settings.missedMarkGuessesEnabled,
+              let round = roundStore.activeRound,
+              let coord = breadcrumbRecorder.consumeStationaryLocation() else { return }
+
+        // Fire haptic and show reminder if enabled
+        if settingsStore.settings.hapticEnabled,
+           breadcrumbRecorder.cumulativeYards >= 50 || (breadcrumbRecorder.timeSinceLastMark ?? .infinity) >= 180 {
+            #if os(watchOS)
+            WKInterfaceDevice.current().play(.notification)
+            #endif
+            showMarkReminder = true
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                showMarkReminder = false
+            }
+        }
+
+        let guess = MissedMarkGuess(
+            coordinate: coord,
+            timestamp: Date(),
+            holeIndex: round.currentHoleIndex,
+            reason: .stationary,
+            roundID: round.id
+        )
+        guessStore.add(guess)
+        syncService.send(.addGuess(guess, round.id))
     }
 }

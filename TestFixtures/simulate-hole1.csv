@@ -1,0 +1,53 @@
+# Simulate a golfer playing Broadlands Hole 1
+# Format: latitude,longitude,pause_seconds,description
+# The golfer starts at the cart near the clubhouse, walks to the tee,
+# hits their drive, walks back to cart, drives down the cart path,
+# turns onto the fairway, stops near their ball, and forgets to mark.
+
+# Cart near clubhouse / hole 1 tee area
+39.95570,-105.04100,3,Parked at cart near hole 1
+39.95565,-105.04110,2,Walking toward tee
+39.95560,-105.04120,2,Walking toward tee
+39.95555,-105.04140,2,Walking toward tee
+39.95548,-105.04155,2,Arriving at tee box
+
+# Standing on tee box — waiting for group ahead
+39.95546,-105.04160,5,On tee box waiting
+39.95545,-105.04162,5,On tee box waiting
+39.95545,-105.04163,5,On tee box waiting
+39.95545,-105.04164,5,Still waiting on tee
+
+# MARK: User should click "At my ball" here (tee shot)
+
+# Walk back to cart
+39.95548,-105.04155,2,Walking back to cart
+39.95555,-105.04140,2,Walking back to cart
+39.95560,-105.04120,2,Walking back to cart
+39.95565,-105.04110,2,Back at cart
+
+# Drive down cart path (east to west along hole 1)
+39.95570,-105.04150,1,Driving cart
+39.95572,-105.04180,1,Driving cart
+39.95573,-105.04210,1,Driving cart
+39.95572,-105.04240,1,Driving cart
+39.95570,-105.04270,1,Driving cart
+39.95568,-105.04300,1,Driving cart
+39.95565,-105.04330,1,Driving cart
+39.95562,-105.04360,1,Driving cart
+
+# Turn onto fairway, slow down near ball
+39.95555,-105.04380,2,Turning onto fairway
+39.95550,-105.04390,2,Driving on fairway
+39.95545,-105.04400,2,Slowing down near ball
+
+# Stop at ball — golfer gets out, assesses shot
+# This is where the "forgot to mark" scenario happens
+# The golfer should be stationary here for 30+ seconds
+39.95540,-105.04410,5,Stopped near ball
+39.95540,-105.04410,5,Standing at ball
+39.95540,-105.04410,5,Standing at ball
+39.95540,-105.04410,5,Standing at ball
+39.95540,-105.04410,5,Standing at ball
+39.95540,-105.04410,5,Standing at ball
+39.95540,-105.04410,5,Standing at ball
+39.95540,-105.04410,5,Still at ball - should trigger reminder

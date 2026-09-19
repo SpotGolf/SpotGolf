@@ -5,6 +5,7 @@ struct RoundListView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var syncService: SyncService
     @State private var showCourseSelection = false
+    @State private var showSettings = false
 
     var body: some View {
         List {
@@ -45,9 +46,17 @@ struct RoundListView: View {
         .navigationTitle("SpotGolf")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Image(systemName: syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
-                    .foregroundStyle(syncService.isConnected ? .green : .secondary)
-                    .imageScale(.small)
+                HStack(spacing: 12) {
+                    Image(systemName: syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
+                        .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                        .imageScale(.small)
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .imageScale(.small)
+                    }
+                }
             }
             ToolbarItem(placement: .primaryAction) {
                 if roundStore.activeRound != nil {
@@ -73,6 +82,9 @@ struct RoundListView: View {
             CourseSelectionView(onRoundStarted: { roundID in
                 navigationPath.append(roundID)
             })
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
     }
 }

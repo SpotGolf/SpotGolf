@@ -8,6 +8,8 @@ struct RoundMapView: View {
     let roundID: UUID
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
+    @EnvironmentObject var guessStore: GuessStore
+    @EnvironmentObject var syncService: SyncService
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {
@@ -24,6 +26,10 @@ struct RoundMapView: View {
     @State private var holeAdvancer = HoleAdvancer()
     @State private var hasInitialPan = false
     @State private var pendingPanToHole = false
+    @State private var showGhostPins = true
+    @State private var selectedGuess: MissedMarkGuess?
+    @State private var guessSpotIndex: Int = 0
+    @State private var showClearGuessesConfirm = false
 
     var body: some View {
         Group {
@@ -102,6 +108,21 @@ struct RoundMapView: View {
         } message: {
             Text("Are you sure you want to delete this spot?")
         }
+        .sheet(isPresented: Binding(
+            get: { selectedGuess != nil },
+            set: { if !$0 { selectedGuess = nil } }
+        )) {
+            guessEditSheet(round)
+        }
+        .alert("Delete All Missed Mark Guesses", isPresented: $showClearGuessesConfirm) {
+            Button("Delete All", role: .destructive) {
+                guessStore.clearHole(roundID: round.id, holeIndex: round.currentHoleIndex)
+                syncService.send(.clearGuesses(round.id, round.currentHoleIndex))
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Delete all Missed Mark Guesses for this hole?")
+        }
     }
 
     private func mapView(_ round: Round) -> some View {
@@ -113,6 +134,14 @@ struct RoundMapView: View {
                     let displayIndex = round.isActive ? index : allMarksDisplayIndex(mark: mark, round: round)
                     Annotation("", coordinate: mark.coordinate) {
                         spotMarker(index: displayIndex, mark: mark, round: round, proxy: proxy)
+                    }
+                }
+                if showGhostPins {
+                    let currentGuesses = guessStore.guesses(for: round.id, holeIndex: round.currentHoleIndex)
+                    ForEach(currentGuesses) { guess in
+                        Annotation("", coordinate: guess.coordinate) {
+                            ghostPinMarker(guess: guess)
+                        }
                     }
                 }
             }
@@ -456,23 +485,51 @@ struct RoundMapView: View {
 
                 Spacer()
                     .overlay(alignment: .leading) {
-                        Button {
-                            followsUserLocation = true
-                            if let location = locationManager.lastLocation {
-                                if let heading = currentHoleHeading() {
-                                    position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
-                                } else {
-                                    position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                        VStack(spacing: 8) {
+                            Button {
+                                followsUserLocation = true
+                                if let location = locationManager.lastLocation {
+                                    if let heading = currentHoleHeading() {
+                                        position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                                    } else {
+                                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: followsUserLocation ? "location.fill" : "location")
+                                    .font(.title3)
+                                    .foregroundStyle(.blue)
+                                    .padding(14)
+                                    .background(.thickMaterial)
+                                    .clipShape(Circle())
+                                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                            }
+
+                            if hasGuessesForCurrentHole(round) {
+                                Button {
+                                    showGhostPins.toggle()
+                                } label: {
+                                    Image(systemName: showGhostPins ? "eye.fill" : "eye.slash")
+                                        .font(.title3)
+                                        .foregroundStyle(.orange)
+                                        .padding(14)
+                                        .background(.thickMaterial)
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                                }
+
+                                Button {
+                                    showClearGuessesConfirm = true
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.title3)
+                                        .foregroundStyle(.red)
+                                        .padding(14)
+                                        .background(.thickMaterial)
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                                 }
                             }
-                        } label: {
-                            Image(systemName: followsUserLocation ? "location.fill" : "location")
-                                .font(.title3)
-                                .foregroundStyle(.blue)
-                                .padding(14)
-                                .background(.thickMaterial)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                         }
                         .padding(.leading, 16)
                     }
@@ -625,5 +682,96 @@ struct RoundMapView: View {
         let y = sin(dLon) * cos(lat2)
         let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+    }
+
+    // MARK: - Ghost Pin Edit Sheet
+
+    private func guessEditSheet(_ round: Round) -> some View {
+        let markCount = round.currentHole.marks.count
+        return NavigationStack {
+            VStack(spacing: 24) {
+                Text("Missed Mark Guess")
+                    .font(.headline)
+
+                Stepper("Insert at position: \(guessSpotIndex + 1)", value: $guessSpotIndex, in: 0...markCount)
+                    .font(.title3)
+                    .padding(.horizontal)
+
+                Button {
+                    if let guess = selectedGuess {
+                        let mark = BallMark(coordinate: guess.coordinate, timestamp: guess.timestamp)
+                        roundStore.addMark(to: round.id, holeIndex: guess.holeIndex, mark: mark)
+                        if guessSpotIndex < round.currentHole.marks.count - 1 {
+                            roundStore.reorderMark(mark, to: guessSpotIndex, in: round.id)
+                        }
+                        guessStore.remove(guessID: guess.id, roundID: round.id)
+                        syncService.send(.removeGuess(guess.id, round.id))
+                    }
+                    selectedGuess = nil
+                } label: {
+                    Label("My ball was here", systemImage: "checkmark.circle.fill")
+                }
+                .tint(.green)
+
+                Button {
+                    if let guess = selectedGuess {
+                        guessStore.remove(guessID: guess.id, roundID: round.id)
+                        syncService.send(.removeGuess(guess.id, round.id))
+                    }
+                    selectedGuess = nil
+                } label: {
+                    Label("Ignore", systemImage: "xmark.circle")
+                }
+                .tint(.secondary)
+
+                Spacer()
+            }
+            .padding(.top, 24)
+            .navigationTitle("Missed Mark Guess")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { selectedGuess = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    // MARK: - Ghost Pins
+
+    private func ghostPinMarker(guess: MissedMarkGuess) -> some View {
+        Button {
+            guessSpotIndex = bestGuessIndex(for: guess)
+            selectedGuess = guess
+        } label: {
+            Circle()
+                .strokeBorder(Color.orange, lineWidth: 2)
+                .background(Circle().fill(Color.orange.opacity(0.3)))
+                .frame(width: 28, height: 28)
+                .overlay {
+                    Image(systemName: "questionmark")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.orange)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func bestGuessIndex(for guess: MissedMarkGuess) -> Int {
+        guard let round else { return 0 }
+        let marks = round.currentHole.marks
+        // Find the position where this guess fits chronologically
+        for (i, mark) in marks.enumerated() {
+            if guess.timestamp < mark.timestamp {
+                return i
+            }
+        }
+        return marks.count
+    }
+
+    private func hasGuessesForCurrentHole(_ round: Round) -> Bool {
+        !guessStore.guesses(for: round.id, holeIndex: round.currentHoleIndex).isEmpty
     }
 }
