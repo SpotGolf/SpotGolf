@@ -271,7 +271,6 @@ struct WatchRoundView: View {
     // MARK: - Guess Detection
 
     private func startGuessDetection() {
-        guard settingsStore.settings.missedMarkGuessesEnabled else { return }
         breadcrumbRecorder.updateThreshold(settingsStore.settings.stationaryThreshold)
         breadcrumbRecorder.reset()
         breadcrumbRecorder.start()
@@ -284,8 +283,7 @@ struct WatchRoundView: View {
     }
 
     private func checkForSwingGuess() {
-        guard settingsStore.settings.missedMarkGuessesEnabled,
-              let round = roundStore.activeRound,
+        guard let round = roundStore.activeRound,
               let swing = swingDetector.consumeSwing() else { return }
 
         let guess = MissedMarkGuess(
@@ -300,8 +298,7 @@ struct WatchRoundView: View {
     }
 
     private func checkForStationaryGuess() {
-        guard settingsStore.settings.missedMarkGuessesEnabled,
-              let round = roundStore.activeRound,
+        guard let round = roundStore.activeRound,
               let coord = breadcrumbRecorder.consumeStationaryLocation() else { return }
 
         let guess = MissedMarkGuess(

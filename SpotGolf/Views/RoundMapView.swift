@@ -10,6 +10,8 @@ struct RoundMapView: View {
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var guessStore: GuessStore
     @EnvironmentObject var syncService: SyncService
+    @EnvironmentObject var trackStore: TrackStore
+    @EnvironmentObject var settingsStore: SettingsStore
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {
@@ -26,10 +28,9 @@ struct RoundMapView: View {
     @State private var holeAdvancer = HoleAdvancer()
     @State private var hasInitialPan = false
     @State private var pendingPanToHole = false
-    @State private var showGhostPins = true
-    @State private var selectedGuess: MissedMarkGuess?
-    @State private var guessSpotIndex: Int = 0
-    @State private var showClearGuessesConfirm = false
+    @State private var isEditing = false
+    @State private var holeTrack: [TrackPoint] = []
+    @State private var suggestions: [MarkSuggestion] = []
     @State private var cameraChanges = 0
 
     var body: some View {
@@ -40,6 +41,7 @@ struct RoundMapView: View {
         }
         .onAppear {
             locationManager.startUpdating()
+            reloadTrack()
         }
         .onDisappear {
             locationManager.stopUpdating()
@@ -70,10 +72,21 @@ struct RoundMapView: View {
                 pendingPanToHole = false
                 panToHole()
             }
+            refreshSuggestions()
         }
         .onChange(of: round?.currentHoleIndex) {
             // Also covers a hole chosen on the watch
+            isEditing = false
             panToHole()
+            reloadTrack()
+        }
+        .onReceive(guessStore.$guesses) { _ in
+            // A guess can arrive from the watch while edit mode is open
+            refreshSuggestions()
+        }
+        .onChange(of: trackStore.revision) {
+            // A track segment arrived from the watch
+            reloadTrack()
         }
     }
 
@@ -120,21 +133,6 @@ struct RoundMapView: View {
         } message: {
             Text("Are you sure you want to delete this spot?")
         }
-        .sheet(isPresented: Binding(
-            get: { selectedGuess != nil },
-            set: { if !$0 { selectedGuess = nil } }
-        )) {
-            guessEditSheet(round)
-        }
-        .alert("Delete All Missed Mark Guesses", isPresented: $showClearGuessesConfirm) {
-            Button("Delete All", role: .destructive) {
-                guessStore.clearHole(roundID: round.id, holeIndex: round.currentHoleIndex)
-                syncService.send(.clearGuesses(round.id, round.currentHoleIndex))
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Delete all Missed Mark Guesses for this hole?")
-        }
     }
 
     private func mapView(_ round: Round) -> some View {
@@ -148,11 +146,17 @@ struct RoundMapView: View {
                         spotMarker(index: displayIndex, mark: mark, round: round, proxy: proxy)
                     }
                 }
-                if showGhostPins {
-                    let currentGuesses = guessStore.guesses(for: round.id, holeIndex: round.currentHoleIndex)
-                    ForEach(currentGuesses) { guess in
-                        Annotation("", coordinate: guess.coordinate) {
-                            ghostPinMarker(guess: guess)
+                if holeTrack.count >= 2 {
+                    MapPolyline(coordinates: holeTrack.map {
+                        CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+                    })
+                    .stroke(Color.blue.opacity(0.7),
+                            style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [1, 7]))
+                }
+                if isEditing {
+                    ForEach(suggestions) { suggestion in
+                        Annotation("", coordinate: suggestion.coordinate, anchor: .bottom) {
+                            suggestionPin(suggestion, round: round)
                         }
                     }
                 }
@@ -180,7 +184,7 @@ struct RoundMapView: View {
                     .onEnded { value in
                         switch value {
                         case .second(true, let drag):
-                            guard round.isActive, let drag,
+                            guard round.isActive, isEditing, let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
                             let mark = BallMark(coordinate: coordinate)
                             newSpotIndex = round.marks.count // capture before append
@@ -217,6 +221,7 @@ struct RoundMapView: View {
         let textColor: Color = mark.type == .outOfBounds ? .black : .white
         return VStack(spacing: 0) {
             Button {
+                guard isEditing else { return }
                 if let holeIdx = round.holeIndex(containing: mark.id) {
                     let hole = round.holes[holeIdx]
                     if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
@@ -258,6 +263,7 @@ struct RoundMapView: View {
             LongPressGesture(minimumDuration: 0.3)
                 .sequenced(before: DragGesture(coordinateSpace: .global))
                 .onChanged { value in
+                    guard isEditing else { return }
                     switch value {
                     case .second(true, let drag):
                         if draggingMark == nil {
@@ -276,6 +282,7 @@ struct RoundMapView: View {
                     }
                 }
                 .onEnded { value in
+                    guard isEditing else { return }
                     switch value {
                     case .second(true, let drag):
                         if let drag,
@@ -528,7 +535,20 @@ struct RoundMapView: View {
                 .tint(.blue)
             }
 
-            HStack {
+            HStack(alignment: .bottom) {
+                Button(isEditing ? "Done" : "Edit") {
+                    isEditing.toggle()
+                    refreshSuggestions()
+                }
+                .font(.headline)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.thickMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                .padding(.leading, 16)
+                .accessibilityIdentifier("EditHole")
+
                 Spacer()
 
                 VStack(spacing: 8) {
@@ -551,31 +571,6 @@ struct RoundMapView: View {
                             .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                     }
 
-                    if hasGuessesForCurrentHole(round) {
-                        Button {
-                            showGhostPins.toggle()
-                        } label: {
-                            Image(systemName: showGhostPins ? "eye.fill" : "eye.slash")
-                                .font(.title3)
-                                .foregroundStyle(.orange)
-                                .padding(14)
-                                .background(.thickMaterial)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                        }
-
-                        Button {
-                            showClearGuessesConfirm = true
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.title3)
-                                .foregroundStyle(.red)
-                                .padding(14)
-                                .background(.thickMaterial)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                        }
-                    }
                 }
                 .padding(.trailing, 16)
             }
@@ -723,95 +718,86 @@ struct RoundMapView: View {
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    // MARK: - Ghost Pin Edit Sheet
+    // MARK: - Mark Suggestions
 
-    private func guessEditSheet(_ round: Round) -> some View {
-        let markCount = round.currentHole.marks.count
-        return NavigationStack {
-            VStack(spacing: 24) {
-                Text("Missed Mark Guess")
-                    .font(.headline)
-
-                Stepper("Insert at position: \(guessSpotIndex + 1)", value: $guessSpotIndex, in: 0...markCount)
-                    .font(.title3)
-                    .padding(.horizontal)
-
-                Button {
-                    if let guess = selectedGuess {
-                        let mark = BallMark(coordinate: guess.coordinate, timestamp: guess.timestamp)
-                        roundStore.addMark(to: round.id, holeIndex: guess.holeIndex, mark: mark)
-                        if guessSpotIndex < round.currentHole.marks.count - 1 {
-                            roundStore.reorderMark(mark, to: guessSpotIndex, in: round.id)
-                        }
-                        guessStore.remove(guessID: guess.id, roundID: round.id)
-                        syncService.send(.removeGuess(guess.id, round.id))
-                    }
-                    selectedGuess = nil
-                } label: {
-                    Label("My ball was here", systemImage: "checkmark.circle.fill")
-                }
-                .tint(.green)
-
-                Button {
-                    if let guess = selectedGuess {
-                        guessStore.remove(guessID: guess.id, roundID: round.id)
-                        syncService.send(.removeGuess(guess.id, round.id))
-                    }
-                    selectedGuess = nil
-                } label: {
-                    Label("Ignore", systemImage: "xmark.circle")
-                }
-                .tint(.secondary)
-
-                Spacer()
-            }
-            .padding(.top, 24)
-            .navigationTitle("Missed Mark Guess")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { selectedGuess = nil }
-                }
-            }
+    /// Loads the GPS track for the hole being viewed and recomputes suggestions.
+    /// The watch is the only recorder; the phone track is a fallback for rounds
+    /// recorded before phone recording was removed.
+    private func reloadTrack() {
+        guard let round else {
+            holeTrack = []
+            suggestions = []
+            return
         }
-        .presentationDetents([.medium])
+        let watch = trackStore.points(for: round.id, source: .watch)
+        let track = watch.isEmpty ? trackStore.points(for: round.id, source: .phone) : watch
+        if round.isActive {
+            holeTrack = MarkSuggester.holePoints(in: track, holeIndex: round.currentHoleIndex,
+                                                 courseSelection: round.courseSelection)
+        } else {
+            // Past rounds show every mark, so show the whole walk too
+            holeTrack = track
+        }
+        refreshSuggestions()
     }
 
-    // MARK: - Ghost Pins
+    private func refreshSuggestions() {
+        guard let round, round.isActive, isEditing else {
+            suggestions = []
+            return
+        }
+        suggestions = MarkSuggester.suggestions(
+            in: holeTrack,
+            minDwell: settingsStore.settings.stationaryThreshold,
+            marks: round.currentHole.marks,
+            guesses: guessStore.guesses(for: round.id, holeIndex: round.currentHoleIndex)
+        )
+    }
 
-    private func ghostPinMarker(guess: MissedMarkGuess) -> some View {
+    /// A pin with a plus sign. Tapping converts the suggestion into a real mark.
+    private func suggestionPin(_ suggestion: MarkSuggestion, round: Round) -> some View {
         Button {
-            guessSpotIndex = bestGuessIndex(for: guess)
-            selectedGuess = guess
+            convertSuggestion(suggestion, round: round)
         } label: {
-            Circle()
-                .strokeBorder(Color.orange, lineWidth: 2)
-                .background(Circle().fill(Color.orange.opacity(0.3)))
-                .frame(width: 28, height: 28)
-                .overlay {
-                    Image(systemName: "questionmark")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.orange)
-                }
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 28, height: 28)
+                    .overlay {
+                        Image(systemName: "plus")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                    }
+                BubbleArrow()
+                    .fill(Color.green)
+                    .frame(width: 10, height: 7)
+            }
+            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Add suggested mark")
     }
 
-    private func bestGuessIndex(for guess: MissedMarkGuess) -> Int {
-        guard let round else { return 0 }
-        let marks = round.currentHole.marks
-        // Find the position where this guess fits chronologically
-        for (i, mark) in marks.enumerated() {
-            if guess.timestamp < mark.timestamp {
-                return i
-            }
+    private func convertSuggestion(_ suggestion: MarkSuggestion, round: Round) {
+        let mark = BallMark(coordinate: suggestion.coordinate, timestamp: suggestion.timestamp)
+        // Both computed before the add, so they describe the marks the new one joins
+        let insertAt = insertionIndex(for: suggestion.timestamp, in: round.currentHole.marks)
+        let appending = insertAt == round.currentHole.marks.count
+        roundStore.addMark(mark)
+        if !appending {
+            roundStore.reorderMark(mark, to: insertAt, in: round.id)
         }
-        return marks.count
+        if let guessID = suggestion.guessID {
+            guessStore.remove(guessID: guessID, roundID: round.id)
+            syncService.send(.removeGuess(guessID, round.id))
+        }
+        refreshSuggestions()
     }
 
-    private func hasGuessesForCurrentHole(_ round: Round) -> Bool {
-        !guessStore.guesses(for: round.id, holeIndex: round.currentHoleIndex).isEmpty
+    /// The position where a timestamp fits chronologically among a hole's marks.
+    private func insertionIndex(for timestamp: Date, in marks: [BallMark]) -> Int {
+        marks.firstIndex(where: { timestamp < $0.timestamp }) ?? marks.count
     }
 }
 

@@ -100,7 +100,12 @@ final class PenaltyFlowUITests: XCTestCase {
     }
 
     /// Long-presses the map, which adds a mark there and opens its edit sheet.
+    /// Marks can only be added in edit mode, so enter it first when needed.
     private func addMark(at point: CGVector) {
+        let editButton = app.buttons["EditHole"]
+        if editButton.waitForExistence(timeout: 5), editButton.label == "Edit" {
+            editButton.tap()
+        }
         let start = app.coordinate(withNormalizedOffset: point)
         // The map only reports the press once the finger has moved
         start.press(forDuration: 1.0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 4)))

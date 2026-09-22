@@ -21,6 +21,12 @@ class TrackStore: ObservableObject {
     private var pendingPoints: [TrackPoint] = []
     private var pendingURL: URL?
 
+    // Makes outbox segment names unique even within one millisecond
+    private var segmentCounter = 0
+
+    /// Bumped whenever a received segment adds points, so views can reload tracks.
+    @Published private(set) var revision = 0
+
     init(directory: URL? = nil) {
         if let directory {
             self.directory = directory
@@ -83,16 +89,17 @@ class TrackStore: ObservableObject {
 
     // MARK: - Transfer
 
-    /// Moves this device's tracks for rounds that are no longer active into the outbox,
+    /// Moves this device's tracks into the outbox as segments, including the active
+    /// round's: recording simply starts a fresh file, and the receiver merges segments,
     /// so a file is never appended to while it is being transferred.
-    func moveFinishedTracksToOutbox(activeRoundID: UUID?) {
+    func moveTracksToOutbox() {
         flush()
         for url in trackFiles(in: directory) {
             guard let info = Self.parseFileName(url),
-                  info.source == .current,
-                  info.roundID != activeRoundID else { continue }
-            let segment = Int(Date().timeIntervalSince1970)
-            let name = "\(info.roundID.uuidString)_\(info.source.rawValue)_\(segment).\(Self.fileExtension)"
+                  info.source == .current else { continue }
+            segmentCounter += 1
+            let stamp = Int(Date().timeIntervalSince1970 * 1000)
+            let name = "\(info.roundID.uuidString)_\(info.source.rawValue)_\(stamp)-\(segmentCounter).\(Self.fileExtension)"
             do {
                 try FileManager.default.createDirectory(at: outboxDirectory, withIntermediateDirectories: true)
                 try FileManager.default.moveItem(at: url, to: outboxDirectory.appendingPathComponent(name))
@@ -120,6 +127,7 @@ class TrackStore: ObservableObject {
 
         let merged = (existing + fresh).sorted { $0.timestamp < $1.timestamp }
         write(merged, to: fileURL(for: roundID, source: source), replacing: true)
+        revision += 1
     }
 
     // MARK: - Files

@@ -42,14 +42,6 @@ class GuessStore: ObservableObject {
         save()
     }
 
-    func clearHole(roundID: UUID, holeIndex: Int) {
-        guesses[roundID]?.removeAll { $0.holeIndex == holeIndex }
-        if guesses[roundID]?.isEmpty == true {
-            guesses.removeValue(forKey: roundID)
-        }
-        save()
-    }
-
     func deleteRound(_ roundID: UUID) {
         guesses.removeValue(forKey: roundID)
         save()

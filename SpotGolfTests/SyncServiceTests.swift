@@ -484,4 +484,41 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertEqual(tracks.points(for: roundID, source: .watch).count, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: received.path))
     }
+
+    func testHandleTrackSegmentMessageImportsPoints() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let tracks = TrackStore(directory: directory)
+        service.trackStore = tracks
+
+        // Build segment data the way the watch would send it
+        let roundID = UUID()
+        let sender = TrackStore(directory: directory.appendingPathComponent("sender"))
+        sender.append([CLLocation(latitude: 39.95545, longitude: -105.0422)],
+                      roundID: roundID, source: .watch)
+        sender.flush()
+        let data = try Data(contentsOf: sender.fileURL(for: roundID, source: .watch))
+
+        service.handleMessage([
+            "type": "trackSegment",
+            "roundId": roundID.uuidString,
+            "source": "watch",
+            "data": data
+        ])
+
+        XCTAssertEqual(tracks.points(for: roundID, source: .watch).count, 1)
+    }
+
+    func testHandleTrackSegmentWithMissingFieldsIsIgnored() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let tracks = TrackStore(directory: directory)
+        service.trackStore = tracks
+        let roundID = UUID()
+
+        service.handleMessage(["type": "trackSegment", "roundId": roundID.uuidString, "source": "watch"])
+        service.handleMessage(["type": "trackSegment", "roundId": roundID.uuidString, "data": Data()])
+
+        XCTAssertTrue(tracks.points(for: roundID, source: .watch).isEmpty)
+    }
 }

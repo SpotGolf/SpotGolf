@@ -55,17 +55,6 @@ final class GuessStoreTests: XCTestCase {
         XCTAssertTrue(store.guesses(for: roundID, holeIndex: 0).isEmpty)
     }
 
-    func testClearHole() {
-        store.add(makeGuess(holeIndex: 0))
-        store.add(makeGuess(holeIndex: 0))
-        store.add(makeGuess(holeIndex: 1))
-
-        store.clearHole(roundID: roundID, holeIndex: 0)
-
-        XCTAssertTrue(store.guesses(for: roundID, holeIndex: 0).isEmpty)
-        XCTAssertEqual(store.guesses(for: roundID, holeIndex: 1).count, 1)
-    }
-
     func testDeleteRound() {
         store.add(makeGuess(holeIndex: 0))
         store.add(makeGuess(holeIndex: 1))

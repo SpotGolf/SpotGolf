@@ -5,9 +5,11 @@ struct RoundListView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var syncService: SyncService
     @EnvironmentObject var trackStore: TrackStore
+    @EnvironmentObject var guessStore: GuessStore
     @State private var showCourseSelection = false
     @State private var showSettings = false
     @State private var roundToDelete: Round?
+    @State private var export: RoundExport?
 
     var body: some View {
         List {
@@ -43,6 +45,12 @@ struct RoundListView: View {
                             }
                             .tint(.green)
                         }
+                        Button {
+                            exportRound(round)
+                        } label: {
+                            Label("Export", systemImage: "square.and.arrow.up")
+                        }
+                        .tint(.blue)
                     }
                 }
             }
@@ -71,6 +79,7 @@ struct RoundListView: View {
                     Button("New Round") {
                         showCourseSelection = true
                     }
+                    .disabled(!canStartRound)
                 }
             }
         }
@@ -81,6 +90,7 @@ struct RoundListView: View {
             Button("Delete", role: .destructive) {
                 roundStore.deleteRound(round)
                 trackStore.deleteRound(round.id)
+                guessStore.deleteRound(round.id)
             }
             Button("Cancel", role: .cancel) {}
         } message: { round in
@@ -102,7 +112,47 @@ struct RoundListView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .sheet(item: $export) { export in
+            ShareSheet(items: [export.url])
+                .presentationDetents([.medium, .large])
+        }
     }
+
+    /// The watch records all GPS, so a round can only start while it is connected.
+    /// UI tests run without a paired watch, so they are exempt.
+    private var canStartRound: Bool {
+        CommandLine.arguments.contains("--ui-testing") || syncService.isConnected
+    }
+
+    /// Writes the round's GPS track to a temporary CSV file and opens the share panel.
+    private func exportRound(_ round: Round) {
+        let csv = TrackExporter.csv(phone: trackStore.points(for: round.id, source: .phone),
+                                    watch: trackStore.points(for: round.id, source: .watch))
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(TrackExporter.fileName(for: round))
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            export = RoundExport(url: url)
+        } catch {
+            print("Failed to write track export: \(error)")
+        }
+    }
+}
+
+private struct RoundExport: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// The standard iOS share panel.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 private struct RoundRow: View {

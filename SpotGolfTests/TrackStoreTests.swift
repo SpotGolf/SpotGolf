@@ -165,10 +165,10 @@ final class TrackStoreTests: XCTestCase {
         XCTAssertNil(TrackStore.parseFileName(directory.appendingPathComponent("notes.track")))
     }
 
-    func testFinishedTrackMovesToOutbox() {
+    func testTrackMovesToOutbox() {
         store.append(makeLocations(count: 2), roundID: roundID)
 
-        store.moveFinishedTracksToOutbox(activeRoundID: nil)
+        store.moveTracksToOutbox()
 
         let outbox = store.outboxFiles()
         XCTAssertEqual(outbox.count, 1)
@@ -176,20 +176,21 @@ final class TrackStoreTests: XCTestCase {
         XCTAssertTrue(store.points(for: roundID, source: .current).isEmpty)
     }
 
-    func testActiveRoundStaysOutOfOutbox() {
+    func testRepeatedMovesCreateSeparateSegments() {
         store.append(makeLocations(count: 2), roundID: roundID)
+        store.moveTracksToOutbox()
+        store.append(makeLocations(count: 3, startingAt: 1_700_000_100), roundID: roundID)
+        store.moveTracksToOutbox()
 
-        store.moveFinishedTracksToOutbox(activeRoundID: roundID)
-
-        XCTAssertTrue(store.outboxFiles().isEmpty)
-        XCTAssertEqual(store.points(for: roundID, source: .current).count, 2)
+        XCTAssertEqual(store.outboxFiles().count, 2)
+        XCTAssertTrue(store.points(for: roundID, source: .current).isEmpty)
     }
 
     func testOtherDeviceTrackStaysOutOfOutbox() {
         let other: TrackSource = TrackSource.current == .phone ? .watch : .phone
         store.append(makeLocations(count: 2), roundID: roundID, source: other)
 
-        store.moveFinishedTracksToOutbox(activeRoundID: nil)
+        store.moveTracksToOutbox()
 
         XCTAssertTrue(store.outboxFiles().isEmpty)
         XCTAssertEqual(store.points(for: roundID, source: other).count, 2)
@@ -197,7 +198,7 @@ final class TrackStoreTests: XCTestCase {
 
     func testRemoveOutboxFile() {
         store.append(makeLocations(count: 2), roundID: roundID)
-        store.moveFinishedTracksToOutbox(activeRoundID: nil)
+        store.moveTracksToOutbox()
         let url = store.outboxFiles()[0]
 
         store.removeOutboxFile(url)
@@ -207,7 +208,7 @@ final class TrackStoreTests: XCTestCase {
 
     func testDeleteRoundRemovesOutboxFiles() {
         store.append(makeLocations(count: 2), roundID: roundID)
-        store.moveFinishedTracksToOutbox(activeRoundID: nil)
+        store.moveTracksToOutbox()
 
         store.deleteRound(roundID)
 

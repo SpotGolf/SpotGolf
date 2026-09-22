@@ -5,27 +5,21 @@ struct SettingsView: View {
     @EnvironmentObject var syncService: SyncService
     @Environment(\.dismiss) private var dismiss
 
-    private let thresholdOptions = stride(from: 0, through: 120, by: 5).map { $0 }
+    private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle("Missed Mark Guesses", isOn: $settingsStore.settings.missedMarkGuessesEnabled)
-                } footer: {
-                    Text("Detects when you may have forgotten to mark your ball and suggests possible locations.")
-                }
-
-                if settingsStore.settings.missedMarkGuessesEnabled {
-                    Section {
-                        Picker("Stationary Threshold", selection: $settingsStore.settings.stationaryThreshold) {
-                            ForEach(thresholdOptions, id: \.self) { seconds in
-                                Text("\(seconds)s").tag(TimeInterval(seconds))
-                            }
+                    Picker("Stationary Threshold", selection: $settingsStore.settings.stationaryThreshold) {
+                        ForEach(thresholdOptions, id: \.self) { seconds in
+                            Text("\(seconds)s").tag(TimeInterval(seconds))
                         }
-                    } footer: {
-                        Text("How long you must be stationary before a missed mark guess is created.")
                     }
+                } header: {
+                    Text("Mark Suggestions")
+                } footer: {
+                    Text("How long you must be stationary before a mark suggestion is created.")
                 }
             }
             .navigationTitle("Settings")

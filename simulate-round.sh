@@ -27,8 +27,8 @@ while IFS= read -r line; do
     desc=$(echo "$line" | cut -d, -f4-)
 
     echo "[$row] $desc — ($lat, $lon) — waiting ${pause}s"
-    xcrun simctl location "SpotGolf phone" set "$lat,$lon"
-    xcrun simctl location "SpotGolf watch" set "$lat,$lon"
+    xcrun simctl location "iPhone 17 Pro" set "$lat,$lon"
+    xcrun simctl location "Apple Watch Series 9 (45mm)" set "$lat,$lon"
     sleep "$pause"
 done < "$csv"
 

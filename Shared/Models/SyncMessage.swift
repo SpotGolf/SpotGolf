@@ -10,6 +10,5 @@ enum SyncMessage {
     case setMarkType(UUID, BallMarkType, UUID) // markID, type, roundID
     case addGuess(MissedMarkGuess, UUID) // guess, roundID
     case removeGuess(UUID, UUID) // guessID, roundID
-    case clearGuesses(UUID, Int) // roundID, holeIndex
     case updateSettings(AppSettings)
 }

@@ -49,14 +49,17 @@ struct SpotGolfWatchApp: App {
         }
     }
 
-    /// Stores every GPS fix that arrives while a round is active.
+    /// Stores every GPS fix that arrives while a round is active, and regularly
+    /// ships segments to the phone so it can draw the path live.
     @MainActor
     private func recordTrack() {
         let rounds = roundStore
         let tracks = trackStore
+        let sync = syncService
         locationManager.onRawLocations = { locations in
             guard let round = rounds.activeRound else { return }
             tracks.append(locations, roundID: round.id)
+            sync.sendPendingTracksIfDue()
         }
     }
 }

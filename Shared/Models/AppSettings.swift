@@ -1,12 +1,9 @@
 import Foundation
 
 struct AppSettings: Codable, Equatable {
-    var missedMarkGuessesEnabled: Bool
     var stationaryThreshold: TimeInterval
 
-    init(missedMarkGuessesEnabled: Bool = true,
-         stationaryThreshold: TimeInterval = 30) {
-        self.missedMarkGuessesEnabled = missedMarkGuessesEnabled
+    init(stationaryThreshold: TimeInterval = 30) {
         self.stationaryThreshold = stationaryThreshold
     }
 

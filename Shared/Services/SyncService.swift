@@ -47,6 +47,8 @@ class SyncService: NSObject, ObservableObject {
     // Queued chunked transfer for when watch is unreachable
     private var pendingChunkedSend: (data: Data, metadata: [String: Any])?
 
+    private var trackSyncTimer: Timer?
+
     override init() {
         super.init()
         if WCSession.isSupported() {
@@ -54,6 +56,14 @@ class SyncService: NSObject, ObservableObject {
             session?.delegate = self
             session?.activate()
         }
+        #if os(watchOS)
+        // GPS fixes drive sends during play; this covers the tail once fixes stop
+        trackSyncTimer = Timer.scheduledTimer(withTimeInterval: Self.trackSyncInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.sendPendingTracks()
+            }
+        }
+        #endif
     }
 
     private func bindSyncHandler() {
@@ -142,13 +152,6 @@ class SyncService: NSObject, ObservableObject {
                 "roundId": roundID.uuidString
             ], via: session)
 
-        case .clearGuesses(let roundID, let holeIndex):
-            sendPayload([
-                "type": "clearGuesses",
-                "roundId": roundID.uuidString,
-                "holeIndex": holeIndex
-            ], via: session)
-
         case .updateSettings(let settings):
             guard let data = try? JSONEncoder().encode(settings) else { return }
             sendPayload([
@@ -215,24 +218,74 @@ class SyncService: NSObject, ObservableObject {
 
     // MARK: - Tracks
 
-    /// Queues the watch's finished GPS tracks for transfer to the phone.
+    /// How often the watch ships track segments during a round.
+    static let trackSyncInterval: TimeInterval = 15
+
+    private var lastTrackSync = Date.distantPast
+
+    /// Rate-limited `sendPendingTracks()` — call on every GPS fix so the phone's
+    /// view of the path stays fresh without a transfer per fix.
+    func sendPendingTracksIfDue() {
+        guard Date().timeIntervalSince(lastTrackSync) >= Self.trackSyncInterval else { return }
+        lastTrackSync = Date()
+        sendPendingTracks()
+    }
+
+    // Outbox files currently being sent as messages, awaiting the phone's reply
+    private var trackMessagesInFlight: Set<String> = []
+
+    /// Sends the watch's GPS track segments to the phone. A reachable phone gets
+    /// them as messages for immediate delivery (file transfers do not arrive
+    /// between simulators and can lag on hardware). While unreachable, an active
+    /// round's segments wait in the outbox for the next timer tick or reachability
+    /// change; only finished rounds use background file transfers.
     func sendPendingTracks() {
         #if os(watchOS)
         guard let session, session.activationState == .activated,
-              let roundStore, let trackStore else { return }
+              let trackStore else { return }
 
-        trackStore.moveFinishedTracksToOutbox(activeRoundID: roundStore.activeRound?.id)
+        trackStore.moveTracksToOutbox()
 
+        let activeRoundID = roundStore?.activeRound?.id
         let inFlight = Set(session.outstandingFileTransfers.map { $0.file.fileURL.lastPathComponent })
-        for url in trackStore.outboxFiles() where !inFlight.contains(url.lastPathComponent) {
+        for url in trackStore.outboxFiles()
+        where !inFlight.contains(url.lastPathComponent) && !trackMessagesInFlight.contains(url.lastPathComponent) {
             guard let info = TrackStore.parseFileName(url) else { continue }
-            session.transferFile(url, metadata: [
-                "type": "track",
-                "roundId": info.roundID.uuidString,
-                "source": info.source.rawValue
-            ])
+            if session.isReachable,
+               let data = try? Data(contentsOf: url),
+               data.count <= Self.chunkSize {
+                sendTrackSegment(data, roundID: info.roundID, source: info.source, url: url, via: session)
+            } else if info.roundID != activeRoundID {
+                session.transferFile(url, metadata: [
+                    "type": "track",
+                    "roundId": info.roundID.uuidString,
+                    "source": info.source.rawValue
+                ])
+            }
         }
         #endif
+    }
+
+    /// The outbox file is only removed once the phone replies, so a failed send
+    /// is retried by the next `sendPendingTracks()`.
+    private func sendTrackSegment(_ data: Data, roundID: UUID, source: TrackSource, url: URL, via session: WCSession) {
+        trackMessagesInFlight.insert(url.lastPathComponent)
+        session.sendMessage([
+            "type": "trackSegment",
+            "roundId": roundID.uuidString,
+            "source": source.rawValue,
+            "data": data
+        ], replyHandler: { [weak self] _ in
+            Task { @MainActor in
+                self?.trackMessagesInFlight.remove(url.lastPathComponent)
+                self?.trackStore?.removeOutboxFile(url)
+            }
+        }, errorHandler: { [weak self] error in
+            print("[Sync] Track segment message failed: \(error)")
+            Task { @MainActor in
+                self?.trackMessagesInFlight.remove(url.lastPathComponent)
+            }
+        })
     }
 
     func handleReceivedTrack(at url: URL, roundID: UUID, source: TrackSource) {
@@ -331,11 +384,21 @@ class SyncService: NSObject, ObservableObject {
                   let roundID = UUID(uuidString: roundIdString) else { return }
             guessStore?.remove(guessID: guessID, roundID: roundID)
 
-        case "clearGuesses":
-            guard let roundIdString = message["roundId"] as? String,
-                  let roundID = UUID(uuidString: roundIdString),
-                  let holeIndex = message["holeIndex"] as? Int else { return }
-            guessStore?.clearHole(roundID: roundID, holeIndex: holeIndex)
+        case "trackSegment":
+            guard let idString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: idString),
+                  let sourceString = message["source"] as? String,
+                  let source = TrackSource(rawValue: sourceString),
+                  let data = message["data"] as? Data else { return }
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(UUID().uuidString).\(TrackStore.fileExtension)")
+            do {
+                try data.write(to: url)
+            } catch {
+                print("[Sync] Failed to store received track segment: \(error)")
+                return
+            }
+            handleReceivedTrack(at: url, roundID: roundID, source: source)
 
         case "updateSettings":
             guard let data = message["settings"] as? Data,
@@ -400,6 +463,15 @@ extension SyncService: @preconcurrency WCSessionDelegate {
         Task { @MainActor in self.handleMessage(message) }
     }
 
+    /// Senders that need delivery confirmation (track segments) use the reply variant.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any],
+                 replyHandler: @escaping ([String: Any]) -> Void) {
+        Task { @MainActor in
+            self.handleMessage(message)
+            replyHandler([:])
+        }
+    }
+
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         Task { @MainActor in self.handleMessage(userInfo) }
     }
@@ -443,6 +515,9 @@ extension SyncService: @preconcurrency WCSessionDelegate {
             if session.isReachable, let pending = self.pendingChunkedSend {
                 print("[Sync] Watch reachable – sending queued chunked transfer")
                 self.sendChunked(data: pending.data, metadata: pending.metadata, via: session)
+            }
+            if session.isReachable {
+                self.sendPendingTracks()
             }
         }
     }

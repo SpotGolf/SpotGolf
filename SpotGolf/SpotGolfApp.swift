@@ -9,7 +9,6 @@ struct SpotGolfApp: App {
     @StateObject private var guessStore = GuessStore()
     @StateObject private var settingsStore = SettingsStore()
     @StateObject private var trackStore = TrackStore()
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -29,31 +28,11 @@ struct SpotGolfApp: App {
                     syncService.guessStore = guessStore
                     syncService.settingsStore = settingsStore
                     syncService.trackStore = trackStore
-                    recordTrack()
                     locationManager.requestPermission()
                     Task {
                         await courseService.refreshIndex()
                     }
                 }
-                .onChange(of: roundStore.activeRound?.id) {
-                    trackStore.flush()
-                }
-                .onChange(of: scenePhase) {
-                    if scenePhase != .active {
-                        trackStore.flush()
-                    }
-                }
-        }
-    }
-
-    /// Stores every GPS fix that arrives while a round is active.
-    @MainActor
-    private func recordTrack() {
-        let rounds = roundStore
-        let tracks = trackStore
-        locationManager.onRawLocations = { locations in
-            guard let round = rounds.activeRound else { return }
-            tracks.append(locations, roundID: round.id)
         }
     }
 }

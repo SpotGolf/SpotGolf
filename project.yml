@@ -115,7 +115,7 @@ targets:
     sources:
       - path: SpotGolfTests
       - path: Shared
-      - path: ../CourseData/Data/US/CO/Broomfield/Broadlands-Golf-Course.json.gz
+      - path: TestFixtures/Broadlands-Golf-Course.json.gz
         buildPhase: resources
     settings:
       base:
