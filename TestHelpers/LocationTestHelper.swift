@@ -14,8 +14,6 @@ struct TestLocation {
     let longitude: Double
     let hole: Int
     let type: TestLocationType
-
-    var isMark: Bool { type != .move }
 }
 
 enum LocationTestHelper {

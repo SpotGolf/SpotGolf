@@ -1,7 +1,6 @@
 import SwiftUI
 import CoreLocation
 import CourseData
-import WatchKit
 
 struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore
@@ -13,19 +12,12 @@ struct WatchRoundView: View {
     @EnvironmentObject var breadcrumbRecorder: BreadcrumbRecorder
     @EnvironmentObject var swingDetector: SwingDetector
 
-    @State private var showSwingAway = false
-    @State private var showNoLocation = false
-
     @State private var liveDistance: String?
-    @State private var showMarkReminder = false
 
     var body: some View {
         Group {
-            if showSwingAway {
-                swingAwayView(round: roundStore.activeRound)
-            } else if let round = roundStore.activeRound {
+            if let round = roundStore.activeRound {
                 TabView {
-                    playPage(round)
                     infoPage(round)
                     endRoundPage
                 }
@@ -92,76 +84,6 @@ struct WatchRoundView: View {
                 checkForStationaryGuess()
             }
         }
-        .alert("Waiting for GPS", isPresented: $showNoLocation) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Location not available yet. Please wait a moment and try again.")
-        }
-        .alert("Reminder", isPresented: $showMarkReminder) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Don't forget to mark your ball")
-        }
-    }
-
-    private func playPage(_ round: Round) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
-                    .font(.system(size: 10))
-                    .foregroundStyle(syncService.isConnected ? .green : .secondary)
-                Text("Hole \(round.currentHoleNumber)")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-            }
-
-            Text("Previous: \(liveDistance ?? previousDistance(round: round))")
-                .font(.caption2)
-                .fontWeight(.semibold)
-
-            Text("Strokes: \(round.currentHole.strokeCount)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Button(action: markBall) {
-                Label("At my ball", systemImage: "mappin.and.ellipse")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-
-            HStack(spacing: 12) {
-                Button {
-                    roundStore.previousHole()
-                } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chevron.left")
-                        Text("Prev")
-                    }
-                }
-                .disabled(round.currentHoleIndex == 0)
-
-                Spacer()
-
-                Button {
-                    roundStore.nextHole()
-                } label: {
-                    HStack(spacing: 2) {
-                        Text("Next")
-                        Image(systemName: "chevron.right")
-                    }
-                }
-                .disabled(round.holes.count >= Round.maxHoles && round.currentHoleIndex == round.holes.count - 1)
-            }
-            .font(.caption2)
-        }
-        .padding()
     }
 
     // MARK: - Info Page
@@ -176,9 +98,7 @@ struct WatchRoundView: View {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
                     let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
 
-                    Text("Hole \(courseHole.number) · Par \(courseHole.par)")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                    holeTitle("Hole \(courseHole.number) · Par \(courseHole.par)", round)
 
                     Divider()
 
@@ -195,9 +115,7 @@ struct WatchRoundView: View {
 
                     holeStatsView(round)
                 } else {
-                    Text("Hole \(round.currentHoleNumber)")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                    holeTitle("Hole \(round.currentHoleNumber)", round)
 
                     Divider()
 
@@ -206,6 +124,39 @@ struct WatchRoundView: View {
             }
             .padding()
         }
+    }
+
+    /// The hole's name between two small arrows that go to the previous and next hole.
+    private func holeTitle(_ title: String, _ round: Round) -> some View {
+        HStack(spacing: 4) {
+            holeArrow("chevron.left", label: "Previous hole", disabled: round.currentHoleIndex == 0) {
+                roundStore.previousHole()
+            }
+
+            Text(title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+
+            holeArrow("chevron.right", label: "Next hole",
+                      disabled: round.holes.count >= Round.maxHoles && round.currentHoleIndex == round.holes.count - 1) {
+                roundStore.nextHole()
+            }
+        }
+    }
+
+    private func holeArrow(_ systemName: String, label: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.caption2)
+                .fontWeight(.bold)
+                .frame(width: 26, height: 22)
+                .background(Capsule().fill(Color.secondary.opacity(0.25)))
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.35 : 1)
+        .accessibilityLabel(label)
     }
 
     private var endRoundPage: some View {
@@ -219,42 +170,6 @@ struct WatchRoundView: View {
             }
             .font(.headline)
             Spacer()
-        }
-        .padding()
-    }
-
-    // MARK: - Swing Away
-
-    @ViewBuilder
-    private func swingAwayView(round: Round?) -> some View {
-        VStack(spacing: 6) {
-            Text("Swing away")
-                .font(.headline)
-                .foregroundStyle(.green)
-
-            if let round, let courseHole = round.currentCourseHole,
-               let course = round.courseSelection?.course,
-               let green = courseHole.green(from: course.features),
-               let location = locationManager.lastLocation {
-                let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
-                let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
-
-                greenDistancesView(greenDist)
-
-                let holeFeatures = course.features(for: courseHole)
-                let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green)
-                if !features.isEmpty {
-                    Divider()
-                    featuresView(features)
-                }
-            }
-
-            Spacer()
-
-            Button("Dismiss") {
-                showSwingAway = false
-            }
-            .buttonStyle(.bordered)
         }
         .padding()
     }
@@ -353,29 +268,6 @@ struct WatchRoundView: View {
         return "0 yds"
     }
 
-    private func markBall() {
-        guard let location = locationManager.lastLocation else {
-            locationManager.requestLocation()
-            showNoLocation = true
-            return
-        }
-        let mark = BallMark(coordinate: location.coordinate)
-        roundStore.addMark(mark)
-        if let pendingCoord = breadcrumbRecorder.markPlaced(),
-           let round = roundStore.activeRound {
-            let guess = MissedMarkGuess(
-                coordinate: pendingCoord,
-                timestamp: Date(),
-                holeIndex: round.currentHoleIndex,
-                reason: .stationary,
-                roundID: round.id
-            )
-            guessStore.add(guess)
-            syncService.send(.addGuess(guess, round.id))
-        }
-        showSwingAway = true
-    }
-
     // MARK: - Guess Detection
 
     private func startGuessDetection() {
@@ -411,19 +303,6 @@ struct WatchRoundView: View {
         guard settingsStore.settings.missedMarkGuessesEnabled,
               let round = roundStore.activeRound,
               let coord = breadcrumbRecorder.consumeStationaryLocation() else { return }
-
-        // Fire haptic and show reminder if enabled
-        if settingsStore.settings.hapticEnabled,
-           breadcrumbRecorder.cumulativeYards >= 50 || (breadcrumbRecorder.timeSinceLastMark ?? .infinity) >= 180 {
-            #if os(watchOS)
-            WKInterfaceDevice.current().play(.notification)
-            #endif
-            showMarkReminder = true
-            Task {
-                try? await Task.sleep(for: .seconds(5))
-                showMarkReminder = false
-            }
-        }
 
         let guess = MissedMarkGuess(
             coordinate: coord,

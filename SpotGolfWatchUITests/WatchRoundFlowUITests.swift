@@ -16,26 +16,26 @@ final class WatchRoundFlowUITests: XCTestCase {
         let locations = LocationTestHelper.loadTestLocations()
         XCTAssertGreaterThanOrEqual(locations.count, 2, "Need at least 2 test locations")
 
-        // Group locations by hole number, preserving order
-        let holeNumbers = locations.map(\.hole)
-        let uniqueHoles = holeNumbers.reduce(into: [Int]()) { result, hole in
-            if result.last != hole { result.append(hole) }
-        }
+        // An alert left open by an earlier run outlives the app and would swallow the first tap
+        dismissHealthAccessAlerts()
 
         // ── Start a new round ──
         let startButton = app.buttons["Start Round"]
         XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start Round button should exist")
         startButton.tap()
+        dismissHealthAccessAlerts()
 
         // Verify Hole 1 is displayed
         let hole1Label = app.staticTexts["Hole 1"]
         XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Hole 1 label should be visible")
 
         var currentHole = 1
-        let nextButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Next'")).firstMatch
-        let prevButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Prev'")).firstMatch
+        // The arrows on either side of the hole's name
+        let nextButton = app.buttons["Next hole"]
+        let prevButton = app.buttons["Previous hole"]
+        XCTAssertFalse(prevButton.isEnabled, "There is no hole before Hole 1")
 
-        // ── Mark locations per hole ──
+        // ── Process locations per hole ──
         for (index, location) in locations.enumerated() {
             let targetHole = location.hole
 
@@ -51,8 +51,8 @@ final class WatchRoundFlowUITests: XCTestCase {
                               "Hole \(currentHole) label should appear after navigating")
 
                 // Verify strokes reset on new hole
-                let strokesZero = app.staticTexts["Strokes: 0"]
-                XCTAssertTrue(strokesZero.waitForExistence(timeout: 5),
+                XCTAssertTrue(app.staticTexts["Strokes"].waitForExistence(timeout: 5), "Strokes row should exist")
+                XCTAssertTrue(app.staticTexts["0"].waitForExistence(timeout: 5),
                               "Strokes should reset to 0 on new hole \(currentHole)")
             }
 
@@ -63,67 +63,38 @@ final class WatchRoundFlowUITests: XCTestCase {
             LocationTestHelper.setSimulatorLocation(latitude: location.latitude,
                                                     longitude: location.longitude)
             sleep(2)
-
-            if location.isMark {
-                let atMyBall = app.buttons["At my ball"]
-                XCTAssertTrue(atMyBall.waitForExistence(timeout: 10), "At my ball button should exist")
-                atMyBall.tap()
-
-                // Swing away screen appears — tap Dismiss
-                let dismissButton = app.buttons["Dismiss"]
-                XCTAssertTrue(dismissButton.waitForExistence(timeout: 5), "Dismiss button should appear on swing away")
-                dismissButton.tap()
-
-                // At my ball should reappear
-                let atMyBallAgain = app.buttons["At my ball"]
-                XCTAssertTrue(atMyBallAgain.waitForExistence(timeout: 10),
-                              "At my ball should reappear after dismissing swing away")
-            }
         }
 
-        // ── Verify stroke counts per hole ──
-        // Navigate back to hole 1
+        // ── Navigate back to Hole 1 ──
         while currentHole > 1 {
             XCTAssertTrue(prevButton.waitForExistence(timeout: 5), "Prev hole button should exist")
             prevButton.tap()
             currentHole -= 1
             sleep(1)
         }
-
-        for hole in uniqueHoles {
-            let holeLabel = app.staticTexts["Hole \(hole)"]
-            XCTAssertTrue(holeLabel.waitForExistence(timeout: 5), "Hole \(hole) label should be visible")
-
-            let markCount = locations.filter { $0.hole == hole && $0.isMark }.count
-            let expectedStrokes = max(markCount - 1, 0)
-            let strokesLabel = app.staticTexts["Strokes: \(expectedStrokes)"]
-            XCTAssertTrue(strokesLabel.waitForExistence(timeout: 5),
-                          "Hole \(hole) should show Strokes: \(expectedStrokes)")
-
-            // Navigate to next hole for verification (unless it's the last)
-            if hole != uniqueHoles.last {
-                nextButton.tap()
-                currentHole += 1
-                sleep(1)
-            }
-        }
-
-        // ── Navigate back to Hole 1 ──
-        while currentHole > 1 {
-            prevButton.tap()
-            currentHole -= 1
-            sleep(1)
-        }
         XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Should be back on Hole 1")
 
-        // ── End the round (swipe left to second page) ──
+        // ── End the round (swipe left to the last page) ──
         app.swipeLeft()
         let endRoundButton = app.buttons["End Round"]
-        XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on second page")
+        XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
         endRoundButton.tap()
 
         // Verify we're back to the idle state.
         XCTAssertTrue(startButton.waitForExistence(timeout: 5),
                       "Start Round button should reappear after ending round")
+    }
+
+    // MARK: - Helpers
+
+    /// Closes the Health Access alerts the system shows when the workout session starts.
+    /// They cover the whole screen and swallow taps. None appear once access has been decided.
+    private func dismissHealthAccessAlerts() {
+        let carousel = XCUIApplication(bundleIdentifier: "com.apple.Carousel")
+        let closeButton = carousel.buttons["Close"]
+        while closeButton.waitForExistence(timeout: 3) {
+            closeButton.tap()
+            sleep(1)
+        }
     }
 }

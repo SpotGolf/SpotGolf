@@ -12,6 +12,7 @@ class SyncService: NSObject, ObservableObject {
     }
     var guessStore: GuessStore?
     var settingsStore: SettingsStore?
+    var trackStore: TrackStore?
 
     @Published var isConnected = false
     @Published var isReceivingCourse = false
@@ -110,6 +111,14 @@ class SyncService: NSObject, ObservableObject {
                 syncError = "Could not sync course data to the watch."
             }
 
+        case .setHole(let holeIndex, let roundID, let changedAt):
+            sendPayload([
+                "type": "setHole",
+                "roundId": roundID.uuidString,
+                "holeIndex": holeIndex,
+                "changedAt": changedAt.timeIntervalSince1970
+            ], via: session)
+
         case .setMarkType(let markID, let markType, let roundID):
             sendPayload([
                 "type": "setMarkType",
@@ -204,6 +213,34 @@ class SyncService: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - Tracks
+
+    /// Queues the watch's finished GPS tracks for transfer to the phone.
+    func sendPendingTracks() {
+        #if os(watchOS)
+        guard let session, session.activationState == .activated,
+              let roundStore, let trackStore else { return }
+
+        trackStore.moveFinishedTracksToOutbox(activeRoundID: roundStore.activeRound?.id)
+
+        let inFlight = Set(session.outstandingFileTransfers.map { $0.file.fileURL.lastPathComponent })
+        for url in trackStore.outboxFiles() where !inFlight.contains(url.lastPathComponent) {
+            guard let info = TrackStore.parseFileName(url) else { continue }
+            session.transferFile(url, metadata: [
+                "type": "track",
+                "roundId": info.roundID.uuidString,
+                "source": info.source.rawValue
+            ])
+        }
+        #endif
+    }
+
+    func handleReceivedTrack(at url: URL, roundID: UUID, source: TrackSource) {
+        // A file can arrive before the app has wired its stores; the files on disk are the truth
+        (trackStore ?? TrackStore()).importSegment(from: url, roundID: roundID, source: source)
+        try? FileManager.default.removeItem(at: url)
+    }
+
     // MARK: - Receive
 
     func handleMessage(_ message: [String: Any]) {
@@ -264,6 +301,14 @@ class SyncService: NSObject, ObservableObject {
                   let holeIndex = message["holeIndex"] as? Int,
                   let mark = try? JSONDecoder().decode(BallMark.self, from: data) else { return }
             roundStore?.addMark(to: roundID, holeIndex: holeIndex, mark: mark, fromSync: true)
+
+        case "setHole":
+            guard let idString = message["roundId"] as? String,
+                  let roundID = UUID(uuidString: idString),
+                  let holeIndex = message["holeIndex"] as? Int,
+                  let changedAt = message["changedAt"] as? Double else { return }
+            roundStore?.setHoleIndex(holeIndex, roundID: roundID,
+                                     changedAt: Date(timeIntervalSince1970: changedAt), fromSync: true)
 
         case "setMarkType":
             guard let markIdString = message["markId"] as? String,
@@ -338,7 +383,10 @@ extension SyncService: @preconcurrency WCSessionDelegate {
         } else {
             print("[Sync] WCSession activated – state: \(activationState.rawValue), reachable: \(session.isReachable)")
         }
-        Task { @MainActor in self.updateConnectionStatus() }
+        Task { @MainActor in
+            self.updateConnectionStatus()
+            self.sendPendingTracks()
+        }
     }
 
     #if os(iOS)
@@ -354,6 +402,38 @@ extension SyncService: @preconcurrency WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         Task { @MainActor in self.handleMessage(userInfo) }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?["type"] as? String == "track",
+              let idString = file.metadata?["roundId"] as? String,
+              let roundID = UUID(uuidString: idString),
+              let sourceString = file.metadata?["source"] as? String,
+              let source = TrackSource(rawValue: sourceString) else { return }
+
+        // The system deletes the file when this method returns, so copy it first
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).\(TrackStore.fileExtension)")
+        do {
+            try FileManager.default.copyItem(at: file.fileURL, to: copy)
+        } catch {
+            print("[Sync] Failed to copy received track: \(error)")
+            return
+        }
+        Task { @MainActor in
+            self.handleReceivedTrack(at: copy, roundID: roundID, source: source)
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        let url = fileTransfer.file.fileURL
+        Task { @MainActor in
+            if let error {
+                // The file stays in the outbox and is sent again by the next sendPendingTracks()
+                print("[Sync] Track transfer failed: \(error)")
+                return
+            }
+            self.trackStore?.removeOutboxFile(url)
+        }
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {

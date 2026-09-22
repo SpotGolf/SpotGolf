@@ -8,6 +8,11 @@ class RoundStore: ObservableObject {
 
     var onSyncEvent: ((SyncMessage) -> Void)?
 
+    // When the current hole last changed, on either device. Every message is delivered twice and
+    // the queued copy can arrive late, so a hole change from the other device that is not newer
+    // than this is dropped.
+    private var lastHoleChange = Date.distantPast
+
     var activeRound: Round? {
         rounds.first(where: { $0.isActive })
     }
@@ -90,6 +95,7 @@ class RoundStore: ObservableObject {
         if let index = rounds.firstIndex(where: predicate) {
             guard rounds[index].nextHole() else { return }
             save()
+            holeChanged(in: rounds[index])
         }
     }
 
@@ -102,16 +108,29 @@ class RoundStore: ObservableObject {
         if let index = rounds.firstIndex(where: predicate) {
             guard rounds[index].previousHole() else { return }
             save()
+            holeChanged(in: rounds[index])
         }
     }
 
-    func setHoleIndex(_ index: Int, roundID: UUID? = nil) {
+    /// Tells the other device which hole this one moved to, so both stay on the same hole.
+    private func holeChanged(in round: Round) {
+        // Always later than the last change seen, even when the other device's clock runs ahead
+        lastHoleChange = max(Date(), lastHoleChange.addingTimeInterval(0.001))
+        onSyncEvent?(.setHole(round.currentHoleIndex, round.id, lastHoleChange))
+    }
+
+    func setHoleIndex(_ index: Int, roundID: UUID? = nil, changedAt: Date = Date(), fromSync: Bool = false) {
         let predicate: (Round) -> Bool = if let roundID {
             { $0.id == roundID }
         } else {
             { $0.isActive }
         }
         if let i = rounds.firstIndex(where: predicate) {
+            if fromSync {
+                // A repeat of a change already applied, or a choice older than the latest one
+                guard changedAt > lastHoleChange else { return }
+                lastHoleChange = changedAt
+            }
             while rounds[i].holes.count <= index && rounds[i].holes.count < Round.maxHoles {
                 rounds[i].holes.append(RoundHole())
             }
@@ -119,6 +138,9 @@ class RoundStore: ObservableObject {
             guard clamped != rounds[i].currentHoleIndex else { return }
             rounds[i].currentHoleIndex = clamped
             save()
+            if !fromSync {
+                holeChanged(in: rounds[i])
+            }
         }
     }
 

@@ -420,4 +420,68 @@ final class SyncServiceTests: XCTestCase {
 
         XCTAssertTrue(syncMessages.isEmpty, "Handled messages should use fromSync: true")
     }
+
+    // MARK: - setHole message
+
+    func testHandleSetHoleMessage() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+
+        service.handleMessage([
+            "type": "setHole",
+            "roundId": roundID.uuidString,
+            "holeIndex": 6,
+            "changedAt": Date().addingTimeInterval(1).timeIntervalSince1970
+        ])
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 6)
+    }
+
+    func testHandleSetHoleDoesNotEchoBack() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+        var syncMessages: [SyncMessage] = []
+        store.onSyncEvent = { syncMessages.append($0) }
+
+        service.handleMessage([
+            "type": "setHole",
+            "roundId": roundID.uuidString,
+            "holeIndex": 6,
+            "changedAt": Date().addingTimeInterval(1).timeIntervalSince1970
+        ])
+
+        XCTAssertTrue(syncMessages.isEmpty, "A hole change from the other device should not be sent back")
+    }
+
+    func testHandleSetHoleWithMissingFieldsIsIgnored() {
+        let roundID = UUID()
+        store.startRound(id: roundID, fromSync: true)
+
+        service.handleMessage(["type": "setHole", "roundId": roundID.uuidString, "holeIndex": 6])
+        service.handleMessage(["type": "setHole", "holeIndex": 6, "changedAt": Date().timeIntervalSince1970 + 1])
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+    }
+
+    // MARK: - Received track files
+
+    func testHandleReceivedTrackImportsAndRemovesFile() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let tracks = TrackStore(directory: directory)
+        service.trackStore = tracks
+
+        // Build the file the way the watch would send it
+        let roundID = UUID()
+        let sender = TrackStore(directory: directory.appendingPathComponent("sender"))
+        sender.append([CLLocation(latitude: 39.95545, longitude: -105.0422)],
+                      roundID: roundID, source: .watch)
+        sender.flush()
+        let received = sender.fileURL(for: roundID, source: .watch)
+
+        service.handleReceivedTrack(at: received, roundID: roundID, source: .watch)
+
+        XCTAssertEqual(tracks.points(for: roundID, source: .watch).count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: received.path))
+    }
 }

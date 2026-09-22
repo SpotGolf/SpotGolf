@@ -59,14 +59,6 @@ final class RoundTests: XCTestCase {
         XCTAssertFalse(round.isActive)
     }
 
-    func testFormattedDate() {
-        let round = Round()
-        let formatted = round.formattedDate
-
-        // formattedDate should produce a non-empty string
-        XCTAssertFalse(formatted.isEmpty)
-    }
-
     func testCodableRoundTrip() throws {
         var round = Round()
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))

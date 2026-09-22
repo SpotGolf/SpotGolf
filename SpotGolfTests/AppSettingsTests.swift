@@ -6,14 +6,12 @@ final class AppSettingsTests: XCTestCase {
     func testDefaults() {
         let settings = AppSettings.default
         XCTAssertTrue(settings.missedMarkGuessesEnabled)
-        XCTAssertTrue(settings.hapticEnabled)
         XCTAssertEqual(settings.stationaryThreshold, 30)
     }
 
     func testCodableRoundTrip() throws {
         let settings = AppSettings(
             missedMarkGuessesEnabled: false,
-            hapticEnabled: false,
             stationaryThreshold: 45
         )
         let data = try JSONEncoder().encode(settings)
@@ -23,9 +21,9 @@ final class AppSettingsTests: XCTestCase {
     }
 
     func testEquatable() {
-        let a = AppSettings(missedMarkGuessesEnabled: true, hapticEnabled: true, stationaryThreshold: 30)
-        let b = AppSettings(missedMarkGuessesEnabled: true, hapticEnabled: true, stationaryThreshold: 30)
-        let c = AppSettings(missedMarkGuessesEnabled: false, hapticEnabled: true, stationaryThreshold: 30)
+        let a = AppSettings(missedMarkGuessesEnabled: true, stationaryThreshold: 30)
+        let b = AppSettings(missedMarkGuessesEnabled: true, stationaryThreshold: 30)
+        let c = AppSettings(missedMarkGuessesEnabled: false, stationaryThreshold: 30)
 
         XCTAssertEqual(a, b)
         XCTAssertNotEqual(a, c)

@@ -249,13 +249,18 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].holes.count, 2)
     }
 
-    func testNextHoleDoesNotFireSyncEvent() {
+    func testNextHoleFiresSyncEvent() {
         store.startRound()
         syncMessages.removeAll()
 
         store.nextHole()
 
-        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertEqual(syncMessages.count, 1)
+        guard case .setHole(let holeIndex, let roundID, _) = syncMessages[0] else {
+            return XCTFail("Expected a setHole message")
+        }
+        XCTAssertEqual(holeIndex, 1)
+        XCTAssertEqual(roundID, store.rounds[0].id)
     }
 
     func testPreviousRoundHole() {
@@ -268,22 +273,98 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
     }
 
-    func testPreviousHoleDoesNotFireSyncEvent() {
+    func testPreviousHoleFiresSyncEvent() {
         store.startRound()
         store.nextHole()
         syncMessages.removeAll()
 
         store.previousHole()
 
-        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertEqual(syncMessages.count, 1)
+        guard case .setHole(let holeIndex, _, _) = syncMessages[0] else {
+            return XCTFail("Expected a setHole message")
+        }
+        XCTAssertEqual(holeIndex, 0)
     }
 
     func testPreviousHoleAtZeroIsNoOp() {
         store.startRound()
+        syncMessages.removeAll()
 
         store.previousHole()
 
         XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+        XCTAssertTrue(syncMessages.isEmpty)
+    }
+
+    // MARK: - setHoleIndex
+
+    func testSetHoleIndexFiresSyncEvent() {
+        store.startRound()
+        syncMessages.removeAll()
+
+        store.setHoleIndex(4)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 4)
+        XCTAssertEqual(syncMessages.count, 1)
+        guard case .setHole(let holeIndex, let roundID, _) = syncMessages[0] else {
+            return XCTFail("Expected a setHole message")
+        }
+        XCTAssertEqual(holeIndex, 4)
+        XCTAssertEqual(roundID, store.rounds[0].id)
+    }
+
+    func testSetHoleIndexToTheSameHoleDoesNotFireSyncEvent() {
+        store.startRound()
+        store.setHoleIndex(4)
+        syncMessages.removeAll()
+
+        store.setHoleIndex(4)
+
+        XCTAssertTrue(syncMessages.isEmpty)
+    }
+
+    func testSetHoleIndexFromSyncDoesNotFireSyncEvent() {
+        store.startRound()
+        syncMessages.removeAll()
+
+        store.setHoleIndex(4, roundID: store.rounds[0].id, changedAt: Date().addingTimeInterval(1), fromSync: true)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 4)
+        XCTAssertTrue(syncMessages.isEmpty)
+    }
+
+    func testRepeatedHoleChangeFromSyncIsIgnored() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        let chosenAt = Date().addingTimeInterval(1)
+        store.setHoleIndex(4, roundID: roundID, changedAt: chosenAt, fromSync: true)
+
+        // The player moves on locally, then the queued copy of the same message arrives
+        store.setHoleIndex(5)
+        store.setHoleIndex(4, roundID: roundID, changedAt: chosenAt, fromSync: true)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 5)
+    }
+
+    func testOlderHoleChangeFromSyncIsIgnored() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        store.setHoleIndex(5)
+
+        store.setHoleIndex(2, roundID: roundID, changedAt: Date().addingTimeInterval(-10), fromSync: true)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 5)
+    }
+
+    func testNewerHoleChangeFromSyncIsApplied() {
+        store.startRound()
+        let roundID = store.rounds[0].id
+        store.setHoleIndex(5)
+
+        store.setHoleIndex(2, roundID: roundID, changedAt: Date().addingTimeInterval(10), fromSync: true)
+
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 2)
     }
 
     func testNextHoleAt18IsNoOp() {

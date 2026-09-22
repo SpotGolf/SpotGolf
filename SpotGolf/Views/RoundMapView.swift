@@ -30,6 +30,7 @@ struct RoundMapView: View {
     @State private var selectedGuess: MissedMarkGuess?
     @State private var guessSpotIndex: Int = 0
     @State private var showClearGuessesConfirm = false
+    @State private var cameraChanges = 0
 
     var body: some View {
         Group {
@@ -70,15 +71,24 @@ struct RoundMapView: View {
                 panToHole()
             }
         }
+        .onChange(of: round?.currentHoleIndex) {
+            // Also covers a hole chosen on the watch
+            panToHole()
+        }
     }
 
     @ViewBuilder
     private func roundContent(_ round: Round) -> some View {
-        ZStack(alignment: .top) {
-            mapView(round)
-            overlayView(round)
+        VStack(spacing: 0) {
+            if round.isActive {
+                holeHeader(round)
+            }
+            ZStack(alignment: .top) {
+                mapView(round)
+                overlayView(round)
+            }
+            .ignoresSafeArea(edges: .bottom)
         }
-        .ignoresSafeArea(edges: .bottom)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(round.displayTitle)
@@ -89,6 +99,8 @@ struct RoundMapView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        // During a round the header has its own back button, so the bar and its title are hidden
+        .toolbar(round.isActive ? .hidden : .visible, for: .navigationBar)
         .sheet(isPresented: Binding(
             get: { selectedMark != nil && !showDeleteConfirm },
             set: { if !$0 && !showDeleteConfirm { selectedMark = nil } }
@@ -147,6 +159,12 @@ struct RoundMapView: View {
             }
             .mapControls {
                 MapCompass()
+            }
+            .overlay {
+                hazardBubbles(round, proxy: proxy)
+            }
+            .onMapCameraChange(frequency: .continuous) { _ in
+                cameraChanges &+= 1
             }
             .onMapCameraChange(frequency: .onEnd) { context in
                 guard followsUserLocation, let userLocation = locationManager.lastLocation else { return }
@@ -275,7 +293,19 @@ struct RoundMapView: View {
 
     private func overlayView(_ round: Round) -> some View {
         VStack {
-            informationPanel(round)
+            if round.isActive {
+                HStack {
+                    Spacer()
+                    keyInformation(round)
+                }
+            } else if !round.allMarks.isEmpty {
+                Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
+                    .font(.headline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial)
+            }
             Spacer()
             if round.isActive {
                 buttonBar(round)
@@ -283,142 +313,203 @@ struct RoundMapView: View {
         }
     }
 
-    @ViewBuilder
-    private func informationPanel(_ round: Round) -> some View {
-        if round.isActive {
-            VStack(spacing: 6) {
-                if let courseHole = round.currentCourseHole,
-                   let course = round.courseSelection?.course,
-                   let green = courseHole.green(from: course.features),
-                   let location = locationManager.lastLocation {
-                    let direction: Vector2D = courseHole.vector(for: green.id, from: course.features)
-                        ?? Vector2D(
-                            dx: green.center.latitude - location.coordinate.latitude,
-                            dy: green.center.longitude - location.coordinate.longitude
-                        ).normalized()
-                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
-                    let holeFeatures = course.features(for: courseHole)
-                    let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green)
+    // MARK: - Header
 
-                    Text("Par \(courseHole.par)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+    /// A back button, then every hole as a circle. The current hole's par and distance sit underneath.
+    private func holeHeader(_ round: Round) -> some View {
+        let holeCount = round.courseSelection?.orderedHoles.count ?? Round.maxHoles
+        return VStack(spacing: 6) {
+            HStack(spacing: 0) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.secondary.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 12)
+                .accessibilityLabel("Back")
 
-                    HStack(spacing: 20) {
-                        distanceLabel("Front", greenDist.front)
-                        distanceLabel("Mid", greenDist.middle)
-                        distanceLabel("Back", greenDist.back)
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(0..<holeCount, id: \.self) { index in
+                                holeCircle(index, round)
+                                    .id(index)
+                            }
+                        }
+                        .padding(.leading, 10)
+                        .padding(.trailing, 16)
+                        .padding(.vertical, 2)
                     }
-
-                    Divider()
-
-                    let detailItems = detailRows(round: round, features: features)
-                    detailGrid(detailItems)
-                } else {
-                    detailGrid(detailRows(round: round, features: []))
+                    .onAppear {
+                        proxy.scrollTo(round.currentHoleIndex, anchor: .center)
+                    }
+                    .onChange(of: round.currentHoleIndex) {
+                        withAnimation {
+                            proxy.scrollTo(round.currentHoleIndex, anchor: .center)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.thinMaterial.opacity(0.8))
-            .cornerRadius(12)
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("InformationPanel")
-        } else if !round.allMarks.isEmpty {
-            Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
-                .font(.headline)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial)
+
+            if let summary = holeSummary(round) {
+                Text(summary)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .accessibilityIdentifier("HoleSummary")
+            }
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+    }
+
+    private func holeCircle(_ index: Int, _ round: Round) -> some View {
+        let isCurrent = index == round.currentHoleIndex
+        let isPlayed = index < round.holes.count && !round.holes[index].marks.isEmpty
+        return Button {
+            selectHole(index, round)
+        } label: {
+            Text("\(index + 1)")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(isCurrent ? Color.white : Color.primary)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(isCurrent ? Color.green : isPlayed ? Color.green.opacity(0.18) : Color.clear))
+                .overlay(Circle().stroke(isCurrent ? Color.green : Color.secondary.opacity(0.5), lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Hole \(index + 1)")
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+    }
+
+    /// Goes to a hole by hand, which pauses automatic hole changes.
+    private func selectHole(_ index: Int, _ round: Round) {
+        holeAdvancer.pause()
+        if index == round.currentHoleIndex {
+            panToHole()
+        } else {
+            pendingPanToHole = true
+            roundStore.setHoleIndex(index)
         }
     }
 
-    private func distanceLabel(_ label: String, _ yards: Int) -> some View {
-        VStack(spacing: 1) {
-            Text("\(yards)")
-                .font(.body)
+    /// "Par 4 - 156 yds", or whichever part is known. Nil without a course.
+    private func holeSummary(_ round: Round) -> String? {
+        guard let courseHole = round.currentCourseHole else { return nil }
+        let par = "Par \(courseHole.par)"
+        guard let yards = yardsToGreenCenter(round) else { return par }
+        return "\(par) - \(yards) yds"
+    }
+
+    // MARK: - Key information
+
+    private func yardsToGreenCenter(_ round: Round) -> Int? {
+        guard let courseHole = round.currentCourseHole,
+              let course = round.courseSelection?.course,
+              let green = courseHole.green(from: course.features),
+              let location = locationManager.lastLocation else { return nil }
+        return Int(DistanceCalculator.yards(from: location, to: green.center.clLocation))
+    }
+
+    /// Feet up (+) or down (-) from the player to the center of the green.
+    private func feetToGreenCenter(_ round: Round) -> Int? {
+        guard let courseHole = round.currentCourseHole,
+              let course = round.courseSelection?.course,
+              let green = courseHole.green(from: course.features),
+              let greenElevation = green.center.elevation,
+              let location = locationManager.lastLocation,
+              location.verticalAccuracy >= 0 else { return nil }
+        return Int(((greenElevation - location.altitude) * 3.28084).rounded())
+    }
+
+    @ViewBuilder
+    private func keyInformation(_ round: Round) -> some View {
+        if round.courseSelection != nil {
+            let feet = feetToGreenCenter(round)
+            VStack(spacing: 8) {
+                keyInformationBox(value: yardsToGreenCenter(round).map(String.init) ?? "—",
+                                  caption: "yds to center",
+                                  identifier: "DistanceToCenter")
+                keyInformationBox(value: feet.map { $0 > 0 ? "+\($0)" : "\($0)" } ?? "—",
+                                  caption: "ft elevation",
+                                  identifier: "ElevationChange")
+            }
+            .padding(.trailing, 12)
+            .padding(.top, 12)
+        }
+    }
+
+    private func keyInformationBox(value: String, caption: String, identifier: String) -> some View {
+        VStack(spacing: 0) {
+            Text(value)
+                .font(.title3)
                 .fontWeight(.bold)
-            Text(label)
+            Text(caption)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+        .frame(width: 84)
+        .padding(.vertical, 8)
+        .background(.thickMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(identifier)
     }
 
-    private struct DetailRow: Identifiable {
-        let id = UUID()
-        let left: DetailItem
-        let right: DetailItem?
+    // MARK: - Hazards
+
+    /// Bunkers and water between the player and the green on the current hole.
+    private func hazardsAhead(_ round: Round) -> [FeatureDistance] {
+        guard round.isActive,
+              let courseHole = round.currentCourseHole,
+              let course = round.courseSelection?.course,
+              let green = courseHole.green(from: course.features),
+              let location = locationManager.lastLocation else { return [] }
+        return DistanceCalculator.featuresAhead(from: location, features: course.features(for: courseHole), green: green, limit: .max)
     }
 
-    private struct DetailItem {
-        let icon: String?
-        let iconColor: Color?
-        let label: String
-        let value: String
-    }
-
-    private func detailRows(round: Round, features: [FeatureDistance]) -> [DetailRow] {
-        var items: [DetailItem] = [
-            DetailItem(icon: nil, iconColor: nil, label: "Previous", value: previousDistance(round)),
-            DetailItem(icon: nil, iconColor: nil, label: "Strokes", value: "\(round.currentHole.strokeCount)")
-        ]
-        for fd in features {
-            items.append(DetailItem(
-                icon: fd.feature.type == .water ? "drop.fill" : "square.fill",
-                iconColor: fd.feature.type == .water ? .blue : .yellow,
-                label: fd.feature.type.rawValue.capitalized,
-                value: "\(fd.distanceYards) yds"
-            ))
-        }
-        var rows: [DetailRow] = []
-        for i in stride(from: 0, to: items.count, by: 2) {
-            rows.append(DetailRow(left: items[i], right: i + 1 < items.count ? items[i + 1] : nil))
-        }
-        return rows
-    }
-
-    private func detailGrid(_ rows: [DetailRow]) -> some View {
-        VStack(spacing: 4) {
-            ForEach(rows) { row in
-                HStack(spacing: 0) {
-                    detailCell(row.left)
-                    if let right = row.right {
-                        detailCell(right)
-                    } else {
-                        Spacer().frame(maxWidth: .infinity)
-                    }
+    /// The bubbles are drawn over the map rather than as map annotations, because an annotation
+    /// swallows touches and would block a long press that adds a mark underneath it.
+    private func hazardBubbles(_ round: Round, proxy: MapProxy) -> some View {
+        // Reading the counter redraws the bubbles as the camera moves
+        _ = cameraChanges
+        return ZStack {
+            ForEach(hazardsAhead(round)) { hazard in
+                if let point = proxy.convert(hazard.nearestPoint.clCoordinate, to: .local) {
+                    hazardBubble(yards: hazard.distanceYards)
+                        .fixedSize()
+                        .frame(width: 0, height: 0, alignment: .bottom)
+                        .position(point)
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .allowsHitTesting(false)
     }
 
-    private func detailCell(_ item: DetailItem) -> some View {
-        HStack(spacing: 4) {
-            if let icon = item.icon, let color = item.iconColor {
-                Image(systemName: icon)
-                    .font(.system(size: 8))
-                    .foregroundStyle(color)
-            }
-            Text(item.label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(item.value)
-                .font(.caption)
-                .fontWeight(.semibold)
+    /// A small white bubble whose arrow tip sits on the start of the hazard.
+    private func hazardBubble(yards: Int) -> some View {
+        VStack(spacing: 0) {
+            Text("\(yards)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 5).fill(.white))
+            BubbleArrow()
+                .fill(.white)
+                .frame(width: 8, height: 5)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 4)
-    }
-
-    private func previousDistance(_ round: Round) -> String {
-        if let lastMark = round.marks.last,
-           let location = locationManager.lastLocation {
-            return DistanceCalculator.formattedYards(from: location, to: lastMark.location)
-        }
-        return "0 yds"
+        .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Hazard in \(yards) yards")
     }
 
     private func buttonBar(_ round: Round) -> some View {
@@ -437,102 +528,56 @@ struct RoundMapView: View {
                 .tint(.blue)
             }
 
-            HStack(spacing: 16) {
-                Button {
-                    holeAdvancer.pause()
-                    roundStore.previousHole()
-                    pendingPanToHole = true
-                } label: {
-                    Label("Prev", systemImage: "chevron.left")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.bordered)
-                .disabled(round.currentHoleIndex == 0)
-
-                Text("Hole \(round.currentHoleNumber)")
-                    .font(.headline)
-                    .accessibilityIdentifier("Hole \(round.currentHoleNumber)")
-
-                Button {
-                    holeAdvancer.pause()
-                    roundStore.nextHole()
-                    pendingPanToHole = true
-                } label: {
-                    Label("Next", systemImage: "chevron.right")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.bordered)
-                .disabled(round.holes.count >= Round.maxHoles && round.currentHoleIndex == round.holes.count - 1)
-            }
-
             HStack {
                 Spacer()
 
-                Button(action: markBall) {
-                    Label("At my ball", systemImage: "mappin.and.ellipse")
-                        .font(.headline)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-
-                Spacer()
-                    .overlay(alignment: .leading) {
-                        VStack(spacing: 8) {
-                            Button {
-                                followsUserLocation = true
-                                if let location = locationManager.lastLocation {
-                                    if let heading = currentHoleHeading() {
-                                        position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
-                                    } else {
-                                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: followsUserLocation ? "location.fill" : "location")
-                                    .font(.title3)
-                                    .foregroundStyle(.blue)
-                                    .padding(14)
-                                    .background(.thickMaterial)
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                            }
-
-                            if hasGuessesForCurrentHole(round) {
-                                Button {
-                                    showGhostPins.toggle()
-                                } label: {
-                                    Image(systemName: showGhostPins ? "eye.fill" : "eye.slash")
-                                        .font(.title3)
-                                        .foregroundStyle(.orange)
-                                        .padding(14)
-                                        .background(.thickMaterial)
-                                        .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                                }
-
-                                Button {
-                                    showClearGuessesConfirm = true
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .font(.title3)
-                                        .foregroundStyle(.red)
-                                        .padding(14)
-                                        .background(.thickMaterial)
-                                        .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                                }
+                VStack(spacing: 8) {
+                    Button {
+                        followsUserLocation = true
+                        if let location = locationManager.lastLocation {
+                            if let heading = currentHoleHeading() {
+                                position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                            } else {
+                                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
                             }
                         }
-                        .padding(.leading, 16)
+                    } label: {
+                        Image(systemName: followsUserLocation ? "location.fill" : "location")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                            .padding(14)
+                            .background(.thickMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
                     }
+
+                    if hasGuessesForCurrentHole(round) {
+                        Button {
+                            showGhostPins.toggle()
+                        } label: {
+                            Image(systemName: showGhostPins ? "eye.fill" : "eye.slash")
+                                .font(.title3)
+                                .foregroundStyle(.orange)
+                                .padding(14)
+                                .background(.thickMaterial)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        }
+
+                        Button {
+                            showClearGuessesConfirm = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.title3)
+                                .foregroundStyle(.red)
+                                .padding(14)
+                                .background(.thickMaterial)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        }
+                    }
+                }
+                .padding(.trailing, 16)
             }
         }
         .padding(.bottom, 32)
@@ -610,12 +655,6 @@ struct RoundMapView: View {
             }
         }
         .presentationDetents([.medium])
-    }
-
-    private func markBall() {
-        guard let location = locationManager.lastLocation else { return }
-        let mark = BallMark(coordinate: location.coordinate)
-        roundStore.addMark(mark)
     }
 
     private func currentHoleHeading() -> Double? {
@@ -773,5 +812,17 @@ struct RoundMapView: View {
 
     private func hasGuessesForCurrentHole(_ round: Round) -> Bool {
         !guessStore.guesses(for: round.id, holeIndex: round.currentHoleIndex).isEmpty
+    }
+}
+
+/// A triangle pointing down.
+private struct BubbleArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }

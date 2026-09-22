@@ -193,6 +193,31 @@ final class DistanceCalculatorTests: XCTestCase {
         XCTAssertGreaterThan(result.first?.distanceYards ?? 0, 0)
     }
 
+    func testFeaturesAheadReportsWhereTheHazardStarts() throws {
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4450, longitude: -112.0705),
+            Coordinate(latitude: 33.4450, longitude: -112.0695),
+            Coordinate(latitude: 33.4460, longitude: -112.0695),
+            Coordinate(latitude: 33.4460, longitude: -112.0705),
+        ])
+        let bunker = Feature(id: 2, type: .bunker, polygon: [
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0695),
+            Coordinate(latitude: 33.4425, longitude: -112.0695),
+            Coordinate(latitude: 33.4425, longitude: -112.0705),
+        ])
+
+        let hazard = try XCTUnwrap(DistanceCalculator.featuresAhead(from: playerLocation, features: [bunker], green: green).first)
+
+        // The player is due south, so the hazard starts at a corner of its south edge
+        XCTAssertTrue(bunker.polygon.contains(hazard.nearestPoint))
+        XCTAssertEqual(hazard.nearestPoint.latitude, 33.4420, accuracy: 0.00001)
+        let yards = DistanceCalculator.yards(from: playerLocation, to: hazard.nearestPoint.clLocation)
+        XCTAssertEqual(Double(hazard.distanceYards), yards, accuracy: 1)
+        XCTAssertEqual(hazard.id, 2)
+    }
+
     func testFeaturesAheadExcludesOffLineFeatures() {
         // Player at south, green to the north
         let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)

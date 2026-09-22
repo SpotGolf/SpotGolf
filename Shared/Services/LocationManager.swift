@@ -6,6 +6,9 @@ class LocationManager: NSObject, ObservableObject {
     @Published var lastLocation: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
 
+    /// Called with every valid fix, before accuracy filtering and smoothing.
+    var onRawLocations: (@MainActor ([CLLocation]) -> Void)?
+
     private let manager = CLLocationManager()
     private var recentLocations: [CLLocation] = []
     private static let maxRecent = 3
@@ -16,14 +19,14 @@ class LocationManager: NSObject, ObservableObject {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = kCLDistanceFilterNone
+        #if os(watchOS)
+        // Keeps fixes coming while the wrist is down. Needs the location background mode.
+        manager.allowsBackgroundLocationUpdates = true
+        #endif
     }
 
     func requestPermission() {
         manager.requestWhenInUseAuthorization()
-    }
-
-    func requestLocation() {
-        manager.requestLocation()
     }
 
     func startUpdating() {
@@ -38,6 +41,11 @@ class LocationManager: NSObject, ObservableObject {
 
 extension LocationManager: @preconcurrency CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let valid = locations.filter { $0.horizontalAccuracy >= 0 }
+        if !valid.isEmpty {
+            onRawLocations?(valid)
+        }
+
         guard let location = locations.last else { return }
 
         #if targetEnvironment(simulator)

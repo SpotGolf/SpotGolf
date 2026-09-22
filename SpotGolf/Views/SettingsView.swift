@@ -18,12 +18,6 @@ struct SettingsView: View {
 
                 if settingsStore.settings.missedMarkGuessesEnabled {
                     Section {
-                        Toggle("Haptic Reminders", isOn: $settingsStore.settings.hapticEnabled)
-                    } footer: {
-                        Text("Tap your wrist when you stop moving and haven't marked your ball recently.")
-                    }
-
-                    Section {
                         Picker("Stationary Threshold", selection: $settingsStore.settings.stationaryThreshold) {
                             ForEach(thresholdOptions, id: \.self) { seconds in
                                 Text("\(seconds)s").tag(TimeInterval(seconds))

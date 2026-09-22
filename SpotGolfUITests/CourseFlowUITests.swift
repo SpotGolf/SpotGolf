@@ -67,13 +67,16 @@ final class CourseFlowUITests: XCTestCase {
         startButton.tap()
 
         // Should navigate directly to the map view
-        let hole1Label = app.staticTexts["Hole 1"]
-        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Should navigate to map showing Hole 1")
+        XCTAssertTrue(app.waitForCurrentHole(1), "Should navigate to map showing Hole 1")
+
+        // Front and Back are both selected by default, so the header lists 18 holes
+        XCTAssertTrue(app.holeButton(18).exists, "Header should list all 18 holes")
+        XCTAssertFalse(app.holeButton(19).exists, "Header should stop at hole 18")
     }
 
-    // MARK: - Information Panel with Course Data
+    // MARK: - Header and Key Information with Course Data
 
-    func testInformationPanelShowsCourseData() throws {
+    func testHeaderAndKeyInformationShowCourseData() throws {
         setLocationToHole1Tee()
         app.launch()
         dismissLocationAlert()
@@ -81,25 +84,23 @@ final class CourseFlowUITests: XCTestCase {
         // Start round with course
         startRoundWithCourse()
 
-        // Wait for location to register and panel to update
+        // Wait for location to register
         sleep(3)
 
-        // Information panel should be visible
-        let informationPanel = app.descendants(matching: .any).matching(identifier: "InformationPanel").firstMatch
-        XCTAssertTrue(informationPanel.waitForExistence(timeout: 10), "Information panel should be visible")
+        // Under the hole circles: par, then yards to the center of the green
+        let summary = app.staticTexts["HoleSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), "Par and distance should appear under the hole circles")
+        XCTAssertNotNil(summary.label.range(of: #"^Par 4 - \d+ yds$"#, options: .regularExpression),
+                        "Header line was '\(summary.label)'")
 
-        // Par should display for hole 1
-        let parLabel = app.staticTexts["Par 4"]
-        XCTAssertTrue(parLabel.waitForExistence(timeout: 5), "Par 4 should appear for hole 1")
+        // Key information boxes on the right of the map
+        let distance = app.descendants(matching: .any).matching(identifier: "DistanceToCenter").firstMatch
+        XCTAssertTrue(distance.waitForExistence(timeout: 5), "Distance to center box should exist")
+        XCTAssertNotNil(distance.label.range(of: #"^\d+"#, options: .regularExpression),
+                        "Distance box was '\(distance.label)'")
 
-        // Green distance labels should appear
-        XCTAssertTrue(app.staticTexts["Front"].waitForExistence(timeout: 5), "Front distance label should exist")
-        XCTAssertTrue(app.staticTexts["Mid"].waitForExistence(timeout: 5), "Mid distance label should exist")
-        XCTAssertTrue(app.staticTexts["Back"].waitForExistence(timeout: 5), "Back distance label should exist")
-
-        // Previous and Strokes should also be in the panel
-        XCTAssertTrue(app.staticTexts["Previous"].waitForExistence(timeout: 5), "Previous label should exist")
-        XCTAssertTrue(app.staticTexts["Strokes"].waitForExistence(timeout: 5), "Strokes label should exist")
+        let elevation = app.descendants(matching: .any).matching(identifier: "ElevationChange").firstMatch
+        XCTAssertTrue(elevation.exists, "Elevation change box should exist")
     }
 
     // MARK: - Resume Round Detects Nearest Hole
@@ -113,17 +114,10 @@ final class CourseFlowUITests: XCTestCase {
         sleep(2)
 
         // Verify starting on Hole 1
-        let hole1Label = app.staticTexts["Hole 1"]
-        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.waitForCurrentHole(1))
 
         // Manually navigate to Hole 2 (pauses auto-advance)
-        let nextButton = app.buttons["Next"]
-        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
-        nextButton.tap()
-        sleep(1)
-
-        let hole2Label = app.staticTexts["Hole 2"]
-        XCTAssertTrue(hole2Label.waitForExistence(timeout: 5), "Should be on Hole 2")
+        app.goToHole(2)
 
         // Resume round button should appear (since we manually navigated)
         let resumeButton = app.buttons["Resume round"]
@@ -137,8 +131,7 @@ final class CourseFlowUITests: XCTestCase {
         sleep(2)
 
         // Should detect we're near Hole 1 and switch back
-        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5),
-                      "Resume should detect Hole 1 from GPS location")
+        XCTAssertTrue(app.waitForCurrentHole(1), "Resume should detect Hole 1 from GPS location")
 
         // Resume button should be gone
         XCTAssertFalse(app.buttons["Resume round"].exists, "Resume button should disappear after resuming")
@@ -155,18 +148,8 @@ final class CourseFlowUITests: XCTestCase {
         sleep(2)
 
         // Manually navigate to Hole 2, then back to Hole 1
-        let nextButton = app.buttons["Next"]
-        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
-        nextButton.tap()
-        sleep(1)
-
-        let prevButton = app.buttons["Prev"]
-        XCTAssertTrue(prevButton.waitForExistence(timeout: 5))
-        prevButton.tap()
-        sleep(1)
-
-        let hole1Label = app.staticTexts["Hole 1"]
-        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Should be on Hole 1")
+        app.goToHole(2)
+        app.goToHole(1)
 
         // Resume button should appear since we used manual navigation
         let resumeButton = app.buttons["Resume round"]
@@ -180,14 +163,12 @@ final class CourseFlowUITests: XCTestCase {
         sleep(2)
 
         // Should detect we're near Hole 2
-        let hole2Label = app.staticTexts["Hole 2"]
-        XCTAssertTrue(hole2Label.waitForExistence(timeout: 5),
-                      "Resume should detect Hole 2 from GPS location")
+        XCTAssertTrue(app.waitForCurrentHole(2), "Resume should detect Hole 2 from GPS location")
     }
 
-    // MARK: - Information Panel Updates on Hole Change
+    // MARK: - Header and Hazards Update on Hole Change
 
-    func testInformationPanelUpdatesOnHoleChange() throws {
+    func testHeaderAndHazardsUpdateOnHoleChange() throws {
         setLocationToHole1Tee()
         app.launch()
         dismissLocationAlert()
@@ -196,28 +177,25 @@ final class CourseFlowUITests: XCTestCase {
         sleep(3)
 
         // Should show Par 4 for hole 1
-        let par4 = app.staticTexts["Par 4"]
-        XCTAssertTrue(par4.waitForExistence(timeout: 5), "Par 4 should appear for hole 1")
+        let summary = app.staticTexts["HoleSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5), "Par and distance should appear for hole 1")
+        XCTAssertTrue(summary.label.hasPrefix("Par 4"), "Header line was '\(summary.label)'")
+        let hole1Summary = summary.label
 
         // Navigate to hole 2 first (pauses auto-advance), then move location
-        let nextButton = app.buttons["Next"]
-        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
-        nextButton.tap()
-        sleep(1)
-
-        let hole2Label = app.staticTexts["Hole 2"]
-        XCTAssertTrue(hole2Label.waitForExistence(timeout: 5), "Should be on Hole 2")
+        app.goToHole(2)
 
         // Move location to hole 2 tee so distances update
         setLocationToHole2Tee()
         sleep(3)
 
-        // Par should still show (hole 2 is also par 4 in test data)
-        XCTAssertTrue(par4.waitForExistence(timeout: 5), "Par 4 should appear for hole 2")
+        // Hole 2 is also par 4 in test data, but its green is a different distance away
+        XCTAssertTrue(summary.label.hasPrefix("Par 4"), "Header line was '\(summary.label)'")
+        XCTAssertNotEqual(summary.label, hole1Summary, "Distance should change on hole 2")
 
-        // Bunker should appear for hole 2 (4 bunkers between tee and green)
-        let bunkerLabel = app.staticTexts["Bunker"]
-        XCTAssertTrue(bunkerLabel.waitForExistence(timeout: 5), "Bunker should appear for hole 2")
+        // Hole 2 has bunkers between the tee and the green: each gets a yardage bubble on the map
+        let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Hazard in '")).firstMatch
+        XCTAssertTrue(bubble.waitForExistence(timeout: 5), "Hazard bubbles should appear for hole 2")
     }
 
     // MARK: - Helpers
@@ -238,7 +216,6 @@ final class CourseFlowUITests: XCTestCase {
         startButton.tap()
 
         // Wait for map to load
-        let hole1Label = app.staticTexts["Hole 1"]
-        XCTAssertTrue(hole1Label.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.waitForCurrentHole(1))
     }
 }

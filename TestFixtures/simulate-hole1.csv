@@ -2,7 +2,7 @@
 # Format: latitude,longitude,pause_seconds,description
 # The golfer starts at the cart near the clubhouse, walks to the tee,
 # hits their drive, walks back to cart, drives down the cart path,
-# turns onto the fairway, stops near their ball, and forgets to mark.
+# turns onto the fairway, and stops near their ball.
 
 # Cart near clubhouse / hole 1 tee area
 39.95570,-105.04100,3,Parked at cart near hole 1
@@ -16,8 +16,6 @@
 39.95545,-105.04162,5,On tee box waiting
 39.95545,-105.04163,5,On tee box waiting
 39.95545,-105.04164,5,Still waiting on tee
-
-# MARK: User should click "At my ball" here (tee shot)
 
 # Walk back to cart
 39.95548,-105.04155,2,Walking back to cart
@@ -41,7 +39,6 @@
 39.95545,-105.04400,2,Slowing down near ball
 
 # Stop at ball — golfer gets out, assesses shot
-# This is where the "forgot to mark" scenario happens
 # The golfer should be stationary here for 30+ seconds
 39.95540,-105.04410,5,Stopped near ball
 39.95540,-105.04410,5,Standing at ball
@@ -50,4 +47,4 @@
 39.95540,-105.04410,5,Standing at ball
 39.95540,-105.04410,5,Standing at ball
 39.95540,-105.04410,5,Standing at ball
-39.95540,-105.04410,5,Still at ball - should trigger reminder
+39.95540,-105.04410,5,Still at ball - should trigger guess

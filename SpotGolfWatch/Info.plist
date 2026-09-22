@@ -26,12 +26,16 @@
 	<string>SpotGolf uses HealthKit to keep the app active during your round.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>WKApplication</key>
+	<true/>
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
 	</array>
-	<key>WKApplication</key>
-	<true/>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>golf.spot.SpotGolf</string>
 	<key>WKWatchOnly</key>

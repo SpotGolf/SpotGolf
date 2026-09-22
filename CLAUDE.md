@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-SpotGolf - A simple golf ball tracking app for iOS and watchOS. The core feature is an "At my ball" button that marks a player's ball location via GPS.
+SpotGolf - A simple golf ball tracking app for iOS and watchOS. The app guesses when a player takes a swing from their location data and marks the ball location via GPS.
 
 ## Status
 

@@ -12,7 +12,8 @@ fileGroups:
   - plans
 packages:
   CourseData:
-    path: ../CourseData
+    url: https://github.com/SpotGolf/CourseDataSwift
+    exactVersion: "0.1.0"
 
 schemes:
   SpotGolf:
@@ -98,6 +99,8 @@ targets:
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
         WKBackgroundModes:
           - workout-processing
+        UIBackgroundModes:
+          - location
         WKApplication: true
         WKCompanionAppBundleIdentifier: golf.spot.SpotGolf
         WKWatchOnly: false
@@ -112,6 +115,8 @@ targets:
     sources:
       - path: SpotGolfTests
       - path: Shared
+      - path: ../CourseData/Data/US/CO/Broomfield/Broadlands-Golf-Course.json.gz
+        buildPhase: resources
     settings:
       base:
         SWIFT_VERSION: "5.9"

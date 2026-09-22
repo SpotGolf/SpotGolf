@@ -7,9 +7,13 @@ struct GreenDistances {
     let back: Int
 }
 
-struct FeatureDistance {
+struct FeatureDistance: Identifiable {
     let feature: Feature
     let distanceYards: Int
+    /// The point of the feature closest to the player: where the hazard starts.
+    let nearestPoint: Coordinate
+
+    var id: Int { feature.id }
 }
 
 enum DistanceCalculator {
@@ -87,7 +91,8 @@ enum DistanceCalculator {
 
             return FeatureDistance(
                 feature: feature,
-                distanceYards: Int(distToFeature * metersToYards)
+                distanceYards: Int(distToFeature * metersToYards),
+                nearestPoint: nearest
             )
         }
         .sorted { $0.distanceYards < $1.distanceYards }

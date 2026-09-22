@@ -4,6 +4,7 @@ struct RoundListView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var syncService: SyncService
+    @EnvironmentObject var trackStore: TrackStore
     @State private var showCourseSelection = false
     @State private var showSettings = false
 
@@ -25,6 +26,7 @@ struct RoundListView: View {
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
                             roundStore.deleteRound(round)
+                            trackStore.deleteRound(round.id)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }

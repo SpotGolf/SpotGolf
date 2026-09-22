@@ -21,10 +21,6 @@ struct Round: Identifiable {
         self.courseSelection = courseSelection
     }
 
-    var formattedDate: String {
-        date.formatted(date: .abbreviated, time: .shortened)
-    }
-
     var displayTitle: String {
         let dateStr = date.formatted(date: .long, time: .omitted)
         if let name = courseSelection?.course.name {

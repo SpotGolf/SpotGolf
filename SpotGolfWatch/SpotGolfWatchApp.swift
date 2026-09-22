@@ -10,6 +10,8 @@ struct SpotGolfWatchApp: App {
     @StateObject private var settingsStore = SettingsStore()
     @StateObject private var breadcrumbRecorder = BreadcrumbRecorder()
     @StateObject private var swingDetector = SwingDetector()
+    @StateObject private var trackStore = TrackStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +24,7 @@ struct SpotGolfWatchApp: App {
                 .environmentObject(settingsStore)
                 .environmentObject(breadcrumbRecorder)
                 .environmentObject(swingDetector)
+                .environmentObject(trackStore)
                 .onAppear {
                     if CommandLine.arguments.contains("--ui-testing") {
                         roundStore.rounds = []
@@ -29,8 +32,31 @@ struct SpotGolfWatchApp: App {
                     syncService.roundStore = roundStore
                     syncService.guessStore = guessStore
                     syncService.settingsStore = settingsStore
+                    syncService.trackStore = trackStore
+                    recordTrack()
+                    syncService.sendPendingTracks()
                     locationManager.requestPermission()
                 }
+                .onChange(of: roundStore.activeRound?.id) {
+                    trackStore.flush()
+                    syncService.sendPendingTracks()
+                }
+                .onChange(of: scenePhase) {
+                    if scenePhase != .active {
+                        trackStore.flush()
+                    }
+                }
+        }
+    }
+
+    /// Stores every GPS fix that arrives while a round is active.
+    @MainActor
+    private func recordTrack() {
+        let rounds = roundStore
+        let tracks = trackStore
+        locationManager.onRawLocations = { locations in
+            guard let round = rounds.activeRound else { return }
+            tracks.append(locations, roundID: round.id)
         }
     }
 }
