@@ -1,5 +1,5 @@
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 struct HoleAdvancer {
     private(set) var isPaused = false

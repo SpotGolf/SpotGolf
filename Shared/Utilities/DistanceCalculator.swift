@@ -1,5 +1,5 @@
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 struct GreenDistances {
     let front: Int

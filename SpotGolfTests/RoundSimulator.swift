@@ -1,6 +1,6 @@
 import Foundation
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 /// Repeatable random numbers, so a simulated round is the same on every run.
 struct SeededGenerator: RandomNumberGenerator {

@@ -1,6 +1,6 @@
 import XCTest
 import CoreLocation
-import CourseData
+import CourseDataSwift
 @testable import SpotGolf
 
 final class DistanceCalculatorTests: XCTestCase {

@@ -1,6 +1,6 @@
 import Foundation
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 @MainActor
 class RoundStore: ObservableObject {

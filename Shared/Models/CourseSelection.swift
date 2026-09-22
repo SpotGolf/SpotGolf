@@ -1,5 +1,5 @@
 import Foundation
-import CourseData
+import CourseDataSwift
 
 struct CourseSelection: Codable, Equatable {
     let course: Course

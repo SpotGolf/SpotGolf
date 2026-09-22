@@ -1,6 +1,6 @@
 import SwiftUI
 import MapKit
-import CourseData
+import CourseDataSwift
 
 struct RoundMapView: View {
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)

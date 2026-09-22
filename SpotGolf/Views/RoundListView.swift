@@ -7,6 +7,7 @@ struct RoundListView: View {
     @EnvironmentObject var trackStore: TrackStore
     @State private var showCourseSelection = false
     @State private var showSettings = false
+    @State private var roundToDelete: Round?
 
     var body: some View {
         List {
@@ -24,12 +25,13 @@ struct RoundListView: View {
                         RoundRow(round: round)
                     }
                     .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            roundStore.deleteRound(round)
-                            trackStore.deleteRound(round.id)
+                        // Not role: .destructive — that would animate the row away before the alert confirms.
+                        Button {
+                            roundToDelete = round
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
+                        .tint(.red)
                     }
                     .swipeActions(edge: .leading) {
                         if roundStore.activeRound == nil {
@@ -71,6 +73,18 @@ struct RoundListView: View {
                     }
                 }
             }
+        }
+        .alert("Delete Round", isPresented: Binding(
+            get: { roundToDelete != nil },
+            set: { if !$0 { roundToDelete = nil } }
+        ), presenting: roundToDelete) { round in
+            Button("Delete", role: .destructive) {
+                roundStore.deleteRound(round)
+                trackStore.deleteRound(round.id)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { round in
+            Text("Delete \"\(round.displayTitle)\"? This cannot be undone.")
         }
         .alert("Sync Error", isPresented: Binding(
             get: { syncService.syncError != nil },

@@ -1,6 +1,6 @@
 import SwiftUI
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 struct WatchRoundView: View {
     @EnvironmentObject var roundStore: RoundStore

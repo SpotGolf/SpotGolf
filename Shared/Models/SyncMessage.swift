@@ -1,5 +1,5 @@
 import Foundation
-import CourseData
+import CourseDataSwift
 
 enum SyncMessage {
     case startRound(UUID, Date)

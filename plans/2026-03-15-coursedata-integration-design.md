@@ -50,22 +50,22 @@ In the new model, `Hole.tees`, `Hole.features`, and `Hole.green(from:)` all work
 **`Shared/Models/Round.swift`**
 - `holes: [Hole]` → `holes: [RoundHole]`
 - `currentCourseHole` returns `CourseData.Hole?` (was `CourseHole?`)
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`Shared/Services/CourseService.swift`**
 - Base URL: `…/main/` → `…/main/Data/`
 - Replace custom ZLIB compress/decompress with CourseData's `Data.gzipCompressed()`/`gzipDecompressed()`
 - `fetchCourse`: the index paths reference `.json.gz` files. GitHub serves these as raw gzip bytes. Decompress with `gzipDecompressed()` before JSON decoding. Cache the raw (still-compressed) bytes to disk.
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`Shared/Services/HoleAdvancer.swift`**
 - `detectHole(location:courseSelection:)` — resolve tee feature IDs: iterate `hole.tees` values (feature IDs), call `courseSelection.course.findFeature(id:)?.center` to get coordinates for proximity check
 - `nearestHole(location:courseSelection:)` — resolve greens via `hole.green(from: courseSelection.course.features)?.center`, resolve features via `courseSelection.course.features(for: hole)` and use `.center`
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`Shared/Services/RoundStore.swift`**
 - `Hole` → `RoundHole` references
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`Shared/Utilities/DistanceCalculator.swift`**
 - `FeatureDistance`: uses `Feature` instead of `CourseFeature`
@@ -76,30 +76,30 @@ In the new model, `Hole.tees`, `Hole.features`, and `Hole.green(from:)` all work
 - New signature: `featuresAhead(from: CLLocation, features: [Feature], green: Feature) -> [FeatureDistance]`
   - Uses `feature.center.clLocation` for distance calculations
   - Filter to only hazard types: `.bunker` and `.water` (exclude `.fairway`, `.green`, `.tee`, `.rough`)
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`SpotGolf/Views/CourseSelectionView.swift`**
 - `subCourse.name ?? "Course \(index + 1)"` → `subCourse.name` (no longer optional)
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`SpotGolf/Views/RoundMapView.swift`**
 - `informationPanel`: resolve green via `courseHole.green(from: course.features)`, compute direction via `courseHole.vector(for: greenFeature.id, from: course.features)`, pass to `greenDistances`
 - Resolve hole features via `course.features(for: courseHole)` for `featuresAhead`
 - `panToCurrentTee`: resolve first tee feature ID → `course.findFeature(id:)?.center.clCoordinate`
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`SpotGolfWatch/Views/WatchRoundView.swift`**
 - `swingAwayView`: same green/feature resolution pattern as RoundMapView
 - `courseHole.green` → `courseHole.green(from: course.features)`
 - `courseHole.features ?? []` → `course.features(for: courseHole)` filtered to `.bunker`/`.water`
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 **`Shared/Models/SyncMessage.swift`**
-- Add `import CourseData` (references `CourseSelection` which uses CourseData types)
+- Add `import CourseDataSwift` (references `CourseSelection` which uses CourseData types)
 
 **`Shared/Services/SyncService.swift`**
 - No structural changes — `CourseSelection` is still Codable
-- Add `import CourseData`
+- Add `import CourseDataSwift`
 
 ### Project Configuration
 

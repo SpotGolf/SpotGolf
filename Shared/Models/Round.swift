@@ -1,5 +1,5 @@
 import Foundation
-import CourseData
+import CourseDataSwift
 
 struct Round: Identifiable {
     let id: UUID

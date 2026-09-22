@@ -1,6 +1,6 @@
 import XCTest
 import CoreLocation
-import CourseData
+import CourseDataSwift
 @testable import SpotGolf
 
 /// Plays the first three holes at Broadlands with `RoundSimulator` and records the GPS fixes the

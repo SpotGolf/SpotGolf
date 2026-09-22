@@ -169,7 +169,7 @@ struct CourseIndexEntry: Codable, Equatable {
 
 ```swift
 import Foundation
-import CourseData
+import CourseDataSwift
 
 struct CourseSelection: Codable, Equatable {
     let course: Course
@@ -211,7 +211,7 @@ git commit -m "Replace Course.swift with CourseData package, extract CourseIndex
 
 - [ ] **Step 1: Add import and update base URL**
 
-Add `import CourseData` at the top. Change the base URL:
+Add `import CourseDataSwift` at the top. Change the base URL:
 
 ```swift
 private static let baseURL = "https://raw.githubusercontent.com/SpotGolf/CourseData/main/Data/"
@@ -336,7 +336,7 @@ git commit -m "Update CourseService for CourseData gzip helpers and Data/ URL pa
 
 ```swift
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 struct HoleAdvancer {
     private(set) var isPaused = false
@@ -413,7 +413,7 @@ git commit -m "Update HoleAdvancer to resolve tee/green feature IDs via Course"
 
 ```swift
 import CoreLocation
-import CourseData
+import CourseDataSwift
 
 struct GreenDistances {
     let front: Int
@@ -492,7 +492,7 @@ git commit -m "Update DistanceCalculator for polygon-based Feature types"
 
 - [ ] **Step 1: Add import and update `currentCourseHole` return type**
 
-Add `import CourseData` at the top.
+Add `import CourseDataSwift` at the top.
 
 Update `currentCourseHole`:
 
@@ -505,7 +505,7 @@ var currentCourseHole: Hole? {
 }
 ```
 
-Note: `Hole` here is `CourseData.Hole` since `import CourseData` is present and the local `Hole` was renamed to `RoundHole`. The property name stays `currentCourseHole` to keep the intent clear.
+Note: `Hole` here is `CourseData.Hole` since `import CourseDataSwift` is present and the local `Hole` was renamed to `RoundHole`. The property name stays `currentCourseHole` to keep the intent clear.
 
 Also update `orderedHoles` convenience property if present:
 
@@ -531,13 +531,13 @@ git commit -m "Update Round.swift for CourseData.Hole type"
 - Modify: `Shared/Services/SyncService.swift`
 - Modify: `Shared/Services/RoundStore.swift`
 
-- [ ] **Step 1: Add `import CourseData` to each file**
+- [ ] **Step 1: Add `import CourseDataSwift` to each file**
 
-`SyncMessage.swift` — add `import CourseData` (references `CourseSelection` which uses `CourseData.Course`).
+`SyncMessage.swift` — add `import CourseDataSwift` (references `CourseSelection` which uses `CourseData.Course`).
 
-`SyncService.swift` — add `import CourseData`.
+`SyncService.swift` — add `import CourseDataSwift`.
 
-`RoundStore.swift` — add `import CourseData`.
+`RoundStore.swift` — add `import CourseDataSwift`.
 
 - [ ] **Step 2: Commit**
 
@@ -557,7 +557,7 @@ git commit -m "Add CourseData imports to sync and store files"
 
 - [ ] **Step 1: Add import**
 
-Add `import CourseData` at the top.
+Add `import CourseDataSwift` at the top.
 
 - [ ] **Step 2: Update `informationPanel` to resolve green and features via Course**
 
@@ -619,7 +619,7 @@ git commit -m "Update RoundMapView for polygon-based feature resolution"
 
 - [ ] **Step 1: Add import**
 
-Add `import CourseData` at the top.
+Add `import CourseDataSwift` at the top.
 
 - [ ] **Step 2: Update `swingAwayView` green and feature resolution**
 
@@ -672,7 +672,7 @@ git commit -m "Update WatchRoundView for polygon-based feature resolution"
 
 - [ ] **Step 1: Add import**
 
-Add `import CourseData` at the top.
+Add `import CourseDataSwift` at the top.
 
 - [ ] **Step 2: Update `subCourse.name` — no longer optional**
 
@@ -723,7 +723,7 @@ The test JSON must match CourseData's format: polygon features, integer IDs, `"c
 ```swift
 import XCTest
 import CoreLocation
-import CourseData
+import CourseDataSwift
 @testable import SpotGolf
 
 final class CourseTests: XCTestCase {
@@ -933,7 +933,7 @@ git commit -m "Rewrite CourseTests for CourseData polygon format"
 
 - [ ] **Step 1: Add import and create a helper to build a Course**
 
-Add `import CourseData` at top.
+Add `import CourseDataSwift` at top.
 
 Create a helper that builds a minimal `Course` using CourseData types:
 
@@ -1013,7 +1013,7 @@ git commit -m "Update CourseServiceTests for CourseData types and gzip compressi
 ```swift
 import XCTest
 import CoreLocation
-import CourseData
+import CourseDataSwift
 @testable import SpotGolf
 
 final class HoleAdvancerTests: XCTestCase {
@@ -1163,7 +1163,7 @@ git commit -m "Rewrite HoleAdvancerTests for polygon-based feature resolution"
 
 - [ ] **Step 1: Update green distance and features-ahead tests**
 
-Add `import CourseData` at top.
+Add `import CourseDataSwift` at top.
 
 Replace `testDistancesToGreen`:
 
@@ -1289,7 +1289,7 @@ git commit -m "Update DistanceCalculatorTests for polygon Feature types"
 
 - [ ] **Step 1: Add import and update `makeCourseSelection` helper**
 
-Add `import CourseData` at top.
+Add `import CourseDataSwift` at top.
 
 Replace `makeCourseSelection()`:
 

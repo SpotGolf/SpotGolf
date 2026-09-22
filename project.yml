@@ -11,9 +11,9 @@ fileGroups:
   - project.yml
   - plans
 packages:
-  CourseData:
+  CourseDataSwift:
     url: https://github.com/SpotGolf/CourseDataSwift
-    exactVersion: "0.1.0"
+    exactVersion: "0.1.2"
 
 schemes:
   SpotGolf:
@@ -51,7 +51,7 @@ targets:
         DEVELOPMENT_TEAM: 5CRT56YETR
     dependencies:
       - target: SpotGolfWatch
-      - package: CourseData
+      - package: CourseDataSwift
     entitlements:
       path: SpotGolf/SpotGolf.entitlements
       properties:
@@ -107,7 +107,7 @@ targets:
     dependencies:
       - sdk: WatchConnectivity.framework
       - sdk: HealthKit.framework
-      - package: CourseData
+      - package: CourseDataSwift
 
   SpotGolfTests:
     type: bundle.unit-test
@@ -123,7 +123,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SpotGolf
-      - package: CourseData
+      - package: CourseDataSwift
 
   SpotGolfUITests:
     type: bundle.ui-testing
