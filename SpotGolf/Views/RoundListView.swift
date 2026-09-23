@@ -126,7 +126,8 @@ struct RoundListView: View {
 
     /// Writes the round's GPS track to a temporary CSV file and opens the share panel.
     private func exportRound(_ round: Round) {
-        let csv = TrackExporter.csv(phone: trackStore.points(for: round.id, source: .phone),
+        let csv = TrackExporter.csv(round: round,
+                                    phone: trackStore.points(for: round.id, source: .phone),
                                     watch: trackStore.points(for: round.id, source: .watch))
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(TrackExporter.fileName(for: round))

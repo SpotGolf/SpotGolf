@@ -52,10 +52,11 @@ final class TrackStoreTests: XCTestCase {
         XCTAssertEqual(points[0].latitude, 39.95545)
         XCTAssertEqual(points[0].longitude, -105.0422)
         XCTAssertEqual(points[0].altitude, 1620)
+        XCTAssertEqual(points[0].horizontalAccuracy, 5)
     }
 
     func testSmallBatchIsNotWrittenUntilFlush() {
-        store.append(makeLocations(count: TrackStore.flushThreshold - 1), roundID: roundID, source: .phone)
+        store.append(makeLocations(count: TrackStore.defaultFlushThreshold - 1), roundID: roundID, source: .phone)
         let url = store.fileURL(for: roundID, source: .phone)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
 
@@ -64,33 +65,28 @@ final class TrackStoreTests: XCTestCase {
     }
 
     func testWritesOnceThresholdIsReached() {
-        store.append(makeLocations(count: TrackStore.flushThreshold), roundID: roundID, source: .phone)
+        store.append(makeLocations(count: TrackStore.defaultFlushThreshold), roundID: roundID, source: .phone)
 
         let url = store.fileURL(for: roundID, source: .phone)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
 
-    func testFileHasOneHeaderAfterManyFlushes() throws {
+    func testThresholdOfOneWritesEveryFix() {
+        let store = TrackStore(directory: directory, flushThreshold: 1)
+        store.append(makeLocations(count: 1), roundID: roundID, source: .phone)
+
+        // A fresh store sees the fix on disk, as the app would after a crash
+        XCTAssertEqual(TrackStore(directory: directory).points(for: roundID, source: .phone).count, 1)
+    }
+
+    func testFileIsOnlyRecordsAfterManyFlushes() throws {
         store.append(makeLocations(count: 2), roundID: roundID, source: .phone)
         store.flush()
         store.append(makeLocations(count: 2, startingAt: 1_700_000_100), roundID: roundID, source: .phone)
         store.flush()
 
         let data = try Data(contentsOf: store.fileURL(for: roundID, source: .phone))
-        XCTAssertEqual(data.count, 4 + 4 * TrackPoint.recordSize)
-        XCTAssertEqual(data.littleEndianInteger(at: 0) as Int32, TrackPoint.fileVersion)
-    }
-
-    func testUnknownVersionIsNotRead() throws {
-        store.append(makeLocations(count: 2), roundID: roundID, source: .phone)
-        store.flush()
-        let url = store.fileURL(for: roundID, source: .phone)
-
-        var data = try Data(contentsOf: url)
-        data[0] = 99
-        try data.write(to: url)
-
-        XCTAssertTrue(TrackStore(directory: directory).points(for: roundID, source: .phone).isEmpty)
+        XCTAssertEqual(data.count, 4 * TrackPoint.recordSize)
     }
 
     func testPartialRecordIsDroppedOnNextWrite() throws {
@@ -257,12 +253,12 @@ final class TrackStoreTests: XCTestCase {
         XCTAssertEqual(seconds, [1_700_000_000, 1_700_000_001, 1_700_000_100, 1_700_000_101])
     }
 
-    func testImportKeepsOneHeader() throws {
+    func testImportWritesOneRecordPerFix() throws {
         store.importSegment(from: makeSegment(count: 2, startingAt: 1_700_000_000), roundID: roundID, source: .watch)
         store.importSegment(from: makeSegment(count: 2, startingAt: 1_700_000_100), roundID: roundID, source: .watch)
 
         let data = try Data(contentsOf: store.fileURL(for: roundID, source: .watch))
-        XCTAssertEqual(data.count, 4 + 4 * TrackPoint.recordSize)
+        XCTAssertEqual(data.count, 4 * TrackPoint.recordSize)
     }
 
     func testImportMissingFileDoesNothing() {

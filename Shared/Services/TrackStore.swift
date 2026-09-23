@@ -2,15 +2,16 @@ import Foundation
 import CoreLocation
 
 /// Stores every raw GPS fix of a round in one binary file per round and device.
-/// A file is a 4-byte version header followed by one `TrackPoint` record per fix.
+/// A file is one `TrackPoint` record per fix, back to back.
 @MainActor
 class TrackStore: ObservableObject {
-    static let flushThreshold = 10
+    static let defaultFlushThreshold = 10
     nonisolated static let fileExtension = "track"
 
-    private static let headerSize = MemoryLayout<Int32>.size
-
     private let directory: URL
+
+    /// Fixes held in memory before they are written. A crash loses at most this many minus one.
+    let flushThreshold: Int
 
     // Finished tracks waiting to be transferred to the phone
     private var outboxDirectory: URL {
@@ -27,7 +28,8 @@ class TrackStore: ObservableObject {
     /// Bumped whenever a received segment adds points, so views can reload tracks.
     @Published private(set) var revision = 0
 
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil, flushThreshold: Int = TrackStore.defaultFlushThreshold) {
+        self.flushThreshold = flushThreshold
         if let directory {
             self.directory = directory
         } else {
@@ -58,7 +60,7 @@ class TrackStore: ObservableObject {
             pendingURL = url
         }
         pendingPoints += locations.map { TrackPoint(location: $0) }
-        if pendingPoints.count >= Self.flushThreshold {
+        if pendingPoints.count >= flushThreshold {
             flush()
         }
     }
@@ -133,15 +135,14 @@ class TrackStore: ObservableObject {
     // MARK: - Files
 
     private static func readPoints(at url: URL) -> [TrackPoint] {
-        guard let data = try? Data(contentsOf: url), data.count >= headerSize else { return [] }
-        let version: Int32 = data.littleEndianInteger(at: 0)
-        guard version == TrackPoint.fileVersion else { return [] }
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        let recordSize = TrackPoint.recordSize
 
         // A write that was cut short can leave part of a record at the end; it is skipped
-        let count = (data.count - headerSize) / TrackPoint.recordSize
+        let count = data.count / recordSize
         return (0..<count).compactMap { index in
-            let start = data.startIndex + headerSize + index * TrackPoint.recordSize
-            return TrackPoint(record: data[start..<(start + TrackPoint.recordSize)])
+            let start = data.startIndex + index * recordSize
+            return TrackPoint(record: data[start..<(start + recordSize)])
         }
     }
 
@@ -151,10 +152,6 @@ class TrackStore: ObservableObject {
     }
 
     private func write(_ points: [TrackPoint], to url: URL, replacing: Bool = false) {
-        var records = Data(capacity: points.count * TrackPoint.recordSize)
-        for point in points {
-            records.append(point.record)
-        }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             if !replacing, FileManager.default.fileExists(atPath: url.path) {
@@ -162,18 +159,28 @@ class TrackStore: ObservableObject {
                 defer { try? handle.close() }
                 // Drop a partial record left by a write that was cut short, so new records stay aligned
                 let size = try handle.seekToEnd()
-                let partial = (size - UInt64(Self.headerSize)) % UInt64(TrackPoint.recordSize)
-                if size >= UInt64(Self.headerSize), partial != 0 {
+                let partial = size % UInt64(TrackPoint.recordSize)
+                if partial != 0 {
                     try handle.truncate(atOffset: size - partial)
                 }
-                try handle.write(contentsOf: records)
+                try handle.write(contentsOf: Self.records(for: points))
             } else {
-                var header = Data()
-                header.append(littleEndian: TrackPoint.fileVersion)
-                try (header + records).write(to: url, options: .atomic)
+                try writeFresh(points, to: url)
             }
         } catch {
             print("Failed to save track: \(error)")
         }
+    }
+
+    private func writeFresh(_ points: [TrackPoint], to url: URL) throws {
+        try Self.records(for: points).write(to: url, options: .atomic)
+    }
+
+    private static func records(for points: [TrackPoint]) -> Data {
+        var records = Data(capacity: points.count * TrackPoint.recordSize)
+        for point in points {
+            records.append(point.record)
+        }
+        return records
     }
 }

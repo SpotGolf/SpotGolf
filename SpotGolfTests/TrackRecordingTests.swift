@@ -84,11 +84,11 @@ final class TrackRecordingTests: XCTestCase {
             XCTAssertEqual(try XCTUnwrap(point.altitude), fix.altitude, accuracy: 0.01)
         }
 
-        // 4-byte header plus 20 bytes per fix: 54,004 bytes for three holes
+        // 24 bytes per fix: 64,800 bytes for three holes
         let url = store.fileURL(for: roundID, source: .current)
         let size = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
-        XCTAssertEqual(size, 4 + Self.fixCount * TrackPoint.recordSize)
-        XCTAssertEqual(size, 54_004)
+        XCTAssertEqual(size, Self.fixCount * TrackPoint.recordSize)
+        XCTAssertEqual(size, 64_800)
 
         attach(round)
     }

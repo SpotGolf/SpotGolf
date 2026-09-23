@@ -85,7 +85,50 @@ final class WatchRoundFlowUITests: XCTestCase {
                       "Start Round button should reappear after ending round")
     }
 
+    func testWorkoutRecoveredAfterAppQuits() throws {
+        app.launch()
+        dismissHealthAccessAlerts()
+
+        // ── Start a round, which starts the workout ──
+        let startButton = app.buttons["Start Round"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start Round button should exist")
+        startButton.tap()
+        dismissHealthAccessAlerts()
+
+        let workoutStatus = app.staticTexts["workoutStatus"]
+        XCTAssertTrue(workoutStatus.waitForExistence(timeout: 5), "Workout status should be visible")
+        // "recovered" means a workout left running by an earlier run was taken over
+        XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["started", "recovered"]),
+                      "Workout should start with the round, but was \(workoutStatus.label)")
+
+        // ── Quit mid-round, then relaunch ──
+        app.terminate()
+        app.launchArguments = ["--ui-testing", "--keep-rounds"]
+        app.launch()
+
+        // The round resumes and the running workout is taken over, not restarted
+        XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "The round should resume on Hole 1")
+        XCTAssertFalse(startButton.exists, "The round should still be active")
+        XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["recovered"]),
+                      "Workout should be recovered, but was \(workoutStatus.label)")
+
+        // ── End the round so no workout is left running ──
+        app.swipeLeft()
+        let endRoundButton = app.buttons["End Round"]
+        XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
+        endRoundButton.tap()
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5),
+                      "Start Round button should reappear after ending round")
+    }
+
     // MARK: - Helpers
+
+    /// Waits for an element's label to become one of the expected texts.
+    private func waitForLabel(of element: XCUIElement, in labels: [String], timeout: TimeInterval = 10) -> Bool {
+        let predicate = NSPredicate(format: "label IN %@", labels)
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
 
     /// Closes the Health Access alerts the system shows when the workout session starts.
     /// They cover the whole screen and swallow taps. None appear once access has been decided.

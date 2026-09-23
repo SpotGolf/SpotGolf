@@ -4,11 +4,13 @@ import CoreLocation
 
 final class TrackPointTests: XCTestCase {
 
-    private func makePoint(seconds: TimeInterval = 1_700_000_000.5, altitude: Double? = 1620.5) -> TrackPoint {
+    private func makePoint(seconds: TimeInterval = 1_700_000_000.5, altitude: Double? = 1620.5,
+                           accuracy: Double? = 4.5) -> TrackPoint {
         TrackPoint(timestamp: Date(timeIntervalSince1970: seconds),
                    latitude: 39.95545,
                    longitude: -105.0422,
-                   altitude: altitude)
+                   altitude: altitude,
+                   horizontalAccuracy: accuracy)
     }
 
     private func makeLocation(verticalAccuracy: Double) -> CLLocation {
@@ -28,6 +30,7 @@ final class TrackPointTests: XCTestCase {
         XCTAssertEqual(point.latitude, 39.95545)
         XCTAssertEqual(point.longitude, -105.0422)
         XCTAssertEqual(point.altitude, 1620)
+        XCTAssertEqual(point.horizontalAccuracy, 5)
     }
 
     func testInitFromLocationWithoutValidAltitude() {
@@ -42,6 +45,7 @@ final class TrackPointTests: XCTestCase {
         XCTAssertEqual(record.littleEndianInteger(at: 8) as Int32, 399_554_500)
         XCTAssertEqual(record.littleEndianInteger(at: 12) as Int32, -1_050_422_000)
         XCTAssertEqual(record.littleEndianInteger(at: 16) as Int32, 162_050)
+        XCTAssertEqual(record.littleEndianInteger(at: 20) as Int32, 450)
     }
 
     func testRecordIsLittleEndian() {
@@ -56,6 +60,11 @@ final class TrackPointTests: XCTestCase {
 
     func testRecordRoundTripWithoutAltitude() {
         let point = makePoint(altitude: nil)
+        XCTAssertEqual(TrackPoint(record: point.record), point)
+    }
+
+    func testRecordRoundTripWithoutAccuracy() {
+        let point = makePoint(accuracy: nil)
         XCTAssertEqual(TrackPoint(record: point.record), point)
     }
 
@@ -75,6 +84,11 @@ final class TrackPointTests: XCTestCase {
                                   latitude: 39.95545,
                                   longitude: -105.0422,
                                   altitude: 1620.5))
+    }
+
+    func testAccuracyRoundsToStoredPrecision() {
+        let point = makePoint(accuracy: 4.567)
+        XCTAssertEqual(TrackPoint(record: point.record)?.horizontalAccuracy, 4.57)
     }
 
     func testReadsFromTheMiddleOfLargerData() {

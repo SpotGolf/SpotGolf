@@ -60,7 +60,10 @@ struct WatchRoundView: View {
             }
         }
         .onDisappear {
-            locationManager.stopUpdating()
+            // GPS keeps running for an active round even with no view on screen
+            if roundStore.activeRound == nil {
+                locationManager.stopUpdating()
+            }
         }
         .onReceive(locationManager.$lastLocation) { location in
             updateLiveDistance(location: location)
@@ -120,6 +123,16 @@ struct WatchRoundView: View {
                     Divider()
 
                     holeStatsView(round)
+                }
+
+                // Lets UI tests see whether the workout was recovered after a relaunch.
+                // Only rendered under --ui-testing; must be normal-sized or the
+                // accessibility tree drops it and queries can't find it.
+                if CommandLine.arguments.contains("--ui-testing") {
+                    Text(workoutManager.status.rawValue)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("workoutStatus")
                 }
             }
             .padding()

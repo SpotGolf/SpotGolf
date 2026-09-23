@@ -6,10 +6,37 @@ class WorkoutManager: NSObject, ObservableObject {
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
 
+    /// How the current session began. UI tests read it to check recovery after a relaunch.
+    enum Status: String {
+        case none, started, recovered
+    }
+    @Published private(set) var status = Status.none
+
+    // True from start() until a session is running, so repeated calls start only one
+    private var isStarting = false
+
+    /// Starts a golf workout, or takes over the one left running if the app quit
+    /// mid-round. Safe to call repeatedly; also answers the system's recovery request.
     func start() {
         guard HKHealthStore.isHealthDataAvailable(),
-              session == nil else { return }
+              session == nil, !isStarting else { return }
+        isStarting = true
 
+        healthStore.recoverActiveWorkoutSession { [weak self] recovered, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if let recovered {
+                    self.attach(recovered)
+                    self.status = .recovered
+                    self.isStarting = false
+                } else {
+                    self.requestAuthorizationAndBegin()
+                }
+            }
+        }
+    }
+
+    private func requestAuthorizationAndBegin() {
         let typesToShare: Set<HKSampleType> = [HKObjectType.workoutType()]
         let typesToRead: Set<HKObjectType> = [
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
@@ -24,6 +51,7 @@ class WorkoutManager: NSObject, ObservableObject {
             // active even if the user denies permissions. Data just won't be saved.
             Task { @MainActor in
                 self?.beginSession()
+                self?.isStarting = false
             }
         }
     }
@@ -34,14 +62,11 @@ class WorkoutManager: NSObject, ObservableObject {
         config.locationType = .outdoor
 
         do {
-            session = try HKWorkoutSession(healthStore: healthStore, configuration: config)
-            builder = session?.associatedWorkoutBuilder()
-            builder?.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: config)
+            let session = try HKWorkoutSession(healthStore: healthStore, configuration: config)
+            attach(session)
+            status = .started
 
-            session?.delegate = self
-            builder?.delegate = self
-
-            session?.startActivity(with: .now)
+            session.startActivity(with: .now)
             builder?.beginCollection(withStart: .now) { _, error in
                 if let error {
                     print("WorkoutManager: begin collection error – \(error)")
@@ -50,6 +75,17 @@ class WorkoutManager: NSObject, ObservableObject {
         } catch {
             print("WorkoutManager: failed to start session – \(error)")
         }
+    }
+
+    /// Wires up a new or recovered session. A recovered session is already running,
+    /// so it is not started again.
+    private func attach(_ session: HKWorkoutSession) {
+        self.session = session
+        builder = session.associatedWorkoutBuilder()
+        builder?.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore,
+                                                      workoutConfiguration: session.workoutConfiguration)
+        session.delegate = self
+        builder?.delegate = self
     }
 
     func stop() {
@@ -66,6 +102,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
             Task { @MainActor in
                 guard let builder else {
                     session = nil
+                    status = .none
                     return
                 }
                 do {
@@ -76,6 +113,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 }
                 self.session = nil
                 self.builder = nil
+                self.status = .none
             }
         }
     }

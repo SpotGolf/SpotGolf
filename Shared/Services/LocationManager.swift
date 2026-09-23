@@ -29,12 +29,18 @@ class LocationManager: NSObject, ObservableObject {
         manager.requestWhenInUseAuthorization()
     }
 
+    private(set) var isUpdating = false
+
+    /// Safe to call again while updating; the running updates are left alone.
     func startUpdating() {
+        guard !isUpdating else { return }
+        isUpdating = true
         recentLocations.removeAll()
         manager.startUpdatingLocation()
     }
 
     func stopUpdating() {
+        isUpdating = false
         manager.stopUpdatingLocation()
     }
 }
@@ -93,7 +99,9 @@ extension LocationManager: @preconcurrency CLLocationManagerDelegate {
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
-        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+        // A one-off fix is only needed when continuous updates are not already running
+        if !isUpdating,
+           manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
             manager.requestLocation()
         }
     }
