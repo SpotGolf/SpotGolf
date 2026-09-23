@@ -25,10 +25,29 @@ final class RoundStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - Loading
+
+    func testLoadDropsRoundsWithoutCourse() throws {
+        store.startRound(courseSelection: .test)
+        let keptID = store.rounds[0].id
+
+        // Add a round saved before a course was required
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("rounds.json")
+        var saved = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [[String: Any]]
+        var noCourse = saved[0]
+        noCourse["id"] = UUID().uuidString
+        noCourse["courseSelection"] = nil
+        saved.append(noCourse)
+        try JSONSerialization.data(withJSONObject: saved).write(to: url)
+
+        XCTAssertEqual(RoundStore().rounds.map(\.id), [keptID])
+    }
+
     // MARK: - startRound
 
     func testStartRoundCreatesActiveRound() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
 
         XCTAssertEqual(store.rounds.count, 1)
         XCTAssertNotNil(store.activeRound)
@@ -39,17 +58,17 @@ final class RoundStoreTests: XCTestCase {
         let id = UUID()
         let date = Date(timeIntervalSince1970: 1_700_000_000)
 
-        store.startRound(id: id, date: date)
+        store.startRound(id: id, date: date, courseSelection: .test)
 
         XCTAssertEqual(store.rounds[0].id, id)
         XCTAssertEqual(store.rounds[0].date, date)
     }
 
     func testStartRoundEndsPreviousActiveRound() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let firstID = store.rounds[0].id
 
-        store.startRound()
+        store.startRound(courseSelection: .test)
 
         XCTAssertEqual(store.rounds.count, 2)
         // The new round is at index 0 (inserted at front)
@@ -61,18 +80,19 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testStartRoundFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
 
         XCTAssertEqual(syncMessages.count, 1)
-        if case .startRound(let id, _) = syncMessages[0] {
+        if case .startRound(let id, _, let selection) = syncMessages[0] {
             XCTAssertEqual(id, store.rounds[0].id)
+            XCTAssertEqual(selection.course.name, "Test Course")
         } else {
             XCTFail("Expected startRound sync message")
         }
     }
 
     func testStartRoundFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
 
         XCTAssertEqual(store.rounds.count, 1)
         XCTAssertTrue(syncMessages.isEmpty)
@@ -81,7 +101,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - endRound
 
     func testEndRound() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         store.endRound()
@@ -91,7 +111,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testEndRoundByID() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let id = store.rounds[0].id
         syncMessages.removeAll()
 
@@ -101,7 +121,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testEndRoundFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let id = store.rounds[0].id
         syncMessages.removeAll()
 
@@ -116,7 +136,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testEndRoundFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
 
         store.endRound(fromSync: true)
 
@@ -131,7 +151,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - addMark (active round)
 
     func testAddMarkToActiveRound() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
@@ -142,7 +162,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testAddMarkFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         syncMessages.removeAll()
 
@@ -160,7 +180,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testAddMarkFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark, fromSync: true)
@@ -179,7 +199,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - addMark (to specific round)
 
     func testAddMarkToSpecificRound() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         store.endRound(fromSync: true)
         syncMessages.removeAll()
@@ -191,7 +211,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testAddMarkToSpecificRoundFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         syncMessages.removeAll()
 
@@ -208,7 +228,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testAddMarkToSpecificRoundFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
         let roundID = store.rounds[0].id
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
@@ -225,7 +245,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testAddMarkToSpecificHoleIndex() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         store.nextHole() // now on hole 1
         syncMessages.removeAll()
@@ -240,7 +260,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - nextHole / previousHole
 
     func testNextRoundHole() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         store.nextHole()
@@ -250,7 +270,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testNextHoleFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         store.nextHole()
@@ -264,7 +284,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testPreviousRoundHole() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         store.nextHole()
         syncMessages.removeAll()
 
@@ -274,7 +294,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testPreviousHoleFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         store.nextHole()
         syncMessages.removeAll()
 
@@ -288,7 +308,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testPreviousHoleAtZeroIsNoOp() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         store.previousHole()
@@ -300,7 +320,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - setHoleIndex
 
     func testSetHoleIndexFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         store.setHoleIndex(4)
@@ -315,7 +335,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testSetHoleIndexToTheSameHoleDoesNotFireSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         store.setHoleIndex(4)
         syncMessages.removeAll()
 
@@ -325,7 +345,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testSetHoleIndexFromSyncDoesNotFireSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         syncMessages.removeAll()
 
         store.setHoleIndex(4, roundID: store.rounds[0].id, changedAt: Date().addingTimeInterval(1), fromSync: true)
@@ -335,7 +355,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testRepeatedHoleChangeFromSyncIsIgnored() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let chosenAt = Date().addingTimeInterval(1)
         store.setHoleIndex(4, roundID: roundID, changedAt: chosenAt, fromSync: true)
@@ -348,7 +368,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testOlderHoleChangeFromSyncIsIgnored() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         store.setHoleIndex(5)
 
@@ -358,7 +378,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testNewerHoleChangeFromSyncIsApplied() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         store.setHoleIndex(5)
 
@@ -368,9 +388,9 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testNextHoleAt18IsNoOp() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         store.rounds[0] = Round(id: store.rounds[0].id, date: store.rounds[0].date,
-                                holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17)
+                                holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17, courseSelection: .test)
 
         store.nextHole()
 
@@ -378,7 +398,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testNextHoleByRoundID() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         syncMessages.removeAll()
 
@@ -388,7 +408,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testPreviousHoleByRoundID() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         store.nextHole()
         syncMessages.removeAll()
@@ -401,7 +421,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - moveMark
 
     func testMoveMark() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -416,7 +436,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testMoveMarkPreservesTimestamp() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -428,7 +448,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testMoveMarkAcrossHoles() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -444,7 +464,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - reorderMark
 
     func testReorderMark() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark0 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
@@ -462,7 +482,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testReorderMarkClampsToValidRange() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark0 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
@@ -477,7 +497,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testReorderMarkClampsNegativeIndex() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark0 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
@@ -492,7 +512,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - removeMark
 
     func testRemoveMark() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -503,7 +523,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testRemoveMarkLeavesOtherMarks() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
@@ -517,7 +537,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testRemoveMarkAcrossHoles() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -532,7 +552,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - setMarkType
 
     func testSetMarkType() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -544,7 +564,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testSetMarkTypeToOutOfBounds() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -555,7 +575,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testSetMarkTypeBackToRegular() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -567,7 +587,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testSetMarkTypeFiresSyncEvent() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -586,7 +606,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testSetMarkTypeFromSyncDoesNotFireSyncEvent() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark, fromSync: true)
@@ -598,7 +618,7 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testMoveMarkPreservesType() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
@@ -613,7 +633,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - deleteRound
 
     func testDeleteRound() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let round = store.rounds[0]
 
         store.deleteRound(round)
@@ -622,8 +642,8 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testDeleteRoundLeavesOtherRounds() {
-        store.startRound()
-        store.startRound()
+        store.startRound(courseSelection: .test)
+        store.startRound(courseSelection: .test)
         XCTAssertEqual(store.rounds.count, 2)
 
         let roundToDelete = store.rounds[1]
@@ -640,14 +660,14 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testActiveRoundReturnsNilWhenAllEnded() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         store.endRound()
 
         XCTAssertNil(store.activeRound)
     }
 
     func testActiveRoundReturnsTheActiveOne() {
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let id = store.rounds[0].id
 
         XCTAssertEqual(store.activeRound?.id, id)
@@ -658,7 +678,7 @@ final class RoundStoreTests: XCTestCase {
     func testMutationsWorkWithoutSyncHandler() {
         store.onSyncEvent = nil
 
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(mark)
         store.endRound()
@@ -673,7 +693,7 @@ final class RoundStoreTests: XCTestCase {
 
     func testFullSyncScenario() {
         // Simulate phone starts round
-        store.startRound()
+        store.startRound(courseSelection: .test)
         let roundID = store.rounds[0].id
         XCTAssertEqual(syncMessages.count, 1)
         syncMessages.removeAll()

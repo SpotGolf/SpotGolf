@@ -85,12 +85,24 @@ class SyncService: NSObject, ObservableObject {
         }
 
         switch message {
-        case .startRound(let id, let date):
-            sendPayload([
-                "type": "startRound",
-                "id": id.uuidString,
-                "date": syncDateFormatter.string(from: date)
-            ], via: session)
+        case .startRound(let id, let date, let selection):
+            // The course is too large for one message, so the round goes out in chunks
+            do {
+                let data = try JSONEncoder().encode(selection.trimmed)
+                let compressed = try data.gzipCompressed()
+                sendChunked(
+                    data: compressed,
+                    metadata: [
+                        "type": "startRound",
+                        "id": id.uuidString,
+                        "date": syncDateFormatter.string(from: date)
+                    ],
+                    via: session
+                )
+            } catch {
+                print("[Sync] Failed to encode/compress course: \(error)")
+                syncError = "Could not sync the round to the watch."
+            }
 
         case .endRound(let id):
             sendPayload([
@@ -106,20 +118,6 @@ class SyncService: NSObject, ObservableObject {
                 "holeIndex": holeIndex,
                 "mark": data
             ], via: session)
-
-        case .setCourse(let selection, let roundID):
-            do {
-                let data = try JSONEncoder().encode(selection.trimmed)
-                let compressed = try data.gzipCompressed()
-                sendChunked(
-                    data: compressed,
-                    metadata: ["type": "setCourse", "roundId": roundID.uuidString],
-                    via: session
-                )
-            } catch {
-                print("[Sync] Failed to encode/compress course: \(error)")
-                syncError = "Could not sync course data to the watch."
-            }
 
         case .setHole(let holeIndex, let roundID, let changedAt):
             sendPayload([
@@ -335,13 +333,6 @@ class SyncService: NSObject, ObservableObject {
         guard let type = message["type"] as? String else { return }
 
         switch type {
-        case "startRound":
-            guard let idString = message["id"] as? String,
-                  let id = UUID(uuidString: idString),
-                  let dateString = message["date"] as? String,
-                  let date = syncDateFormatter.date(from: dateString) else { return }
-            roundStore?.startRound(id: id, date: date, fromSync: true)
-
         case "endRound":
             guard let idString = message["id"] as? String,
                   let id = UUID(uuidString: idString) else { return }
@@ -414,13 +405,15 @@ class SyncService: NSObject, ObservableObject {
         guard let type = metadata["type"] as? String else { return }
 
         switch type {
-        case "setCourse":
-            guard let idString = metadata["roundId"] as? String,
-                  let roundID = UUID(uuidString: idString) else { return }
+        case "startRound":
+            guard let idString = metadata["id"] as? String,
+                  let id = UUID(uuidString: idString),
+                  let dateString = metadata["date"] as? String,
+                  let date = syncDateFormatter.date(from: dateString) else { return }
             do {
                 let decompressed = try data.gzipDecompressed()
                 let selection = try JSONDecoder().decode(CourseSelection.self, from: decompressed)
-                roundStore?.setCourse(selection, for: roundID, fromSync: true)
+                roundStore?.startRound(id: id, date: date, courseSelection: selection, fromSync: true)
             } catch {
                 print("[Sync] Failed to decode chunked course data: \(error)")
             }

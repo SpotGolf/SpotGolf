@@ -26,7 +26,7 @@ class RoundStore: ObservableObject {
         load()
     }
 
-    func startRound(id: UUID = UUID(), date: Date = Date(), fromSync: Bool = false) {
+    func startRound(id: UUID = UUID(), date: Date = Date(), courseSelection: CourseSelection, fromSync: Bool = false) {
         // End any existing active round
         if let index = rounds.firstIndex(where: { $0.isActive }) {
             rounds[index].end()
@@ -36,15 +36,15 @@ class RoundStore: ObservableObject {
             rounds[index].isActive = true
             save()
             if !fromSync {
-                onSyncEvent?(.startRound(id, rounds[index].date))
+                onSyncEvent?(.startRound(id, rounds[index].date, rounds[index].courseSelection))
             }
             return
         }
-        let round = Round(id: id, date: date)
+        let round = Round(id: id, date: date, courseSelection: courseSelection)
         rounds.insert(round, at: 0)
         save()
         if !fromSync {
-            onSyncEvent?(.startRound(id, date))
+            onSyncEvent?(.startRound(id, date, courseSelection))
         }
     }
 
@@ -144,22 +144,6 @@ class RoundStore: ObservableObject {
         }
     }
 
-    func setCourse(_ selection: CourseSelection, for roundID: UUID? = nil, fromSync: Bool = false) {
-        let predicate: (Round) -> Bool = if let roundID {
-            { $0.id == roundID }
-        } else {
-            { $0.isActive }
-        }
-        if let index = rounds.firstIndex(where: predicate) {
-            let id = rounds[index].id
-            rounds[index].courseSelection = selection
-            save()
-            if !fromSync {
-                onSyncEvent?(.setCourse(selection, id))
-            }
-        }
-    }
-
     func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
         if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
            let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),
@@ -207,7 +191,7 @@ class RoundStore: ObservableObject {
         rounds[index].isActive = true
         save()
         if !fromSync {
-            onSyncEvent?(.startRound(roundID, rounds[index].date))
+            onSyncEvent?(.startRound(roundID, rounds[index].date, rounds[index].courseSelection))
         }
     }
 
@@ -220,7 +204,8 @@ class RoundStore: ObservableObject {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         do {
             let data = try Data(contentsOf: fileURL)
-            rounds = try JSONDecoder().decode([Round].self, from: data)
+            // Rounds saved before a course was required cannot load and are dropped
+            rounds = try JSONDecoder().decode([LossyRound].self, from: data).compactMap(\.round)
         } catch {
             print("Failed to load rounds: \(error)")
         }
@@ -233,5 +218,14 @@ class RoundStore: ObservableObject {
         } catch {
             print("Failed to save rounds: \(error)")
         }
+    }
+}
+
+/// Decodes a saved round, or nil when the round cannot be read.
+private struct LossyRound: Decodable {
+    let round: Round?
+
+    init(from decoder: Decoder) throws {
+        round = try? Round(from: decoder)
     }
 }

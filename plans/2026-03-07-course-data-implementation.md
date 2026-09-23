@@ -153,7 +153,7 @@ final class CourseTests: XCTestCase {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/CourseTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/CourseTests 2>&1 | tail -20`
 Expected: FAIL — Course type not found
 
 **Step 3: Write minimal implementation**
@@ -267,7 +267,7 @@ struct CourseIndexLocation: Codable, Equatable {
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/CourseTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/CourseTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -381,7 +381,7 @@ final class CourseServiceTests: XCTestCase {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
 Expected: FAIL — CourseService type not found
 
 **Step 3: Write minimal implementation**
@@ -668,7 +668,7 @@ enum CourseServiceError: Error {
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -768,7 +768,7 @@ func testSearchCoursesCaseInsensitive() {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
 Expected: FAIL — nearbyCourses/searchCourses not found
 
 **Step 3: Write minimal implementation**
@@ -806,7 +806,7 @@ func searchCourses(query: String) -> [CourseIndexEntry] {
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/CourseServiceTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -924,7 +924,7 @@ func testCurrentCourseHole() {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/RoundTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/RoundTests 2>&1 | tail -20`
 Expected: FAIL — CourseSelection not found
 
 **Step 3: Write minimal implementation**
@@ -1002,7 +1002,7 @@ try container.encodeIfPresent(courseSelection, forKey: .courseSelection)
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/RoundTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/RoundTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -1099,7 +1099,7 @@ func testFeaturesAheadSortedByDistance() {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/DistanceCalculatorTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/DistanceCalculatorTests 2>&1 | tail -20`
 Expected: FAIL — greenDistances/featuresAhead not found
 
 **Step 3: Write minimal implementation**
@@ -1151,7 +1151,7 @@ static func featuresAhead(from location: CLLocation, features: [CourseFeature], 
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/DistanceCalculatorTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/DistanceCalculatorTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -1254,7 +1254,7 @@ final class HoleAdvancerTests: XCTestCase {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/HoleAdvancerTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/HoleAdvancerTests 2>&1 | tail -20`
 Expected: FAIL — HoleAdvancer not found
 
 **Step 3: Write minimal implementation**
@@ -1303,7 +1303,7 @@ struct HoleAdvancer {
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/HoleAdvancerTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/HoleAdvancerTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -1354,7 +1354,7 @@ func testSendCourseSelection() throws {
 
 **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/SyncServiceTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/SyncServiceTests 2>&1 | tail -20`
 Expected: FAIL — setCourse not found on SyncMessage
 
 **Step 3: Write minimal implementation**
@@ -1417,7 +1417,7 @@ func setCourse(_ selection: CourseSelection, for roundID: UUID? = nil, fromSync:
 
 **Step 4: Run test to verify it passes**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:SpotGolfTests/SyncServiceTests 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' -only-testing:SpotGolfTests/SyncServiceTests 2>&1 | tail -20`
 Expected: PASS
 
 **Step 5: Commit**
@@ -1673,7 +1673,7 @@ Update `SpotGolfApp.swift` — add `CourseService` as environment object:
 
 **Step 2: Build to verify compilation**
 
-Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -10`
+Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -10`
 Expected: BUILD SUCCEEDED
 
 **Step 3: Commit**
@@ -1774,7 +1774,7 @@ private func overlayView(_ round: Round) -> some View {
 
 **Step 2: Build to verify compilation**
 
-Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -10`
+Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -10`
 Expected: BUILD SUCCEEDED
 
 **Step 3: Commit**
@@ -1863,7 +1863,7 @@ func setHoleIndex(_ index: Int, roundID: UUID? = nil, fromSync: Bool = false) {
 
 **Step 2: Build to verify compilation**
 
-Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -10`
+Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -10`
 Expected: BUILD SUCCEEDED
 
 **Step 3: Commit**
@@ -1982,7 +1982,7 @@ private func markBall() {
 
 **Step 2: Build to verify compilation**
 
-Run: `xcodebuild build -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)' 2>&1 | tail -10`
+Run: `xcodebuild build -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=SpotGolf Watch' 2>&1 | tail -10`
 Expected: BUILD SUCCEEDED
 
 **Step 3: Commit**
@@ -2000,13 +2000,13 @@ Ensure `project.yml` doesn't need changes — `CourseService` is in `Shared/` wh
 
 **Step 1: Build both targets**
 
-Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -10`
-Run: `xcodebuild build -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)' 2>&1 | tail -10`
+Run: `xcodebuild build -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -10`
+Run: `xcodebuild build -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=SpotGolf Watch' 2>&1 | tail -10`
 Expected: Both BUILD SUCCEEDED
 
 **Step 2: Run all existing tests**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -20`
 Expected: All tests pass
 
 **Step 3: Commit if any project.yml changes were needed**
@@ -2019,11 +2019,11 @@ Verify end-to-end: build both targets, run all unit tests, and manually verify t
 
 **Step 1: Run full test suite**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -30`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -30`
 Expected: All tests pass
 
 **Step 2: Verify clean build**
 
-Run: `xcodebuild clean build -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -10`
-Run: `xcodebuild clean build -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)' 2>&1 | tail -10`
+Run: `xcodebuild clean build -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -10`
+Run: `xcodebuild clean build -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=SpotGolf Watch' 2>&1 | tail -10`
 Expected: Both BUILD SUCCEEDED

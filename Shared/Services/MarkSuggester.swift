@@ -39,11 +39,9 @@ enum MarkSuggester {
     static let minimumDwell: TimeInterval = 10
 
     /// The track points that belong to one hole: each point is assigned to the hole
-    /// whose features are nearest. Without a course selection every point is returned,
-    /// because there is no geometry to slice by.
+    /// whose features are nearest.
     static func holePoints(in points: [TrackPoint], holeIndex: Int,
-                           courseSelection: CourseSelection?) -> [TrackPoint] {
-        guard let selection = courseSelection else { return points }
+                           courseSelection selection: CourseSelection) -> [TrackPoint] {
         let holes = selection.orderedHoles
         guard holeIndex < holes.count else { return points }
 

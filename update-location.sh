@@ -25,6 +25,6 @@ while IFS= read -r line; do
   desc=$(echo "${line}" | cut -d, -f4-)
 
   echo "Setting location to ${lat},${lon} (${desc})"
-  xcrun simctl location "iPhone 17 Pro" set "${lat},${lon}"
-  xcrun simctl location "Apple Watch Series 9 (45mm)" set "${lat},${lon}"
+  xcrun simctl location "SpotGolf Phone" set "${lat},${lon}"
+  xcrun simctl location "SpotGolf Watch" set "${lat},${lon}"
 done < "$csv"

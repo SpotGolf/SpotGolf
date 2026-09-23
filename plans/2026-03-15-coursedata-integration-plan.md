@@ -33,7 +33,7 @@ Alternatively, add via the local path `../CourseData` for faster iteration durin
 
 - [ ] **Step 2: Verify the build still succeeds**
 
-Run: `xcodebuild -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' build 2>&1 | tail -5`
 Expected: `** BUILD SUCCEEDED **`
 
 - [ ] **Step 3: Commit**
@@ -97,7 +97,7 @@ In `HoleTests.swift`, `RoundTests.swift`, and `RoundStoreTests.swift`:
 
 - [ ] **Step 5: Build and run tests**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -20`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -20`
 Expected: All tests pass.
 
 - [ ] **Step 6: Commit**
@@ -188,7 +188,7 @@ Note: `Hole` here is `CourseData.Hole` (not `RoundHole`), since `CourseData` is 
 
 - [ ] **Step 4: Build to verify**
 
-Run: `xcodebuild -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' build 2>&1 | tail -5`
 
 This will fail with errors in files that still reference old types (`CourseHole`, `CourseGreen`, `CourseCoordinate`, `CourseFeature`). That's expected — we'll fix them in the next tasks.
 
@@ -1373,15 +1373,15 @@ git commit -m "Rename Hole to RoundHole in remaining tests"
 
 - [ ] **Step 1: Build both schemes**
 
-Run: `xcodebuild -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' build 2>&1 | tail -5`
 Expected: `** BUILD SUCCEEDED **`
 
-Run: `xcodebuild -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme SpotGolfWatch -destination 'platform=watchOS Simulator,name=SpotGolf Watch' build 2>&1 | tail -5`
 Expected: `** BUILD SUCCEEDED **`
 
 - [ ] **Step 2: Run unit tests**
 
-Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -30`
+Run: `xcodebuild test -scheme SpotGolf -destination 'platform=iOS Simulator,name=SpotGolf Phone' 2>&1 | tail -30`
 Expected: All tests pass.
 
 - [ ] **Step 3: Fix any remaining compilation or test errors**

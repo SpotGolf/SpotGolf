@@ -38,7 +38,7 @@ final class PenaltyFlowUITests: XCTestCase {
         XCTAssertEqual(locations.count, 14, "Penalty test CSV should have 14 locations")
 
         // Start round with Broadlands course
-        startRoundWithCourse()
+        app.startRoundWithCourse()
 
         var currentHole = 1
         var marksOnHole = 0
@@ -109,21 +109,5 @@ final class PenaltyFlowUITests: XCTestCase {
         let start = app.coordinate(withNormalizedOffset: point)
         // The map only reports the press once the finger has moved
         start.press(forDuration: 1.0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 4)))
-    }
-
-    private func startRoundWithCourse() {
-        let newRoundButton = app.buttons["New Round"]
-        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5))
-        newRoundButton.tap()
-
-        let broadlands = app.staticTexts["Broadlands Golf Course"]
-        XCTAssertTrue(broadlands.waitForExistence(timeout: 10))
-        broadlands.tap()
-
-        let startButton = app.buttons["Start Round"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
-        startButton.tap()
-
-        XCTAssertTrue(app.waitForCurrentHole(1))
     }
 }

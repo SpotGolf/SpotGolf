@@ -11,6 +11,7 @@ final class WatchRoundFlowUITests: XCTestCase {
     }
 
     func testFullRoundFlow() throws {
+        app.launchArguments.append("--start-round")
         app.launch()
 
         let locations = LocationTestHelper.loadTestLocations()
@@ -19,13 +20,7 @@ final class WatchRoundFlowUITests: XCTestCase {
         // An alert left open by an earlier run outlives the app and would swallow the first tap
         dismissHealthAccessAlerts()
 
-        // ── Start a new round ──
-        let startButton = app.buttons["Start Round"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start Round button should exist")
-        startButton.tap()
-        dismissHealthAccessAlerts()
-
-        // Verify Hole 1 is displayed
+        // Verify the round started on Hole 1
         let hole1Label = app.staticTexts["Hole 1"]
         XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Hole 1 label should be visible")
 
@@ -81,18 +76,14 @@ final class WatchRoundFlowUITests: XCTestCase {
         endRoundButton.tap()
 
         // Verify we're back to the idle state.
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5),
-                      "Start Round button should reappear after ending round")
+        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5),
+                      "No active round should show after ending round")
     }
 
     func testWorkoutRecoveredAfterAppQuits() throws {
-        app.launch()
-        dismissHealthAccessAlerts()
-
         // ── Start a round, which starts the workout ──
-        let startButton = app.buttons["Start Round"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start Round button should exist")
-        startButton.tap()
+        app.launchArguments.append("--start-round")
+        app.launch()
         dismissHealthAccessAlerts()
 
         let workoutStatus = app.staticTexts["workoutStatus"]
@@ -108,7 +99,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
         // The round resumes and the running workout is taken over, not restarted
         XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "The round should resume on Hole 1")
-        XCTAssertFalse(startButton.exists, "The round should still be active")
+        XCTAssertFalse(app.staticTexts["No active round"].exists, "The round should still be active")
         XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["recovered"]),
                       "Workout should be recovered, but was \(workoutStatus.label)")
 
@@ -117,8 +108,8 @@ final class WatchRoundFlowUITests: XCTestCase {
         let endRoundButton = app.buttons["End Round"]
         XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
         endRoundButton.tap()
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5),
-                      "Start Round button should reappear after ending round")
+        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5),
+                      "No active round should show after ending round")
     }
 
     // MARK: - Helpers

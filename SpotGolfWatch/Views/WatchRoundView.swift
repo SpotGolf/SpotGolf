@@ -33,14 +33,11 @@ struct WatchRoundView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("Start Round") {
-                        roundStore.startRound()
-                        locationManager.startUpdating()
-                        workoutManager.start()
-                        startGuessDetection()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                    // A round needs a course, and courses are picked on the phone
+                    Text("Start a round on your iPhone")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
                 .padding()
             }
@@ -68,9 +65,8 @@ struct WatchRoundView: View {
         .onReceive(locationManager.$lastLocation) { location in
             updateLiveDistance(location: location)
             if let round = roundStore.activeRound,
-               let selection = round.courseSelection,
                let location,
-               let detected = HoleAdvancer.detectHole(location: location, courseSelection: selection, currentHoleIndex: round.currentHoleIndex) {
+               let detected = HoleAdvancer.detectHole(location: location, courseSelection: round.courseSelection, currentHoleIndex: round.currentHoleIndex) {
                 roundStore.setHoleIndex(detected)
             }
             if let location, roundStore.activeRound != nil {
@@ -94,8 +90,8 @@ struct WatchRoundView: View {
     private func infoPage(_ round: Round) -> some View {
         ScrollView {
             VStack(spacing: 8) {
+                let course = round.courseSelection.course
                 if let courseHole = round.currentCourseHole,
-                   let course = round.courseSelection?.course,
                    let green = courseHole.green(from: course.features),
                    let location = locationManager.lastLocation {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)

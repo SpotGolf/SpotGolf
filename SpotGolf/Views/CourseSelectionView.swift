@@ -42,14 +42,6 @@ struct CourseSelectionView: View {
                             dismiss()
                         }
                     }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Skip") {
-                            roundStore.startRound()
-                            let roundID = roundStore.activeRound!.id
-                            dismiss()
-                            onRoundStarted?(roundID)
-                        }
-                    }
                 }
             }
         }
@@ -158,8 +150,7 @@ struct CourseSelectionView: View {
                 // Single sub-course — start round immediately
                 let indices = course.subCourses.isEmpty ? [] : [0]
                 let selection = CourseSelection(course: course, selectedSubCourseIndices: indices)
-                roundStore.startRound()
-                roundStore.setCourse(selection)
+                roundStore.startRound(courseSelection: selection)
                 let roundID = roundStore.activeRound!.id
                 dismiss()
                 onRoundStarted?(roundID)
@@ -206,8 +197,7 @@ struct CourseSelectionView: View {
             Section {
                 Button {
                     let selection = CourseSelection(course: course, selectedSubCourseIndices: selectedIndices)
-                    roundStore.startRound()
-                    roundStore.setCourse(selection)
+                    roundStore.startRound(courseSelection: selection)
                     let roundID = roundStore.activeRound!.id
                     dismiss()
                     onRoundStarted?(roundID)

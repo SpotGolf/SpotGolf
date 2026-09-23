@@ -23,6 +23,11 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
            !CommandLine.arguments.contains("--keep-rounds") {
             roundStore.rounds = []
         }
+        // Rounds start on the phone, so UI tests pass --start-round to begin one on the watch alone
+        if CommandLine.arguments.contains("--ui-testing"),
+           CommandLine.arguments.contains("--start-round") {
+            roundStore.startRound(courseSelection: .uiTestCourse)
+        }
         syncService.roundStore = roundStore
         syncService.guessStore = guessStore
         syncService.settingsStore = settingsStore

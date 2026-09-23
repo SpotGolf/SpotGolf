@@ -114,9 +114,4 @@ final class MarkSuggesterTests: XCTestCase {
         XCTAssertEqual(suggestions[0].latitude, baseLat + firstOffset, accuracy: latDegrees(1))
         XCTAssertEqual(suggestions[1].latitude, baseLat + secondOffset, accuracy: latDegrees(1))
     }
-
-    func testHolePointsWithoutCourseReturnsEverything() {
-        let points = walk(from: 0, count: 10)
-        XCTAssertEqual(MarkSuggester.holePoints(in: points, holeIndex: 3, courseSelection: nil), points)
-    }
 }

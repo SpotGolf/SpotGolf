@@ -18,7 +18,7 @@ final class TrackExporterTests: XCTestCase {
     }
 
     func testHeaderAndTrackRowFormat() {
-        let csv = TrackExporter.csv(round: Round(date: start),
+        let csv = TrackExporter.csv(round: Round(date: start, courseSelection: .test),
                                     phone: [point(offset: 0, altitude: 1609.5, accuracy: 4.2)],
                                     watch: [])
         let lines = csv.split(separator: "\n")
@@ -29,7 +29,7 @@ final class TrackExporterTests: XCTestCase {
     }
 
     func testMarkRowsCarryHoleStrokeAndType() {
-        var round = Round(date: start)
+        var round = Round(date: start, courseSelection: .test)
         round.addMark(mark(offset: 10), toHoleIndex: 0)
         round.addMark(mark(offset: 20), toHoleIndex: 0)
         round.addMark(mark(offset: 30, type: .penalty), toHoleIndex: 1)
@@ -44,7 +44,7 @@ final class TrackExporterTests: XCTestCase {
     }
 
     func testTrackAndMarkRowsInterleaveInTimeOrder() {
-        var round = Round(date: start)
+        var round = Round(date: start, courseSelection: .test)
         round.addMark(mark(offset: 15), toHoleIndex: 0)
 
         let csv = TrackExporter.csv(round: round,
@@ -56,7 +56,7 @@ final class TrackExporterTests: XCTestCase {
     }
 
     func testMergesSourcesInTimeOrder() {
-        let csv = TrackExporter.csv(round: Round(date: start),
+        let csv = TrackExporter.csv(round: Round(date: start, courseSelection: .test),
                                     phone: [point(offset: 10), point(offset: 30)],
                                     watch: [point(offset: 20)])
         let sources = csv.split(separator: "\n").dropFirst()
@@ -66,7 +66,7 @@ final class TrackExporterTests: XCTestCase {
     }
 
     func testMissingAltitudeAndAccuracyAreBlank() {
-        let csv = TrackExporter.csv(round: Round(date: start), phone: [], watch: [point(offset: 0)])
+        let csv = TrackExporter.csv(round: Round(date: start, courseSelection: .test), phone: [], watch: [point(offset: 0)])
         let fields = csv.split(separator: "\n")[1].split(separator: ",", omittingEmptySubsequences: false)
 
         XCTAssertEqual(fields.count, 10)
@@ -76,12 +76,12 @@ final class TrackExporterTests: XCTestCase {
     }
 
     func testEmptyRoundProducesOnlyHeader() {
-        let csv = TrackExporter.csv(round: Round(date: start), phone: [], watch: [])
+        let csv = TrackExporter.csv(round: Round(date: start, courseSelection: .test), phone: [], watch: [])
         XCTAssertEqual(csv, TrackExporter.header + "\n")
     }
 
     func testFileName() {
-        let round = Round(date: start)
+        let round = Round(date: start, courseSelection: .test)
         XCTAssertEqual(TrackExporter.fileName(for: round), "SpotGolf 2023-11-14.csv")
     }
 }

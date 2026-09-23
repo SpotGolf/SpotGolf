@@ -5,10 +5,12 @@ struct CourseSelection: Codable, Equatable {
     let course: Course
     let selectedSubCourseIndices: [Int]
 
+    /// The holes in playing order: each selected nine in the order chosen, and within a nine by
+    /// hole number, whatever order the course data lists them in.
     var orderedHoles: [Hole] {
         selectedSubCourseIndices.flatMap { index in
             guard index >= 0, index < course.subCourses.count else { return [Hole]() }
-            return course.subCourses[index].holes
+            return course.subCourses[index].holes.sorted { $0.number < $1.number }
         }
     }
 

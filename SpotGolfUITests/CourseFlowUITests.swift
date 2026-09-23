@@ -82,7 +82,7 @@ final class CourseFlowUITests: XCTestCase {
         dismissLocationAlert()
 
         // Start round with course
-        startRoundWithCourse()
+        app.startRoundWithCourse()
 
         // Wait for location to register
         sleep(3)
@@ -103,67 +103,77 @@ final class CourseFlowUITests: XCTestCase {
         XCTAssertTrue(elevation.exists, "Elevation change box should exist")
     }
 
-    // MARK: - Resume Round Detects Nearest Hole
+    // MARK: - Selecting a Hole Keeps the Current Hole
 
-    func testResumeRoundDetectsHole() throws {
+    func testSelectingHoleKeepsCurrentHoleAndPausesAutoAdvance() throws {
         setLocationToHole1Tee()
         app.launch()
         dismissLocationAlert()
 
-        startRoundWithCourse()
+        app.startRoundWithCourse()
         sleep(2)
-
-        // Verify starting on Hole 1
         XCTAssertTrue(app.waitForCurrentHole(1))
 
-        // Manually navigate to Hole 2 (pauses auto-advance)
-        app.goToHole(2)
+        // Look at Hole 3 while the round is on Hole 1
+        app.goToHole(3)
+        XCTAssertEqual(app.holeButton(1).value as? String, "Current hole", "Selecting a hole should not change the current hole")
+        XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round button should appear")
+        XCTAssertTrue(app.buttons["Play this hole"].exists, "Play this hole button should appear")
 
-        // Resume round button should appear (since we manually navigated)
-        let resumeButton = app.buttons["Resume round"]
-        XCTAssertTrue(resumeButton.waitForExistence(timeout: 5), "Resume round button should appear")
+        // Standing on the Hole 2 tee would normally move the round to Hole 2
+        setLocationToHole2Tee()
+        sleep(3)
 
-        // Move location to Hole 1 tee area and resume
-        setLocationToHole1Tee()
-        sleep(2)
-
-        resumeButton.tap()
-        sleep(2)
-
-        // Should detect we're near Hole 1 and switch back
-        XCTAssertTrue(app.waitForCurrentHole(1), "Resume should detect Hole 1 from GPS location")
-
-        // Resume button should be gone
-        XCTAssertFalse(app.buttons["Resume round"].exists, "Resume button should disappear after resuming")
+        XCTAssertTrue(app.waitForCurrentHole(3), "Hole 3 should stay shown while automatic hole changes are paused")
+        XCTAssertEqual(app.holeButton(1).value as? String, "Current hole", "Automatic hole changes should be paused")
     }
 
-    // MARK: - Resume Round Detects Hole 2 When Near Hole 2
+    // MARK: - Resume Round Returns to the Current Hole
 
-    func testResumeRoundDetectsHole2() throws {
+    func testResumeRoundReturnsToCurrentHole() throws {
         setLocationToHole1Tee()
         app.launch()
         dismissLocationAlert()
 
-        startRoundWithCourse()
+        app.startRoundWithCourse()
         sleep(2)
 
-        // Manually navigate to Hole 2, then back to Hole 1
-        app.goToHole(2)
-        app.goToHole(1)
-
-        // Resume button should appear since we used manual navigation
+        app.goToHole(3)
         let resumeButton = app.buttons["Resume round"]
         XCTAssertTrue(resumeButton.waitForExistence(timeout: 5), "Resume round button should appear")
 
-        // Move to Hole 2 tee area
-        setLocationToHole2Tee()
-        sleep(2)
-
         resumeButton.tap()
+
+        XCTAssertTrue(app.waitForCurrentHole(1), "Resume round should show the current hole")
+        XCTAssertFalse(app.buttons["Resume round"].exists, "Resume round button should disappear")
+        XCTAssertFalse(app.buttons["Play this hole"].exists, "Play this hole button should disappear")
+
+        // Automatic hole changes are back on
+        setLocationToHole2Tee()
+        XCTAssertTrue(app.waitForCurrentHole(2, timeout: 10), "Automatic hole changes should resume")
+    }
+
+    // MARK: - Play This Hole Changes the Current Hole
+
+    func testPlayThisHoleChangesCurrentHole() throws {
+        setLocationToHole1Tee()
+        app.launch()
+        dismissLocationAlert()
+
+        app.startRoundWithCourse()
         sleep(2)
 
-        // Should detect we're near Hole 2
-        XCTAssertTrue(app.waitForCurrentHole(2), "Resume should detect Hole 2 from GPS location")
+        app.goToHole(3)
+        let playButton = app.buttons["Play this hole"]
+        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play this hole button should appear")
+
+        playButton.tap()
+        sleep(1)
+
+        XCTAssertTrue(app.waitForCurrentHole(3), "Hole 3 should stay shown")
+        XCTAssertEqual(app.holeButton(3).value as? String, "Current hole", "Play this hole should make Hole 3 the current hole")
+        XCTAssertFalse(app.buttons["Play this hole"].exists, "Play this hole button should disappear")
+        XCTAssertFalse(app.buttons["Resume round"].exists, "Resume round button should disappear")
     }
 
     // MARK: - Header and Hazards Update on Hole Change
@@ -173,7 +183,7 @@ final class CourseFlowUITests: XCTestCase {
         app.launch()
         dismissLocationAlert()
 
-        startRoundWithCourse()
+        app.startRoundWithCourse()
         sleep(3)
 
         // Should show Par 4 for hole 1
@@ -196,26 +206,5 @@ final class CourseFlowUITests: XCTestCase {
         // Hole 2 has bunkers between the tee and the green: each gets a yardage bubble on the map
         let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Hazard in '")).firstMatch
         XCTAssertTrue(bubble.waitForExistence(timeout: 5), "Hazard bubbles should appear for hole 2")
-    }
-
-    // MARK: - Helpers
-
-    private func startRoundWithCourse() {
-        let newRoundButton = app.buttons["New Round"]
-        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5))
-        newRoundButton.tap()
-
-        // Select Broadlands
-        let broadlands = app.staticTexts["Broadlands Golf Course"]
-        XCTAssertTrue(broadlands.waitForExistence(timeout: 10))
-        broadlands.tap()
-
-        // Start Round with default sub-course selection
-        let startButton = app.buttons["Start Round"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
-        startButton.tap()
-
-        // Wait for map to load
-        XCTAssertTrue(app.waitForCurrentHole(1))
     }
 }

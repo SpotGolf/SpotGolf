@@ -25,16 +25,33 @@ final class SyncServiceTests: XCTestCase {
 
     // MARK: - startRound message
 
+    /// Delivers a startRound message the way the phone sends it: a header, then the course in one chunk.
+    private func handleStartRound(id: String, date: String?, selection: CourseSelection = .test) {
+        let compressed = try! JSONEncoder().encode(selection).gzipCompressed()
+        let transferID = UUID().uuidString
+        var header: [String: Any] = [
+            "type": "startRound",
+            "id": id,
+            "_chunked": true,
+            "_transferId": transferID,
+            "_totalChunks": 1,
+            "_totalBytes": compressed.count
+        ]
+        header["date"] = date
+        service.handleMessage(header)
+        service.handleMessage([
+            "_chunk": true,
+            "_transferId": transferID,
+            "_chunkIndex": 0,
+            "_data": compressed
+        ])
+    }
+
     func testHandleStartRoundMessage() {
         let id = UUID()
         let date = Date(timeIntervalSince1970: 1_700_000_000)
-        let message: [String: Any] = [
-            "type": "startRound",
-            "id": id.uuidString,
-            "date": ISO8601DateFormatter().string(from: date)
-        ]
 
-        service.handleMessage(message)
+        handleStartRound(id: id.uuidString, date: ISO8601DateFormatter().string(from: date))
 
         XCTAssertEqual(store.rounds.count, 1)
         XCTAssertEqual(store.rounds[0].id, id)
@@ -42,40 +59,32 @@ final class SyncServiceTests: XCTestCase {
     }
 
     func testHandleStartRoundMessageSetsCorrectDate() {
-        let id = UUID()
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let formatter = ISO8601DateFormatter()
-        let message: [String: Any] = [
-            "type": "startRound",
-            "id": id.uuidString,
-            "date": formatter.string(from: date)
-        ]
 
-        service.handleMessage(message)
+        handleStartRound(id: UUID().uuidString, date: formatter.string(from: date))
 
         let roundDate = store.rounds[0].date
         XCTAssertEqual(formatter.string(from: roundDate), formatter.string(from: date))
     }
 
-    func testHandleStartRoundWithInvalidIDIsIgnored() {
-        let message: [String: Any] = [
-            "type": "startRound",
-            "id": "not-a-uuid",
-            "date": ISO8601DateFormatter().string(from: Date())
-        ]
+    func testHandleStartRoundMessageSetsCourse() {
+        let selection = CourseSelection(course: CourseSelection.test.course, selectedSubCourseIndices: [1])
 
-        service.handleMessage(message)
+        handleStartRound(id: UUID().uuidString, date: ISO8601DateFormatter().string(from: Date()), selection: selection)
+
+        XCTAssertEqual(store.rounds[0].course.name, "Test Course")
+        XCTAssertEqual(store.rounds[0].courseSelection.selectedSubCourseIndices, [1])
+    }
+
+    func testHandleStartRoundWithInvalidIDIsIgnored() {
+        handleStartRound(id: "not-a-uuid", date: ISO8601DateFormatter().string(from: Date()))
 
         XCTAssertTrue(store.rounds.isEmpty)
     }
 
     func testHandleStartRoundWithMissingDateIsIgnored() {
-        let message: [String: Any] = [
-            "type": "startRound",
-            "id": UUID().uuidString
-        ]
-
-        service.handleMessage(message)
+        handleStartRound(id: UUID().uuidString, date: nil)
 
         XCTAssertTrue(store.rounds.isEmpty)
     }
@@ -84,7 +93,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleEndRoundMessage() {
         let id = UUID()
-        store.startRound(id: id, fromSync: true)
+        store.startRound(id: id, courseSelection: .test, fromSync: true)
         XCTAssertNotNil(store.activeRound)
 
         let message: [String: Any] = [
@@ -99,7 +108,7 @@ final class SyncServiceTests: XCTestCase {
     }
 
     func testHandleEndRoundWithInvalidIDIsIgnored() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
 
         let message: [String: Any] = [
             "type": "endRound",
@@ -112,7 +121,7 @@ final class SyncServiceTests: XCTestCase {
     }
 
     func testHandleEndRoundWithMissingIDIsIgnored() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
 
         let message: [String: Any] = [
             "type": "endRound"
@@ -127,7 +136,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleAddMarkMessage() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         let markData = try! JSONEncoder().encode(mark)
@@ -148,7 +157,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleAddMarkToSpecificHole() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
         store.nextHole() // iOS is on hole 1
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
@@ -169,7 +178,7 @@ final class SyncServiceTests: XCTestCase {
     }
 
     func testHandleAddMarkWithInvalidRoundIDIsIgnored() {
-        store.startRound(fromSync: true)
+        store.startRound(courseSelection: .test, fromSync: true)
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         let markData = try! JSONEncoder().encode(mark)
@@ -188,7 +197,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleAddMarkWithInvalidMarkDataIsIgnored() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
 
         let message: [String: Any] = [
             "type": "addMark",
@@ -204,7 +213,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleAddMarkWithMissingHoleIndexIsIgnored() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
 
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         let markData = try! JSONEncoder().encode(mark)
@@ -249,7 +258,7 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertTrue(store.rounds.isEmpty)
     }
 
-    // MARK: - setCourse message
+    // MARK: - Course encoding
 
     func testSendAndHandleCourseSelection() throws {
         // Create a CourseSelection, encode it, verify it round-trips through the message format
@@ -268,74 +277,11 @@ final class SyncServiceTests: XCTestCase {
         XCTAssertEqual(decoded.selectedSubCourseIndices, [0, 1])
     }
 
-    func testHandleSetCourseMessage() {
-        let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
-
-        let selection = CourseSelection(
-            course: Course(name: "Test", clubName: "Test",
-                           location: CourseLocation(address: "", city: "Denver",
-                                                    state: "CO", country: "US",
-                                                    coordinate: Coordinate(latitude: 39.0, longitude: -105.0)),
-                           subCourses: []),
-            selectedSubCourseIndices: [0, 1]
-        )
-        let data = try! JSONEncoder().encode(selection)
-        let compressed = try! data.gzipCompressed()
-
-        // Simulate chunked transfer: header then single chunk
-        let transferID = UUID().uuidString
-        let header: [String: Any] = [
-            "type": "setCourse",
-            "roundId": roundID.uuidString,
-            "_chunked": true,
-            "_transferId": transferID,
-            "_totalChunks": 1,
-            "_totalBytes": compressed.count
-        ]
-        service.handleMessage(header)
-
-        let chunk: [String: Any] = [
-            "_chunk": true,
-            "_transferId": transferID,
-            "_chunkIndex": 0,
-            "_data": compressed
-        ]
-        service.handleMessage(chunk)
-
-        XCTAssertEqual(store.rounds[0].courseSelection?.course.name, "Test")
-        XCTAssertEqual(store.rounds[0].courseSelection?.selectedSubCourseIndices, [0, 1])
-    }
-
-    func testHandleSetCourseWithInvalidRoundIDIsIgnored() {
-        store.startRound(fromSync: true)
-
-        let selection = CourseSelection(
-            course: Course(name: "Test", clubName: "Test",
-                           location: CourseLocation(address: "", city: "Denver",
-                                                    state: "CO", country: "US",
-                                                    coordinate: Coordinate(latitude: 39.0, longitude: -105.0)),
-                           subCourses: []),
-            selectedSubCourseIndices: []
-        )
-        let data = try! JSONEncoder().encode(selection)
-
-        let message: [String: Any] = [
-            "type": "setCourse",
-            "roundId": "not-a-uuid",
-            "courseSelection": data
-        ]
-
-        service.handleMessage(message)
-
-        XCTAssertNil(store.rounds[0].courseSelection)
-    }
-
     // MARK: - setMarkType message
 
     func testHandleSetMarkTypeMessage() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
 
@@ -353,7 +299,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleSetMarkTypeOutOfBoundsMessage() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
 
@@ -371,7 +317,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleSetMarkTypeWithInvalidMarkIDIsIgnored() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
 
@@ -389,7 +335,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleSetMarkTypeWithInvalidTypeIsIgnored() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
 
@@ -411,13 +357,9 @@ final class SyncServiceTests: XCTestCase {
         var syncMessages: [SyncMessage] = []
         store.onSyncEvent = { syncMessages.append($0) }
 
-        let id = UUID()
-        service.handleMessage([
-            "type": "startRound",
-            "id": id.uuidString,
-            "date": ISO8601DateFormatter().string(from: Date())
-        ])
+        handleStartRound(id: UUID().uuidString, date: ISO8601DateFormatter().string(from: Date()))
 
+        XCTAssertTrue(store.rounds.count == 1, "The round should be created")
         XCTAssertTrue(syncMessages.isEmpty, "Handled messages should use fromSync: true")
     }
 
@@ -425,7 +367,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleSetHoleMessage() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
 
         service.handleMessage([
             "type": "setHole",
@@ -439,7 +381,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleSetHoleDoesNotEchoBack() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
         var syncMessages: [SyncMessage] = []
         store.onSyncEvent = { syncMessages.append($0) }
 
@@ -455,7 +397,7 @@ final class SyncServiceTests: XCTestCase {
 
     func testHandleSetHoleWithMissingFieldsIsIgnored() {
         let roundID = UUID()
-        store.startRound(id: roundID, fromSync: true)
+        store.startRound(id: roundID, courseSelection: .test, fromSync: true)
 
         service.handleMessage(["type": "setHole", "roundId": roundID.uuidString, "holeIndex": 6])
         service.handleMessage(["type": "setHole", "holeIndex": 6, "changedAt": Date().timeIntervalSince1970 + 1])

@@ -7,12 +7,12 @@ struct Round: Identifiable {
     var holes: [RoundHole]
     var currentHoleIndex: Int
     var isActive: Bool
-    var courseSelection: CourseSelection?
+    var courseSelection: CourseSelection
 
     static let maxHoles = 18
 
     init(id: UUID = UUID(), date: Date = Date(), holes: [RoundHole] = [RoundHole()],
-         currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection? = nil) {
+         currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection) {
         self.id = id
         self.date = date
         self.holes = holes
@@ -23,10 +23,7 @@ struct Round: Identifiable {
 
     var displayTitle: String {
         let dateStr = date.formatted(date: .long, time: .omitted)
-        if let name = courseSelection?.course.name {
-            return "\(Self.shortenCourseName(name)) on \(dateStr)"
-        }
-        return dateStr
+        return "\(Self.shortenCourseName(courseSelection.course.name)) on \(dateStr)"
     }
 
     static func shortenCourseName(_ name: String) -> String {
@@ -66,11 +63,24 @@ struct Round: Identifiable {
         currentHoleIndex + 1
     }
 
+    var course: Course {
+        courseSelection.course
+    }
+
     var currentCourseHole: Hole? {
-        guard let selection = courseSelection else { return nil }
-        let orderedHoles = selection.orderedHoles
-        guard currentHoleIndex < orderedHoles.count else { return nil }
-        return orderedHoles[currentHoleIndex]
+        courseHole(at: currentHoleIndex)
+    }
+
+    /// The course data for the hole at `index`, or nil past the course's last hole.
+    func courseHole(at index: Int) -> Hole? {
+        let orderedHoles = courseSelection.orderedHoles
+        guard index < orderedHoles.count else { return nil }
+        return orderedHoles[index]
+    }
+
+    /// The hole at `index`, or an empty hole when play has not reached it yet.
+    func hole(at index: Int) -> RoundHole {
+        index < holes.count ? holes[index] : RoundHole()
     }
 
     /// Marks for the current hole — preserves existing call sites.
@@ -145,7 +155,6 @@ extension Round: Equatable {}
 extension Round: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, date, holes, currentHoleIndex, isActive, courseSelection
-        case marks // legacy key
     }
 
     init(from decoder: Decoder) throws {
@@ -154,17 +163,11 @@ extension Round: Codable {
         date = try container.decode(Date.self, forKey: .date)
         isActive = try container.decode(Bool.self, forKey: .isActive)
 
-        if let holes = try container.decodeIfPresent([RoundHole].self, forKey: .holes) {
-            self.holes = holes.isEmpty ? [RoundHole()] : holes
-            let decoded = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
-            self.currentHoleIndex = min(max(decoded, 0), self.holes.count - 1)
-        } else {
-            // Legacy format: flat marks array → single hole
-            let marks = try container.decodeIfPresent([BallMark].self, forKey: .marks) ?? []
-            self.holes = [RoundHole(marks: marks)]
-            self.currentHoleIndex = 0
-        }
-        self.courseSelection = try container.decodeIfPresent(CourseSelection.self, forKey: .courseSelection)
+        let holes = try container.decode([RoundHole].self, forKey: .holes)
+        self.holes = holes.isEmpty ? [RoundHole()] : holes
+        let decoded = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
+        self.currentHoleIndex = min(max(decoded, 0), self.holes.count - 1)
+        self.courseSelection = try container.decode(CourseSelection.self, forKey: .courseSelection)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -174,6 +177,6 @@ extension Round: Codable {
         try container.encode(holes, forKey: .holes)
         try container.encode(currentHoleIndex, forKey: .currentHoleIndex)
         try container.encode(isActive, forKey: .isActive)
-        try container.encodeIfPresent(courseSelection, forKey: .courseSelection)
+        try container.encode(courseSelection, forKey: .courseSelection)
     }
 }

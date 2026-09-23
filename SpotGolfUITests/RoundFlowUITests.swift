@@ -24,35 +24,22 @@ final class RoundFlowUITests: XCTestCase {
         app.tap()
     }
 
-    // MARK: - Skip Course Selection (No Course)
+    // MARK: - Full Round
 
-    func testFullRoundFlowWithSkip() throws {
+    func testFullRoundFlow() throws {
+        // Broadlands only shows in the course list when the simulator is near it
+        LocationTestHelper.setSimulatorLocation(latitude: 39.95545, longitude: -105.04220)
         app.launch()
         dismissLocationAlert()
 
         let locations = LocationTestHelper.loadTestLocations()
         XCTAssertGreaterThanOrEqual(locations.count, 2, "Need at least 2 test locations")
 
-        // ── Start a new round (skip course selection) ──
-        let newRoundButton = app.buttons["New Round"]
-        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5), "New Round button should exist")
-        newRoundButton.tap()
+        // ── Start a new round ──
+        app.startRoundWithCourse()
 
-        // CourseSelectionView should appear — tap Skip
-        let skipButton = app.buttons["Skip"]
-        XCTAssertTrue(skipButton.waitForExistence(timeout: 5), "Skip button should exist")
-        skipButton.tap()
-
-        // Should navigate directly to RoundMapView with hole 1 current in the header
-        XCTAssertTrue(app.waitForCurrentHole(1), "Hole 1 should be the current hole")
-
-        // Without a course the header lists 18 holes
-        XCTAssertTrue(app.holeButton(18).exists, "Header should list 18 holes without a course")
-
-        // No course data — no par and distance line, and no key information boxes
-        XCTAssertFalse(app.staticTexts["HoleSummary"].exists, "Par and distance should not appear without course data")
-        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "DistanceToCenter").firstMatch.exists,
-                       "Distance box should not appear without course data")
+        // Front and Back are both selected by default, so the header lists 18 holes
+        XCTAssertTrue(app.holeButton(18).exists, "Header should list 18 holes")
 
         var currentHole = 1
 
@@ -83,33 +70,8 @@ final class RoundFlowUITests: XCTestCase {
         XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist")
         endRoundButton.tap()
 
-        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5),
+        XCTAssertTrue(app.buttons["New Round"].waitForExistence(timeout: 5),
                       "New Round button should reappear after ending round")
-    }
-
-    // MARK: - Resume Round Hidden Without Course
-
-    func testResumeRoundNotShownWithoutCourse() throws {
-        app.launch()
-        dismissLocationAlert()
-
-        // Start round without course (skip)
-        let newRoundButton = app.buttons["New Round"]
-        XCTAssertTrue(newRoundButton.waitForExistence(timeout: 5))
-        newRoundButton.tap()
-
-        let skipButton = app.buttons["Skip"]
-        XCTAssertTrue(skipButton.waitForExistence(timeout: 5))
-        skipButton.tap()
-
-        XCTAssertTrue(app.waitForCurrentHole(1))
-
-        // Manually navigate to Hole 2 (would normally pause auto-advance)
-        app.goToHole(2)
-
-        // Resume round button should NOT appear since there is no course
-        XCTAssertFalse(app.buttons["Resume round"].exists,
-                       "Resume round should not appear without a course selected")
     }
 
     // MARK: - Cancel Course Selection
