@@ -52,10 +52,13 @@ targets:
     dependencies:
       - target: SpotGolfWatch
       - package: CourseDataSwift
+      - sdk: HealthKit.framework
     entitlements:
       path: SpotGolf/SpotGolf.entitlements
       properties:
         com.apple.security.app-sandbox: true
+        # Needed to launch the watch app when a round starts
+        com.apple.developer.healthkit: true
     info:
       path: SpotGolf/Info.plist
       properties:
@@ -63,6 +66,8 @@ targets:
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        NSHealthShareUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
+        NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
         NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -97,6 +102,7 @@ targets:
         NSHealthShareUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to mark where your ball is on the course."
+        NSMotionUsageDescription: "SpotGolf uses wrist motion to detect your swings."
         WKBackgroundModes:
           - workout-processing
         UIBackgroundModes:

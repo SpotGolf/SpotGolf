@@ -79,7 +79,7 @@ final class MarkSuggesterTests: XCTestCase {
         let guess = MissedMarkGuess(
             coordinate: CLLocationCoordinate2D(latitude: baseLat + dwellOffset, longitude: baseLon),
             timestamp: start,
-            holeIndex: 0, reason: .stationary, roundID: UUID()
+            roundID: UUID()
         )
 
         let suggestions = MarkSuggester.suggestions(in: points, minDwell: 30, marks: [], guesses: [guess])
@@ -92,7 +92,7 @@ final class MarkSuggesterTests: XCTestCase {
         let guess = MissedMarkGuess(
             coordinate: CLLocationCoordinate2D(latitude: baseLat, longitude: baseLon),
             timestamp: start,
-            holeIndex: 0, reason: .swing, roundID: UUID()
+            roundID: UUID()
         )
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: baseLat + latDegrees(5),
                                                                longitude: baseLon))

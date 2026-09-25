@@ -6,12 +6,9 @@ class SettingsStore: ObservableObject {
         didSet {
             if settings != oldValue {
                 save()
-                onSettingsChanged?(settings)
             }
         }
     }
-
-    var onSettingsChanged: ((AppSettings) -> Void)?
 
     private var fileURL: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -30,10 +27,6 @@ class SettingsStore: ObservableObject {
     private static var settingsFileURL: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return docs.appendingPathComponent("settings.json")
-    }
-
-    func apply(_ newSettings: AppSettings) {
-        settings = newSettings
     }
 
     private func save() {

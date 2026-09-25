@@ -4,7 +4,7 @@ import CourseDataSwift
 @testable import SpotGolf
 
 /// Plays the first three holes at Broadlands with `RoundSimulator` and records the GPS fixes the
-/// way the app does: one fix per delegate call, passed from `LocationManager` to `TrackStore`.
+/// way the app does: one fix per delegate call, passed from `LocationManager` to `StreamStore`.
 @MainActor
 final class TrackRecordingTests: XCTestCase {
 
@@ -15,7 +15,7 @@ final class TrackRecordingTests: XCTestCase {
     private static let fixCount = 2_700
 
     private var directory: URL!
-    private var store: TrackStore!
+    private var store: StreamStore!
     private var locationManager: LocationManager!
     private var course: Course!
     private let roundID = UUID()
@@ -24,7 +24,7 @@ final class TrackRecordingTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        store = TrackStore(directory: directory)
+        store = StreamStore(directory: directory)
         locationManager = LocationManager()
 
         // The course file CourseBuilder produced, as published in CourseData
@@ -60,15 +60,15 @@ final class TrackRecordingTests: XCTestCase {
         // Same wiring as the app: every raw fix goes straight to the track
         let tracks = store!
         let id = roundID
-        locationManager.onRawLocations = { tracks.append($0, roundID: id) }
+        locationManager.onRawLocations = { locations in
+            tracks.append(locations.map { .fix(TrackPoint(location: $0)) }, roundID: id)
+        }
 
         let manager = CLLocationManager()
         for fix in round.fixes {
             locationManager.locationManager(manager, didUpdateLocations: [fix])
         }
-        store.flush()
-
-        let points = store.points(for: roundID, source: .current)
+        let points = store.points(for: roundID)
         XCTAssertEqual(points.count, Self.fixCount)
 
         // One fix per second for 45 minutes, in order
@@ -84,11 +84,11 @@ final class TrackRecordingTests: XCTestCase {
             XCTAssertEqual(try XCTUnwrap(point.altitude), fix.altitude, accuracy: 0.01)
         }
 
-        // 24 bytes per fix: 64,800 bytes for three holes
-        let url = store.fileURL(for: roundID, source: .current)
+        // 25 bytes per fix: 67,500 bytes for three holes
+        let url = store.fileURL(for: roundID)
         let size = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
-        XCTAssertEqual(size, Self.fixCount * TrackPoint.recordSize)
-        XCTAssertEqual(size, 64_800)
+        XCTAssertEqual(size, Self.fixCount * StreamRecord.size)
+        XCTAssertEqual(size, 67_500)
 
         attach(round)
     }

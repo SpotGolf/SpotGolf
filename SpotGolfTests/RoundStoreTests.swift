@@ -5,43 +5,59 @@ import CoreLocation
 @MainActor
 final class RoundStoreTests: XCTestCase {
 
+    private var directory: URL!
     private var store: RoundStore!
-    private var syncMessages: [SyncMessage]!
+    private var timelineChanges: [Round]!
+    private var markChanges: [Round]!
 
     override func setUp() {
         super.setUp()
-        store = RoundStore()
-        // Clear any persisted data from previous runs
-        store.rounds = []
-        syncMessages = []
-        store.onSyncEvent = { [weak self] msg in
-            self?.syncMessages.append(msg)
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        store = RoundStore(directory: directory)
+        timelineChanges = []
+        markChanges = []
+        store.onTimelineChanged = { [weak self] round in
+            self?.timelineChanges.append(round)
+        }
+        store.onMarksChanged = { [weak self] round in
+            self?.markChanges.append(round)
         }
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(at: directory)
         store = nil
-        syncMessages = nil
+        timelineChanges = nil
+        markChanges = nil
+        directory = nil
         super.tearDown()
+    }
+
+    private func makeMark(latitude: Double = 33.45, longitude: Double = -112.07) -> BallMark {
+        BallMark(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
+    }
+
+    /// Starts a round and returns its ID.
+    private func startRound() -> UUID {
+        store.startRound(courseSelection: .test).id
     }
 
     // MARK: - Loading
 
-    func testLoadDropsRoundsWithoutCourse() throws {
-        store.startRound(courseSelection: .test)
-        let keptID = store.rounds[0].id
+    func testRoundsSurviveNewStoreInstance() {
+        let id = startRound()
+        store.addMark(to: id, holeIndex: 0, mark: makeMark())
 
-        // Add a round saved before a course was required
-        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("rounds.json")
-        var saved = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [[String: Any]]
-        var noCourse = saved[0]
-        noCourse["id"] = UUID().uuidString
-        noCourse["courseSelection"] = nil
-        saved.append(noCourse)
-        try JSONSerialization.data(withJSONObject: saved).write(to: url)
+        let reloaded = RoundStore(directory: directory)
 
-        XCTAssertEqual(RoundStore().rounds.map(\.id), [keptID])
+        XCTAssertEqual(reloaded.rounds, store.rounds)
+    }
+
+    func testUnreadableSavedRoundsAreDiscarded() throws {
+        try Data("not json".utf8).write(to: directory.appendingPathComponent("rounds.json"))
+
+        XCTAssertTrue(RoundStore(directory: directory).rounds.isEmpty)
     }
 
     // MARK: - startRound
@@ -64,370 +80,200 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].date, date)
     }
 
-    func testStartRoundEndsPreviousActiveRound() {
-        store.startRound(courseSelection: .test)
-        let firstID = store.rounds[0].id
-
-        store.startRound(courseSelection: .test)
-
-        XCTAssertEqual(store.rounds.count, 2)
-        // The new round is at index 0 (inserted at front)
-        XCTAssertTrue(store.rounds[0].isActive)
-        // The old round should be ended
-        let oldRound = store.rounds.first(where: { $0.id == firstID })
-        XCTAssertNotNil(oldRound)
-        XCTAssertFalse(oldRound!.isActive)
-    }
-
-    func testStartRoundFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .startRound(let id, _, let selection) = syncMessages[0] {
-            XCTAssertEqual(id, store.rounds[0].id)
-            XCTAssertEqual(selection.course.name, "Test Course")
-        } else {
-            XCTFail("Expected startRound sync message")
-        }
-    }
-
-    func testStartRoundFromSyncDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test, fromSync: true)
-
-        XCTAssertEqual(store.rounds.count, 1)
-        XCTAssertTrue(syncMessages.isEmpty)
-    }
-
-    // MARK: - endRound
-
-    func testEndRound() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
-
-        store.endRound()
+    func testStartRoundWithStatus() {
+        store.startRound(courseSelection: .test, status: .starting)
 
         XCTAssertNil(store.activeRound)
-        XCTAssertFalse(store.rounds[0].isActive)
+        XCTAssertEqual(store.currentRound?.status, .starting)
     }
 
-    func testEndRoundByID() {
-        store.startRound(courseSelection: .test)
-        let id = store.rounds[0].id
-        syncMessages.removeAll()
+    func testStartRoundWithExistingIDReturnsItUnchanged() {
+        let id = startRound()
+        store.addMark(to: id, holeIndex: 0, mark: makeMark())
 
-        store.endRound(roundID: id)
+        let again = store.startRound(id: id, courseSelection: .test, status: .starting)
 
-        XCTAssertFalse(store.rounds[0].isActive)
+        XCTAssertEqual(store.rounds.count, 1)
+        XCTAssertEqual(again.status, .active)
+        XCTAssertEqual(again.allMarks.count, 1)
     }
 
-    func testEndRoundFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        let id = store.rounds[0].id
-        syncMessages.removeAll()
+    func testNewRoundGoesFirst() {
+        let first = startRound()
+        let second = startRound()
 
-        store.endRound()
-
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .endRound(let syncedID) = syncMessages[0] {
-            XCTAssertEqual(syncedID, id)
-        } else {
-            XCTFail("Expected endRound sync message")
-        }
+        XCTAssertEqual(store.rounds.map(\.id), [second, first])
     }
 
-    func testEndRoundFromSyncDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test, fromSync: true)
+    // MARK: - update
 
-        store.endRound(fromSync: true)
+    func testUpdateChangesRound() {
+        let id = startRound()
 
-        XCTAssertTrue(syncMessages.isEmpty)
+        store.update(id) { $0.status = .ending }
+
+        XCTAssertEqual(store.round(id)?.status, .ending)
     }
 
-    func testEndRoundNoActiveRoundIsNoOp() {
-        store.endRound()
-        XCTAssertTrue(syncMessages.isEmpty)
+    func testUpdateUnknownRoundIsNoOp() {
+        startRound()
+        let before = store.rounds
+
+        store.update(UUID()) { $0.status = .ended }
+
+        XCTAssertEqual(store.rounds, before)
     }
 
-    // MARK: - addMark (active round)
+    // MARK: - Holes
 
-    func testAddMarkToActiveRound() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
+    func testStartHoleMovesForwardAndReportsChange() {
+        let id = startRound()
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+        store.startHole(2, source: .autoAdvance)
 
-        XCTAssertEqual(store.activeRound?.marks.count, 1)
-        XCTAssertEqual(store.activeRound?.marks[0].id, mark.id)
+        XCTAssertEqual(store.round(id)?.currentHoleIndex, 2)
+        XCTAssertEqual(timelineChanges.count, 1)
+        XCTAssertEqual(timelineChanges[0].holeTimeline.last?.holeIndex, 2)
+        XCTAssertEqual(timelineChanges[0].holeTimeline.last?.source, .autoAdvance)
     }
 
-    func testAddMarkFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        syncMessages.removeAll()
+    func testStartHoleByRoundID() {
+        let id = startRound()
+        store.update(id) { $0.status = .ending }
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+        store.startHole(1, roundID: id, source: .playHole)
 
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .addMark(let syncedMark, let holeIndex, let syncedRoundID) = syncMessages[0] {
-            XCTAssertEqual(syncedMark.id, mark.id)
-            XCTAssertEqual(holeIndex, 0)
-            XCTAssertEqual(syncedRoundID, roundID)
-        } else {
-            XCTFail("Expected addMark sync message")
-        }
+        XCTAssertEqual(store.round(id)?.currentHoleIndex, 1)
     }
 
-    func testAddMarkFromSyncDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test, fromSync: true)
+    func testStartHoleIgnoresEarlierHole() {
+        let id = startRound()
+        store.startHole(3, source: .autoAdvance)
+        timelineChanges.removeAll()
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark, fromSync: true)
+        store.startHole(1, source: .playHole)
 
-        XCTAssertEqual(store.activeRound?.marks.count, 1)
-        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertEqual(store.round(id)?.currentHoleIndex, 3)
+        XCTAssertTrue(timelineChanges.isEmpty)
     }
 
-    func testAddMarkNoActiveRoundIsNoOp() {
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+    func testStartHoleWithoutActiveRoundIsNoOp() {
+        store.startHole(1, source: .autoAdvance)
 
-        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertTrue(store.rounds.isEmpty)
+        XCTAssertTrue(timelineChanges.isEmpty)
     }
 
-    // MARK: - addMark (to specific round)
+    func testMergeTimelineDoesNotReportChange() {
+        let id = startRound()
+        var other = store.round(id)!
+        other.startHole(4, at: other.date.addingTimeInterval(600), source: .autoAdvance)
+
+        XCTAssertTrue(store.mergeTimeline(other.holeTimeline, roundID: id))
+
+        XCTAssertEqual(store.round(id)?.currentHoleIndex, 4)
+        XCTAssertTrue(timelineChanges.isEmpty)
+        XCTAssertFalse(store.mergeTimeline(other.holeTimeline, roundID: id))
+    }
+
+    func testSetTimelineReportsChangeOnlyWhenDifferent() {
+        let id = startRound()
+        var round = store.round(id)!
+        round.startHole(2, at: round.date.addingTimeInterval(600), source: .estimated)
+
+        store.setTimeline(round.holeTimeline, roundID: id)
+        store.setTimeline(round.holeTimeline, roundID: id)
+
+        XCTAssertEqual(store.round(id)?.currentHoleIndex, 2)
+        XCTAssertEqual(timelineChanges.count, 1)
+    }
+
+    func testSetStartTimeStaysBetweenNeighbors() throws {
+        let id = store.startRound(date: Date().addingTimeInterval(-3600), courseSelection: .test).id
+        store.startHole(1, at: Date().addingTimeInterval(-1800), source: .autoAdvance)
+        store.startHole(2, at: Date().addingTimeInterval(-600), source: .autoAdvance)
+        let timeline = try XCTUnwrap(store.round(id)?.holeTimeline)
+
+        // Before hole 1's start: kept just after it, so no entry is dropped
+        store.setStartTime(timeline[0].startedAt.addingTimeInterval(-60), entryID: timeline[2].id, roundID: id)
+
+        let updated = try XCTUnwrap(store.round(id)?.holeTimeline)
+        XCTAssertEqual(updated.map(\.holeIndex), [0, 1, 2])
+        XCTAssertEqual(updated[2].startedAt, timeline[1].startedAt.addingTimeInterval(1))
+    }
+
+    func testSetStartTimeMarksEntryUserSet() throws {
+        let id = store.startRound(date: Date().addingTimeInterval(-3600), courseSelection: .test).id
+        store.startHole(1, source: .autoAdvance)
+        let entry = try XCTUnwrap(store.round(id)?.holeTimeline.last)
+        let newTime = entry.startedAt.addingTimeInterval(-30)
+
+        store.setStartTime(newTime, entryID: entry.id, roundID: id)
+
+        let updated = try XCTUnwrap(store.round(id)?.holeTimeline.last)
+        XCTAssertEqual(updated.startedAt, newTime)
+        XCTAssertEqual(updated.source, .userSet)
+        XCTAssertEqual(updated.version, entry.version + 1)
+    }
+
+    // MARK: - addMark
 
     func testAddMarkToSpecificRound() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        store.endRound(fromSync: true)
-        syncMessages.removeAll()
+        let id = startRound()
+        let mark = makeMark()
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, holeIndex: 0, mark: mark)
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        XCTAssertEqual(store.rounds[0].marks.count, 1)
+        XCTAssertEqual(store.round(id)?.marks.count, 1)
+        XCTAssertEqual(store.round(id)?.marks[0].id, mark.id)
     }
 
-    func testAddMarkToSpecificRoundFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        syncMessages.removeAll()
+    func testAddMarkBumpsVersionAndReportsChange() {
+        let id = startRound()
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, holeIndex: 0, mark: mark)
+        store.addMark(to: id, holeIndex: 0, mark: makeMark())
 
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .addMark(_, let holeIndex, let syncedRoundID) = syncMessages[0] {
-            XCTAssertEqual(holeIndex, 0)
-            XCTAssertEqual(syncedRoundID, roundID)
-        } else {
-            XCTFail("Expected addMark sync message")
-        }
+        XCTAssertEqual(store.round(id)?.marksVersion, 1)
+        XCTAssertEqual(markChanges.count, 1)
+        XCTAssertEqual(markChanges[0].marksVersion, 1)
     }
 
-    func testAddMarkToSpecificRoundFromSyncDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test, fromSync: true)
-        let roundID = store.rounds[0].id
+    func testAddDuplicateMarkDoesNotBumpVersion() {
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true)
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertEqual(store.round(id)?.marksVersion, 1)
+        XCTAssertEqual(markChanges.count, 1)
     }
 
     func testAddMarkToNonexistentRoundIsNoOp() {
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: UUID(), holeIndex: 0, mark: mark)
+        store.addMark(to: UUID(), holeIndex: 0, mark: makeMark())
 
-        XCTAssertTrue(syncMessages.isEmpty)
+        XCTAssertTrue(store.rounds.isEmpty)
+        XCTAssertTrue(markChanges.isEmpty)
     }
 
     func testAddMarkToSpecificHoleIndex() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        store.nextHole() // now on hole 1
-        syncMessages.removeAll()
+        let id = startRound()
+        let mark = makeMark()
 
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, holeIndex: 0, mark: mark, fromSync: true) // add to hole 0
+        store.addMark(to: id, holeIndex: 2, mark: mark)
 
-        XCTAssertEqual(store.rounds[0].holes[0].marks.count, 1, "Mark should be added to hole 0")
-        XCTAssertTrue(store.rounds[0].holes[1].marks.isEmpty, "Hole 1 should have no marks")
-    }
-
-    // MARK: - nextHole / previousHole
-
-    func testNextRoundHole() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
-
-        store.nextHole()
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
-        XCTAssertEqual(store.rounds[0].holes.count, 2)
-    }
-
-    func testNextHoleFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
-
-        store.nextHole()
-
-        XCTAssertEqual(syncMessages.count, 1)
-        guard case .setHole(let holeIndex, let roundID, _) = syncMessages[0] else {
-            return XCTFail("Expected a setHole message")
-        }
-        XCTAssertEqual(holeIndex, 1)
-        XCTAssertEqual(roundID, store.rounds[0].id)
-    }
-
-    func testPreviousRoundHole() {
-        store.startRound(courseSelection: .test)
-        store.nextHole()
-        syncMessages.removeAll()
-
-        store.previousHole()
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
-    }
-
-    func testPreviousHoleFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        store.nextHole()
-        syncMessages.removeAll()
-
-        store.previousHole()
-
-        XCTAssertEqual(syncMessages.count, 1)
-        guard case .setHole(let holeIndex, _, _) = syncMessages[0] else {
-            return XCTFail("Expected a setHole message")
-        }
-        XCTAssertEqual(holeIndex, 0)
-    }
-
-    func testPreviousHoleAtZeroIsNoOp() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
-
-        store.previousHole()
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
-        XCTAssertTrue(syncMessages.isEmpty)
-    }
-
-    // MARK: - setHoleIndex
-
-    func testSetHoleIndexFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
-
-        store.setHoleIndex(4)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 4)
-        XCTAssertEqual(syncMessages.count, 1)
-        guard case .setHole(let holeIndex, let roundID, _) = syncMessages[0] else {
-            return XCTFail("Expected a setHole message")
-        }
-        XCTAssertEqual(holeIndex, 4)
-        XCTAssertEqual(roundID, store.rounds[0].id)
-    }
-
-    func testSetHoleIndexToTheSameHoleDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test)
-        store.setHoleIndex(4)
-        syncMessages.removeAll()
-
-        store.setHoleIndex(4)
-
-        XCTAssertTrue(syncMessages.isEmpty)
-    }
-
-    func testSetHoleIndexFromSyncDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test)
-        syncMessages.removeAll()
-
-        store.setHoleIndex(4, roundID: store.rounds[0].id, changedAt: Date().addingTimeInterval(1), fromSync: true)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 4)
-        XCTAssertTrue(syncMessages.isEmpty)
-    }
-
-    func testRepeatedHoleChangeFromSyncIsIgnored() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let chosenAt = Date().addingTimeInterval(1)
-        store.setHoleIndex(4, roundID: roundID, changedAt: chosenAt, fromSync: true)
-
-        // The player moves on locally, then the queued copy of the same message arrives
-        store.setHoleIndex(5)
-        store.setHoleIndex(4, roundID: roundID, changedAt: chosenAt, fromSync: true)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 5)
-    }
-
-    func testOlderHoleChangeFromSyncIsIgnored() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        store.setHoleIndex(5)
-
-        store.setHoleIndex(2, roundID: roundID, changedAt: Date().addingTimeInterval(-10), fromSync: true)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 5)
-    }
-
-    func testNewerHoleChangeFromSyncIsApplied() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        store.setHoleIndex(5)
-
-        store.setHoleIndex(2, roundID: roundID, changedAt: Date().addingTimeInterval(10), fromSync: true)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 2)
-    }
-
-    func testNextHoleAt18IsNoOp() {
-        store.startRound(courseSelection: .test)
-        store.rounds[0] = Round(id: store.rounds[0].id, date: store.rounds[0].date,
-                                holes: (0..<18).map { _ in RoundHole() }, currentHoleIndex: 17, courseSelection: .test)
-
-        store.nextHole()
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 17)
-    }
-
-    func testNextHoleByRoundID() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        syncMessages.removeAll()
-
-        store.nextHole(roundID: roundID)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
-    }
-
-    func testPreviousHoleByRoundID() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        store.nextHole()
-        syncMessages.removeAll()
-
-        store.previousHole(roundID: roundID)
-
-        XCTAssertEqual(store.rounds[0].currentHoleIndex, 0)
+        XCTAssertEqual(store.round(id)?.holes.count, 3)
+        XCTAssertEqual(store.round(id)?.holes[2].marks.first?.id, mark.id)
     }
 
     // MARK: - moveMark
 
     func testMoveMark() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
-        store.moveMark(mark, to: newCoord, in: roundID)
+        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].latitude, 34.0)
         XCTAssertEqual(store.rounds[0].marks[0].longitude, -113.0)
@@ -436,285 +282,300 @@ final class RoundStoreTests: XCTestCase {
     }
 
     func testMoveMarkPreservesTimestamp() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
-        store.moveMark(mark, to: newCoord, in: roundID)
+        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].timestamp, mark.timestamp)
     }
 
     func testMoveMarkAcrossHoles() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        store.nextHole()
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
+        store.startHole(1, source: .autoAdvance)
 
         // Mark is in hole 0, but we're on hole 1 — should still find it
-        let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
-        store.moveMark(mark, to: newCoord, in: roundID)
+        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
         XCTAssertEqual(store.rounds[0].holes[0].marks[0].latitude, 34.0)
+    }
+
+    func testMoveMarkBumpsVersion() {
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
+
+        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
+        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 35.0, longitude: -114.0), in: id)
+
+        XCTAssertEqual(store.round(id)?.marksVersion, 3)
+        XCTAssertEqual(markChanges.map(\.marksVersion), [1, 2, 3])
     }
 
     // MARK: - reorderMark
 
     func testReorderMark() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark0 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 35.0, longitude: -114.0))
-        store.addMark(mark0)
-        store.addMark(mark1)
-        store.addMark(mark2)
+        let id = startRound()
+        let mark0 = makeMark(latitude: 33.0, longitude: -112.0)
+        let mark1 = makeMark(latitude: 34.0, longitude: -113.0)
+        let mark2 = makeMark(latitude: 35.0, longitude: -114.0)
+        store.addMark(to: id, holeIndex: 0, mark: mark0)
+        store.addMark(to: id, holeIndex: 0, mark: mark1)
+        store.addMark(to: id, holeIndex: 0, mark: mark2)
 
         // Move mark2 from index 2 to index 0
-        store.reorderMark(mark2, to: 0, in: roundID)
+        store.reorderMark(mark2, to: 0, in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].id, mark2.id)
         XCTAssertEqual(store.rounds[0].marks[1].id, mark0.id)
         XCTAssertEqual(store.rounds[0].marks[2].id, mark1.id)
+        XCTAssertEqual(store.round(id)?.marksVersion, 4)
     }
 
     func testReorderMarkClampsToValidRange() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark0 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        store.addMark(mark0)
-        store.addMark(mark1)
+        let id = startRound()
+        let mark0 = makeMark(latitude: 33.0, longitude: -112.0)
+        let mark1 = makeMark(latitude: 34.0, longitude: -113.0)
+        store.addMark(to: id, holeIndex: 0, mark: mark0)
+        store.addMark(to: id, holeIndex: 0, mark: mark1)
 
         // Try to move to an out-of-bounds index
-        store.reorderMark(mark0, to: 100, in: roundID)
+        store.reorderMark(mark0, to: 100, in: id)
 
         // Should be clamped to last index
         XCTAssertEqual(store.rounds[0].marks[1].id, mark0.id)
     }
 
     func testReorderMarkClampsNegativeIndex() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark0 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        store.addMark(mark0)
-        store.addMark(mark1)
+        let id = startRound()
+        let mark0 = makeMark(latitude: 33.0, longitude: -112.0)
+        let mark1 = makeMark(latitude: 34.0, longitude: -113.0)
+        store.addMark(to: id, holeIndex: 0, mark: mark0)
+        store.addMark(to: id, holeIndex: 0, mark: mark1)
 
-        store.reorderMark(mark1, to: -5, in: roundID)
+        store.reorderMark(mark1, to: -5, in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].id, mark1.id)
+    }
+
+    func testReorderToSamePlaceDoesNotBumpVersion() {
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
+
+        store.reorderMark(mark, to: 0, in: id)
+
+        XCTAssertEqual(store.round(id)?.marksVersion, 1)
     }
 
     // MARK: - removeMark
 
     func testRemoveMark() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        store.removeMark(mark, from: roundID)
+        store.removeMark(mark, from: id)
 
         XCTAssertTrue(store.rounds[0].marks.isEmpty)
+        XCTAssertEqual(store.round(id)?.marksVersion, 2)
+        XCTAssertEqual(markChanges.count, 2)
     }
 
     func testRemoveMarkLeavesOtherMarks() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        store.addMark(mark1)
-        store.addMark(mark2)
+        let id = startRound()
+        let mark1 = makeMark(latitude: 33.0, longitude: -112.0)
+        let mark2 = makeMark(latitude: 34.0, longitude: -113.0)
+        store.addMark(to: id, holeIndex: 0, mark: mark1)
+        store.addMark(to: id, holeIndex: 0, mark: mark2)
 
-        store.removeMark(mark1, from: roundID)
+        store.removeMark(mark1, from: id)
 
         XCTAssertEqual(store.rounds[0].marks.count, 1)
         XCTAssertEqual(store.rounds[0].marks[0].id, mark2.id)
     }
 
     func testRemoveMarkAcrossHoles() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        store.nextHole()
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
+        store.startHole(1, source: .autoAdvance)
 
         // Mark is in hole 0, we're on hole 1
-        store.removeMark(mark, from: roundID)
+        store.removeMark(mark, from: id)
 
         XCTAssertTrue(store.rounds[0].holes[0].marks.isEmpty)
+    }
+
+    func testRemoveMissingMarkDoesNotBumpVersion() {
+        let id = startRound()
+
+        store.removeMark(makeMark(), from: id)
+
+        XCTAssertEqual(store.round(id)?.marksVersion, 0)
+        XCTAssertTrue(markChanges.isEmpty)
     }
 
     // MARK: - setMarkType
 
     func testSetMarkType() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        syncMessages.removeAll()
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+        store.setMarkType(markID: mark.id, type: .penalty, in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
+        XCTAssertEqual(markChanges.last?.marks[0].type, .penalty)
     }
 
     func testSetMarkTypeToOutOfBounds() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
 
-        store.setMarkType(markID: mark.id, type: .outOfBounds, in: roundID)
+        store.setMarkType(markID: mark.id, type: .outOfBounds, in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].type, .outOfBounds)
     }
 
     func testSetMarkTypeBackToRegular() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
+        store.setMarkType(markID: mark.id, type: .penalty, in: id)
 
-        store.setMarkType(markID: mark.id, type: .regular, in: roundID)
+        store.setMarkType(markID: mark.id, type: .regular, in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].type, .regular)
     }
 
-    func testSetMarkTypeFiresSyncEvent() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        syncMessages.removeAll()
-
-        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
-
-        XCTAssertEqual(syncMessages.count, 1)
-        if case .setMarkType(let markID, let type, let syncedRoundID) = syncMessages[0] {
-            XCTAssertEqual(markID, mark.id)
-            XCTAssertEqual(type, .penalty)
-            XCTAssertEqual(syncedRoundID, roundID)
-        } else {
-            XCTFail("Expected setMarkType sync message")
-        }
-    }
-
-    func testSetMarkTypeFromSyncDoesNotFireSyncEvent() {
-        store.startRound(courseSelection: .test, fromSync: true)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark, fromSync: true)
-
-        store.setMarkType(markID: mark.id, type: .outOfBounds, in: roundID, fromSync: true)
-
-        XCTAssertTrue(syncMessages.isEmpty)
-        XCTAssertEqual(store.rounds[0].marks[0].type, .outOfBounds)
-    }
-
     func testMoveMarkPreservesType() {
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        store.setMarkType(markID: mark.id, type: .penalty, in: roundID)
+        let id = startRound()
+        let mark = makeMark()
+        store.addMark(to: id, holeIndex: 0, mark: mark)
+        store.setMarkType(markID: mark.id, type: .penalty, in: id)
 
-        let newCoord = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
-        store.moveMark(store.rounds[0].marks[0], to: newCoord, in: roundID)
+        store.moveMark(store.rounds[0].marks[0], to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
         XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
+    }
+
+    // MARK: - applyMarks
+
+    func testApplyMarksReplacesMarksWhenNewer() {
+        let id = startRound()
+        store.addMark(to: id, holeIndex: 0, mark: makeMark())
+        let replacement = makeMark(latitude: 34.0, longitude: -113.0)
+        markChanges.removeAll()
+
+        XCTAssertTrue(store.applyMarks(MarksSnapshot(roundID: id, version: 5, holes: [[], [replacement]])))
+
+        XCTAssertEqual(store.round(id)?.marksVersion, 5)
+        XCTAssertEqual(store.round(id)?.holes.map(\.marks), [[], [replacement]])
+        XCTAssertTrue(markChanges.isEmpty)
+    }
+
+    func testApplyMarksIgnoresOlderOrSameVersion() {
+        let id = startRound()
+        let newer = makeMark(latitude: 34.0, longitude: -113.0)
+        store.applyMarks(MarksSnapshot(roundID: id, version: 6, holes: [[newer]]))
+
+        XCTAssertFalse(store.applyMarks(MarksSnapshot(roundID: id, version: 5, holes: [[makeMark()]])))
+        XCTAssertFalse(store.applyMarks(MarksSnapshot(roundID: id, version: 6, holes: [])))
+
+        XCTAssertEqual(store.round(id)?.marks, [newer])
+    }
+
+    func testApplyEmptyMarksKeepsOneHole() {
+        let id = startRound()
+
+        store.applyMarks(MarksSnapshot(roundID: id, version: 1, holes: []))
+
+        XCTAssertEqual(store.round(id)?.holes.count, 1)
+    }
+
+    func testApplyMarksKeepsCurrentHoleReachable() {
+        let id = startRound()
+        store.startHole(3, source: .autoAdvance)
+
+        store.applyMarks(MarksSnapshot(roundID: id, version: 1, holes: [[makeMark()]]))
+
+        XCTAssertEqual(store.round(id)?.holes.count, 4)
+    }
+
+    func testApplyMarksForUnknownRoundIsIgnored() {
+        XCTAssertFalse(store.applyMarks(MarksSnapshot(roundID: UUID(), version: 1, holes: [])))
     }
 
     // MARK: - deleteRound
 
     func testDeleteRound() {
-        store.startRound(courseSelection: .test)
-        let round = store.rounds[0]
+        let id = startRound()
 
-        store.deleteRound(round)
+        store.deleteRound(id)
 
         XCTAssertTrue(store.rounds.isEmpty)
     }
 
     func testDeleteRoundLeavesOtherRounds() {
-        store.startRound(courseSelection: .test)
-        store.startRound(courseSelection: .test)
+        startRound()
+        startRound()
         XCTAssertEqual(store.rounds.count, 2)
 
         let roundToDelete = store.rounds[1]
-        store.deleteRound(roundToDelete)
+        store.deleteRound(roundToDelete.id)
 
         XCTAssertEqual(store.rounds.count, 1)
         XCTAssertNotEqual(store.rounds[0].id, roundToDelete.id)
     }
 
-    // MARK: - activeRound
+    // MARK: - activeRound / currentRound
 
     func testActiveRoundReturnsNilWhenNoRounds() {
         XCTAssertNil(store.activeRound)
+        XCTAssertNil(store.currentRound)
     }
 
     func testActiveRoundReturnsNilWhenAllEnded() {
-        store.startRound(courseSelection: .test)
-        store.endRound()
+        let id = startRound()
+        store.update(id) { $0.end(at: Date()) }
 
         XCTAssertNil(store.activeRound)
+        XCTAssertNil(store.currentRound)
     }
 
     func testActiveRoundReturnsTheActiveOne() {
-        store.startRound(courseSelection: .test)
-        let id = store.rounds[0].id
+        let id = startRound()
 
         XCTAssertEqual(store.activeRound?.id, id)
+        XCTAssertEqual(store.currentRound?.id, id)
     }
 
-    // MARK: - Sync handler not set
+    func testEndingRoundIsCurrentButNotActive() {
+        let id = startRound()
+        store.update(id) { $0.status = .ending }
 
-    func testMutationsWorkWithoutSyncHandler() {
-        store.onSyncEvent = nil
+        XCTAssertNil(store.activeRound)
+        XCTAssertEqual(store.currentRound?.id, id)
+    }
 
-        store.startRound(courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(mark)
-        store.endRound()
+    // MARK: - No handlers set
+
+    func testMutationsWorkWithoutHandlers() {
+        store.onTimelineChanged = nil
+        store.onMarksChanged = nil
+
+        let id = startRound()
+        store.addMark(to: id, holeIndex: 0, mark: makeMark())
+        store.startHole(1, source: .autoAdvance)
 
         // Should not crash
         XCTAssertEqual(store.rounds.count, 1)
-        XCTAssertFalse(store.rounds[0].isActive)
-        XCTAssertEqual(store.rounds[0].marks.count, 1)
-    }
-
-    // MARK: - Bidirectional sync scenario
-
-    func testFullSyncScenario() {
-        // Simulate phone starts round
-        store.startRound(courseSelection: .test)
-        let roundID = store.rounds[0].id
-        XCTAssertEqual(syncMessages.count, 1)
-        syncMessages.removeAll()
-
-        // Simulate watch adds a mark (fromSync)
-        let watchMark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        store.addMark(to: roundID, holeIndex: 0, mark: watchMark, fromSync: true)
-        XCTAssertTrue(syncMessages.isEmpty, "fromSync should not trigger sync event")
-
-        // Phone adds a mark (local)
-        let phoneMark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.46, longitude: -112.08))
-        store.addMark(phoneMark)
-        XCTAssertEqual(syncMessages.count, 1, "Local action should trigger sync event")
-        syncMessages.removeAll()
-
-        // Simulate watch ends round (fromSync)
-        store.endRound(roundID: roundID, fromSync: true)
-        XCTAssertTrue(syncMessages.isEmpty, "fromSync should not trigger sync event")
-
-        // Verify final state
-        XCTAssertNil(store.activeRound)
-        XCTAssertEqual(store.rounds[0].marks.count, 2)
+        XCTAssertEqual(store.rounds[0].allMarks.count, 1)
+        XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
     }
 }

@@ -1,65 +1,47 @@
 import CoreMotion
-import CoreLocation
 import Foundation
 
+/// Detects swings from batches of wrist accelerometer readings. `CMBatchedSensorManager`
+/// delivers them about once a second, and only during a workout, which a round always has.
 @MainActor
-class SwingDetector: ObservableObject {
-    struct SwingEvent {
-        let coordinate: CLLocationCoordinate2D
-        let timestamp: Date
-    }
-
-    @Published private(set) var lastSwing: SwingEvent?
-
-    private let motionManager = CMMotionManager()
+final class SwingDetector {
+    private let manager = CMBatchedSensorManager()
+    private var finder = SwingPeakFinder()
     private var isRunning = false
-    static let accelerationThreshold: Double = 10.0 // g-force
 
-    // Cooldown to avoid multiple detections from a single swing
-    private var lastSwingTime: Date?
-    private static let cooldown: TimeInterval = 3
+    /// Called with each swing once its peak force is known.
+    var onSwing: ((Swing) -> Void)?
 
     func start() {
-        guard !isRunning, motionManager.isAccelerometerAvailable else { return }
+        guard !isRunning, CMBatchedSensorManager.isAccelerometerSupported else { return }
         isRunning = true
-        motionManager.accelerometerUpdateInterval = 1.0 / 50.0 // 50 Hz
-        motionManager.startAccelerometerUpdates(to: .main) { [weak self] data, _ in
-            guard let self, let data else { return }
+        finder = SwingPeakFinder()
+        manager.startAccelerometerUpdates { [weak self] batch, error in
+            if let error {
+                print("SwingDetector: accelerometer error – \(error)")
+                // Lets the next start() try again
+                Task { @MainActor in self?.stop() }
+            }
+            guard let batch else { return }
+            // Reading timestamps count from boot
+            let bootDate = Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime)
+            let readings = batch.map { data in
+                let a = data.acceleration
+                return SwingPeakFinder.Reading(timestamp: bootDate.addingTimeInterval(data.timestamp),
+                                               magnitude: (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot())
+            }
             Task { @MainActor in
-                self.processAcceleration(data)
+                guard let self else { return }
+                for swing in self.finder.add(readings) {
+                    self.onSwing?(swing)
+                }
             }
         }
     }
 
     func stop() {
-        motionManager.stopAccelerometerUpdates()
+        guard isRunning else { return }
+        manager.stopAccelerometerUpdates()
         isRunning = false
-    }
-
-    /// Call this with the current location so swing events can be tagged with position.
-    private var currentLocation: CLLocationCoordinate2D?
-
-    func updateLocation(_ coordinate: CLLocationCoordinate2D) {
-        currentLocation = coordinate
-    }
-
-    func consumeSwing() -> SwingEvent? {
-        let swing = lastSwing
-        lastSwing = nil
-        return swing
-    }
-
-    private func processAcceleration(_ data: CMAccelerometerData) {
-        let accel = data.acceleration
-        let magnitude = sqrt(accel.x * accel.x + accel.y * accel.y + accel.z * accel.z)
-
-        guard magnitude >= Self.accelerationThreshold else { return }
-
-        let now = Date()
-        if let last = lastSwingTime, now.timeIntervalSince(last) < Self.cooldown { return }
-        lastSwingTime = now
-
-        guard let coord = currentLocation else { return }
-        lastSwing = SwingEvent(coordinate: coord, timestamp: now)
     }
 }

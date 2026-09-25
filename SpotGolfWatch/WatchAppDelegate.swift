@@ -1,21 +1,25 @@
 import Combine
+import CoreLocation
+import HealthKit
 import WatchKit
 
 /// Owns the services that record a round, so recording resumes as soon as the app
-/// launches, even when watchOS relaunches it in the background after a crash and
-/// no view appears.
+/// launches, even when watchOS launches it in the background (a round started on the phone,
+/// or a relaunch after a crash) and no view appears.
 @MainActor
 final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     let roundStore = RoundStore()
     let locationManager = LocationManager()
     let syncService = SyncService()
     let workoutManager = WorkoutManager()
-    let guessStore = GuessStore()
-    let settingsStore = SettingsStore()
-    // Every fix goes to disk as it arrives, so a crash loses none that were recorded
-    let trackStore = TrackStore(flushThreshold: 1)
+    let streamStore = StreamStore()
+    private let swingDetector = SwingDetector()
+    private(set) lazy var watchSync = WatchSync(sync: syncService, rounds: roundStore, streams: streamStore)
+
+    let holeAdvance = WatchHoleAdvance()
 
     private var activeRoundObserver: AnyCancellable?
+    private var swingObserver: AnyCancellable?
 
     func applicationDidFinishLaunching() {
         // UI tests pass --keep-rounds when relaunching mid-round to test recovery
@@ -28,50 +32,88 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
            CommandLine.arguments.contains("--start-round") {
             roundStore.startRound(courseSelection: .uiTestCourse)
         }
-        syncService.roundStore = roundStore
-        syncService.guessStore = guessStore
-        syncService.settingsStore = settingsStore
-        syncService.trackStore = trackStore
-        recordTrack()
-        syncService.sendPendingTracks()
+
+        let sync = watchSync
+        locationManager.onRawLocations = { [weak self] locations in
+            sync.record(locations)
+            self?.advanceHole(locations.last)
+        }
+        swingDetector.onSwing = { sync.record($0) }
+        sync.sender.minBatchInterval = 5
+        sync.sender.startRetryTimer()
+        sync.sender.pump()
         locationManager.requestPermission()
 
         activeRoundObserver = roundStore.$rounds
             .map { $0.first(where: \.isActive)?.id }
             .removeDuplicates()
-            .dropFirst()
-            .sink { [weak self] _ in
-                guard let self else { return }
-                trackStore.flush()
-                syncService.sendPendingTracks()
+            .sink { [weak self] activeID in
+                self?.activeRoundChanged(activeID != nil)
             }
 
-        resumeActiveRound()
+        // Batched accelerometer data only arrives while the workout runs, which is some time
+        // after it is asked to start
+        swingObserver = roundStore.$rounds
+            .map { $0.contains(where: \.isActive) }
+            .combineLatest(workoutManager.$isRunning)
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .sink { [weak self] detect in
+                if detect {
+                    self?.swingDetector.start()
+                } else {
+                    self?.swingDetector.stop()
+                }
+            }
+    }
+
+    /// Runs here rather than in a view, so it works while watchOS runs the app in the
+    /// background and no view is on screen.
+    private func advanceHole(_ location: CLLocation?) {
+        guard let location, let round = roundStore.activeRound, !holeAdvance.isPaused,
+              let detected = HoleAdvancer.detectHole(location: location, courseSelection: round.courseSelection,
+                                                     currentHoleIndex: round.currentHoleIndex) else { return }
+        roundStore.startHole(detected, source: .autoAdvance)
+    }
+
+    /// watchOS launches the app here when the phone starts a round with `startWatchApp`.
+    func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
+        startWorkoutWaitingForRound()
     }
 
     /// watchOS relaunches the app here when it quit while a workout was running.
     func handleActiveWorkoutRecovery() {
-        workoutManager.start()
-        resumeActiveRound()
+        startWorkoutWaitingForRound()
     }
 
-    /// Restarts GPS and the workout for a round that was active when the app last quit.
-    private func resumeActiveRound() {
-        guard roundStore.activeRound != nil else { return }
-        locationManager.startUpdating()
+    /// The workout keeps the app running for the round; if no round is active soon, it is not needed.
+    private func startWorkoutWaitingForRound() {
         workoutManager.start()
-    }
-
-    /// Stores every GPS fix that arrives while a round is active, and regularly
-    /// ships segments to the phone so it can draw the path live.
-    private func recordTrack() {
-        let rounds = roundStore
-        let tracks = trackStore
-        let sync = syncService
-        locationManager.onRawLocations = { locations in
-            guard let round = rounds.activeRound else { return }
-            tracks.append(locations, roundID: round.id)
-            sync.sendPendingTracksIfDue()
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(PhoneSync.defaultStartTimeout * 4))
+            guard let self, self.roundStore.activeRound == nil else { return }
+            self.workoutManager.stop()
         }
     }
+
+    /// Records while a round is active, and stops everything once it is not.
+    private func activeRoundChanged(_ isActive: Bool) {
+        if isActive {
+            locationManager.startUpdating()
+            workoutManager.start()
+        } else {
+            locationManager.stopUpdating()
+            workoutManager.stop()
+        }
+    }
+}
+
+/// Whether the round moves to the next hole when the player reaches its tee. Paused while
+/// the user looks at another hole on the watch.
+@MainActor
+final class WatchHoleAdvance: ObservableObject {
+    private(set) var isPaused = false
+
+    func pause() { isPaused = true }
+    func resume() { isPaused = false }
 }

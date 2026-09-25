@@ -38,35 +38,6 @@ enum MarkSuggester {
     /// Floor for `minDwell` — anything lower turns every pause into a suggestion.
     static let minimumDwell: TimeInterval = 10
 
-    /// The track points that belong to one hole: each point is assigned to the hole
-    /// whose features are nearest.
-    static func holePoints(in points: [TrackPoint], holeIndex: Int,
-                           courseSelection selection: CourseSelection) -> [TrackPoint] {
-        let holes = selection.orderedHoles
-        guard holeIndex < holes.count else { return points }
-
-        let course = selection.course
-        let centersPerHole: [[Coordinate]] = holes.map { hole in
-            course.features(for: hole).map(\.center)
-        }
-
-        return points.filter { point in
-            var bestHole = -1
-            var bestDistance = Double.greatestFiniteMagnitude
-            for (index, centers) in centersPerHole.enumerated() {
-                for center in centers {
-                    let d = squaredMeters(fromLat: point.latitude, lon: point.longitude,
-                                          toLat: center.latitude, lon: center.longitude)
-                    if d < bestDistance {
-                        bestDistance = d
-                        bestHole = index
-                    }
-                }
-            }
-            return bestHole == holeIndex
-        }
-    }
-
     /// Places where the player stayed within `dwellRadius` for at least `minDwell`,
     /// plus any synced guesses. Suggestions near an existing mark or near an earlier
     /// suggestion are dropped. Results are in time order.

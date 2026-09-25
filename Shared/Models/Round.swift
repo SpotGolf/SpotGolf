@@ -1,25 +1,56 @@
 import Foundation
 import CourseDataSwift
 
-struct Round: Identifiable {
+enum RoundStatus: String, Codable {
+    /// Phone only: waiting for the watch to confirm it started the round.
+    case starting
+    case active
+    /// Phone only: waiting for the watch's GPS up to its last record.
+    case ending
+    case ended
+}
+
+struct Round: Identifiable, Codable, Equatable {
     let id: UUID
     let date: Date
     var holes: [RoundHole]
-    var currentHoleIndex: Int
-    var isActive: Bool
+    var holeTimeline: [HoleStart]
+    var status: RoundStatus
+    var endedAt: Date?
+    /// Phone: the end time a resumed round had, until the watch confirms the resume.
+    /// Cancelling the resume puts it back.
+    var resumedFromEnd: Date?
     var courseSelection: CourseSelection
+    /// Adds 1 on every mark change on the phone. On the watch, the version last applied.
+    var marksVersion: Int
+    /// Watch only: the stream index of the first record in this round's stream file.
+    var streamBase: Int
+    /// The index of the watch's last stream record, once the watch has ended the round.
+    /// Nil when the watch recorded nothing.
+    var lastSeq: Int?
+    /// Phone: the watch has confirmed `lastSeq`. Watch: the phone has acknowledged the end.
+    var endConfirmed: Bool
 
     static let maxHoles = 18
 
     init(id: UUID = UUID(), date: Date = Date(), holes: [RoundHole] = [RoundHole()],
-         currentHoleIndex: Int = 0, isActive: Bool = true, courseSelection: CourseSelection) {
+         status: RoundStatus = .active, courseSelection: CourseSelection) {
         self.id = id
         self.date = date
         self.holes = holes
-        self.currentHoleIndex = currentHoleIndex
-        self.isActive = isActive
+        self.holeTimeline = [HoleStart(holeIndex: 0, startedAt: date, source: .roundStart)]
+        self.status = status
         self.courseSelection = courseSelection
+        self.marksVersion = 0
+        self.streamBase = 0
+        self.endConfirmed = false
     }
+
+    /// Recording and syncing.
+    var isActive: Bool { status == .active }
+
+    /// Not yet ended: starting, active, or ending.
+    var isInProgress: Bool { status != .ended }
 
     var displayTitle: String {
         let dateStr = date.formatted(date: .long, time: .omitted)
@@ -55,8 +86,18 @@ struct Round: Identifiable {
         return s.trimmingCharacters(in: .whitespaces)
     }
 
+    /// The hole being played now: the last entry in the timeline.
+    var currentHoleIndex: Int {
+        holeTimeline.last?.holeIndex ?? 0
+    }
+
+    /// The hole being played at `date`.
+    func holeIndex(at date: Date) -> Int {
+        HoleTimeline.holeIndex(at: date, in: holeTimeline)
+    }
+
     var currentHole: RoundHole {
-        holes[min(currentHoleIndex, holes.count - 1)]
+        hole(at: currentHoleIndex)
     }
 
     var currentHoleNumber: Int {
@@ -74,18 +115,24 @@ struct Round: Identifiable {
     /// The course data for the hole at `index`, or nil past the course's last hole.
     func courseHole(at index: Int) -> Hole? {
         let orderedHoles = courseSelection.orderedHoles
-        guard index < orderedHoles.count else { return nil }
+        guard index >= 0, index < orderedHoles.count else { return nil }
         return orderedHoles[index]
+    }
+
+    /// The last hole that can be played: the course's last hole, or `maxHoles` without course holes.
+    var lastHoleIndex: Int {
+        let count = courseSelection.orderedHoles.count
+        return (count > 0 ? min(count, Self.maxHoles) : Self.maxHoles) - 1
     }
 
     /// The hole at `index`, or an empty hole when play has not reached it yet.
     func hole(at index: Int) -> RoundHole {
-        index < holes.count ? holes[index] : RoundHole()
+        index >= 0 && index < holes.count ? holes[index] : RoundHole()
     }
 
-    /// Marks for the current hole — preserves existing call sites.
+    /// Marks for the current hole.
     var marks: [BallMark] {
-        holes[min(currentHoleIndex, holes.count - 1)].marks
+        hole(at: currentHoleIndex).marks
     }
 
     /// All marks across all holes.
@@ -93,51 +140,59 @@ struct Round: Identifiable {
         holes.flatMap { $0.marks }
     }
 
-    mutating func addMark(_ mark: BallMark) {
-        guard !hasMark(id: mark.id) else { return }
-        let safeIndex = min(currentHoleIndex, holes.count - 1)
-        holes[safeIndex].marks.append(mark)
+    /// Marks for every hole, as a snapshot for the watch.
+    var marksSnapshot: MarksSnapshot {
+        MarksSnapshot(roundID: id, version: marksVersion, holes: holes.map(\.marks))
     }
 
     mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
-        guard !hasMark(id: mark.id) else { return }
-        while holes.count <= holeIndex && holes.count < Self.maxHoles {
-            holes.append(RoundHole())
-        }
-        let safeIndex = min(holeIndex, holes.count - 1)
-        holes[safeIndex].marks.append(mark)
+        guard holeIndex >= 0, !hasMark(id: mark.id) else { return }
+        ensureHole(holeIndex)
+        holes[min(holeIndex, holes.count - 1)].marks.append(mark)
     }
 
     func hasMark(id: UUID) -> Bool {
         holes.contains { $0.marks.contains { $0.id == id } }
     }
 
-    /// Returns `true` if the hole index actually changed.
-    @discardableResult
-    mutating func nextHole() -> Bool {
-        if currentHoleIndex == holes.count - 1 {
-            guard holes.count < Self.maxHoles else { return false }
+    /// Makes sure `holes` reaches `index`, up to `maxHoles`.
+    mutating func ensureHole(_ index: Int) {
+        while holes.count <= index && holes.count < Self.maxHoles {
             holes.append(RoundHole())
         }
-        currentHoleIndex += 1
-        return true
     }
 
-    /// Returns `true` if the hole index actually changed.
+    /// Moves play to a later hole. Returns false when the hole is not after the current one.
+    /// A time before the last entry (the two devices' clocks differ slightly) is moved just after it.
     @discardableResult
-    mutating func previousHole() -> Bool {
-        guard currentHoleIndex > 0 else { return false }
-        currentHoleIndex -= 1
+    mutating func startHole(_ index: Int, at date: Date, source: HoleStartSource) -> Bool {
+        guard index > currentHoleIndex, index <= lastHoleIndex else { return false }
+        let last = holeTimeline.last?.startedAt ?? .distantPast
+        let startedAt = date > last ? date : last.addingTimeInterval(0.001)
+        holeTimeline.append(HoleStart(holeIndex: index, startedAt: startedAt, source: source))
+        ensureHole(index)
         return true
     }
 
-    mutating func end() {
+    /// Merges another copy of the timeline into this one. Returns true if anything changed.
+    @discardableResult
+    mutating func mergeTimeline(_ entries: [HoleStart]) -> Bool {
+        let merged = HoleTimeline.merge(holeTimeline, entries)
+        guard merged != holeTimeline else { return false }
+        holeTimeline = merged
+        ensureHole(currentHoleIndex)
+        return true
+    }
+
+    mutating func end(at date: Date) {
         // Trim trailing empty holes
         while holes.count > 1 && holes.last!.marks.isEmpty {
             holes.removeLast()
         }
-        currentHoleIndex = min(currentHoleIndex, holes.count - 1)
-        isActive = false
+        status = .ended
+        if endedAt == nil {
+            endedAt = date
+        }
     }
 
     /// Find which hole contains a given mark by ID.
@@ -145,38 +200,5 @@ struct Round: Identifiable {
         holes.firstIndex(where: { hole in
             hole.marks.contains(where: { $0.id == markID })
         })
-    }
-}
-
-// MARK: - Equatable & Codable
-
-extension Round: Equatable {}
-
-extension Round: Codable {
-    private enum CodingKeys: String, CodingKey {
-        case id, date, holes, currentHoleIndex, isActive, courseSelection
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        date = try container.decode(Date.self, forKey: .date)
-        isActive = try container.decode(Bool.self, forKey: .isActive)
-
-        let holes = try container.decode([RoundHole].self, forKey: .holes)
-        self.holes = holes.isEmpty ? [RoundHole()] : holes
-        let decoded = try container.decodeIfPresent(Int.self, forKey: .currentHoleIndex) ?? 0
-        self.currentHoleIndex = min(max(decoded, 0), self.holes.count - 1)
-        self.courseSelection = try container.decode(CourseSelection.self, forKey: .courseSelection)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(date, forKey: .date)
-        try container.encode(holes, forKey: .holes)
-        try container.encode(currentHoleIndex, forKey: .currentHoleIndex)
-        try container.encode(isActive, forKey: .isActive)
-        try container.encode(courseSelection, forKey: .courseSelection)
     }
 }

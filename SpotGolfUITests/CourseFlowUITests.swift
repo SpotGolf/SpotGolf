@@ -118,7 +118,7 @@ final class CourseFlowUITests: XCTestCase {
         app.goToHole(3)
         XCTAssertEqual(app.holeButton(1).value as? String, "Current hole", "Selecting a hole should not change the current hole")
         XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round button should appear")
-        XCTAssertTrue(app.buttons["Play this hole"].exists, "Play this hole button should appear")
+        XCTAssertTrue(app.buttons["Play hole"].exists, "Play hole button should appear")
 
         // Standing on the Hole 2 tee would normally move the round to Hole 2
         setLocationToHole2Tee()
@@ -146,7 +146,7 @@ final class CourseFlowUITests: XCTestCase {
 
         XCTAssertTrue(app.waitForCurrentHole(1), "Resume round should show the current hole")
         XCTAssertFalse(app.buttons["Resume round"].exists, "Resume round button should disappear")
-        XCTAssertFalse(app.buttons["Play this hole"].exists, "Play this hole button should disappear")
+        XCTAssertFalse(app.buttons["Play hole"].exists, "Play hole button should disappear")
 
         // Automatic hole changes are back on
         setLocationToHole2Tee()
@@ -164,16 +164,37 @@ final class CourseFlowUITests: XCTestCase {
         sleep(2)
 
         app.goToHole(3)
-        let playButton = app.buttons["Play this hole"]
-        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play this hole button should appear")
+        let playButton = app.buttons["Play hole"]
+        XCTAssertTrue(playButton.waitForExistence(timeout: 5), "Play hole button should appear")
 
         playButton.tap()
         sleep(1)
 
         XCTAssertTrue(app.waitForCurrentHole(3), "Hole 3 should stay shown")
-        XCTAssertEqual(app.holeButton(3).value as? String, "Current hole", "Play this hole should make Hole 3 the current hole")
-        XCTAssertFalse(app.buttons["Play this hole"].exists, "Play this hole button should disappear")
+        XCTAssertEqual(app.holeButton(3).value as? String, "Current hole", "Play hole should make Hole 3 the current hole")
+        XCTAssertFalse(app.buttons["Play hole"].exists, "Play hole button should disappear")
         XCTAssertFalse(app.buttons["Resume round"].exists, "Resume round button should disappear")
+    }
+
+    // MARK: - Earlier Holes Can't Be Played Again
+
+    func testPlayThisHoleIsNotOfferedForEarlierHole() throws {
+        setLocationToHole1Tee()
+        app.launch()
+        dismissLocationAlert()
+
+        app.startRoundWithCourse()
+        sleep(2)
+
+        app.goToHole(3)
+        app.buttons["Play hole"].tap()
+        XCTAssertEqual(app.holeButton(3).value as? String, "Current hole")
+
+        // Golf is played in order, so hole 1 can be viewed but not played again
+        app.goToHole(1)
+        XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round button should appear")
+        XCTAssertFalse(app.buttons["Play hole"].exists, "Play hole should not be offered for an earlier hole")
+        XCTAssertEqual(app.holeButton(3).value as? String, "Current hole", "Viewing hole 1 should not change the current hole")
     }
 
     // MARK: - Header and Hazards Update on Hole Change

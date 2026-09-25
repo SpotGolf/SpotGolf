@@ -80,6 +80,40 @@ final class WatchRoundFlowUITests: XCTestCase {
                       "No active round should show after ending round")
     }
 
+    func testArrowsOnlyViewHolesUntilPlayThisHole() throws {
+        app.launchArguments.append("--start-round")
+        app.launch()
+        dismissHealthAccessAlerts()
+        XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "Hole 1 label should be visible")
+
+        // The arrow shows hole 2 without playing it
+        app.buttons["Next hole"].tap()
+        XCTAssertTrue(app.staticTexts["Hole 2"].waitForExistence(timeout: 5), "Hole 2 should be shown")
+        XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round should appear")
+        let playButton = app.buttons["Play this hole"]
+        XCTAssertTrue(playButton.exists, "Play this hole should appear for a later hole")
+
+        playButton.tap()
+        XCTAssertFalse(app.buttons["Resume round"].waitForExistence(timeout: 2), "The round is now on hole 2")
+
+        // Hole 1 can be viewed but not played again
+        app.buttons["Previous hole"].tap()
+        XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "Hole 1 should be shown")
+        XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round should appear")
+        XCTAssertFalse(app.buttons["Play this hole"].exists, "Play this hole should not appear for an earlier hole")
+
+        app.buttons["Resume round"].tap()
+        XCTAssertTrue(app.staticTexts["Hole 2"].waitForExistence(timeout: 5), "Resume round returns to hole 2")
+
+        // ── End the round so no workout is left running ──
+        app.swipeLeft()
+        let endRoundButton = app.buttons["End Round"]
+        XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
+        endRoundButton.tap()
+        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5),
+                      "No active round should show after ending round")
+    }
+
     func testWorkoutRecoveredAfterAppQuits() throws {
         // ── Start a round, which starts the workout ──
         app.launchArguments.append("--start-round")
@@ -129,6 +163,13 @@ final class WatchRoundFlowUITests: XCTestCase {
         while closeButton.waitForExistence(timeout: 3) {
             closeButton.tap()
             sleep(1)
+        }
+        // The Motion & Fitness prompt for swing detection
+        for source in [app!, carousel] {
+            for label in ["Allow", "OK"] where source.buttons[label].exists {
+                source.buttons[label].tap()
+                sleep(1)
+            }
         }
     }
 }

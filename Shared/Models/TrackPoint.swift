@@ -1,20 +1,6 @@
 import Foundation
 import CoreLocation
 
-enum TrackSource: String {
-    case phone
-    case watch
-
-    /// The device this code is running on.
-    static var current: TrackSource {
-        #if os(watchOS)
-        return .watch
-        #else
-        return .phone
-        #endif
-    }
-}
-
 /// One raw GPS fix recorded during a round.
 struct TrackPoint: Equatable {
     let timestamp: Date

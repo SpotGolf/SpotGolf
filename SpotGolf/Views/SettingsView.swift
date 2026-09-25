@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var settingsStore: SettingsStore
-    @EnvironmentObject var syncService: SyncService
     @Environment(\.dismiss) private var dismiss
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
@@ -28,9 +27,6 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-            }
-            .onChange(of: settingsStore.settings) {
-                syncService.send(.updateSettings(settingsStore.settings))
             }
         }
     }

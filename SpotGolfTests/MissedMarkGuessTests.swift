@@ -7,39 +7,46 @@ final class MissedMarkGuessTests: XCTestCase {
     func testCodableRoundTrip() throws {
         let guess = MissedMarkGuess(
             coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07),
-            holeIndex: 2,
-            reason: .swing,
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
             roundID: UUID()
         )
         let data = try JSONEncoder().encode(guess)
         let decoded = try JSONDecoder().decode(MissedMarkGuess.self, from: data)
 
-        XCTAssertEqual(guess.id, decoded.id)
-        XCTAssertEqual(guess.latitude, decoded.latitude)
-        XCTAssertEqual(guess.longitude, decoded.longitude)
-        XCTAssertEqual(guess.holeIndex, decoded.holeIndex)
-        XCTAssertEqual(guess.reason, decoded.reason)
-        XCTAssertEqual(guess.roundID, decoded.roundID)
+        XCTAssertEqual(decoded, guess)
     }
 
     func testCoordinateProperty() {
         let guess = MissedMarkGuess(
             coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07),
-            holeIndex: 0,
-            reason: .stationary,
             roundID: UUID()
         )
         XCTAssertEqual(guess.coordinate.latitude, 33.45)
         XCTAssertEqual(guess.coordinate.longitude, -112.07)
     }
 
-    func testReasonCodable() throws {
-        let swingData = try JSONEncoder().encode(GuessReason.swing)
-        let decoded = try JSONDecoder().decode(GuessReason.self, from: swingData)
-        XCTAssertEqual(decoded, .swing)
+    // MARK: - Swing IDs
 
-        let stationaryData = try JSONEncoder().encode(GuessReason.stationary)
-        let decoded2 = try JSONDecoder().decode(GuessReason.self, from: stationaryData)
-        XCTAssertEqual(decoded2, .stationary)
+    func testSwingIDIsTheSameForTheSameSwing() {
+        let roundID = UUID()
+        let time = Date(timeIntervalSince1970: 1_700_000_000.123)
+
+        XCTAssertEqual(MissedMarkGuess.id(forSwingAt: time, roundID: roundID),
+                       MissedMarkGuess.id(forSwingAt: time, roundID: roundID))
+    }
+
+    func testSwingIDDiffersByTime() {
+        let roundID = UUID()
+        let time = Date(timeIntervalSince1970: 1_700_000_000)
+
+        XCTAssertNotEqual(MissedMarkGuess.id(forSwingAt: time, roundID: roundID),
+                          MissedMarkGuess.id(forSwingAt: time.addingTimeInterval(0.001), roundID: roundID))
+    }
+
+    func testSwingIDDiffersByRound() {
+        let time = Date(timeIntervalSince1970: 1_700_000_000)
+
+        XCTAssertNotEqual(MissedMarkGuess.id(forSwingAt: time, roundID: UUID()),
+                          MissedMarkGuess.id(forSwingAt: time, roundID: UUID()))
     }
 }

@@ -8,6 +8,7 @@ struct CourseSelectionView: View {
     @EnvironmentObject var courseService: CourseService
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var roundStore: RoundStore
+    @EnvironmentObject var phoneSync: PhoneSync
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
@@ -109,7 +110,7 @@ struct CourseSelectionView: View {
             await courseService.refreshIndex()
         }
         .onDisappear {
-            if roundStore.activeRound == nil {
+            if roundStore.currentRound == nil {
                 locationManager.stopUpdating()
             }
         }
@@ -150,8 +151,7 @@ struct CourseSelectionView: View {
                 // Single sub-course — start round immediately
                 let indices = course.subCourses.isEmpty ? [] : [0]
                 let selection = CourseSelection(course: course, selectedSubCourseIndices: indices)
-                roundStore.startRound(courseSelection: selection)
-                let roundID = roundStore.activeRound!.id
+                let roundID = phoneSync.startRound(courseSelection: selection)
                 dismiss()
                 onRoundStarted?(roundID)
             } else {
@@ -197,8 +197,7 @@ struct CourseSelectionView: View {
             Section {
                 Button {
                     let selection = CourseSelection(course: course, selectedSubCourseIndices: selectedIndices)
-                    roundStore.startRound(courseSelection: selection)
-                    let roundID = roundStore.activeRound!.id
+                    let roundID = phoneSync.startRound(courseSelection: selection)
                     dismiss()
                     onRoundStarted?(roundID)
                 } label: {

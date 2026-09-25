@@ -2,230 +2,222 @@ import Foundation
 import CoreLocation
 import CourseDataSwift
 
+/// Holds and saves every round. Changes made on this device are reported through
+/// `onTimelineChanged` and `onMarksChanged` so they can be sent to the other device;
+/// changes applied from the other device are not reported.
 @MainActor
 class RoundStore: ObservableObject {
-    @Published var rounds: [Round] = []
-
-    var onSyncEvent: ((SyncMessage) -> Void)?
-
-    // When the current hole last changed, on either device. Every message is delivered twice and
-    // the queued copy can arrive late, so a hole change from the other device that is not newer
-    // than this is dropped.
-    private var lastHoleChange = Date.distantPast
-
-    var activeRound: Round? {
-        rounds.first(where: { $0.isActive })
+    @Published var rounds: [Round] = [] {
+        didSet { save() }
     }
 
-    private var fileURL: URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return docs.appendingPathComponent("rounds.json")
-    }
+    /// A hole change or timeline correction made on this device.
+    var onTimelineChanged: ((Round) -> Void)?
 
-    init() {
+    /// A mark change made on this device.
+    var onMarksChanged: ((Round) -> Void)?
+
+    private let fileURL: URL
+
+    init(directory: URL? = nil) {
+        let directory = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        fileURL = directory.appendingPathComponent("rounds.json")
         load()
     }
 
-    func startRound(id: UUID = UUID(), date: Date = Date(), courseSelection: CourseSelection, fromSync: Bool = false) {
-        // End any existing active round
-        if let index = rounds.firstIndex(where: { $0.isActive }) {
-            rounds[index].end()
-        }
-        // If the round already exists (e.g. reactivation from the other device), reactivate it
-        if let index = rounds.firstIndex(where: { $0.id == id }) {
-            rounds[index].isActive = true
-            save()
-            if !fromSync {
-                onSyncEvent?(.startRound(id, rounds[index].date, rounds[index].courseSelection))
-            }
-            return
-        }
-        let round = Round(id: id, date: date, courseSelection: courseSelection)
+    /// The round being recorded.
+    var activeRound: Round? {
+        rounds.first(where: \.isActive)
+    }
+
+    /// The round that has not ended yet: starting, active, or ending.
+    var currentRound: Round? {
+        rounds.first(where: \.isInProgress)
+    }
+
+    func round(_ id: UUID) -> Round? {
+        rounds.first(where: { $0.id == id })
+    }
+
+    /// Changes a round in place and saves. Does nothing for an unknown round.
+    func update(_ id: UUID, _ change: (inout Round) -> Void) {
+        guard let index = rounds.firstIndex(where: { $0.id == id }) else { return }
+        var round = rounds[index]
+        change(&round)
+        // Every change rewrites the whole file, so a change that changes nothing is skipped
+        guard round != rounds[index] else { return }
+        rounds[index] = round
+    }
+
+    // MARK: - Rounds
+
+    /// Adds a new round. An existing round with the same ID is returned unchanged.
+    @discardableResult
+    func startRound(id: UUID = UUID(), date: Date = Date(), courseSelection: CourseSelection,
+                    status: RoundStatus = .active) -> Round {
+        if let existing = round(id) { return existing }
+        let round = Round(id: id, date: date, status: status, courseSelection: courseSelection)
         rounds.insert(round, at: 0)
-        save()
-        if !fromSync {
-            onSyncEvent?(.startRound(id, date, courseSelection))
-        }
+        return round
     }
 
-    func endRound(roundID: UUID? = nil, fromSync: Bool = false) {
-        let predicate: (Round) -> Bool = if let roundID {
-            { $0.id == roundID }
-        } else {
-            { $0.isActive }
-        }
-        if let index = rounds.firstIndex(where: predicate) {
-            let id = rounds[index].id
-            rounds[index].end()
-            save()
-            if !fromSync {
-                onSyncEvent?(.endRound(id))
-            }
-        }
+    func deleteRound(_ id: UUID) {
+        guard rounds.contains(where: { $0.id == id }) else { return }
+        rounds.removeAll { $0.id == id }
     }
 
-    func addMark(_ mark: BallMark, fromSync: Bool = false) {
-        if let index = rounds.firstIndex(where: { $0.isActive }) {
-            let roundID = rounds[index].id
-            let holeIndex = rounds[index].currentHoleIndex
-            rounds[index].addMark(mark)
-            save()
-            if !fromSync {
-                onSyncEvent?(.addMark(mark, holeIndex, roundID))
-            }
-        }
+    // MARK: - Holes
+
+    /// Moves play to a later hole. Earlier holes can't be played again, so a lower hole is ignored.
+    func startHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date(), source: HoleStartSource) {
+        guard let id = roundID ?? activeRound?.id,
+              let i = rounds.firstIndex(where: { $0.id == id }) else { return }
+        var round = rounds[i]
+        guard round.startHole(index, at: date, source: source) else { return }
+        rounds[i] = round
+        onTimelineChanged?(round)
     }
 
-    func addMark(to roundID: UUID, holeIndex: Int, mark: BallMark, fromSync: Bool = false) {
-        if let index = rounds.firstIndex(where: { $0.id == roundID }) {
-            rounds[index].addMark(mark, toHoleIndex: holeIndex)
-            save()
-            if !fromSync {
-                onSyncEvent?(.addMark(mark, holeIndex, roundID))
-            }
-        }
+    /// Merges the other device's timeline. Returns true if anything changed.
+    @discardableResult
+    func mergeTimeline(_ entries: [HoleStart], roundID: UUID) -> Bool {
+        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
+        var round = rounds[i]
+        guard round.mergeTimeline(entries) else { return false }
+        rounds[i] = round
+        return true
     }
 
-    func nextHole(roundID: UUID? = nil) {
-        let predicate: (Round) -> Bool = if let roundID {
-            { $0.id == roundID }
-        } else {
-            { $0.isActive }
-        }
-        if let index = rounds.firstIndex(where: predicate) {
-            guard rounds[index].nextHole() else { return }
-            save()
-            holeChanged(in: rounds[index])
-        }
+    /// Replaces the timeline with a corrected one made on this device.
+    func setTimeline(_ entries: [HoleStart], roundID: UUID) {
+        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        let normalized = HoleTimeline.normalized(entries)
+        guard normalized != rounds[i].holeTimeline else { return }
+        var round = rounds[i]
+        round.holeTimeline = normalized
+        round.ensureHole(round.currentHoleIndex)
+        rounds[i] = round
+        onTimelineChanged?(round)
     }
 
-    func previousHole(roundID: UUID? = nil) {
-        let predicate: (Round) -> Bool = if let roundID {
-            { $0.id == roundID }
-        } else {
-            { $0.isActive }
-        }
-        if let index = rounds.firstIndex(where: predicate) {
-            guard rounds[index].previousHole() else { return }
-            save()
-            holeChanged(in: rounds[index])
-        }
+    /// Sets a timeline entry's start time, as the user's own correction. The time is kept
+    /// between the entries before and after it, so the order of holes never changes.
+    func setStartTime(_ date: Date, entryID: UUID, roundID: UUID) {
+        guard var entries = round(roundID)?.holeTimeline,
+              let i = entries.firstIndex(where: { $0.id == entryID }),
+              let range = Self.startTimeRange(for: entryID, in: entries) else { return }
+        entries[i].startedAt = min(max(date, range.lowerBound), range.upperBound)
+        entries[i].source = .userSet
+        entries[i].version += 1
+        setTimeline(entries, roundID: roundID)
     }
 
-    /// Tells the other device which hole this one moved to, so both stay on the same hole.
-    private func holeChanged(in round: Round) {
-        // Always later than the last change seen, even when the other device's clock runs ahead
-        lastHoleChange = max(Date(), lastHoleChange.addingTimeInterval(0.001))
-        onSyncEvent?(.setHole(round.currentHoleIndex, round.id, lastHoleChange))
+    /// The start times an entry can have: after the entry before it and before the one after it.
+    /// Nil for the first entry, which is the round's start.
+    static func startTimeRange(for entryID: UUID, in entries: [HoleStart]) -> ClosedRange<Date>? {
+        guard let i = entries.firstIndex(where: { $0.id == entryID }), i > 0 else { return nil }
+        let lower = entries[i - 1].startedAt.addingTimeInterval(1)
+        let upper = i + 1 < entries.count ? entries[i + 1].startedAt.addingTimeInterval(-1) : .distantFuture
+        return lower <= upper ? lower...upper : nil
     }
 
-    func setHoleIndex(_ index: Int, roundID: UUID? = nil, changedAt: Date = Date(), fromSync: Bool = false) {
-        let predicate: (Round) -> Bool = if let roundID {
-            { $0.id == roundID }
-        } else {
-            { $0.isActive }
-        }
-        if let i = rounds.firstIndex(where: predicate) {
-            if fromSync {
-                // A repeat of a change already applied, or a choice older than the latest one
-                guard changedAt > lastHoleChange else { return }
-                lastHoleChange = changedAt
-            }
-            while rounds[i].holes.count <= index && rounds[i].holes.count < Round.maxHoles {
-                rounds[i].holes.append(RoundHole())
-            }
-            let clamped = min(index, rounds[i].holes.count - 1)
-            guard clamped != rounds[i].currentHoleIndex else { return }
-            rounds[i].currentHoleIndex = clamped
-            save()
-            if !fromSync {
-                holeChanged(in: rounds[i])
-            }
+    // MARK: - Marks
+
+    func addMark(to roundID: UUID, holeIndex: Int, mark: BallMark) {
+        changeMarks(roundID) { round in
+            guard !round.hasMark(id: mark.id) else { return false }
+            round.addMark(mark, toHoleIndex: holeIndex)
+            return true
         }
     }
 
     func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
-        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
-           let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),
-           let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) {
-            let updated = BallMark(id: mark.id, coordinate: coordinate, timestamp: mark.timestamp, type: mark.type)
-            rounds[roundIndex].holes[holeIndex].marks[markIndex] = updated
-            save()
+        changeMark(mark.id, in: roundID) { existing in
+            existing = BallMark(id: existing.id, coordinate: coordinate, timestamp: existing.timestamp, type: existing.type)
         }
     }
 
-    func setMarkType(markID: UUID, type: BallMarkType, in roundID: UUID, fromSync: Bool = false) {
-        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
-           let holeIndex = rounds[roundIndex].holeIndex(containing: markID),
-           let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == markID }) {
-            rounds[roundIndex].holes[holeIndex].marks[markIndex].type = type
-            save()
-            if !fromSync {
-                onSyncEvent?(.setMarkType(markID, type, roundID))
-            }
-        }
+    func setMarkType(markID: UUID, type: BallMarkType, in roundID: UUID) {
+        changeMark(markID, in: roundID) { $0.type = type }
     }
 
     func reorderMark(_ mark: BallMark, to newIndex: Int, in roundID: UUID) {
-        if let roundIndex = rounds.firstIndex(where: { $0.id == roundID }),
-           let holeIndex = rounds[roundIndex].holeIndex(containing: mark.id),
-           let markIndex = rounds[roundIndex].holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) {
-            let clamped = min(max(newIndex, 0), rounds[roundIndex].holes[holeIndex].marks.count - 1)
-            let removed = rounds[roundIndex].holes[holeIndex].marks.remove(at: markIndex)
-            rounds[roundIndex].holes[holeIndex].marks.insert(removed, at: clamped)
-            save()
+        changeMarks(roundID) { round in
+            guard let holeIndex = round.holeIndex(containing: mark.id),
+                  let markIndex = round.holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) else { return false }
+            let clamped = min(max(newIndex, 0), round.holes[holeIndex].marks.count - 1)
+            guard clamped != markIndex else { return false }
+            let removed = round.holes[holeIndex].marks.remove(at: markIndex)
+            round.holes[holeIndex].marks.insert(removed, at: clamped)
+            return true
         }
     }
 
     func removeMark(_ mark: BallMark, from roundID: UUID) {
-        if let index = rounds.firstIndex(where: { $0.id == roundID }),
-           let holeIndex = rounds[index].holeIndex(containing: mark.id) {
-            rounds[index].holes[holeIndex].marks.removeAll { $0.id == mark.id }
-            save()
+        changeMarks(roundID) { round in
+            guard let holeIndex = round.holeIndex(containing: mark.id) else { return false }
+            round.holes[holeIndex].marks.removeAll { $0.id == mark.id }
+            return true
         }
     }
 
-    func reactivateRound(_ roundID: UUID, fromSync: Bool = false) {
-        guard activeRound == nil,
-              let index = rounds.firstIndex(where: { $0.id == roundID }) else { return }
-        rounds[index].isActive = true
-        save()
-        if !fromSync {
-            onSyncEvent?(.startRound(roundID, rounds[index].date, rounds[index].courseSelection))
+    /// Applies the phone's marks on the watch when the snapshot is newer than the last one applied.
+    @discardableResult
+    func applyMarks(_ snapshot: MarksSnapshot) -> Bool {
+        guard let i = rounds.firstIndex(where: { $0.id == snapshot.roundID }),
+              snapshot.version > rounds[i].marksVersion else { return false }
+        var round = rounds[i]
+        var holes = snapshot.holes.map { RoundHole(marks: $0) }
+        if holes.isEmpty {
+            holes = [RoundHole()]
+        }
+        round.holes = holes
+        round.ensureHole(round.currentHoleIndex)
+        round.marksVersion = snapshot.version
+        rounds[i] = round
+        return true
+    }
+
+    private func changeMark(_ markID: UUID, in roundID: UUID, _ change: @escaping (inout BallMark) -> Void) {
+        changeMarks(roundID) { round in
+            guard let holeIndex = round.holeIndex(containing: markID),
+                  let markIndex = round.holes[holeIndex].marks.firstIndex(where: { $0.id == markID }) else { return false }
+            change(&round.holes[holeIndex].marks[markIndex])
+            return true
         }
     }
 
-    func deleteRound(_ round: Round) {
-        rounds.removeAll { $0.id == round.id }
-        save()
+    /// Every mark change adds 1 to the round's marks version, so the watch can tell newer from older.
+    private func changeMarks(_ roundID: UUID, _ change: (inout Round) -> Bool) {
+        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        var round = rounds[i]
+        guard change(&round) else { return }
+        round.marksVersion += 1
+        rounds[i] = round
+        onMarksChanged?(round)
     }
+
+    // MARK: - Saving
 
     private func load() {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         do {
             let data = try Data(contentsOf: fileURL)
-            // Rounds saved before a course was required cannot load and are dropped
-            rounds = try JSONDecoder().decode([LossyRound].self, from: data).compactMap(\.round)
+            rounds = try JSONDecoder().decode([Round].self, from: data)
+        } catch CocoaError.fileReadNoSuchFile {
+            return
         } catch {
-            print("Failed to load rounds: \(error)")
+            // Data saved by an older build can't be read and is thrown away
+            print("Discarding saved rounds: \(error)")
+            rounds = []
         }
     }
 
     private func save() {
         do {
             let data = try JSONEncoder().encode(rounds)
-            try data.write(to: fileURL)
+            try data.write(to: fileURL, options: .atomic)
         } catch {
             print("Failed to save rounds: \(error)")
         }
-    }
-}
-
-/// Decodes a saved round, or nil when the round cannot be read.
-private struct LossyRound: Decodable {
-    let round: Round?
-
-    init(from decoder: Decoder) throws {
-        round = try? Round(from: decoder)
     }
 }

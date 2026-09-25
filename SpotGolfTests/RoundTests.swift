@@ -20,19 +20,38 @@ final class RoundTests: XCTestCase {
         let date = Date(timeIntervalSince1970: 1_000_000)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let hole = RoundHole(marks: [mark])
-        let round = Round(id: id, date: date, holes: [hole], isActive: false, courseSelection: .test)
+        let round = Round(id: id, date: date, holes: [hole], status: .ended, courseSelection: .test)
 
         XCTAssertEqual(round.id, id)
         XCTAssertEqual(round.date, date)
         XCTAssertEqual(round.marks.count, 1)
         XCTAssertFalse(round.isActive)
+        XCTAssertFalse(round.isInProgress)
+    }
+
+    func testTimelineStartsOnFirstHoleAtRoundDate() {
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        let round = Round(date: date, courseSelection: .test)
+
+        XCTAssertEqual(round.holeTimeline.count, 1)
+        XCTAssertEqual(round.holeTimeline[0].holeIndex, 0)
+        XCTAssertEqual(round.holeTimeline[0].startedAt, date)
+        XCTAssertEqual(round.holeTimeline[0].source, .roundStart)
+    }
+
+    func testStartingAndEndingRoundsAreInProgressButNotActive() {
+        for status in [RoundStatus.starting, .ending] {
+            let round = Round(status: status, courseSelection: .test)
+            XCTAssertFalse(round.isActive)
+            XCTAssertTrue(round.isInProgress)
+        }
     }
 
     func testAddMark() {
         var round = Round(courseSelection: .test)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
 
-        round.addMark(mark)
+        round.addMark(mark, toHoleIndex: 0)
 
         XCTAssertEqual(round.marks.count, 1)
         XCTAssertEqual(round.marks[0].id, mark.id)
@@ -43,8 +62,8 @@ final class RoundTests: XCTestCase {
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
 
-        round.addMark(mark1)
-        round.addMark(mark2)
+        round.addMark(mark1, toHoleIndex: 0)
+        round.addMark(mark2, toHoleIndex: 0)
 
         XCTAssertEqual(round.marks.count, 2)
         XCTAssertEqual(round.marks[0].id, mark1.id)
@@ -55,14 +74,27 @@ final class RoundTests: XCTestCase {
         var round = Round(courseSelection: .test)
         XCTAssertTrue(round.isActive)
 
-        round.end()
+        let endedAt = Date(timeIntervalSince1970: 1_000_000)
+        round.end(at: endedAt)
         XCTAssertFalse(round.isActive)
+        XCTAssertEqual(round.status, .ended)
+        XCTAssertEqual(round.endedAt, endedAt)
+    }
+
+    func testEndKeepsEarlierEndTime() {
+        var round = Round(courseSelection: .test)
+        let first = Date(timeIntervalSince1970: 1_000_000)
+        round.endedAt = first
+
+        round.end(at: first.addingTimeInterval(60))
+
+        XCTAssertEqual(round.endedAt, first)
     }
 
     func testCodableRoundTrip() throws {
         var round = Round(courseSelection: .test)
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        round.addMark(mark)
+        round.addMark(mark, toHoleIndex: 0)
 
         let data = try JSONEncoder().encode(round)
         let decoded = try JSONDecoder().decode(Round.self, from: data)
@@ -71,17 +103,20 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(decoded.date, round.date)
         XCTAssertEqual(decoded.marks.count, 1)
         XCTAssertEqual(decoded.marks[0].id, mark.id)
-        XCTAssertEqual(decoded.isActive, round.isActive)
+        XCTAssertEqual(decoded, round)
     }
 
     func testCodableRoundTripEndedRound() throws {
         var round = Round(courseSelection: .test)
-        round.end()
+        round.lastSeq = 41
+        round.endConfirmed = true
+        round.end(at: Date(timeIntervalSince1970: 1_000_000))
 
         let data = try JSONEncoder().encode(round)
         let decoded = try JSONDecoder().decode(Round.self, from: data)
 
         XCTAssertFalse(decoded.isActive)
+        XCTAssertEqual(decoded, round)
     }
 
     // MARK: - Hole navigation
@@ -92,52 +127,77 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.currentHoleNumber, 1)
     }
 
-    func testNextHoleAppendsAndAdvances() {
+    func testStartHoleMovesForwardAndAppendsHoles() {
         var round = Round(courseSelection: .test)
-        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)))
+        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
 
-        round.nextHole()
+        let changed = round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
 
+        XCTAssertTrue(changed)
         XCTAssertEqual(round.holes.count, 2)
         XCTAssertEqual(round.currentHoleIndex, 1)
         XCTAssertEqual(round.currentHoleNumber, 2)
         XCTAssertTrue(round.marks.isEmpty) // new hole has no marks
+        XCTAssertEqual(round.holeTimeline.last?.source, .autoAdvance)
     }
 
-    func testNextHoleDoesNotExceedMaxHoles() {
-        var round = Round(holes: (0..<Round.maxHoles).map { _ in RoundHole() }, currentHoleIndex: Round.maxHoles - 1, courseSelection: .test)
-
-        let changed = round.nextHole()
-
-        XCTAssertFalse(changed)
-        XCTAssertEqual(round.holes.count, Round.maxHoles)
-        XCTAssertEqual(round.currentHoleIndex, Round.maxHoles - 1)
-    }
-
-    func testNextHoleAdvancesWithoutAppendingWhenNotOnLast() {
-        var round = Round(holes: [RoundHole(), RoundHole(), RoundHole()], currentHoleIndex: 0, courseSelection: .test)
-
-        round.nextHole()
-
-        XCTAssertEqual(round.holes.count, 3) // no new hole appended
-        XCTAssertEqual(round.currentHoleIndex, 1)
-    }
-
-    func testPreviousHole() {
-        var round = Round(holes: [RoundHole(), RoundHole()], currentHoleIndex: 1, courseSelection: .test)
-
-        round.previousHole()
-
-        XCTAssertEqual(round.currentHoleIndex, 0)
-    }
-
-    func testPreviousHoleClampsAtZero() {
+    func testStartHoleCanSkipAhead() {
         var round = Round(courseSelection: .test)
 
-        let changed = round.previousHole()
+        round.startHole(6, at: round.date.addingTimeInterval(600), source: .playHole)
 
-        XCTAssertFalse(changed)
-        XCTAssertEqual(round.currentHoleIndex, 0)
+        XCTAssertEqual(round.currentHoleIndex, 6)
+        XCTAssertEqual(round.holes.count, 7)
+    }
+
+    func testStartHoleIgnoresEarlierOrSameHole() {
+        var round = Round(courseSelection: .test)
+        round.startHole(3, at: round.date.addingTimeInterval(600), source: .autoAdvance)
+
+        XCTAssertFalse(round.startHole(1, at: round.date.addingTimeInterval(1200), source: .playHole))
+        XCTAssertFalse(round.startHole(3, at: round.date.addingTimeInterval(1200), source: .playHole))
+        XCTAssertEqual(round.currentHoleIndex, 3)
+        XCTAssertEqual(round.holeTimeline.count, 2)
+    }
+
+    func testStartHoleTimedBeforeLastEntryIsPlacedJustAfterIt() {
+        var round = Round(courseSelection: .test)
+        round.startHole(2, at: round.date.addingTimeInterval(600), source: .autoAdvance)
+
+        // The other device's clock runs a little behind
+        XCTAssertTrue(round.startHole(3, at: round.date.addingTimeInterval(599), source: .autoAdvance))
+        XCTAssertEqual(round.currentHoleIndex, 3)
+        XCTAssertGreaterThan(round.holeTimeline[2].startedAt, round.holeTimeline[1].startedAt)
+    }
+
+    func testStartHoleDoesNotPassLastHole() {
+        var round = Round(courseSelection: .test)
+
+        XCTAssertFalse(round.startHole(Round.maxHoles, at: round.date.addingTimeInterval(600), source: .playHole))
+        XCTAssertTrue(round.startHole(Round.maxHoles - 1, at: round.date.addingTimeInterval(600), source: .playHole))
+        XCTAssertEqual(round.holes.count, Round.maxHoles)
+    }
+
+    func testHoleIndexAtUsesTimeline() {
+        var round = Round(courseSelection: .test)
+        round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
+        round.startHole(2, at: round.date.addingTimeInterval(1200), source: .autoAdvance)
+
+        XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(-10)), 0)
+        XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(599)), 0)
+        XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(600)), 1)
+        XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(5000)), 2)
+    }
+
+    func testMergeTimelineReportsChange() {
+        var round = Round(courseSelection: .test)
+        var other = round
+        other.startHole(4, at: round.date.addingTimeInterval(600), source: .autoAdvance)
+
+        XCTAssertTrue(round.mergeTimeline(other.holeTimeline))
+        XCTAssertEqual(round.currentHoleIndex, 4)
+        XCTAssertEqual(round.holes.count, 5)
+        XCTAssertFalse(round.mergeTimeline(other.holeTimeline))
     }
 
     func testMarksReturnsCurrentHoleMarks() {
@@ -145,7 +205,8 @@ final class RoundTests: XCTestCase {
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
         let hole1 = RoundHole(marks: [mark1])
         let hole2 = RoundHole(marks: [mark2])
-        let round = Round(holes: [hole1, hole2], currentHoleIndex: 1, courseSelection: .test)
+        var round = Round(holes: [hole1, hole2], courseSelection: .test)
+        round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
 
         XCTAssertEqual(round.marks.count, 1)
         XCTAssertEqual(round.marks[0].id, mark2.id)
@@ -173,63 +234,37 @@ final class RoundTests: XCTestCase {
         XCTAssertNil(round.holeIndex(containing: UUID()))
     }
 
-    func testAddMarkAppendsToCurrentHole() {
-        var round = Round(holes: [RoundHole(), RoundHole()], currentHoleIndex: 1, courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-
-        round.addMark(mark)
-
-        XCTAssertTrue(round.holes[0].marks.isEmpty)
-        XCTAssertEqual(round.holes[1].marks.count, 1)
-    }
-
     func testEndTrimsTrailingEmptyHoles() {
         let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        var round = Round(holes: [RoundHole(marks: [mark]), RoundHole(), RoundHole()], currentHoleIndex: 2, courseSelection: .test)
+        var round = Round(holes: [RoundHole(marks: [mark]), RoundHole(), RoundHole()], courseSelection: .test)
 
-        round.end()
+        round.end(at: Date())
 
         XCTAssertEqual(round.holes.count, 1)
-        XCTAssertEqual(round.currentHoleIndex, 0)
         XCTAssertFalse(round.isActive)
     }
 
     func testEndPreservesNonEmptyHoles() {
         let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        var round = Round(holes: [RoundHole(marks: [mark1]), RoundHole(marks: [mark2])], currentHoleIndex: 1, courseSelection: .test)
+        var round = Round(holes: [RoundHole(marks: [mark1]), RoundHole(marks: [mark2])], courseSelection: .test)
 
-        round.end()
+        round.end(at: Date())
 
         XCTAssertEqual(round.holes.count, 2)
-        XCTAssertEqual(round.currentHoleIndex, 1)
     }
 
-    func testDecoderClampsOutOfBoundsIndex() throws {
-        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Round(courseSelection: .test))) as! [String: Any]
-        json["currentHoleIndex"] = 99
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let decoded = try JSONDecoder().decode(Round.self, from: data)
+    func testMarksSnapshotHoldsEveryHole() {
+        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        var round = Round(holes: [RoundHole(marks: [mark1]), RoundHole(marks: [mark2])], courseSelection: .test)
+        round.marksVersion = 7
 
-        XCTAssertEqual(decoded.currentHoleIndex, 0)
-    }
+        let snapshot = round.marksSnapshot
 
-    func testNextHoleReturnsTrueWhenAdvanced() {
-        var round = Round(courseSelection: .test)
-
-        let changed = round.nextHole()
-
-        XCTAssertTrue(changed)
-        XCTAssertEqual(round.currentHoleIndex, 1)
-    }
-
-    func testPreviousHoleReturnsTrueWhenMoved() {
-        var round = Round(holes: [RoundHole(), RoundHole()], currentHoleIndex: 1, courseSelection: .test)
-
-        let changed = round.previousHole()
-
-        XCTAssertTrue(changed)
-        XCTAssertEqual(round.currentHoleIndex, 0)
+        XCTAssertEqual(snapshot.roundID, round.id)
+        XCTAssertEqual(snapshot.version, 7)
+        XCTAssertEqual(snapshot.holes, [[mark1], [mark2]])
     }
 
     // MARK: - Course data
@@ -287,22 +322,22 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.currentCourseHole?.id, 1)
         XCTAssertEqual(round.currentCourseHole?.par, 4)
 
-        round.nextHole()
+        round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
 
         XCTAssertEqual(round.currentCourseHole?.id, 2)
         XCTAssertEqual(round.currentCourseHole?.par, 3)
 
-        // Beyond available course holes
-        round.nextHole()
-
-        XCTAssertNil(round.currentCourseHole)
+        // The course's last hole is the last one that can be played
+        XCTAssertEqual(round.lastHoleIndex, 1)
+        XCTAssertFalse(round.startHole(2, at: round.date.addingTimeInterval(1200), source: .autoAdvance))
+        XCTAssertNil(round.courseHole(at: 2))
     }
 
     func testCodableRoundTripWithMultipleHoles() throws {
         var round = Round(courseSelection: .test)
-        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)))
-        round.nextHole()
-        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)))
+        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
+        round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
+        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)), toHoleIndex: 1)
 
         let data = try JSONEncoder().encode(round)
         let decoded = try JSONDecoder().decode(Round.self, from: data)
@@ -364,15 +399,6 @@ final class RoundTests: XCTestCase {
     }
 
     // MARK: - Duplicate mark detection
-
-    func testAddMarkIgnoresDuplicate() {
-        var round = Round(courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        round.addMark(mark)
-        round.addMark(mark) // same UUID
-
-        XCTAssertEqual(round.marks.count, 1)
-    }
 
     func testAddMarkToHoleIgnoresDuplicate() {
         var round = Round(courseSelection: .test)

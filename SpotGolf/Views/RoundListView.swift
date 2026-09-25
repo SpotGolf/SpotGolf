@@ -4,7 +4,8 @@ struct RoundListView: View {
     @Binding var navigationPath: NavigationPath
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var syncService: SyncService
-    @EnvironmentObject var trackStore: TrackStore
+    @EnvironmentObject var phoneSync: PhoneSync
+    @EnvironmentObject var streamStore: StreamStore
     @EnvironmentObject var guessStore: GuessStore
     @State private var showCourseSelection = false
     @State private var showSettings = false
@@ -13,16 +14,20 @@ struct RoundListView: View {
 
     var body: some View {
         List {
-            if let active = roundStore.activeRound {
+            if let current = roundStore.currentRound {
                 Section("Active Round") {
-                    NavigationLink(value: active.id) {
-                        RoundRow(round: active)
+                    NavigationLink(value: current.id) {
+                        RoundRow(round: current)
+                    }
+                    if current.status != .active {
+                        RoundSyncBanner(round: current)
+                            .listRowInsets(EdgeInsets())
                     }
                 }
             }
 
             Section("Past Rounds") {
-                ForEach(roundStore.rounds.filter { !$0.isActive }) { round in
+                ForEach(roundStore.rounds.filter { $0.status == .ended }) { round in
                     NavigationLink(value: round.id) {
                         RoundRow(round: round)
                     }
@@ -36,9 +41,9 @@ struct RoundListView: View {
                         .tint(.red)
                     }
                     .swipeActions(edge: .leading) {
-                        if roundStore.activeRound == nil {
+                        if roundStore.currentRound == nil && canStartRound {
                             Button {
-                                roundStore.reactivateRound(round.id)
+                                phoneSync.resumeRound(round.id)
                                 navigationPath.append(round.id)
                             } label: {
                                 Label("Resume", systemImage: "play.fill")
@@ -71,9 +76,11 @@ struct RoundListView: View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                if roundStore.activeRound != nil {
-                    Button("End Round") {
-                        roundStore.endRound()
+                if let current = roundStore.currentRound {
+                    if current.isActive {
+                        Button("End Round") {
+                            phoneSync.endRound(current.id)
+                        }
                     }
                 } else {
                     Button("New Round") {
@@ -88,8 +95,8 @@ struct RoundListView: View {
             set: { if !$0 { roundToDelete = nil } }
         ), presenting: roundToDelete) { round in
             Button("Delete", role: .destructive) {
-                roundStore.deleteRound(round)
-                trackStore.deleteRound(round.id)
+                roundStore.deleteRound(round.id)
+                streamStore.delete(round.id)
                 guessStore.deleteRound(round.id)
             }
             Button("Cancel", role: .cancel) {}
@@ -118,17 +125,18 @@ struct RoundListView: View {
         }
     }
 
-    /// The watch records all GPS, so a round can only start while it is connected.
+    /// The watch records all GPS, so a round needs a paired watch with the app installed.
+    /// It does not need to be reachable: starting a round launches the watch app.
     /// UI tests run without a paired watch, so they are exempt.
     private var canStartRound: Bool {
-        CommandLine.arguments.contains("--ui-testing") || syncService.isConnected
+        CommandLine.arguments.contains("--ui-testing") || syncService.hasCounterpart
     }
 
     /// Writes the round's GPS track to a temporary CSV file and opens the share panel.
     private func exportRound(_ round: Round) {
         let csv = TrackExporter.csv(round: round,
-                                    phone: trackStore.points(for: round.id, source: .phone),
-                                    watch: trackStore.points(for: round.id, source: .watch))
+                                    points: streamStore.points(for: round.id, until: round.endedAt),
+                                    swings: streamStore.swings(for: round.id, until: round.endedAt))
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(TrackExporter.fileName(for: round))
         do {
@@ -161,6 +169,15 @@ private struct RoundRow: View {
 
     private var title: String { round.displayTitle }
 
+    private var statusText: String? {
+        switch round.status {
+        case .starting: "Starting"
+        case .active: "Active"
+        case .ending: "Ending"
+        case .ended: nil
+        }
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
@@ -173,8 +190,8 @@ private struct RoundRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if round.isActive {
-                Text("Active")
+            if let status = statusText {
+                Text(status)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(.green)

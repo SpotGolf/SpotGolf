@@ -9,8 +9,7 @@ struct RoundMapView: View {
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var guessStore: GuessStore
-    @EnvironmentObject var syncService: SyncService
-    @EnvironmentObject var trackStore: TrackStore
+    @EnvironmentObject var streamStore: StreamStore
     @EnvironmentObject var settingsStore: SettingsStore
     @Environment(\.dismiss) private var dismiss
 
@@ -34,6 +33,7 @@ struct RoundMapView: View {
     @State private var holeTrack: [TrackPoint] = []
     @State private var suggestions: [MarkSuggestion] = []
     @State private var cameraChanges = 0
+    @State private var showHoleTimes = false
 
     var body: some View {
         Group {
@@ -59,9 +59,9 @@ struct RoundMapView: View {
                     position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
                 }
             }
-            if let round, !holeAdvancer.isPaused, let location {
+            if let round, round.isActive, !holeAdvancer.isPaused, let location {
                 if let detected = HoleAdvancer.detectHole(location: location, courseSelection: round.courseSelection, currentHoleIndex: round.currentHoleIndex) {
-                    roundStore.setHoleIndex(detected)
+                    roundStore.startHole(detected, roundID: round.id, source: .autoAdvance)
                     pendingPanToHole = true
                 }
             }
@@ -86,8 +86,8 @@ struct RoundMapView: View {
             // A guess can arrive from the watch while edit mode is open
             refreshSuggestions()
         }
-        .onChange(of: trackStore.revision) {
-            // A track segment arrived from the watch
+        .onChange(of: streamStore.revision) {
+            // Records arrived from the watch
             reloadTrack()
         }
     }
@@ -103,6 +103,7 @@ struct RoundMapView: View {
             if round.isActive {
                 holeHeader(round)
             }
+            RoundSyncBanner(round: round)
             ZStack(alignment: .top) {
                 mapView(round)
                 overlayView(round)
@@ -117,6 +118,12 @@ struct RoundMapView: View {
                     .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.center)
             }
+            ToolbarItem(placement: .primaryAction) {
+                holeTimesButton
+            }
+        }
+        .sheet(isPresented: $showHoleTimes) {
+            HoleTimelineView(roundID: round.id)
         }
         .navigationBarTitleDisplayMode(.inline)
         // During a round the header has its own back button, so the bar and its title are hidden
@@ -428,9 +435,10 @@ struct RoundMapView: View {
     }
 
     /// Makes the shown hole the round's current hole and resumes automatic hole changes.
-    private func playViewingHole() {
+    /// Only offered for a hole after the current one: golf is played in order.
+    private func playViewingHole(_ round: Round) {
         if let viewingHoleIndex {
-            roundStore.setHoleIndex(viewingHoleIndex)
+            roundStore.startHole(viewingHoleIndex, roundID: round.id, source: .playHole)
         }
         resumeRound()
     }
@@ -543,63 +551,87 @@ struct RoundMapView: View {
         .accessibilityLabel("Hazard in \(yards) yards")
     }
 
+    /// Edit at the bottom left, and the map buttons at the right. While another hole is shown,
+    /// "Resume round" and "Play hole" join Edit, and the map buttons move up a row to make room.
     private func buttonBar(_ round: Round) -> some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .trailing, spacing: 12) {
             if viewingHoleIndex != nil {
-                HStack(spacing: 12) {
-                    Button("Resume round") {
-                        resumeRound()
-                    }
-
-                    Button("Play this hole") {
-                        playViewingHole()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .tint(.blue)
+                mapButtons
             }
 
-            HStack(alignment: .bottom) {
+            HStack(alignment: .bottom, spacing: 10) {
                 Button(isEditing ? "Done" : "Edit") {
                     isEditing.toggle()
                     refreshSuggestions()
                 }
-                .font(.headline)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(.thickMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-                .padding(.leading, 16)
+                .modifier(BarButtonStyle(horizontalPadding: 20))
                 .accessibilityIdentifier("EditHole")
 
-                Spacer()
-
-                VStack(spacing: 8) {
-                    Button {
-                        followsUserLocation = true
-                        if let location = locationManager.lastLocation {
-                            if let heading = shownHoleHeading() {
-                                position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
-                            } else {
-                                position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
-                            }
-                        }
-                    } label: {
-                        Image(systemName: followsUserLocation ? "location.fill" : "location")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                            .padding(14)
-                            .background(.thickMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                if let viewingHoleIndex {
+                    Button("Resume round") {
+                        resumeRound()
                     }
+                    .modifier(BarButtonStyle(horizontalPadding: 16))
 
+                    if viewingHoleIndex > round.currentHoleIndex {
+                        Button("Play hole") {
+                            playViewingHole(round)
+                        }
+                        .modifier(BarButtonStyle(horizontalPadding: 16))
+                    }
                 }
-                .padding(.trailing, 16)
+
+                Spacer(minLength: 0)
+
+                if viewingHoleIndex == nil {
+                    mapButtons
+                }
+            }
+            .padding(.leading, 16)
+        }
+        .padding(.trailing, 16)
+        .padding(.bottom, 32)
+    }
+
+    /// Hole times, and following the player's location.
+    private var mapButtons: some View {
+        VStack(spacing: 8) {
+            holeTimesButton
+                .font(.title3)
+                .padding(14)
+                .background(.thickMaterial)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+
+            Button {
+                followsUserLocation = true
+                if let location = locationManager.lastLocation {
+                    if let heading = shownHoleHeading() {
+                        position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                    } else {
+                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                    }
+                }
+            } label: {
+                Image(systemName: followsUserLocation ? "location.fill" : "location")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .padding(14)
+                    .background(.thickMaterial)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
         }
-        .padding(.bottom, 32)
+    }
+
+    /// Opens the list of when each hole started.
+    private var holeTimesButton: some View {
+        Button {
+            showHoleTimes = true
+        } label: {
+            Image(systemName: "clock")
+        }
+        .accessibilityLabel("Hole times")
     }
 
     private func spotEditSheet(_ round: Round) -> some View {
@@ -743,20 +775,18 @@ struct RoundMapView: View {
 
     // MARK: - Mark Suggestions
 
-    /// Loads the GPS track for the hole being viewed and recomputes suggestions.
-    /// The watch is the only recorder; the phone track is a fallback for rounds
-    /// recorded before phone recording was removed.
+    /// Loads the watch's GPS track for the hole being viewed and recomputes suggestions.
+    /// A fix belongs to the hole the timeline says was being played at its time.
     private func reloadTrack() {
         guard let round else {
             holeTrack = []
             suggestions = []
             return
         }
-        let watch = trackStore.points(for: round.id, source: .watch)
-        let track = watch.isEmpty ? trackStore.points(for: round.id, source: .phone) : watch
+        let track = streamStore.points(for: round.id, until: round.endedAt)
         if round.isActive {
-            holeTrack = MarkSuggester.holePoints(in: track, holeIndex: shownHoleIndex(round),
-                                                 courseSelection: round.courseSelection)
+            let holeIndex = shownHoleIndex(round)
+            holeTrack = track.filter { round.holeIndex(at: $0.timestamp) == holeIndex }
         } else {
             // Past rounds show every mark, so show the whole walk too
             holeTrack = track
@@ -773,7 +803,7 @@ struct RoundMapView: View {
             in: holeTrack,
             minDwell: settingsStore.settings.stationaryThreshold,
             marks: round.hole(at: shownHoleIndex(round)).marks,
-            guesses: guessStore.guesses(for: round.id, holeIndex: shownHoleIndex(round))
+            guesses: guessStore.guesses(for: round, holeIndex: shownHoleIndex(round))
         )
     }
 
@@ -815,7 +845,6 @@ struct RoundMapView: View {
         }
         if let guessID = suggestion.guessID {
             guessStore.remove(guessID: guessID, roundID: round.id)
-            syncService.send(.removeGuess(guessID, round.id))
         }
         refreshSuggestions()
     }
@@ -823,6 +852,22 @@ struct RoundMapView: View {
     /// The position where a timestamp fits chronologically among a hole's marks.
     private func insertionIndex(for timestamp: Date, in marks: [BallMark]) -> Int {
         marks.firstIndex(where: { timestamp < $0.timestamp }) ?? marks.count
+    }
+}
+
+/// The look of the Edit button: a capsule on a thick material with a shadow.
+private struct BarButtonStyle: ViewModifier {
+    let horizontalPadding: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .font(.headline)
+            .lineLimit(1)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, 12)
+            .background(.thickMaterial)
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 }
 

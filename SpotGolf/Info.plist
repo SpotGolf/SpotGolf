@@ -20,6 +20,10 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>SpotGolf uses HealthKit to start your round on Apple Watch.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>SpotGolf uses HealthKit to start your round on Apple Watch.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
