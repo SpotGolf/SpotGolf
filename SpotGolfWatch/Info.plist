@@ -24,10 +24,10 @@
 	<string>SpotGolf uses HealthKit to keep the app active during your round.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>SpotGolf uses HealthKit to keep the app active during your round.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SpotGolf needs your location to record where you hit the ball on the course.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>SpotGolf uses wrist motion to detect your swings.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

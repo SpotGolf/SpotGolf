@@ -8,7 +8,7 @@ struct RoundMapView: View {
     let roundID: UUID
     @EnvironmentObject var roundStore: RoundStore
     @EnvironmentObject var locationManager: LocationManager
-    @EnvironmentObject var guessStore: GuessStore
+    @EnvironmentObject var suggestionStore: SuggestionStore
     @EnvironmentObject var streamStore: StreamStore
     @EnvironmentObject var settingsStore: SettingsStore
     @Environment(\.dismiss) private var dismiss
@@ -19,9 +19,9 @@ struct RoundMapView: View {
 
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var followsUserLocation = true
-    @State private var selectedMark: BallMark?
+    @State private var selectedStroke: Stroke?
     @State private var showDeleteConfirm = false
-    @State private var draggingMark: BallMark?
+    @State private var draggingStroke: Stroke?
     @State private var dragOffset: CGSize = .zero
     @State private var newSpotIndex: Int = 0
     @State private var holeAdvancer = HoleAdvancer()
@@ -30,8 +30,10 @@ struct RoundMapView: View {
     @State private var hasInitialPan = false
     @State private var pendingPanToHole = false
     @State private var isEditing = false
+    /// The whole round's GPS, and the part of it on the hole shown.
+    @State private var roundTrack: [TrackPoint] = []
     @State private var holeTrack: [TrackPoint] = []
-    @State private var suggestions: [MarkSuggestion] = []
+    @State private var suggestions: [StrokeSuggestion] = []
     @State private var cameraChanges = 0
     @State private var showHoleTimes = false
 
@@ -44,6 +46,11 @@ struct RoundMapView: View {
         .onAppear {
             locationManager.startUpdating()
             reloadTrack()
+            // A past round shows its holes, not the player, so it does not wait for a location
+            if let round, !round.isActive, !hasInitialPan {
+                hasInitialPan = true
+                panToHole()
+            }
         }
         .onDisappear {
             locationManager.stopUpdating()
@@ -52,7 +59,7 @@ struct RoundMapView: View {
             if !hasInitialPan, location != nil, round != nil {
                 hasInitialPan = true
                 panToHole()
-            } else if followsUserLocation, let location {
+            } else if followsUserLocation, round?.isActive == true, let location {
                 if let heading = shownHoleHeading() {
                     position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
                 } else {
@@ -82,8 +89,7 @@ struct RoundMapView: View {
             panToHole()
             reloadTrack()
         }
-        .onReceive(guessStore.$guesses) { _ in
-            // A guess can arrive from the watch while edit mode is open
+        .onReceive(suggestionStore.$hidden) { _ in
             refreshSuggestions()
         }
         .onChange(of: streamStore.revision) {
@@ -92,17 +98,15 @@ struct RoundMapView: View {
         }
     }
 
-    /// The hole the map, header, and distances describe.
+    /// The hole the map, header, and distances describe. A past round opens on its first hole.
     private func shownHoleIndex(_ round: Round) -> Int {
-        viewingHoleIndex ?? round.currentHoleIndex
+        viewingHoleIndex ?? (round.isActive ? round.currentHoleIndex : 0)
     }
 
     @ViewBuilder
     private func roundContent(_ round: Round) -> some View {
         VStack(spacing: 0) {
-            if round.isActive {
-                holeHeader(round)
-            }
+            holeHeader(round)
             RoundSyncBanner(round: round)
             ZStack(alignment: .top) {
                 mapView(round)
@@ -110,36 +114,23 @@ struct RoundMapView: View {
             }
             .ignoresSafeArea(edges: .bottom)
         }
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(round.displayTitle)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.center)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                holeTimesButton
-            }
-        }
         .sheet(isPresented: $showHoleTimes) {
             HoleTimelineView(roundID: round.id)
         }
-        .navigationBarTitleDisplayMode(.inline)
-        // During a round the header has its own back button, so the bar and its title are hidden
-        .toolbar(round.isActive ? .hidden : .visible, for: .navigationBar)
+        // The header has its own back button, so the bar is hidden
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: Binding(
-            get: { selectedMark != nil && !showDeleteConfirm },
-            set: { if !$0 && !showDeleteConfirm { selectedMark = nil } }
+            get: { selectedStroke != nil && !showDeleteConfirm },
+            set: { if !$0 && !showDeleteConfirm { selectedStroke = nil } }
         )) {
             spotEditSheet(round)
         }
         .alert("Delete Spot", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
-                if let mark = selectedMark {
-                    roundStore.removeMark(mark, from: round.id)
+                if let stroke = selectedStroke {
+                    roundStore.removeStroke(stroke, from: round.id)
                 }
-                selectedMark = nil
+                selectedStroke = nil
             }
             Button("Cancel", role: .cancel) {
                 showDeleteConfirm = false
@@ -150,14 +141,15 @@ struct RoundMapView: View {
     }
 
     private func mapView(_ round: Round) -> some View {
-        let marksToShow = round.isActive ? round.hole(at: shownHoleIndex(round)).marks : round.allMarks
+        let strokesToShow = round.hole(at: shownHoleIndex(round)).strokes
         return MapReader { proxy in
             Map(position: $position) {
-                UserAnnotation()
-                ForEach(Array(marksToShow.enumerated()), id: \.element.id) { index, mark in
-                    let displayIndex = round.isActive ? index : allMarksDisplayIndex(mark: mark, round: round)
-                    Annotation("", coordinate: mark.coordinate) {
-                        spotMarker(index: displayIndex, mark: mark, round: round, proxy: proxy)
+                if round.isActive {
+                    UserAnnotation()
+                }
+                ForEach(Array(strokesToShow.enumerated()), id: \.element.id) { index, stroke in
+                    Annotation("", coordinate: stroke.coordinate) {
+                        spotMarker(index: index, stroke: stroke, round: round, proxy: proxy)
                     }
                 }
                 if holeTrack.count >= 2 {
@@ -169,8 +161,10 @@ struct RoundMapView: View {
                 }
                 if isEditing {
                     ForEach(suggestions) { suggestion in
-                        Annotation("", coordinate: suggestion.coordinate, anchor: .bottom) {
-                            suggestionPin(suggestion, round: round)
+                        if let coordinate = suggestion.coordinate {
+                            Annotation("", coordinate: coordinate, anchor: .bottom) {
+                                suggestionPin(suggestion, round: round)
+                            }
                         }
                     }
                 }
@@ -198,13 +192,13 @@ struct RoundMapView: View {
                     .onEnded { value in
                         switch value {
                         case .second(true, let drag):
-                            guard round.isActive, isEditing, let drag,
+                            guard isEditing, let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
-                            let mark = BallMark(coordinate: coordinate)
+                            let stroke = Stroke(coordinate: coordinate)
                             let holeIndex = shownHoleIndex(round)
-                            newSpotIndex = round.hole(at: holeIndex).marks.count // capture before append
-                            roundStore.addMark(to: round.id, holeIndex: holeIndex, mark: mark)
-                            selectedMark = mark
+                            newSpotIndex = round.hole(at: holeIndex).strokes.count // capture before append
+                            roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
+                            selectedStroke = stroke
                         default:
                             break
                         }
@@ -213,16 +207,9 @@ struct RoundMapView: View {
         }
     }
 
-    /// For past rounds, compute the 1-based index within the mark's own hole.
-    private func allMarksDisplayIndex(mark: BallMark, round: Round) -> Int {
-        guard let holeIdx = round.holeIndex(containing: mark.id) else { return 0 }
-        let hole = round.holes[holeIdx]
-        return hole.marks.firstIndex(where: { $0.id == mark.id }) ?? 0
-    }
-
     private static let dragLiftOffset: CGFloat = -30
 
-    private func markColor(for type: BallMarkType) -> Color {
+    private func strokeColor(for type: StrokeType) -> Color {
         switch type {
         case .regular: return .blue
         case .penalty: return .red
@@ -230,20 +217,20 @@ struct RoundMapView: View {
         }
     }
 
-    private func spotMarker(index: Int, mark: BallMark, round: Round, proxy: MapProxy) -> some View {
-        let isDragging = draggingMark?.id == mark.id
-        let pinColor = markColor(for: mark.type)
-        let textColor: Color = mark.type == .outOfBounds ? .black : .white
+    private func spotMarker(index: Int, stroke: Stroke, round: Round, proxy: MapProxy) -> some View {
+        let isDragging = draggingStroke?.id == stroke.id
+        let pinColor = strokeColor(for: stroke.type)
+        let textColor: Color = stroke.type == .outOfBounds ? .black : .white
         return VStack(spacing: 0) {
             Button {
                 guard isEditing else { return }
-                if let holeIdx = round.holeIndex(containing: mark.id) {
+                if let holeIdx = round.holeIndex(containing: stroke.id) {
                     let hole = round.holes[holeIdx]
-                    if let markIdx = hole.marks.firstIndex(where: { $0.id == mark.id }) {
-                        newSpotIndex = markIdx
+                    if let strokeIdx = hole.strokes.firstIndex(where: { $0.id == stroke.id }) {
+                        newSpotIndex = strokeIdx
                     }
                 }
-                selectedMark = mark
+                selectedStroke = stroke
             } label: {
                 Circle()
                     .fill(isDragging ? Color.orange : pinColor)
@@ -255,7 +242,7 @@ struct RoundMapView: View {
                             .foregroundStyle(isDragging ? .white : textColor)
                     }
                     .overlay {
-                        if !isDragging && mark.type == .outOfBounds {
+                        if !isDragging && stroke.type == .outOfBounds {
                             Circle().stroke(Color.gray, lineWidth: 1.5)
                         }
                     }
@@ -263,7 +250,7 @@ struct RoundMapView: View {
                             radius: isDragging ? 8 : 2, y: isDragging ? 2 : 1)
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("SpotMark_\(index + 1)")
+            .accessibilityIdentifier("Stroke_\(index + 1)")
 
             // Callout line from lifted marker down to map position
             if isDragging {
@@ -281,9 +268,9 @@ struct RoundMapView: View {
                     guard isEditing else { return }
                     switch value {
                     case .second(true, let drag):
-                        if draggingMark == nil {
+                        if draggingStroke == nil {
                             withAnimation(.easeOut(duration: 0.15)) {
-                                draggingMark = mark
+                                draggingStroke = stroke
                             }
                             #if os(iOS)
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -302,12 +289,12 @@ struct RoundMapView: View {
                     case .second(true, let drag):
                         if let drag,
                            let coordinate = proxy.convert(drag.location, from: .global) {
-                            roundStore.moveMark(mark, to: coordinate, in: round.id)
+                            roundStore.moveStroke(stroke, to: coordinate, in: round.id)
                         }
                     default:
                         break
                     }
-                    draggingMark = nil
+                    draggingStroke = nil
                     dragOffset = .zero
                 }
         )
@@ -315,46 +302,26 @@ struct RoundMapView: View {
 
     private func overlayView(_ round: Round) -> some View {
         VStack {
+            // Distances come from the player's location, so a past round has none
             if round.isActive {
                 HStack {
                     Spacer()
                     keyInformation(round)
                 }
-            } else if !round.allMarks.isEmpty {
-                Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
-                    .font(.headline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.ultraThinMaterial)
             }
             Spacer()
-            if round.isActive {
-                buttonBar(round)
-            }
+            buttonBar(round)
         }
     }
 
     // MARK: - Header
 
-    /// A back button, then every hole as a circle. The current hole's par and distance sit underneath.
+    /// Every hole as a circle, with a back button and the score box on top at each end.
+    /// The current hole's par and distance sit underneath.
     private func holeHeader(_ round: Round) -> some View {
         let holeCount = round.courseSelection.orderedHoles.count
         return VStack(spacing: 6) {
-            HStack(spacing: 0) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color.secondary.opacity(0.15)))
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 12)
-                .accessibilityLabel("Back")
-
+            GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
@@ -363,10 +330,11 @@ struct RoundMapView: View {
                                     .id(index)
                             }
                         }
-                        .padding(.leading, 10)
-                        .padding(.trailing, 16)
                         .padding(.vertical, 2)
                     }
+                    // The first and last holes can scroll to the center of the display
+                    .contentMargins(.horizontal, max(0, geometry.size.width / 2 - 18), for: .scrollContent)
+                    .mask(holeFadeMask)
                     .onAppear {
                         proxy.scrollTo(shownHoleIndex(round), anchor: .center)
                     }
@@ -376,6 +344,26 @@ struct RoundMapView: View {
                         }
                     }
                 }
+            }
+            .frame(height: 40)
+            .overlay(alignment: .leading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .frame(width: 44, height: 40)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(.bar))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.5), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 12)
+                .accessibilityLabel("Back")
+            }
+            .overlay(alignment: .trailing) {
+                scoreBox(round)
+                    .padding(.trailing, 12)
             }
 
             if let summary = holeSummary(round) {
@@ -390,11 +378,61 @@ struct RoundMapView: View {
         .background(.bar)
     }
 
+    /// Hides the holes behind the back button and the score box, with a small gap,
+    /// and fades them out as they come near either one.
+    private var holeFadeMask: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: 64)  // back button (12 + 44) and a gap
+            LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                .frame(width: 32)
+            Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                .frame(width: 32)
+            Color.clear.frame(width: 72)  // score box (52 + 12) and a gap
+        }
+    }
+
+    /// The round's total strokes, and how they compare to par on the finished holes.
+    private func scoreBox(_ round: Round) -> some View {
+        let total = round.allStrokes.count
+        // Every played hole of a past round is finished
+        let finished = round.holes.indices.filter {
+            (!round.isActive || $0 != round.currentHoleIndex) && !round.holes[$0].strokes.isEmpty
+        }
+        let pars = finished.compactMap { round.courseHole(at: $0)?.par }
+        let toPar: String? = pars.count == finished.count && !finished.isEmpty
+            ? Self.toParText(finished.reduce(0) { $0 + round.holes[$1].strokeCount } - pars.reduce(0, +))
+            : nil
+        return VStack(spacing: 0) {
+            Text("\(total)")
+                .font(.headline)
+                .monospacedDigit()
+            if let toPar {
+                Text(toPar)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 52, height: 40)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.bar))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.5), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Score")
+        .accessibilityValue(toPar.map { "\(total), \($0)" } ?? "\(total)")
+        .accessibilityIdentifier("ScoreBox")
+    }
+
+    /// "E", "+2", or "-1".
+    private static func toParText(_ diff: Int) -> String {
+        diff == 0 ? "E" : diff > 0 ? "+\(diff)" : "\(diff)"
+    }
+
     private func holeCircle(_ index: Int, _ round: Round) -> some View {
         let isShown = index == shownHoleIndex(round)
         // While another hole is shown, the round's current hole keeps a green ring
-        let isCurrent = index == round.currentHoleIndex
-        let isPlayed = index < round.holes.count && !round.holes[index].marks.isEmpty
+        let isCurrent = round.isActive && index == round.currentHoleIndex
+        let isPlayed = index < round.holes.count && !round.holes[index].strokes.isEmpty
         return Button {
             selectHole(index, round)
         } label: {
@@ -416,7 +454,13 @@ struct RoundMapView: View {
     /// Shows a hole without changing the round's current hole, and pauses automatic
     /// hole changes so the view does not jump away while the user looks at it.
     private func selectHole(_ index: Int, _ round: Round) {
-        if index == round.currentHoleIndex {
+        if !round.isActive {
+            if index == shownHoleIndex(round) {
+                panToHole()
+            } else {
+                viewingHoleIndex = index
+            }
+        } else if index == round.currentHoleIndex {
             if viewingHoleIndex == nil {
                 panToHole()
             } else {
@@ -444,10 +488,11 @@ struct RoundMapView: View {
     }
 
     /// "Par 4 - 156 yds", or whichever part is known. Nil past the course's last hole.
+    /// A past round shows the par only, since the yards are from the player's location.
     private func holeSummary(_ round: Round) -> String? {
         guard let courseHole = round.courseHole(at: shownHoleIndex(round)) else { return nil }
         let par = "Par \(courseHole.par)"
-        guard let yards = yardsToGreenCenter(round) else { return par }
+        guard round.isActive, let yards = yardsToGreenCenter(round) else { return par }
         return "\(par) - \(yards) yds"
     }
 
@@ -514,7 +559,7 @@ struct RoundMapView: View {
     }
 
     /// The bubbles are drawn over the map rather than as map annotations, because an annotation
-    /// swallows touches and would block a long press that adds a mark underneath it.
+    /// swallows touches and would block a long press that adds a stroke underneath it.
     private func hazardBubbles(_ round: Round, proxy: MapProxy) -> some View {
         // Reading the counter redraws the bubbles as the camera moves
         _ = cameraChanges
@@ -552,75 +597,82 @@ struct RoundMapView: View {
     }
 
     /// Edit at the bottom left, and the map buttons at the right. While another hole is shown,
-    /// "Resume round" and "Play hole" join Edit, and the map buttons move up a row to make room.
+    /// "Resume round" and "Play hole" join Edit.
     private func buttonBar(_ round: Round) -> some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            if viewingHoleIndex != nil {
-                mapButtons
+        HStack(alignment: .bottom, spacing: 10) {
+            Button {
+                isEditing.toggle()
+                refreshSuggestions()
+            } label: {
+                Image(systemName: isEditing ? "checkmark" : "square.and.pencil")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .padding(12)
+                    .background(.thickMaterial)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
+            .accessibilityLabel(isEditing ? "Done" : "Edit")
+            .accessibilityIdentifier("EditHole")
 
-            HStack(alignment: .bottom, spacing: 10) {
-                Button(isEditing ? "Done" : "Edit") {
-                    isEditing.toggle()
-                    refreshSuggestions()
+            if round.isActive, let viewingHoleIndex {
+                Button("Resume round") {
+                    resumeRound()
                 }
-                .modifier(BarButtonStyle(horizontalPadding: 20))
-                .accessibilityIdentifier("EditHole")
+                .modifier(BarButtonStyle(horizontalPadding: 16))
 
-                if let viewingHoleIndex {
-                    Button("Resume round") {
-                        resumeRound()
+                if viewingHoleIndex > round.currentHoleIndex {
+                    Button("Play hole") {
+                        playViewingHole(round)
                     }
                     .modifier(BarButtonStyle(horizontalPadding: 16))
-
-                    if viewingHoleIndex > round.currentHoleIndex {
-                        Button("Play hole") {
-                            playViewingHole(round)
-                        }
-                        .modifier(BarButtonStyle(horizontalPadding: 16))
-                    }
-                }
-
-                Spacer(minLength: 0)
-
-                if viewingHoleIndex == nil {
-                    mapButtons
                 }
             }
-            .padding(.leading, 16)
+
+            Spacer(minLength: 0)
+
+            mapButtons(round)
         }
-        .padding(.trailing, 16)
+        .padding(.horizontal, 16)
         .padding(.bottom, 32)
     }
 
-    /// Hole times, and following the player's location.
-    private var mapButtons: some View {
+    /// Hole times (only while editing), and following the player's location (only during a round).
+    private func mapButtons(_ round: Round) -> some View {
         VStack(spacing: 8) {
-            holeTimesButton
-                .font(.title3)
-                .padding(14)
-                .background(.thickMaterial)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-
-            Button {
-                followsUserLocation = true
-                if let location = locationManager.lastLocation {
-                    if let heading = shownHoleHeading() {
-                        position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
-                    } else {
-                        position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
-                    }
-                }
-            } label: {
-                Image(systemName: followsUserLocation ? "location.fill" : "location")
+            if isEditing {
+                holeTimesButton
                     .font(.title3)
-                    .foregroundStyle(.blue)
                     .padding(14)
                     .background(.thickMaterial)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
+
+            if round.isActive {
+                locationButton
+            }
+        }
+    }
+
+    private var locationButton: some View {
+        Button {
+            followsUserLocation = true
+            if let location = locationManager.lastLocation {
+                if let heading = shownHoleHeading() {
+                    position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
+                } else {
+                    position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
+                }
+            }
+        } label: {
+            Image(systemName: followsUserLocation ? "location.fill" : "location")
+                .font(.title3)
+                .foregroundStyle(.blue)
+                .padding(14)
+                .background(.thickMaterial)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
         }
     }
 
@@ -635,44 +687,44 @@ struct RoundMapView: View {
     }
 
     private func spotEditSheet(_ round: Round) -> some View {
-        let markCount: Int = {
-            guard let mark = selectedMark,
-                  let holeIdx = round.holeIndex(containing: mark.id) else {
-                return round.hole(at: shownHoleIndex(round)).marks.count
+        let strokeCount: Int = {
+            guard let stroke = selectedStroke,
+                  let holeIdx = round.holeIndex(containing: stroke.id) else {
+                return round.hole(at: shownHoleIndex(round)).strokes.count
             }
-            return round.holes[holeIdx].marks.count
+            return round.holes[holeIdx].strokes.count
         }()
 
         return NavigationStack {
             VStack(spacing: 24) {
-                Stepper("Spot: \(newSpotIndex + 1)", value: $newSpotIndex, in: 0...(max(markCount - 1, 0)))
+                Stepper("Spot: \(newSpotIndex + 1)", value: $newSpotIndex, in: 0...(max(strokeCount - 1, 0)))
                     .font(.title3)
                     .padding(.horizontal)
 
-                if round.isActive, let mark = selectedMark {
+                if let stroke = selectedStroke {
                     Divider()
 
-                    if mark.type == .regular {
+                    if stroke.type == .regular {
                         Button {
-                            roundStore.setMarkType(markID: mark.id, type: .penalty, in: round.id)
-                            selectedMark = nil
+                            roundStore.setStrokeType(strokeID: stroke.id, type: .penalty, in: round.id)
+                            selectedStroke = nil
                         } label: {
-                            Label("Mark as penalty", systemImage: "exclamationmark.triangle.fill")
+                            Label("Penalty stroke", systemImage: "exclamationmark.triangle.fill")
                         }
                         .tint(.red)
-                        .accessibilityIdentifier("MarkAsPenalty")
+                        .accessibilityIdentifier("StrokePenalty")
 
                         Button {
-                            roundStore.setMarkType(markID: mark.id, type: .outOfBounds, in: round.id)
-                            selectedMark = nil
+                            roundStore.setStrokeType(strokeID: stroke.id, type: .outOfBounds, in: round.id)
+                            selectedStroke = nil
                         } label: {
-                            Label("Mark out of bounds", systemImage: "xmark.circle.fill")
+                            Label("Out of bounds", systemImage: "xmark.circle.fill")
                         }
-                        .accessibilityIdentifier("MarkOutOfBounds")
+                        .accessibilityIdentifier("StrokeOutOfBounds")
                     } else {
                         Button {
-                            roundStore.setMarkType(markID: mark.id, type: .regular, in: round.id)
-                            selectedMark = nil
+                            roundStore.setStrokeType(strokeID: stroke.id, type: .regular, in: round.id)
+                            selectedStroke = nil
                         } label: {
                             Label("Clear penalty", systemImage: "arrow.uturn.backward.circle")
                         }
@@ -692,15 +744,15 @@ struct RoundMapView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        selectedMark = nil
+                        selectedStroke = nil
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let mark = selectedMark {
-                            roundStore.reorderMark(mark, to: newSpotIndex, in: round.id)
+                        if let stroke = selectedStroke {
+                            roundStore.reorderStroke(stroke, to: newSpotIndex, in: round.id)
                         }
-                        selectedMark = nil
+                        selectedStroke = nil
                     }
                 }
             }
@@ -773,42 +825,40 @@ struct RoundMapView: View {
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
     }
 
-    // MARK: - Mark Suggestions
+    // MARK: - Stroke Suggestions
 
     /// Loads the watch's GPS track for the hole being viewed and recomputes suggestions.
     /// A fix belongs to the hole the timeline says was being played at its time.
     private func reloadTrack() {
         guard let round else {
+            roundTrack = []
             holeTrack = []
             suggestions = []
             return
         }
-        let track = streamStore.points(for: round.id, until: round.endedAt)
-        if round.isActive {
-            let holeIndex = shownHoleIndex(round)
-            holeTrack = track.filter { round.holeIndex(at: $0.timestamp) == holeIndex }
-        } else {
-            // Past rounds show every mark, so show the whole walk too
-            holeTrack = track
-        }
+        roundTrack = streamStore.points(for: round.id, until: round.endedAt)
+        let holeIndex = shownHoleIndex(round)
+        holeTrack = roundTrack.filter { round.holeIndex(at: $0.timestamp) == holeIndex }
         refreshSuggestions()
     }
 
     private func refreshSuggestions() {
-        guard let round, round.isActive, isEditing else {
+        guard let round, isEditing else {
             suggestions = []
             return
         }
-        suggestions = MarkSuggester.suggestions(
-            in: holeTrack,
-            minDwell: settingsStore.settings.stationaryThreshold,
-            marks: round.hole(at: shownHoleIndex(round)).marks,
-            guesses: guessStore.guesses(for: round, holeIndex: shownHoleIndex(round))
+        suggestions = StrokeFinder.suggestions(
+            in: round,
+            holeIndex: shownHoleIndex(round),
+            points: roundTrack,
+            swings: streamStore.swings(for: round.id, until: round.endedAt),
+            minStop: settingsStore.settings.stationaryThreshold,
+            hidden: suggestionStore.hiddenIDs(for: round.id)
         )
     }
 
-    /// A pin with a plus sign. Tapping converts the suggestion into a real mark.
-    private func suggestionPin(_ suggestion: MarkSuggestion, round: Round) -> some View {
+    /// A pin with a plus sign. Tapping converts the suggestion into a real stroke.
+    private func suggestionPin(_ suggestion: StrokeSuggestion, round: Round) -> some View {
         Button {
             convertSuggestion(suggestion, round: round)
         } label: {
@@ -829,29 +879,30 @@ struct RoundMapView: View {
             .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add suggested mark")
+        .accessibilityLabel("Add suggested stroke")
     }
 
-    private func convertSuggestion(_ suggestion: MarkSuggestion, round: Round) {
-        let mark = BallMark(coordinate: suggestion.coordinate, timestamp: suggestion.timestamp)
-        // Both computed before the add, so they describe the marks the new one joins
+    private func convertSuggestion(_ suggestion: StrokeSuggestion, round: Round) {
+        guard let coordinate = suggestion.coordinate else { return }
+        let stroke = Stroke(coordinate: coordinate)
+        // Both computed before the add, so they describe the strokes the new one joins
         let holeIndex = shownHoleIndex(round)
-        let marks = round.hole(at: holeIndex).marks
-        let insertAt = insertionIndex(for: suggestion.timestamp, in: marks)
-        let appending = insertAt == marks.count
-        roundStore.addMark(to: round.id, holeIndex: holeIndex, mark: mark)
+        let strokes = round.hole(at: holeIndex).strokes
+        let insertAt = insertionIndex(for: suggestion.timestamp, in: strokes)
+        let appending = insertAt == strokes.count
+        roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
         if !appending {
-            roundStore.reorderMark(mark, to: insertAt, in: round.id)
+            roundStore.reorderStroke(stroke, to: insertAt, in: round.id)
         }
-        if let guessID = suggestion.guessID {
-            guessStore.remove(guessID: guessID, roundID: round.id)
-        }
-        refreshSuggestions()
+        suggestionStore.hide(suggestion.id, roundID: round.id)
     }
 
-    /// The position where a timestamp fits chronologically among a hole's marks.
-    private func insertionIndex(for timestamp: Date, in marks: [BallMark]) -> Int {
-        marks.firstIndex(where: { timestamp < $0.timestamp }) ?? marks.count
+    /// Where a stroke hit at `timestamp` goes among a hole's strokes: before the first one that
+    /// was probably hit later, going by the hole's GPS.
+    private func insertionIndex(for timestamp: Date, in strokes: [Stroke]) -> Int {
+        strokes.firstIndex { stroke in
+            StrokeFinder.estimatedTime(of: stroke, in: holeTrack).map { timestamp < $0 } ?? false
+        } ?? strokes.count
     }
 }
 

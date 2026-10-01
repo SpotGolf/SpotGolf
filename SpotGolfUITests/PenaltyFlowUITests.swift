@@ -29,7 +29,7 @@ final class PenaltyFlowUITests: XCTestCase {
 
     // MARK: - Penalty Flow Test
 
-    func testPenaltyAndOutOfBoundsMarking() throws {
+    func testPenaltyAndOutOfBoundsStrokeing() throws {
         setLocationToHole1Tee()
         app.launch()
         dismissLocationAlert()
@@ -41,9 +41,9 @@ final class PenaltyFlowUITests: XCTestCase {
         app.startRoundWithCourse()
 
         var currentHole = 1
-        var marksOnHole = 0
+        var strokesOnHole = 0
 
-        // Mark each location, applying penalty/OB types as specified
+        // Stroke each location, applying penalty/OB types as specified
         for (index, location) in locations.enumerated() {
             let targetHole = location.hole
 
@@ -51,27 +51,27 @@ final class PenaltyFlowUITests: XCTestCase {
             if currentHole != targetHole {
                 app.goToHole(targetHole)
                 currentHole = targetHole
-                marksOnHole = 0
+                strokesOnHole = 0
                 sleep(1)
             }
 
-            // Marks are placed by hand, so the spot comes from the press and not from GPS
-            addMark(at: Self.pressPoints[marksOnHole])
-            marksOnHole += 1
+            // Strokes are placed by hand, so the spot comes from the press and not from GPS
+            app.addStroke(at: XCUIApplication.strokePressPoints[strokesOnHole])
+            strokesOnHole += 1
             XCTAssertTrue(app.navigationBars["Edit Spot"].waitForExistence(timeout: 5),
-                          "Edit sheet should open for the new mark at location \(index)")
+                          "Edit sheet should open for the new stroke at location \(index)")
 
             // The edit sheet closes itself once a type is picked
             switch location.type {
             case .outOfBounds:
-                let obButton = app.buttons["Mark out of bounds"]
+                let obButton = app.buttons["Out of bounds"]
                 XCTAssertTrue(obButton.waitForExistence(timeout: 5),
-                              "Mark out of bounds button should exist in edit sheet")
+                              "Out of bounds button should exist in edit sheet")
                 obButton.tap()
             case .penalty:
-                let penaltyButton = app.buttons["Mark as penalty"]
+                let penaltyButton = app.buttons["Penalty stroke"]
                 XCTAssertTrue(penaltyButton.waitForExistence(timeout: 5),
-                              "Mark as penalty button should exist in edit sheet")
+                              "Penalty stroke button should exist in edit sheet")
                 penaltyButton.tap()
             default:
                 app.buttons["Save"].tap()
@@ -79,35 +79,14 @@ final class PenaltyFlowUITests: XCTestCase {
             sleep(1)
         }
 
-        // Hole 1: 8 marks (tee, OB, re-tee, 5 more)
+        // Hole 1: 8 strokes (tee, OB, re-tee, 5 more)
         app.goToHole(1)
-        XCTAssertTrue(app.buttons["SpotMark_8"].waitForExistence(timeout: 5), "Hole 1 should have 8 marks")
-        XCTAssertFalse(app.buttons["SpotMark_9"].exists, "Hole 1 should have no more than 8 marks")
+        XCTAssertTrue(app.buttons["Stroke_8"].waitForExistence(timeout: 5), "Hole 1 should have 8 strokes")
+        XCTAssertFalse(app.buttons["Stroke_9"].exists, "Hole 1 should have no more than 8 strokes")
 
-        // Hole 2: 6 marks (tee, 2nd shot, penalty, drop, shot, putt)
+        // Hole 2: 6 strokes (tee, 2nd shot, penalty, drop, shot, putt)
         app.goToHole(2)
-        XCTAssertTrue(app.buttons["SpotMark_6"].waitForExistence(timeout: 5), "Hole 2 should have 6 marks")
-        XCTAssertFalse(app.buttons["SpotMark_7"].exists, "Hole 2 should have no more than 6 marks")
-    }
-
-    // MARK: - Helpers
-
-    /// Spots on the map, as fractions of the screen. They stay clear of the header, the key
-    /// information boxes and the buttons, and far enough apart that a press never lands on an
-    /// earlier mark.
-    private static let pressPoints: [CGVector] = [0.42, 0.52, 0.62].flatMap { y in
-        [0.2, 0.4, 0.6, 0.8].map { x in CGVector(dx: x, dy: y) }
-    }
-
-    /// Long-presses the map, which adds a mark there and opens its edit sheet.
-    /// Marks can only be added in edit mode, so enter it first when needed.
-    private func addMark(at point: CGVector) {
-        let editButton = app.buttons["EditHole"]
-        if editButton.waitForExistence(timeout: 5), editButton.label == "Edit" {
-            editButton.tap()
-        }
-        let start = app.coordinate(withNormalizedOffset: point)
-        // The map only reports the press once the finger has moved
-        start.press(forDuration: 1.0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 4)))
+        XCTAssertTrue(app.buttons["Stroke_6"].waitForExistence(timeout: 5), "Hole 2 should have 6 strokes")
+        XCTAssertFalse(app.buttons["Stroke_7"].exists, "Hole 2 should have no more than 6 strokes")
     }
 }

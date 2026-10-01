@@ -38,6 +38,8 @@ struct WatchRoundView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+
+                    workoutStatus
                 }
                 .padding()
             }
@@ -50,6 +52,19 @@ struct WatchRoundView: View {
         }
         .onChange(of: roundStore.activeRound?.id) {
             resumeRound()
+        }
+    }
+
+    /// Lets UI tests see whether the workout was recovered after a relaunch, and when it was
+    /// saved after the round ended. Only rendered under --ui-testing; must be normal-sized or
+    /// the accessibility tree drops it and queries can't find it.
+    @ViewBuilder
+    private var workoutStatus: some View {
+        if CommandLine.arguments.contains("--ui-testing") {
+            Text(workoutManager.status.rawValue)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("workoutStatus")
         }
     }
 
@@ -98,15 +113,7 @@ struct WatchRoundView: View {
                     viewingButtons(round)
                 }
 
-                // Lets UI tests see whether the workout was recovered after a relaunch.
-                // Only rendered under --ui-testing; must be normal-sized or the
-                // accessibility tree drops it and queries can't find it.
-                if CommandLine.arguments.contains("--ui-testing") {
-                    Text(workoutManager.status.rawValue)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("workoutStatus")
-                }
+                workoutStatus
             }
             .padding()
         }
@@ -200,8 +207,8 @@ struct WatchRoundView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(viewingHoleIndex == nil ? liveDistance ?? previousDistance(marks: round.marks)
-                                         : previousDistance(marks: round.hole(at: shownHoleIndex(round)).marks))
+            Text(viewingHoleIndex == nil ? liveDistance ?? previousDistance(strokes: round.strokes)
+                                         : previousDistance(strokes: round.hole(at: shownHoleIndex(round)).strokes))
                 .font(.caption2)
                 .fontWeight(.semibold)
         }
@@ -270,16 +277,16 @@ struct WatchRoundView: View {
 
     private func updateLiveDistance(location: CLLocation?) {
         guard let location,
-              let lastMark = roundStore.activeRound?.marks.last else {
+              let lastStroke = roundStore.activeRound?.strokes.last else {
             liveDistance = nil
             return
         }
-        liveDistance = DistanceCalculator.formattedYards(from: location, to: lastMark.location)
+        liveDistance = DistanceCalculator.formattedYards(from: location, to: lastStroke.location)
     }
 
-    private func previousDistance(marks: [BallMark]) -> String {
-        if marks.count >= 2 {
-            return DistanceCalculator.formattedYards(from: marks[marks.count - 2], to: marks[marks.count - 1])
+    private func previousDistance(strokes: [Stroke]) -> String {
+        if strokes.count >= 2 {
+            return DistanceCalculator.formattedYards(from: strokes[strokes.count - 2], to: strokes[strokes.count - 1])
         }
         return "0 yds"
     }

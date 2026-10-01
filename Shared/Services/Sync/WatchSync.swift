@@ -2,7 +2,7 @@ import Foundation
 import CoreLocation
 
 /// The watch's side of the messaging: taking rounds the phone starts, recording the stream
-/// and sending it, ending rounds, and keeping the timeline and marks in step.
+/// and sending it, ending rounds, and keeping the timeline and strokes in step.
 @MainActor
 final class WatchSync: ObservableObject {
     let sync: SyncService
@@ -16,7 +16,7 @@ final class WatchSync: ObservableObject {
         self.rounds = rounds
         self.streams = streams
         sender = StreamSender(sync: sync, rounds: rounds, streams: streams)
-        snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsMarks: false)
+        snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: false)
 
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.onTimelineChanged = { [weak self] round in self?.snapshots.sendTimeline(round) }
@@ -34,7 +34,7 @@ final class WatchSync: ObservableObject {
         sender.pump()
     }
 
-    func record(_ swing: Swing) {
+    func record(_ swing: StrokeSuggestion) {
         guard let round = rounds.activeRound else { return }
         streams.append([.swing(swing)], roundID: round.id)
         sender.pump()
@@ -100,8 +100,8 @@ final class WatchSync: ObservableObject {
         case .holeTimeline(let timeline):
             snapshots.apply(timeline)
             return nil
-        case .marks(let marks):
-            snapshots.apply(marks)
+        case .strokes(let strokes):
+            snapshots.apply(strokes)
             return nil
         case .context(let context):
             snapshots.apply(context)
@@ -149,7 +149,7 @@ final class WatchSync: ObservableObject {
         if !streams.hasStream(for: start.roundID) {
             rounds.update(start.roundID) { $0.streamBase = start.streamBase }
         }
-        rounds.applyMarks(start.marks)
+        rounds.applyStrokes(start.strokes)
         sender.pump()
         return StartRoundAck(roundID: start.roundID)
     }

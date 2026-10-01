@@ -8,7 +8,7 @@ final class RoundStoreTests: XCTestCase {
     private var directory: URL!
     private var store: RoundStore!
     private var timelineChanges: [Round]!
-    private var markChanges: [Round]!
+    private var strokeChanges: [Round]!
 
     override func setUp() {
         super.setUp()
@@ -16,12 +16,12 @@ final class RoundStoreTests: XCTestCase {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         store = RoundStore(directory: directory)
         timelineChanges = []
-        markChanges = []
+        strokeChanges = []
         store.onTimelineChanged = { [weak self] round in
             self?.timelineChanges.append(round)
         }
-        store.onMarksChanged = { [weak self] round in
-            self?.markChanges.append(round)
+        store.onStrokesChanged = { [weak self] round in
+            self?.strokeChanges.append(round)
         }
     }
 
@@ -29,13 +29,13 @@ final class RoundStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
         store = nil
         timelineChanges = nil
-        markChanges = nil
+        strokeChanges = nil
         directory = nil
         super.tearDown()
     }
 
-    private func makeMark(latitude: Double = 33.45, longitude: Double = -112.07) -> BallMark {
-        BallMark(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
+    private func makeStroke(latitude: Double = 33.45, longitude: Double = -112.07) -> Stroke {
+        Stroke(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
     }
 
     /// Starts a round and returns its ID.
@@ -47,7 +47,7 @@ final class RoundStoreTests: XCTestCase {
 
     func testRoundsSurviveNewStoreInstance() {
         let id = startRound()
-        store.addMark(to: id, holeIndex: 0, mark: makeMark())
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
 
         let reloaded = RoundStore(directory: directory)
 
@@ -89,13 +89,13 @@ final class RoundStoreTests: XCTestCase {
 
     func testStartRoundWithExistingIDReturnsItUnchanged() {
         let id = startRound()
-        store.addMark(to: id, holeIndex: 0, mark: makeMark())
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
 
         let again = store.startRound(id: id, courseSelection: .test, status: .starting)
 
         XCTAssertEqual(store.rounds.count, 1)
         XCTAssertEqual(again.status, .active)
-        XCTAssertEqual(again.allMarks.count, 1)
+        XCTAssertEqual(again.allStrokes.count, 1)
     }
 
     func testNewRoundGoesFirst() {
@@ -202,7 +202,7 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(updated[2].startedAt, timeline[1].startedAt.addingTimeInterval(1))
     }
 
-    func testSetStartTimeMarksEntryUserSet() throws {
+    func testSetStartTimeStrokesEntryUserSet() throws {
         let id = store.startRound(date: Date().addingTimeInterval(-3600), courseSelection: .test).id
         store.startHole(1, source: .autoAdvance)
         let entry = try XCTUnwrap(store.round(id)?.holeTimeline.last)
@@ -216,299 +216,363 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(updated.version, entry.version + 1)
     }
 
-    // MARK: - addMark
+    // MARK: - addStroke
 
-    func testAddMarkToSpecificRound() {
+    func testAddStrokeToSpecificRound() {
         let id = startRound()
-        let mark = makeMark()
+        let stroke = makeStroke()
 
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        XCTAssertEqual(store.round(id)?.marks.count, 1)
-        XCTAssertEqual(store.round(id)?.marks[0].id, mark.id)
+        XCTAssertEqual(store.round(id)?.strokes.count, 1)
+        XCTAssertEqual(store.round(id)?.strokes[0].id, stroke.id)
     }
 
-    func testAddMarkBumpsVersionAndReportsChange() {
+    func testAddStrokeBumpsVersionAndReportsChange() {
         let id = startRound()
 
-        store.addMark(to: id, holeIndex: 0, mark: makeMark())
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
 
-        XCTAssertEqual(store.round(id)?.marksVersion, 1)
-        XCTAssertEqual(markChanges.count, 1)
-        XCTAssertEqual(markChanges[0].marksVersion, 1)
+        XCTAssertEqual(store.round(id)?.strokesVersion, 1)
+        XCTAssertEqual(strokeChanges.count, 1)
+        XCTAssertEqual(strokeChanges[0].strokesVersion, 1)
     }
 
-    func testAddDuplicateMarkDoesNotBumpVersion() {
+    func testAddDuplicateStrokeDoesNotBumpVersion() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        XCTAssertEqual(store.round(id)?.marksVersion, 1)
-        XCTAssertEqual(markChanges.count, 1)
+        XCTAssertEqual(store.round(id)?.strokesVersion, 1)
+        XCTAssertEqual(strokeChanges.count, 1)
     }
 
-    func testAddMarkToNonexistentRoundIsNoOp() {
-        store.addMark(to: UUID(), holeIndex: 0, mark: makeMark())
+    func testAddStrokeToNonexistentRoundIsNoOp() {
+        store.addStroke(to: UUID(), holeIndex: 0, stroke: makeStroke())
 
         XCTAssertTrue(store.rounds.isEmpty)
-        XCTAssertTrue(markChanges.isEmpty)
+        XCTAssertTrue(strokeChanges.isEmpty)
     }
 
-    func testAddMarkToSpecificHoleIndex() {
+    func testAddStrokeToSpecificHoleIndex() {
         let id = startRound()
-        let mark = makeMark()
+        let stroke = makeStroke()
 
-        store.addMark(to: id, holeIndex: 2, mark: mark)
+        store.addStroke(to: id, holeIndex: 2, stroke: stroke)
 
         XCTAssertEqual(store.round(id)?.holes.count, 3)
-        XCTAssertEqual(store.round(id)?.holes[2].marks.first?.id, mark.id)
+        XCTAssertEqual(store.round(id)?.holes[2].strokes.first?.id, stroke.id)
     }
 
-    // MARK: - moveMark
+    // MARK: - moveStroke
 
-    func testMoveMark() {
+    func testMoveStroke() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].latitude, 34.0)
-        XCTAssertEqual(store.rounds[0].marks[0].longitude, -113.0)
+        XCTAssertEqual(store.rounds[0].strokes[0].latitude, 34.0)
+        XCTAssertEqual(store.rounds[0].strokes[0].longitude, -113.0)
         // ID should be preserved
-        XCTAssertEqual(store.rounds[0].marks[0].id, mark.id)
+        XCTAssertEqual(store.rounds[0].strokes[0].id, stroke.id)
     }
 
-    func testMoveMarkPreservesTimestamp() {
+    func testMoveStrokeAcrossHoles() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
-
-        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
-
-        XCTAssertEqual(store.rounds[0].marks[0].timestamp, mark.timestamp)
-    }
-
-    func testMoveMarkAcrossHoles() {
-        let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
         store.startHole(1, source: .autoAdvance)
 
-        // Mark is in hole 0, but we're on hole 1 — should still find it
-        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
+        // Stroke is in hole 0, but we're on hole 1 — should still find it
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
-        XCTAssertEqual(store.rounds[0].holes[0].marks[0].latitude, 34.0)
+        XCTAssertEqual(store.rounds[0].holes[0].strokes[0].latitude, 34.0)
     }
 
-    func testMoveMarkBumpsVersion() {
+    func testMoveStrokeBumpsVersion() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
-        store.moveMark(mark, to: CLLocationCoordinate2D(latitude: 35.0, longitude: -114.0), in: id)
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 35.0, longitude: -114.0), in: id)
 
-        XCTAssertEqual(store.round(id)?.marksVersion, 3)
-        XCTAssertEqual(markChanges.map(\.marksVersion), [1, 2, 3])
+        XCTAssertEqual(store.round(id)?.strokesVersion, 3)
+        XCTAssertEqual(strokeChanges.map(\.strokesVersion), [1, 2, 3])
     }
 
-    // MARK: - reorderMark
+    // MARK: - reorderStroke
 
-    func testReorderMark() {
+    func testReorderStroke() {
         let id = startRound()
-        let mark0 = makeMark(latitude: 33.0, longitude: -112.0)
-        let mark1 = makeMark(latitude: 34.0, longitude: -113.0)
-        let mark2 = makeMark(latitude: 35.0, longitude: -114.0)
-        store.addMark(to: id, holeIndex: 0, mark: mark0)
-        store.addMark(to: id, holeIndex: 0, mark: mark1)
-        store.addMark(to: id, holeIndex: 0, mark: mark2)
+        let stroke0 = makeStroke(latitude: 33.0, longitude: -112.0)
+        let stroke1 = makeStroke(latitude: 34.0, longitude: -113.0)
+        let stroke2 = makeStroke(latitude: 35.0, longitude: -114.0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke1)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke2)
 
-        // Move mark2 from index 2 to index 0
-        store.reorderMark(mark2, to: 0, in: id)
+        // Move stroke2 from index 2 to index 0
+        store.reorderStroke(stroke2, to: 0, in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].id, mark2.id)
-        XCTAssertEqual(store.rounds[0].marks[1].id, mark0.id)
-        XCTAssertEqual(store.rounds[0].marks[2].id, mark1.id)
-        XCTAssertEqual(store.round(id)?.marksVersion, 4)
+        XCTAssertEqual(store.rounds[0].strokes[0].id, stroke2.id)
+        XCTAssertEqual(store.rounds[0].strokes[1].id, stroke0.id)
+        XCTAssertEqual(store.rounds[0].strokes[2].id, stroke1.id)
+        XCTAssertEqual(store.round(id)?.strokesVersion, 4)
     }
 
-    func testReorderMarkClampsToValidRange() {
+    func testReorderStrokeClampsToValidRange() {
         let id = startRound()
-        let mark0 = makeMark(latitude: 33.0, longitude: -112.0)
-        let mark1 = makeMark(latitude: 34.0, longitude: -113.0)
-        store.addMark(to: id, holeIndex: 0, mark: mark0)
-        store.addMark(to: id, holeIndex: 0, mark: mark1)
+        let stroke0 = makeStroke(latitude: 33.0, longitude: -112.0)
+        let stroke1 = makeStroke(latitude: 34.0, longitude: -113.0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke1)
 
         // Try to move to an out-of-bounds index
-        store.reorderMark(mark0, to: 100, in: id)
+        store.reorderStroke(stroke0, to: 100, in: id)
 
         // Should be clamped to last index
-        XCTAssertEqual(store.rounds[0].marks[1].id, mark0.id)
+        XCTAssertEqual(store.rounds[0].strokes[1].id, stroke0.id)
     }
 
-    func testReorderMarkClampsNegativeIndex() {
+    func testReorderStrokeClampsNegativeIndex() {
         let id = startRound()
-        let mark0 = makeMark(latitude: 33.0, longitude: -112.0)
-        let mark1 = makeMark(latitude: 34.0, longitude: -113.0)
-        store.addMark(to: id, holeIndex: 0, mark: mark0)
-        store.addMark(to: id, holeIndex: 0, mark: mark1)
+        let stroke0 = makeStroke(latitude: 33.0, longitude: -112.0)
+        let stroke1 = makeStroke(latitude: 34.0, longitude: -113.0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke1)
 
-        store.reorderMark(mark1, to: -5, in: id)
+        store.reorderStroke(stroke1, to: -5, in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].id, mark1.id)
+        XCTAssertEqual(store.rounds[0].strokes[0].id, stroke1.id)
     }
 
     func testReorderToSamePlaceDoesNotBumpVersion() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.reorderMark(mark, to: 0, in: id)
+        store.reorderStroke(stroke, to: 0, in: id)
 
-        XCTAssertEqual(store.round(id)?.marksVersion, 1)
+        XCTAssertEqual(store.round(id)?.strokesVersion, 1)
     }
 
-    // MARK: - removeMark
+    // MARK: - removeStroke
 
-    func testRemoveMark() {
+    func testRemoveStroke() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.removeMark(mark, from: id)
+        store.removeStroke(stroke, from: id)
 
-        XCTAssertTrue(store.rounds[0].marks.isEmpty)
-        XCTAssertEqual(store.round(id)?.marksVersion, 2)
-        XCTAssertEqual(markChanges.count, 2)
+        XCTAssertTrue(store.rounds[0].strokes.isEmpty)
+        XCTAssertEqual(store.round(id)?.strokesVersion, 2)
+        XCTAssertEqual(strokeChanges.count, 2)
     }
 
-    func testRemoveMarkLeavesOtherMarks() {
+    func testRemoveStrokeLeavesOtherStrokes() {
         let id = startRound()
-        let mark1 = makeMark(latitude: 33.0, longitude: -112.0)
-        let mark2 = makeMark(latitude: 34.0, longitude: -113.0)
-        store.addMark(to: id, holeIndex: 0, mark: mark1)
-        store.addMark(to: id, holeIndex: 0, mark: mark2)
+        let stroke1 = makeStroke(latitude: 33.0, longitude: -112.0)
+        let stroke2 = makeStroke(latitude: 34.0, longitude: -113.0)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke1)
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke2)
 
-        store.removeMark(mark1, from: id)
+        store.removeStroke(stroke1, from: id)
 
-        XCTAssertEqual(store.rounds[0].marks.count, 1)
-        XCTAssertEqual(store.rounds[0].marks[0].id, mark2.id)
+        XCTAssertEqual(store.rounds[0].strokes.count, 1)
+        XCTAssertEqual(store.rounds[0].strokes[0].id, stroke2.id)
     }
 
-    func testRemoveMarkAcrossHoles() {
+    func testRemoveStrokeAcrossHoles() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
         store.startHole(1, source: .autoAdvance)
 
-        // Mark is in hole 0, we're on hole 1
-        store.removeMark(mark, from: id)
+        // Stroke is in hole 0, we're on hole 1
+        store.removeStroke(stroke, from: id)
 
-        XCTAssertTrue(store.rounds[0].holes[0].marks.isEmpty)
+        XCTAssertTrue(store.rounds[0].holes[0].strokes.isEmpty)
     }
 
-    func testRemoveMissingMarkDoesNotBumpVersion() {
+    func testRemoveMissingStrokeDoesNotBumpVersion() {
         let id = startRound()
 
-        store.removeMark(makeMark(), from: id)
+        store.removeStroke(makeStroke(), from: id)
 
-        XCTAssertEqual(store.round(id)?.marksVersion, 0)
-        XCTAssertTrue(markChanges.isEmpty)
+        XCTAssertEqual(store.round(id)?.strokesVersion, 0)
+        XCTAssertTrue(strokeChanges.isEmpty)
     }
 
-    // MARK: - setMarkType
+    // MARK: - setStrokeType
 
-    func testSetMarkType() {
+    func testSetStrokeType() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.setMarkType(markID: mark.id, type: .penalty, in: id)
+        store.setStrokeType(strokeID: stroke.id, type: .penalty, in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
-        XCTAssertEqual(markChanges.last?.marks[0].type, .penalty)
+        XCTAssertEqual(store.rounds[0].strokes[0].type, .penalty)
+        XCTAssertEqual(strokeChanges.last?.strokes[0].type, .penalty)
     }
 
-    func testSetMarkTypeToOutOfBounds() {
+    func testSetStrokeTypeToOutOfBounds() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.setMarkType(markID: mark.id, type: .outOfBounds, in: id)
+        store.setStrokeType(strokeID: stroke.id, type: .outOfBounds, in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].type, .outOfBounds)
+        XCTAssertEqual(store.rounds[0].strokes[0].type, .outOfBounds)
     }
 
-    func testSetMarkTypeBackToRegular() {
+    func testSetStrokeTypeBackToRegular() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
-        store.setMarkType(markID: mark.id, type: .penalty, in: id)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
+        store.setStrokeType(strokeID: stroke.id, type: .penalty, in: id)
 
-        store.setMarkType(markID: mark.id, type: .regular, in: id)
+        store.setStrokeType(strokeID: stroke.id, type: .regular, in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].type, .regular)
+        XCTAssertEqual(store.rounds[0].strokes[0].type, .regular)
     }
 
-    func testMoveMarkPreservesType() {
+    func testMoveStrokePreservesType() {
         let id = startRound()
-        let mark = makeMark()
-        store.addMark(to: id, holeIndex: 0, mark: mark)
-        store.setMarkType(markID: mark.id, type: .penalty, in: id)
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
+        store.setStrokeType(strokeID: stroke.id, type: .penalty, in: id)
 
-        store.moveMark(store.rounds[0].marks[0], to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
+        store.moveStroke(store.rounds[0].strokes[0], to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
-        XCTAssertEqual(store.rounds[0].marks[0].type, .penalty)
+        XCTAssertEqual(store.rounds[0].strokes[0].type, .penalty)
     }
 
-    // MARK: - applyMarks
+    // MARK: - Editing a past round
 
-    func testApplyMarksReplacesMarksWhenNewer() {
+    /// Starts a round with one stroke on each of the first two holes, then ends it.
+    private func endedRound() -> (id: UUID, first: Stroke, second: Stroke) {
         let id = startRound()
-        store.addMark(to: id, holeIndex: 0, mark: makeMark())
-        let replacement = makeMark(latitude: 34.0, longitude: -113.0)
-        markChanges.removeAll()
-
-        XCTAssertTrue(store.applyMarks(MarksSnapshot(roundID: id, version: 5, holes: [[], [replacement]])))
-
-        XCTAssertEqual(store.round(id)?.marksVersion, 5)
-        XCTAssertEqual(store.round(id)?.holes.map(\.marks), [[], [replacement]])
-        XCTAssertTrue(markChanges.isEmpty)
+        let first = makeStroke()
+        let second = makeStroke(latitude: 33.46)
+        store.addStroke(to: id, holeIndex: 0, stroke: first)
+        store.addStroke(to: id, holeIndex: 1, stroke: second)
+        store.update(id) { $0.status = .ended }
+        strokeChanges.removeAll()
+        return (id, first, second)
     }
 
-    func testApplyMarksIgnoresOlderOrSameVersion() {
-        let id = startRound()
-        let newer = makeMark(latitude: 34.0, longitude: -113.0)
-        store.applyMarks(MarksSnapshot(roundID: id, version: 6, holes: [[newer]]))
+    func testAddStrokeToEndedRound() {
+        let (id, _, _) = endedRound()
+        let stroke = makeStroke(latitude: 33.47)
 
-        XCTAssertFalse(store.applyMarks(MarksSnapshot(roundID: id, version: 5, holes: [[makeMark()]])))
-        XCTAssertFalse(store.applyMarks(MarksSnapshot(roundID: id, version: 6, holes: [])))
+        store.addStroke(to: id, holeIndex: 2, stroke: stroke)
 
-        XCTAssertEqual(store.round(id)?.marks, [newer])
+        XCTAssertEqual(store.round(id)?.holes[2].strokes, [stroke])
+        XCTAssertEqual(store.round(id)?.status, .ended)
+        XCTAssertEqual(strokeChanges.count, 1)
     }
 
-    func testApplyEmptyMarksKeepsOneHole() {
+    func testMoveStrokeInEndedRound() {
+        let (id, first, _) = endedRound()
+        let coordinate = CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)
+
+        store.moveStroke(first, to: coordinate, in: id)
+
+        XCTAssertEqual(store.round(id)?.holes[0].strokes[0].coordinate.latitude, 34.0)
+        XCTAssertEqual(strokeChanges.count, 1)
+    }
+
+    func testReorderStrokeInEndedRound() {
+        let (id, first, _) = endedRound()
+        let added = makeStroke(latitude: 33.48)
+        store.addStroke(to: id, holeIndex: 0, stroke: added)
+
+        store.reorderStroke(first, to: 1, in: id)
+
+        XCTAssertEqual(store.round(id)?.holes[0].strokes.map(\.id), [added.id, first.id])
+    }
+
+    func testSetStrokeTypeInEndedRound() {
+        let (id, _, second) = endedRound()
+
+        store.setStrokeType(strokeID: second.id, type: .outOfBounds, in: id)
+
+        XCTAssertEqual(store.round(id)?.holes[1].strokes[0].type, .outOfBounds)
+        XCTAssertEqual(strokeChanges.count, 1)
+    }
+
+    func testRemoveStrokeFromEndedRound() {
+        let (id, first, second) = endedRound()
+
+        store.removeStroke(first, from: id)
+
+        XCTAssertEqual(store.round(id)?.holes[0].strokes, [])
+        XCTAssertEqual(store.round(id)?.holes[1].strokes, [second])
+        XCTAssertEqual(strokeChanges.count, 1)
+    }
+
+    func testEndedRoundEditsSurviveNewStoreInstance() {
+        let (id, first, _) = endedRound()
+        store.setStrokeType(strokeID: first.id, type: .penalty, in: id)
+
+        let reloaded = RoundStore(directory: directory)
+
+        XCTAssertEqual(reloaded.round(id)?.holes[0].strokes[0].type, .penalty)
+        XCTAssertEqual(reloaded.round(id)?.status, .ended)
+    }
+
+    // MARK: - applyStrokes
+
+    func testApplyStrokesReplacesStrokesWhenNewer() {
+        let id = startRound()
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
+        let replacement = makeStroke(latitude: 34.0, longitude: -113.0)
+        strokeChanges.removeAll()
+
+        XCTAssertTrue(store.applyStrokes(StrokesSnapshot(roundID: id, version: 5, holes: [[], [replacement]])))
+
+        XCTAssertEqual(store.round(id)?.strokesVersion, 5)
+        XCTAssertEqual(store.round(id)?.holes.map(\.strokes), [[], [replacement]])
+        XCTAssertTrue(strokeChanges.isEmpty)
+    }
+
+    func testApplyStrokesIgnoresOlderOrSameVersion() {
+        let id = startRound()
+        let newer = makeStroke(latitude: 34.0, longitude: -113.0)
+        store.applyStrokes(StrokesSnapshot(roundID: id, version: 6, holes: [[newer]]))
+
+        XCTAssertFalse(store.applyStrokes(StrokesSnapshot(roundID: id, version: 5, holes: [[makeStroke()]])))
+        XCTAssertFalse(store.applyStrokes(StrokesSnapshot(roundID: id, version: 6, holes: [])))
+
+        XCTAssertEqual(store.round(id)?.strokes, [newer])
+    }
+
+    func testApplyEmptyStrokesKeepsOneHole() {
         let id = startRound()
 
-        store.applyMarks(MarksSnapshot(roundID: id, version: 1, holes: []))
+        store.applyStrokes(StrokesSnapshot(roundID: id, version: 1, holes: []))
 
         XCTAssertEqual(store.round(id)?.holes.count, 1)
     }
 
-    func testApplyMarksKeepsCurrentHoleReachable() {
+    func testApplyStrokesKeepsCurrentHoleReachable() {
         let id = startRound()
         store.startHole(3, source: .autoAdvance)
 
-        store.applyMarks(MarksSnapshot(roundID: id, version: 1, holes: [[makeMark()]]))
+        store.applyStrokes(StrokesSnapshot(roundID: id, version: 1, holes: [[makeStroke()]]))
 
         XCTAssertEqual(store.round(id)?.holes.count, 4)
     }
 
-    func testApplyMarksForUnknownRoundIsIgnored() {
-        XCTAssertFalse(store.applyMarks(MarksSnapshot(roundID: UUID(), version: 1, holes: [])))
+    func testApplyStrokesForUnknownRoundIsIgnored() {
+        XCTAssertFalse(store.applyStrokes(StrokesSnapshot(roundID: UUID(), version: 1, holes: [])))
     }
 
     // MARK: - deleteRound
@@ -567,15 +631,15 @@ final class RoundStoreTests: XCTestCase {
 
     func testMutationsWorkWithoutHandlers() {
         store.onTimelineChanged = nil
-        store.onMarksChanged = nil
+        store.onStrokesChanged = nil
 
         let id = startRound()
-        store.addMark(to: id, holeIndex: 0, mark: makeMark())
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
         store.startHole(1, source: .autoAdvance)
 
         // Should not crash
         XCTAssertEqual(store.rounds.count, 1)
-        XCTAssertEqual(store.rounds[0].allMarks.count, 1)
+        XCTAssertEqual(store.rounds[0].allStrokes.count, 1)
         XCTAssertEqual(store.rounds[0].currentHoleIndex, 1)
     }
 }

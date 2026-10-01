@@ -1,15 +1,15 @@
 import Foundation
 
-/// Builds CSV exports of a round's GPS track, swings, and marks.
+/// Builds CSV exports of a round's GPS track, swings, and strokes.
 enum TrackExporter {
-    static let header = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,markType,peakG"
+    static let header = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG"
 
-    /// One row per GPS fix, swing, and mark, all in time order.
-    /// Track rows fill altitude/accuracy/source and leave the rest blank. Swing rows fill the
+    /// One row per GPS fix and swing in time order, then one row per stroke in hole and stroke
+    /// order. Strokes have no time, so their timestamp is blank. Track rows fill altitude/accuracy/source and leave the rest blank. Swing rows fill the
     /// location of the nearest fix (blank if none is close enough), source, hole (1-based, from
-    /// the hole timeline), and peak force in g. Mark rows fill hole (1-based), stroke (1-based)
-    /// and mark type. Altitude and accuracy are blank when the fix had no valid reading.
-    static func csv(round: Round, points: [TrackPoint], swings: [Swing]) -> String {
+    /// the hole timeline), and peak force in g. Stroke rows fill hole (1-based), stroke (1-based)
+    /// and stroke type. Altitude and accuracy are blank when the fix had no valid reading.
+    static func csv(round: Round, points: [TrackPoint], swings: [StrokeSuggestion]) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -23,22 +23,20 @@ enum TrackExporter {
         }
 
         for swing in swings {
-            let fix = StreamReceiver.nearestFix(to: swing.timestamp, in: points)
+            let fix = StrokeFinder.nearestFix(to: swing.timestamp, in: points)
             let latitude = fix.map { String($0.latitude) } ?? ""
             let longitude = fix.map { String($0.longitude) } ?? ""
             let hole = round.holeIndex(at: swing.timestamp) + 1
             rows.append((swing.timestamp,
-                         "swing,\(formatter.string(from: swing.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,\(swing.peakG)"))
+                         "swing,\(formatter.string(from: swing.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,\(swing.peakG ?? 0)"))
         }
 
+        var lines = rows.sorted { $0.timestamp < $1.timestamp }.map(\.line)
         for (holeIndex, hole) in round.holes.enumerated() {
-            for (markIndex, mark) in hole.marks.enumerated() {
-                rows.append((mark.timestamp,
-                             "mark,\(formatter.string(from: mark.timestamp)),\(mark.coordinate.latitude),\(mark.coordinate.longitude),,,,\(holeIndex + 1),\(markIndex + 1),\(mark.type.rawValue),"))
+            for (strokeIndex, stroke) in hole.strokes.enumerated() {
+                lines.append("stroke,,\(stroke.coordinate.latitude),\(stroke.coordinate.longitude),,,,\(holeIndex + 1),\(strokeIndex + 1),\(stroke.type.rawValue),")
             }
         }
-
-        let lines = rows.sorted { $0.timestamp < $1.timestamp }.map(\.line)
         return ([header] + lines).joined(separator: "\n") + "\n"
     }
 

@@ -28,6 +28,18 @@ final class StreamRecordTests: XCTestCase {
         XCTAssertEqual(swing.peakG, 14.75)
     }
 
+    func testSwingBytesAreUnchanged() {
+        // Kind 1, milliseconds since 1970 as Int64, peak force as Float32, both little-endian
+        let data = StreamFixtures.swing(12.345, peakG: 14.75).record
+        let milliseconds = Int64(1_700_000_012_345)
+        var expected = Data([1])
+        expected.append(contentsOf: withUnsafeBytes(of: milliseconds.littleEndian, Array.init))
+        expected.append(contentsOf: withUnsafeBytes(of: Float(14.75).bitPattern.littleEndian, Array.init))
+        expected.append(Data(count: 12))
+
+        XCTAssertEqual(data, expected)
+    }
+
     func testUnknownKindOrWrongSizeIsNotARecord() {
         var data = StreamFixtures.fix(0).record
         data[data.startIndex] = 7

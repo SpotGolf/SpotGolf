@@ -7,7 +7,7 @@
 #   first-line:  Optional file line number to start from (the header is line 1)
 #   last-line:   Optional file line number to stop after (defaults to the end of the file)
 #
-# Only track rows are replayed. Swing and mark rows are skipped because the app creates them.
+# Only track rows are replayed. Swing and stroke rows are skipped because the app creates them.
 # Each fix is sent at (start time + its offset from the first replayed fix), so the timing
 # does not drift over a long replay. If sending falls behind, fixes are sent right away until
 # the replay catches up.
@@ -33,7 +33,7 @@ if [ "$last_line" -ne 0 ] && [ "$last_line" -lt "$first_line" ]; then
 fi
 
 header=$(head -1 "$csv" | tr -d '\r')
-expected="type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,markType,peakG"
+expected="type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG"
 if [ "$header" != "$expected" ]; then
     echo "Unexpected header in $csv"
     echo "  found:    $header"

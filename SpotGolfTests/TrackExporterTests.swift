@@ -12,9 +12,8 @@ final class TrackExporterTests: XCTestCase {
                    altitude: altitude, horizontalAccuracy: accuracy)
     }
 
-    private func mark(offset: TimeInterval, type: BallMarkType = .regular) -> BallMark {
-        BallMark(coordinate: CLLocationCoordinate2D(latitude: 39.9555, longitude: -105.0422),
-                 timestamp: start.addingTimeInterval(offset), type: type)
+    private func stroke(type: StrokeType = .regular) -> Stroke {
+        Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9555, longitude: -105.0422), type: type)
     }
 
     func testHeaderAndTrackRowFormat() {
@@ -24,29 +23,29 @@ final class TrackExporterTests: XCTestCase {
         let lines = csv.split(separator: "\n")
 
         XCTAssertEqual(lines.count, 2)
-        XCTAssertEqual(lines[0], "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,markType,peakG")
+        XCTAssertEqual(lines[0], "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG")
         XCTAssertEqual(lines[1], "track,2023-11-14T22:13:20.000Z,39.9555,-105.0422,1609.5,4.2,watch,,,,")
     }
 
-    func testMarkRowsCarryHoleStrokeAndType() {
+    func testStrokeRowsCarryHoleStrokeAndType() {
         var round = Round(date: start, courseSelection: .test)
-        round.addMark(mark(offset: 10), toHoleIndex: 0)
-        round.addMark(mark(offset: 20), toHoleIndex: 0)
-        round.addMark(mark(offset: 30, type: .penalty), toHoleIndex: 1)
+        round.addStroke(stroke(), toHoleIndex: 0)
+        round.addStroke(stroke(), toHoleIndex: 0)
+        round.addStroke(stroke(type: .penalty), toHoleIndex: 1)
 
         let csv = TrackExporter.csv(round: round, points: [], swings: [])
         let lines = csv.split(separator: "\n")
 
         XCTAssertEqual(lines.count, 4)
-        XCTAssertEqual(lines[1], "mark,2023-11-14T22:13:30.000Z,39.9555,-105.0422,,,,1,1,regular,")
-        XCTAssertEqual(lines[2], "mark,2023-11-14T22:13:40.000Z,39.9555,-105.0422,,,,1,2,regular,")
-        XCTAssertEqual(lines[3], "mark,2023-11-14T22:13:50.000Z,39.9555,-105.0422,,,,2,1,penalty,")
+        XCTAssertEqual(lines[1], "stroke,,39.9555,-105.0422,,,,1,1,regular,")
+        XCTAssertEqual(lines[2], "stroke,,39.9555,-105.0422,,,,1,2,regular,")
+        XCTAssertEqual(lines[3], "stroke,,39.9555,-105.0422,,,,2,1,penalty,")
     }
 
     func testSwingRowCarriesNearestFixHoleAndPeak() {
         var round = Round(date: start, courseSelection: .test)
         round.startHole(1, at: start.addingTimeInterval(20), source: .autoAdvance)
-        let swing = Swing(timestamp: start.addingTimeInterval(32), peakG: 12.5)
+        let swing = StrokeSuggestion.swing(at: start.addingTimeInterval(32), peakG: 12.5)
 
         let csv = TrackExporter.csv(round: round,
                                     points: [point(offset: 30, lat: 39.1, lon: -105.1), point(offset: 40, lat: 39.2, lon: -105.2)],
@@ -59,7 +58,7 @@ final class TrackExporterTests: XCTestCase {
 
     func testSwingRowWithoutNearbyFixHasBlankLocation() {
         let round = Round(date: start, courseSelection: .test)
-        let swing = Swing(timestamp: start.addingTimeInterval(60), peakG: 11)
+        let swing = StrokeSuggestion.swing(at: start.addingTimeInterval(60), peakG: 11)
 
         let csv = TrackExporter.csv(round: round, points: [point(offset: 0)], swings: [swing])
         let fields = csv.split(separator: "\n")[2].split(separator: ",", omittingEmptySubsequences: false)
@@ -71,16 +70,16 @@ final class TrackExporterTests: XCTestCase {
         XCTAssertEqual(fields[10], "11.0")
     }
 
-    func testRowsInterleaveInTimeOrder() {
+    func testTimedRowsInterleaveAndStrokesComeLast() {
         var round = Round(date: start, courseSelection: .test)
-        round.addMark(mark(offset: 15), toHoleIndex: 0)
+        round.addStroke(stroke(), toHoleIndex: 0)
 
         let csv = TrackExporter.csv(round: round,
                                     points: [point(offset: 10), point(offset: 20)],
-                                    swings: [Swing(timestamp: start.addingTimeInterval(12), peakG: 10)])
+                                    swings: [StrokeSuggestion.swing(at: start.addingTimeInterval(12), peakG: 10)])
         let types = csv.split(separator: "\n").dropFirst().map { $0.split(separator: ",")[0] }
 
-        XCTAssertEqual(types, ["track", "swing", "mark", "track"])
+        XCTAssertEqual(types, ["track", "swing", "track", "stroke"])
     }
 
     func testMissingAltitudeAndAccuracyAreBlank() {

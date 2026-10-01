@@ -3,7 +3,7 @@ import CoreLocation
 import CourseDataSwift
 
 /// Holds and saves every round. Changes made on this device are reported through
-/// `onTimelineChanged` and `onMarksChanged` so they can be sent to the other device;
+/// `onTimelineChanged` and `onStrokesChanged` so they can be sent to the other device;
 /// changes applied from the other device are not reported.
 @MainActor
 class RoundStore: ObservableObject {
@@ -14,8 +14,8 @@ class RoundStore: ObservableObject {
     /// A hole change or timeline correction made on this device.
     var onTimelineChanged: ((Round) -> Void)?
 
-    /// A mark change made on this device.
-    var onMarksChanged: ((Round) -> Void)?
+    /// A stroke change made on this device.
+    var onStrokesChanged: ((Round) -> Void)?
 
     private let fileURL: URL
 
@@ -121,80 +121,80 @@ class RoundStore: ObservableObject {
         return lower <= upper ? lower...upper : nil
     }
 
-    // MARK: - Marks
+    // MARK: - Strokes
 
-    func addMark(to roundID: UUID, holeIndex: Int, mark: BallMark) {
-        changeMarks(roundID) { round in
-            guard !round.hasMark(id: mark.id) else { return false }
-            round.addMark(mark, toHoleIndex: holeIndex)
+    func addStroke(to roundID: UUID, holeIndex: Int, stroke: Stroke) {
+        changeStrokes(roundID) { round in
+            guard !round.hasStroke(id: stroke.id) else { return false }
+            round.addStroke(stroke, toHoleIndex: holeIndex)
             return true
         }
     }
 
-    func moveMark(_ mark: BallMark, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
-        changeMark(mark.id, in: roundID) { existing in
-            existing = BallMark(id: existing.id, coordinate: coordinate, timestamp: existing.timestamp, type: existing.type)
+    func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
+        changeStroke(stroke.id, in: roundID) { existing in
+            existing = Stroke(id: existing.id, coordinate: coordinate, type: existing.type)
         }
     }
 
-    func setMarkType(markID: UUID, type: BallMarkType, in roundID: UUID) {
-        changeMark(markID, in: roundID) { $0.type = type }
+    func setStrokeType(strokeID: UUID, type: StrokeType, in roundID: UUID) {
+        changeStroke(strokeID, in: roundID) { $0.type = type }
     }
 
-    func reorderMark(_ mark: BallMark, to newIndex: Int, in roundID: UUID) {
-        changeMarks(roundID) { round in
-            guard let holeIndex = round.holeIndex(containing: mark.id),
-                  let markIndex = round.holes[holeIndex].marks.firstIndex(where: { $0.id == mark.id }) else { return false }
-            let clamped = min(max(newIndex, 0), round.holes[holeIndex].marks.count - 1)
-            guard clamped != markIndex else { return false }
-            let removed = round.holes[holeIndex].marks.remove(at: markIndex)
-            round.holes[holeIndex].marks.insert(removed, at: clamped)
+    func reorderStroke(_ stroke: Stroke, to newIndex: Int, in roundID: UUID) {
+        changeStrokes(roundID) { round in
+            guard let holeIndex = round.holeIndex(containing: stroke.id),
+                  let strokeIndex = round.holes[holeIndex].strokes.firstIndex(where: { $0.id == stroke.id }) else { return false }
+            let clamped = min(max(newIndex, 0), round.holes[holeIndex].strokes.count - 1)
+            guard clamped != strokeIndex else { return false }
+            let removed = round.holes[holeIndex].strokes.remove(at: strokeIndex)
+            round.holes[holeIndex].strokes.insert(removed, at: clamped)
             return true
         }
     }
 
-    func removeMark(_ mark: BallMark, from roundID: UUID) {
-        changeMarks(roundID) { round in
-            guard let holeIndex = round.holeIndex(containing: mark.id) else { return false }
-            round.holes[holeIndex].marks.removeAll { $0.id == mark.id }
+    func removeStroke(_ stroke: Stroke, from roundID: UUID) {
+        changeStrokes(roundID) { round in
+            guard let holeIndex = round.holeIndex(containing: stroke.id) else { return false }
+            round.holes[holeIndex].strokes.removeAll { $0.id == stroke.id }
             return true
         }
     }
 
-    /// Applies the phone's marks on the watch when the snapshot is newer than the last one applied.
+    /// Applies the phone's strokes on the watch when the snapshot is newer than the last one applied.
     @discardableResult
-    func applyMarks(_ snapshot: MarksSnapshot) -> Bool {
+    func applyStrokes(_ snapshot: StrokesSnapshot) -> Bool {
         guard let i = rounds.firstIndex(where: { $0.id == snapshot.roundID }),
-              snapshot.version > rounds[i].marksVersion else { return false }
+              snapshot.version > rounds[i].strokesVersion else { return false }
         var round = rounds[i]
-        var holes = snapshot.holes.map { RoundHole(marks: $0) }
+        var holes = snapshot.holes.map { RoundHole(strokes: $0) }
         if holes.isEmpty {
             holes = [RoundHole()]
         }
         round.holes = holes
         round.ensureHole(round.currentHoleIndex)
-        round.marksVersion = snapshot.version
+        round.strokesVersion = snapshot.version
         rounds[i] = round
         return true
     }
 
-    private func changeMark(_ markID: UUID, in roundID: UUID, _ change: @escaping (inout BallMark) -> Void) {
-        changeMarks(roundID) { round in
-            guard let holeIndex = round.holeIndex(containing: markID),
-                  let markIndex = round.holes[holeIndex].marks.firstIndex(where: { $0.id == markID }) else { return false }
-            change(&round.holes[holeIndex].marks[markIndex])
+    private func changeStroke(_ strokeID: UUID, in roundID: UUID, _ change: @escaping (inout Stroke) -> Void) {
+        changeStrokes(roundID) { round in
+            guard let holeIndex = round.holeIndex(containing: strokeID),
+                  let strokeIndex = round.holes[holeIndex].strokes.firstIndex(where: { $0.id == strokeID }) else { return false }
+            change(&round.holes[holeIndex].strokes[strokeIndex])
             return true
         }
     }
 
-    /// Every mark change adds 1 to the round's marks version, so the watch can tell newer from older.
-    private func changeMarks(_ roundID: UUID, _ change: (inout Round) -> Bool) {
+    /// Every stroke change adds 1 to the round's strokes version, so the watch can tell newer from older.
+    private func changeStrokes(_ roundID: UUID, _ change: (inout Round) -> Bool) {
         guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
         var round = rounds[i]
         guard change(&round) else { return }
-        round.marksVersion += 1
+        round.strokesVersion += 1
         rounds[i] = round
-        onMarksChanged?(round)
+        onStrokesChanged?(round)
     }
 
     // MARK: - Saving

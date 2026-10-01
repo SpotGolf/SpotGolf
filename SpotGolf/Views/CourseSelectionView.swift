@@ -4,6 +4,8 @@ import CourseDataSwift
 
 struct CourseSelectionView: View {
     var onRoundStarted: ((UUID) -> Void)?
+    /// When set, picking a course calls this instead of starting a round.
+    var onCourseSelected: ((CourseSelection) -> Void)?
 
     @EnvironmentObject var courseService: CourseService
     @EnvironmentObject var locationManager: LocationManager
@@ -150,10 +152,7 @@ struct CourseSelectionView: View {
             if course.subCourses.count <= 1 {
                 // Single sub-course — start round immediately
                 let indices = course.subCourses.isEmpty ? [] : [0]
-                let selection = CourseSelection(course: course, selectedSubCourseIndices: indices)
-                let roundID = phoneSync.startRound(courseSelection: selection)
-                dismiss()
-                onRoundStarted?(roundID)
+                select(CourseSelection(course: course, selectedSubCourseIndices: indices))
             } else {
                 selectedCourse = course
                 selectedIndices = defaultIndices(for: course)
@@ -196,14 +195,11 @@ struct CourseSelectionView: View {
 
             Section {
                 Button {
-                    let selection = CourseSelection(course: course, selectedSubCourseIndices: selectedIndices)
-                    let roundID = phoneSync.startRound(courseSelection: selection)
-                    dismiss()
-                    onRoundStarted?(roundID)
+                    select(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices))
                 } label: {
                     HStack {
                         Spacer()
-                        Text("Start Round")
+                        Text(onCourseSelected == nil ? "Start Round" : "Select")
                             .fontWeight(.semibold)
                         Spacer()
                     }
@@ -211,6 +207,17 @@ struct CourseSelectionView: View {
                 .disabled(selectedIndices.isEmpty)
             }
         }
+    }
+
+    private func select(_ selection: CourseSelection) {
+        if let onCourseSelected {
+            dismiss()
+            onCourseSelected(selection)
+            return
+        }
+        let roundID = phoneSync.startRound(courseSelection: selection)
+        dismiss()
+        onRoundStarted?(roundID)
     }
 
     private func toggleSelection(_ index: Int) {

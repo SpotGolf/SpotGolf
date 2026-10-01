@@ -23,7 +23,7 @@ enum DistanceCalculator {
         a.distance(from: b) * metersToYards
     }
 
-    static func yards(from a: BallMark, to b: BallMark) -> Double {
+    static func yards(from a: Stroke, to b: Stroke) -> Double {
         yards(from: a.location, to: b.location)
     }
 
@@ -31,7 +31,7 @@ enum DistanceCalculator {
         "\(Int(yards(from: a, to: b))) yds"
     }
 
-    static func formattedYards(from a: BallMark, to b: BallMark) -> String {
+    static func formattedYards(from a: Stroke, to b: Stroke) -> String {
         formattedYards(from: a.location, to: b.location)
     }
 

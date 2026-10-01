@@ -8,7 +8,7 @@ struct SpotGolfApp: App {
     @StateObject private var syncService: SyncService
     @StateObject private var phoneSync: PhoneSync
     @StateObject private var courseService = CourseService()
-    @StateObject private var guessStore: GuessStore
+    @StateObject private var suggestionStore: SuggestionStore
     @StateObject private var settingsStore = SettingsStore()
     @StateObject private var streamStore: StreamStore
 
@@ -20,10 +20,10 @@ struct SpotGolfApp: App {
         }
         let sync = SyncService()
         let streams = StreamStore()
-        let guesses = GuessStore()
+        let suggestions = SuggestionStore()
         let healthStore = HKHealthStore()
         // UI tests run without a paired watch, so rounds start and end on the phone alone
-        let phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams, guesses: guesses,
+        let phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams, suggestions: suggestions,
                                   requiresWatch: !isUITesting) {
             guard HKHealthStore.isHealthDataAvailable() else { return }
             let configuration = HKWorkoutConfiguration()
@@ -47,7 +47,7 @@ struct SpotGolfApp: App {
         _roundStore = StateObject(wrappedValue: rounds)
         _syncService = StateObject(wrappedValue: sync)
         _streamStore = StateObject(wrappedValue: streams)
-        _guessStore = StateObject(wrappedValue: guesses)
+        _suggestionStore = StateObject(wrappedValue: suggestions)
         _phoneSync = StateObject(wrappedValue: phoneSync)
     }
 
@@ -59,7 +59,7 @@ struct SpotGolfApp: App {
                 .environmentObject(syncService)
                 .environmentObject(phoneSync)
                 .environmentObject(courseService)
-                .environmentObject(guessStore)
+                .environmentObject(suggestionStore)
                 .environmentObject(settingsStore)
                 .environmentObject(streamStore)
                 .onAppear {

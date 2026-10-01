@@ -9,7 +9,7 @@ final class RoundTests: XCTestCase {
         let round = Round(courseSelection: .test)
 
         XCTAssertTrue(round.isActive)
-        XCTAssertTrue(round.marks.isEmpty)
+        XCTAssertTrue(round.strokes.isEmpty)
         XCTAssertNotNil(round.id)
         XCTAssertEqual(round.holes.count, 1)
         XCTAssertEqual(round.currentHoleIndex, 0)
@@ -18,13 +18,13 @@ final class RoundTests: XCTestCase {
     func testInitWithExplicitValues() {
         let id = UUID()
         let date = Date(timeIntervalSince1970: 1_000_000)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let hole = RoundHole(marks: [mark])
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let hole = RoundHole(strokes: [stroke])
         let round = Round(id: id, date: date, holes: [hole], status: .ended, courseSelection: .test)
 
         XCTAssertEqual(round.id, id)
         XCTAssertEqual(round.date, date)
-        XCTAssertEqual(round.marks.count, 1)
+        XCTAssertEqual(round.strokes.count, 1)
         XCTAssertFalse(round.isActive)
         XCTAssertFalse(round.isInProgress)
     }
@@ -47,27 +47,27 @@ final class RoundTests: XCTestCase {
         }
     }
 
-    func testAddMark() {
+    func testAddStroke() {
         var round = Round(courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
 
-        round.addMark(mark, toHoleIndex: 0)
+        round.addStroke(stroke, toHoleIndex: 0)
 
-        XCTAssertEqual(round.marks.count, 1)
-        XCTAssertEqual(round.marks[0].id, mark.id)
+        XCTAssertEqual(round.strokes.count, 1)
+        XCTAssertEqual(round.strokes[0].id, stroke.id)
     }
 
-    func testAddMultipleMarks() {
+    func testAddMultipleStrokes() {
         var round = Round(courseSelection: .test)
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
 
-        round.addMark(mark1, toHoleIndex: 0)
-        round.addMark(mark2, toHoleIndex: 0)
+        round.addStroke(stroke1, toHoleIndex: 0)
+        round.addStroke(stroke2, toHoleIndex: 0)
 
-        XCTAssertEqual(round.marks.count, 2)
-        XCTAssertEqual(round.marks[0].id, mark1.id)
-        XCTAssertEqual(round.marks[1].id, mark2.id)
+        XCTAssertEqual(round.strokes.count, 2)
+        XCTAssertEqual(round.strokes[0].id, stroke1.id)
+        XCTAssertEqual(round.strokes[1].id, stroke2.id)
     }
 
     func testEnd() {
@@ -93,16 +93,16 @@ final class RoundTests: XCTestCase {
 
     func testCodableRoundTrip() throws {
         var round = Round(courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
-        round.addMark(mark, toHoleIndex: 0)
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
+        round.addStroke(stroke, toHoleIndex: 0)
 
         let data = try JSONEncoder().encode(round)
         let decoded = try JSONDecoder().decode(Round.self, from: data)
 
         XCTAssertEqual(decoded.id, round.id)
         XCTAssertEqual(decoded.date, round.date)
-        XCTAssertEqual(decoded.marks.count, 1)
-        XCTAssertEqual(decoded.marks[0].id, mark.id)
+        XCTAssertEqual(decoded.strokes.count, 1)
+        XCTAssertEqual(decoded.strokes[0].id, stroke.id)
         XCTAssertEqual(decoded, round)
     }
 
@@ -129,7 +129,7 @@ final class RoundTests: XCTestCase {
 
     func testStartHoleMovesForwardAndAppendsHoles() {
         var round = Round(courseSelection: .test)
-        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
+        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
 
         let changed = round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
 
@@ -137,7 +137,7 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.holes.count, 2)
         XCTAssertEqual(round.currentHoleIndex, 1)
         XCTAssertEqual(round.currentHoleNumber, 2)
-        XCTAssertTrue(round.marks.isEmpty) // new hole has no marks
+        XCTAssertTrue(round.strokes.isEmpty) // new hole has no strokes
         XCTAssertEqual(round.holeTimeline.last?.source, .autoAdvance)
     }
 
@@ -200,43 +200,43 @@ final class RoundTests: XCTestCase {
         XCTAssertFalse(round.mergeTimeline(other.holeTimeline))
     }
 
-    func testMarksReturnsCurrentHoleMarks() {
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let hole1 = RoundHole(marks: [mark1])
-        let hole2 = RoundHole(marks: [mark2])
+    func testStrokesReturnsCurrentHoleStrokes() {
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        let hole1 = RoundHole(strokes: [stroke1])
+        let hole2 = RoundHole(strokes: [stroke2])
         var round = Round(holes: [hole1, hole2], courseSelection: .test)
         round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
 
-        XCTAssertEqual(round.marks.count, 1)
-        XCTAssertEqual(round.marks[0].id, mark2.id)
+        XCTAssertEqual(round.strokes.count, 1)
+        XCTAssertEqual(round.strokes[0].id, stroke2.id)
     }
 
-    func testAllMarks() {
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let hole1 = RoundHole(marks: [mark1])
-        let hole2 = RoundHole(marks: [mark2])
+    func testAllStrokes() {
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        let hole1 = RoundHole(strokes: [stroke1])
+        let hole2 = RoundHole(strokes: [stroke2])
         let round = Round(holes: [hole1, hole2], courseSelection: .test)
 
-        XCTAssertEqual(round.allMarks.count, 2)
+        XCTAssertEqual(round.allStrokes.count, 2)
     }
 
     func testHoleIndexContaining() {
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        let hole1 = RoundHole(marks: [mark1])
-        let hole2 = RoundHole(marks: [mark2])
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        let hole1 = RoundHole(strokes: [stroke1])
+        let hole2 = RoundHole(strokes: [stroke2])
         let round = Round(holes: [hole1, hole2], courseSelection: .test)
 
-        XCTAssertEqual(round.holeIndex(containing: mark1.id), 0)
-        XCTAssertEqual(round.holeIndex(containing: mark2.id), 1)
+        XCTAssertEqual(round.holeIndex(containing: stroke1.id), 0)
+        XCTAssertEqual(round.holeIndex(containing: stroke2.id), 1)
         XCTAssertNil(round.holeIndex(containing: UUID()))
     }
 
     func testEndTrimsTrailingEmptyHoles() {
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        var round = Round(holes: [RoundHole(marks: [mark]), RoundHole(), RoundHole()], courseSelection: .test)
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        var round = Round(holes: [RoundHole(strokes: [stroke]), RoundHole(), RoundHole()], courseSelection: .test)
 
         round.end(at: Date())
 
@@ -245,26 +245,26 @@ final class RoundTests: XCTestCase {
     }
 
     func testEndPreservesNonEmptyHoles() {
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        var round = Round(holes: [RoundHole(marks: [mark1]), RoundHole(marks: [mark2])], courseSelection: .test)
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        var round = Round(holes: [RoundHole(strokes: [stroke1]), RoundHole(strokes: [stroke2])], courseSelection: .test)
 
         round.end(at: Date())
 
         XCTAssertEqual(round.holes.count, 2)
     }
 
-    func testMarksSnapshotHoldsEveryHole() {
-        let mark1 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        let mark2 = BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
-        var round = Round(holes: [RoundHole(marks: [mark1]), RoundHole(marks: [mark2])], courseSelection: .test)
-        round.marksVersion = 7
+    func testStrokesSnapshotHoldsEveryHole() {
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        var round = Round(holes: [RoundHole(strokes: [stroke1]), RoundHole(strokes: [stroke2])], courseSelection: .test)
+        round.strokesVersion = 7
 
-        let snapshot = round.marksSnapshot
+        let snapshot = round.strokesSnapshot
 
         XCTAssertEqual(snapshot.roundID, round.id)
         XCTAssertEqual(snapshot.version, 7)
-        XCTAssertEqual(snapshot.holes, [[mark1], [mark2]])
+        XCTAssertEqual(snapshot.holes, [[stroke1], [stroke2]])
     }
 
     // MARK: - Course data
@@ -335,17 +335,17 @@ final class RoundTests: XCTestCase {
 
     func testCodableRoundTripWithMultipleHoles() throws {
         var round = Round(courseSelection: .test)
-        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
+        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
         round.startHole(1, at: round.date.addingTimeInterval(600), source: .autoAdvance)
-        round.addMark(BallMark(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)), toHoleIndex: 1)
+        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)), toHoleIndex: 1)
 
         let data = try JSONEncoder().encode(round)
         let decoded = try JSONDecoder().decode(Round.self, from: data)
 
         XCTAssertEqual(decoded.holes.count, 2)
         XCTAssertEqual(decoded.currentHoleIndex, 1)
-        XCTAssertEqual(decoded.holes[0].marks.count, 1)
-        XCTAssertEqual(decoded.holes[1].marks.count, 1)
+        XCTAssertEqual(decoded.holes[0].strokes.count, 1)
+        XCTAssertEqual(decoded.holes[1].strokes.count, 1)
     }
 
     // MARK: - Course name shortening
@@ -398,24 +398,24 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(Round.shortenCourseName("the broadlands golf course"), "broadlands GC")
     }
 
-    // MARK: - Duplicate mark detection
+    // MARK: - Duplicate stroke detection
 
-    func testAddMarkToHoleIgnoresDuplicate() {
+    func testAddStrokeToHoleIgnoresDuplicate() {
         var round = Round(courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        round.addMark(mark, toHoleIndex: 0)
-        round.addMark(mark, toHoleIndex: 0) // same UUID
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addStroke(stroke, toHoleIndex: 0)
+        round.addStroke(stroke, toHoleIndex: 0) // same UUID
 
-        XCTAssertEqual(round.holes[0].marks.count, 1)
+        XCTAssertEqual(round.holes[0].strokes.count, 1)
     }
 
-    func testAddMarkToHoleIgnoresDuplicateAcrossHoles() {
+    func testAddStrokeToHoleIgnoresDuplicateAcrossHoles() {
         var round = Round(holes: [RoundHole(), RoundHole()], courseSelection: .test)
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
-        round.addMark(mark, toHoleIndex: 0)
-        round.addMark(mark, toHoleIndex: 1) // same UUID, different hole
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        round.addStroke(stroke, toHoleIndex: 0)
+        round.addStroke(stroke, toHoleIndex: 1) // same UUID, different hole
 
-        XCTAssertEqual(round.holes[0].marks.count, 1)
-        XCTAssertEqual(round.holes[1].marks.count, 0)
+        XCTAssertEqual(round.holes[0].strokes.count, 1)
+        XCTAssertEqual(round.holes[1].strokes.count, 0)
     }
 }

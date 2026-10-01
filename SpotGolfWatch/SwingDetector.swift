@@ -10,7 +10,7 @@ final class SwingDetector {
     private var isRunning = false
 
     /// Called with each swing once its peak force is known.
-    var onSwing: ((Swing) -> Void)?
+    var onSwing: ((StrokeSuggestion) -> Void)?
 
     func start() {
         guard !isRunning, CMBatchedSensorManager.isAccelerometerSupported else { return }

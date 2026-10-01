@@ -70,14 +70,7 @@ final class WatchRoundFlowUITests: XCTestCase {
         XCTAssertTrue(hole1Label.waitForExistence(timeout: 5), "Should be back on Hole 1")
 
         // ── End the round (swipe left to the last page) ──
-        app.swipeLeft()
-        let endRoundButton = app.buttons["End Round"]
-        XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
-        endRoundButton.tap()
-
-        // Verify we're back to the idle state.
-        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5),
-                      "No active round should show after ending round")
+        endRound()
     }
 
     func testArrowsOnlyViewHolesUntilPlayThisHole() throws {
@@ -106,12 +99,7 @@ final class WatchRoundFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hole 2"].waitForExistence(timeout: 5), "Resume round returns to hole 2")
 
         // ── End the round so no workout is left running ──
-        app.swipeLeft()
-        let endRoundButton = app.buttons["End Round"]
-        XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
-        endRoundButton.tap()
-        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5),
-                      "No active round should show after ending round")
+        endRound()
     }
 
     func testWorkoutRecoveredAfterAppQuits() throws {
@@ -138,15 +126,25 @@ final class WatchRoundFlowUITests: XCTestCase {
                       "Workout should be recovered, but was \(workoutStatus.label)")
 
         // ── End the round so no workout is left running ──
+        endRound()
+    }
+
+    // MARK: - Helpers
+
+    /// Ends the round from its last page and waits for the workout to be saved. Quitting
+    /// before then makes the system relaunch the app, without the test's launch arguments,
+    /// to recover the workout, and the next test finds that app instead of its own.
+    private func endRound() {
         app.swipeLeft()
         let endRoundButton = app.buttons["End Round"]
         XCTAssertTrue(endRoundButton.waitForExistence(timeout: 5), "End Round button should exist on last page")
         endRoundButton.tap()
         XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5),
                       "No active round should show after ending round")
+        let workoutStatus = app.staticTexts["workoutStatus"]
+        XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["ended"]),
+                      "The workout should be saved, but was \(workoutStatus.label)")
     }
-
-    // MARK: - Helpers
 
     /// Waits for an element's label to become one of the expected texts.
     private func waitForLabel(of element: XCUIElement, in labels: [String], timeout: TimeInterval = 10) -> Bool {

@@ -1,19 +1,19 @@
 import Foundation
 
-/// Keeps the hole timeline and marks the same on both devices. Every change sends the full
+/// Keeps the hole timeline and strokes the same on both devices. Every change sends the full
 /// state, so a lost message is fixed by the next one, and a late or repeated one does no harm:
-/// timelines are merged and marks keep the highest version.
+/// timelines are merged and strokes keep the highest version.
 @MainActor
 final class SnapshotSync {
     private let sync: SyncService
     private let rounds: RoundStore
-    /// Only the phone owns marks.
-    private let sendsMarks: Bool
+    /// Only the phone owns strokes.
+    private let sendsStrokes: Bool
 
-    init(sync: SyncService, rounds: RoundStore, sendsMarks: Bool) {
+    init(sync: SyncService, rounds: RoundStore, sendsStrokes: Bool) {
         self.sync = sync
         self.rounds = rounds
-        self.sendsMarks = sendsMarks
+        self.sendsStrokes = sendsStrokes
     }
 
     func sendTimeline(_ round: Round) {
@@ -22,9 +22,9 @@ final class SnapshotSync {
         updateContext(round)
     }
 
-    func sendMarks(_ round: Round) {
-        guard sendsMarks, round.isActive else { return }
-        sync.send(.marks(round.marksSnapshot))
+    func sendStrokes(_ round: Round) {
+        guard sendsStrokes, round.isActive else { return }
+        sync.send(.strokes(round.strokesSnapshot))
         updateContext(round)
     }
 
@@ -33,7 +33,7 @@ final class SnapshotSync {
         guard round.isActive else { return }
         sync.updateContext(SyncContext(
             timeline: HoleTimelineMessage(roundID: round.id, entries: round.holeTimeline),
-            marks: sendsMarks ? round.marksSnapshot : nil
+            strokes: sendsStrokes ? round.strokesSnapshot : nil
         ))
     }
 
@@ -44,16 +44,16 @@ final class SnapshotSync {
     }
 
     @discardableResult
-    func apply(_ snapshot: MarksSnapshot) -> Bool {
-        guard !sendsMarks else { return false }
-        return rounds.applyMarks(snapshot)
+    func apply(_ snapshot: StrokesSnapshot) -> Bool {
+        guard !sendsStrokes else { return false }
+        return rounds.applyStrokes(snapshot)
     }
 
     /// Returns the round whose timeline changed, if any.
     @discardableResult
     func apply(_ context: SyncContext) -> UUID? {
-        if let marks = context.marks {
-            apply(marks)
+        if let strokes = context.strokes {
+            apply(strokes)
         }
         if let timeline = context.timeline, apply(timeline) {
             return timeline.roundID

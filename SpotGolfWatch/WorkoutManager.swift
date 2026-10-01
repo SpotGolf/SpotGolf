@@ -6,9 +6,11 @@ class WorkoutManager: NSObject, ObservableObject {
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
 
-    /// How the current session began. UI tests read it to check recovery after a relaunch.
+    /// How the current session began, or that the last one ended and its workout was saved.
+    /// UI tests read it to check recovery after a relaunch, and to wait for the workout to be
+    /// saved before quitting, or the system relaunches the app to recover it.
     enum Status: String {
-        case none, started, recovered
+        case none, started, recovered, ended
     }
     @Published private(set) var status = Status.none
 
@@ -118,7 +120,6 @@ class WorkoutManager: NSObject, ObservableObject {
         session = nil
         self.builder = nil
         isRunning = false
-        status = .none
         if let builder, finished.state == .ended {
             do {
                 try await builder.endCollection(at: .now)
@@ -127,6 +128,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 print("WorkoutManager: finish workout error – \(error)")
             }
         }
+        status = .ended
         if restart, wantsWorkout, lastRestart.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
             lastRestart = Date()
             start()

@@ -25,9 +25,9 @@
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>SpotGolf uses HealthKit to start your round on Apple Watch.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
+	<string>SpotGolf needs your location to record where you hit the ball on the course.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SpotGolf needs your location to mark where your ball is on the course.</string>
+	<string>SpotGolf needs your location to record where you hit the ball on the course.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

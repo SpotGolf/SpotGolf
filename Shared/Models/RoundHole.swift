@@ -2,14 +2,15 @@ import Foundation
 
 struct RoundHole: Identifiable, Codable, Equatable {
     let id: UUID
-    var marks: [BallMark]
+    var strokes: [Stroke]
 
-    init(id: UUID = UUID(), marks: [BallMark] = []) {
+    init(id: UUID = UUID(), strokes: [Stroke] = []) {
         self.id = id
-        self.marks = marks
+        self.strokes = strokes
     }
 
+    /// Every stroke counts, putts included.
     var strokeCount: Int {
-        max(marks.count - 1, 0)
+        strokes.count
     }
 }

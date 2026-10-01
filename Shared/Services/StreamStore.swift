@@ -158,7 +158,7 @@ final class StreamStore: ObservableObject {
     }
 
     /// Swings up to `endedAt`, when given.
-    func swings(for roundID: UUID, until endedAt: Date? = nil) -> [Swing] {
+    func swings(for roundID: UUID, until endedAt: Date? = nil) -> [StrokeSuggestion] {
         records(for: roundID).compactMap { record in
             guard case .swing(let swing) = record, endedAt.map({ swing.timestamp <= $0 }) ?? true else { return nil }
             return swing

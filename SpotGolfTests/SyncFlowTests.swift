@@ -325,46 +325,52 @@ final class SyncFlowTests: XCTestCase {
 
     // MARK: - Swings
 
-    func testSwingBecomesGuessAtNearestFix() throws {
+    func testSwingReachesThePhoneInTheStream() {
         let id = pair.startRound()
-        let fixes = locations(0..<20).enumerated().map { index, location in
-            CLLocation(coordinate: CLLocationCoordinate2D(latitude: 39.9 + Double(index) * 0.0001, longitude: -105.0),
-                       altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 3, timestamp: location.timestamp)
+        let swing = StrokeSuggestion.swing(at: StreamFixtures.start.addingTimeInterval(2.5), peakG: 13)
+        pair.watch.record(locations(0..<3))
+        pair.watch.record(swing)
+        pair.watch.record(locations(3..<5))
+
+        XCTAssertEqual(pair.phoneStreams.swings(for: id), [swing])
+    }
+
+    /// The GPS path from hole 1's tee to its green, then to hole 2's tee.
+    private func pathToSecondTee() -> [CLLocation] {
+        var seconds: TimeInterval = 0
+        func at(_ north: Double, _ east: Double) -> CLLocation {
+            defer { seconds += 1 }
+            let point = PathCourse.coordinate(north: north, east: east)
+            return CLLocation(coordinate: CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude),
+                              altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 3,
+                              timestamp: StreamFixtures.start.addingTimeInterval(seconds))
         }
-        pair.watch.record(Array(fixes[0..<6]))
-        pair.watch.record(Swing(timestamp: StreamFixtures.start.addingTimeInterval(5.2), peakG: 13))
-        pair.watch.record(Array(fixes[6...]))
-
-        let guesses = pair.phoneGuesses.guesses(for: id)
-        XCTAssertEqual(guesses.count, 1)
-        let guess = try XCTUnwrap(guesses.first)
-        XCTAssertEqual(guess.latitude, 39.9 + 5 * 0.0001, accuracy: 1e-7)
-        XCTAssertEqual(guess.timestamp, StreamFixtures.start.addingTimeInterval(5.2))
+        var path: [CLLocation] = []
+        path += (0..<30).map { _ in at(0, 0) }                            // tee 1
+        path += stride(from: 2.0, through: 300, by: 2).map { at($0, 0) }  // walk to green 1
+        path += (0..<60).map { _ in at(300, 0) }                          // putting
+        path += stride(from: 2.0, through: 60, by: 2).map { at(300, $0) } // walk to tee 2
+        path += (0..<30).map { _ in at(300, 60) }                         // tee 2
+        return path
     }
 
-    func testSwingWaitsForTheFixesAfterIt() {
-        let id = pair.startRound()
-        pair.watch.record(locations(0..<3))
-        pair.watch.record(Swing(timestamp: StreamFixtures.start.addingTimeInterval(2.5), peakG: 13))
-        XCTAssertTrue(pair.phoneGuesses.guesses(for: id).isEmpty)
+    func testStreamedPathStartsTheNextHoleWhenThePlayerLeavesTheGreen() throws {
+        let id = pair.startRound(PathCourse.selection)
+        // The round starts when the fixtures do. A higher version, so the watch takes it too.
+        pair.phoneRounds.update(id) { round in
+            round.holeTimeline[0].startedAt = StreamFixtures.start
+            round.holeTimeline[0].version += 1
+        }
+        let path = pathToSecondTee()
 
-        pair.watch.record(locations(3..<10))
+        pair.watch.record(path)
 
-        XCTAssertEqual(pair.phoneGuesses.guesses(for: id).count, 1)
-    }
-
-    func testRemovedGuessDoesNotComeBackWhenRoundEnds() throws {
-        let id = pair.startRound()
-        pair.watch.record(locations(0..<3))
-        pair.watch.record(Swing(timestamp: StreamFixtures.start.addingTimeInterval(2), peakG: 13))
-        pair.watch.record(locations(3..<10))
-        let guess = try XCTUnwrap(pair.phoneGuesses.guesses(for: id).first)
-
-        pair.phoneGuesses.remove(guessID: guess.id, roundID: id)
-        pair.phone.endRound(id)
-
-        XCTAssertEqual(phoneRound(id)?.status, .ended)
-        XCTAssertTrue(pair.phoneGuesses.guesses(for: id).isEmpty)
+        let round = try XCTUnwrap(phoneRound(id))
+        XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 1])
+        // Green 1 is 30 m wide, so the last fix within 10 m of its edge is 25 m east of its center
+        let leftGreen = try XCTUnwrap(path.first { $0.coordinate.longitude > PathCourse.coordinate(north: 300, east: 25).longitude })
+        XCTAssertEqual(round.holeTimeline[1].startedAt, leftGreen.timestamp)
+        XCTAssertEqual(watchRound(id)?.holeTimeline.map(\.holeIndex), [0, 1])
     }
 
     // MARK: - End round: phone starts it
@@ -614,57 +620,57 @@ final class SyncFlowTests: XCTestCase {
         }.isEmpty)
     }
 
-    // MARK: - Marks
+    // MARK: - Strokes
 
-    func testMarksReachWatchAndOlderSnapshotIsIgnored() throws {
+    func testStrokesReachWatchAndOlderSnapshotIsIgnored() throws {
         let id = pair.startRound()
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 39.9, longitude: -105.0))
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9, longitude: -105.0))
         pair.phoneTransport.holdsSends = true
 
-        pair.phoneRounds.addMark(to: id, holeIndex: 0, mark: mark)
-        pair.phoneRounds.moveMark(mark, to: CLLocationCoordinate2D(latitude: 39.91, longitude: -105.0), in: id)
+        pair.phoneRounds.addStroke(to: id, holeIndex: 0, stroke: stroke)
+        pair.phoneRounds.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 39.91, longitude: -105.0), in: id)
         pair.phoneTransport.holdsSends = false
         pair.phoneTransport.releaseHeld(reversed: true)
 
         let watch = try XCTUnwrap(watchRound(id))
-        XCTAssertEqual(watch.marksVersion, 2)
-        XCTAssertEqual(watch.marks.first?.latitude, 39.91)
+        XCTAssertEqual(watch.strokesVersion, 2)
+        XCTAssertEqual(watch.strokes.first?.latitude, 39.91)
     }
 
-    func testDeleteBeforeAddCannotBringMarkBack() {
+    func testDeleteBeforeAddCannotBringStrokeBack() {
         let id = pair.startRound()
-        let mark = BallMark(coordinate: CLLocationCoordinate2D(latitude: 39.9, longitude: -105.0))
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9, longitude: -105.0))
         pair.phoneTransport.holdsSends = true
 
-        pair.phoneRounds.addMark(to: id, holeIndex: 0, mark: mark)
-        pair.phoneRounds.removeMark(mark, from: id)
+        pair.phoneRounds.addStroke(to: id, holeIndex: 0, stroke: stroke)
+        pair.phoneRounds.removeStroke(stroke, from: id)
         pair.phoneTransport.holdsSends = false
         pair.phoneTransport.releaseHeld(reversed: true)
 
-        XCTAssertEqual(watchRound(id)?.allMarks, [])
-        XCTAssertEqual(watchRound(id)?.marksVersion, 2)
+        XCTAssertEqual(watchRound(id)?.allStrokes, [])
+        XCTAssertEqual(watchRound(id)?.strokesVersion, 2)
     }
 
     func testLostSnapshotIsFixedByTheNext() {
         let id = pair.startRound()
         pair.phoneTransport.dropsSends = true
-        pair.phoneRounds.addMark(to: id, holeIndex: 0, mark: BallMark(coordinate: .init(latitude: 39.9, longitude: -105)))
-        XCTAssertEqual(watchRound(id)?.allMarks.count, 0)
+        pair.phoneRounds.addStroke(to: id, holeIndex: 0, stroke: Stroke(coordinate: .init(latitude: 39.9, longitude: -105)))
+        XCTAssertEqual(watchRound(id)?.allStrokes.count, 0)
 
         pair.phoneTransport.dropsSends = false
-        pair.phoneRounds.addMark(to: id, holeIndex: 1, mark: BallMark(coordinate: .init(latitude: 39.8, longitude: -105)))
+        pair.phoneRounds.addStroke(to: id, holeIndex: 1, stroke: Stroke(coordinate: .init(latitude: 39.8, longitude: -105)))
 
-        XCTAssertEqual(watchRound(id)?.allMarks.count, 2)
+        XCTAssertEqual(watchRound(id)?.allStrokes.count, 2)
     }
 
-    func testContextDeliversMarksWhileUnreachable() {
+    func testContextDeliversStrokesWhileUnreachable() {
         let id = pair.startRound()
         pair.setReachable(false)
-        pair.phoneRounds.addMark(to: id, holeIndex: 0, mark: BallMark(coordinate: .init(latitude: 39.9, longitude: -105)))
+        pair.phoneRounds.addStroke(to: id, holeIndex: 0, stroke: Stroke(coordinate: .init(latitude: 39.9, longitude: -105)))
 
         pair.phoneTransport.deliverContext()
 
-        XCTAssertEqual(watchRound(id)?.allMarks.count, 1)
+        XCTAssertEqual(watchRound(id)?.allStrokes.count, 1)
     }
 
     // MARK: - Hole timeline
@@ -714,5 +720,36 @@ final class SyncFlowTests: XCTestCase {
         pair.watchTransport.deliverContext()
 
         XCTAssertEqual(phoneRound(id)?.currentHoleIndex, 1)
+    }
+
+    // MARK: - Import
+
+    private func importedRound() -> (round: Round, records: [StreamRecord]) {
+        var round = Round(date: StreamFixtures.start, courseSelection: .test)
+        round.ensureHole(0)
+        let records = locations(0..<10).map { StreamRecord.fix(TrackPoint(location: $0)) } +
+            [StreamRecord.swing(StrokeSuggestion.swing(at: StreamFixtures.start.addingTimeInterval(9.5), peakG: 13))]
+        return (round, records.sorted { $0.timestamp < $1.timestamp })
+    }
+
+    func testImportedRoundStaysActiveAndGetsItsHoleStartsFromThePath() {
+        let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
+        let records = pathToSecondTee().map { StreamRecord.fix(TrackPoint(location: $0)) }
+
+        XCTAssertTrue(pair.phone.importRound(round, records: records))
+
+        XCTAssertEqual(phoneRound(round.id)?.status, .active)
+        XCTAssertEqual(pair.phoneStreams.count(for: round.id), records.count)
+        XCTAssertEqual(phoneRound(round.id)?.holeTimeline.map(\.holeIndex), [0, 1])
+    }
+
+    func testImportIsRefusedWhileAnotherRoundIsInProgress() {
+        pair.startRound()
+        let (round, records) = importedRound()
+
+        XCTAssertFalse(pair.phone.importRound(round, records: records))
+
+        XCTAssertNil(phoneRound(round.id))
+        XCTAssertFalse(pair.phoneStreams.hasStream(for: round.id))
     }
 }

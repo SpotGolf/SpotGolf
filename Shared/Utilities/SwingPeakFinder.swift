@@ -4,7 +4,8 @@ import Foundation
 /// the highest reading within `peakWindow` is its peak force, and readings within `cooldown`
 /// of the start belong to the same swing.
 struct SwingPeakFinder {
-    static let threshold: Double = 10 // g
+    /// Low enough for chips and putts. Swings while walking are dropped later by `StrokeFinder`.
+    static let threshold: Double = 3 // g
     static let peakWindow: TimeInterval = 0.5
     static let cooldown: TimeInterval = 3
 
@@ -15,21 +16,21 @@ struct SwingPeakFinder {
     }
 
     // A swing whose peak window has not closed yet
-    private var current: Swing?
+    private var current: (timestamp: Date, peakG: Float)?
     // The latest swing started, for the cooldown
     private var lastStart: Date?
 
     /// Adds a batch of readings in time order. Returns the swings whose peak window closed.
-    mutating func add(_ readings: [Reading]) -> [Swing] {
-        var found: [Swing] = []
+    mutating func add(_ readings: [Reading]) -> [StrokeSuggestion] {
+        var found: [StrokeSuggestion] = []
         for reading in readings {
             if let swing = current, reading.timestamp.timeIntervalSince(swing.timestamp) > Self.peakWindow {
-                found.append(swing)
+                found.append(.swing(at: swing.timestamp, peakG: swing.peakG))
                 current = nil
             }
             if let swing = current {
                 if reading.magnitude > Double(swing.peakG) {
-                    current = Swing(timestamp: swing.timestamp, peakG: Float(reading.magnitude))
+                    current = (swing.timestamp, Float(reading.magnitude))
                 }
                 continue
             }
@@ -37,7 +38,7 @@ struct SwingPeakFinder {
             if let lastStart, reading.timestamp.timeIntervalSince(lastStart) < Self.cooldown {
                 continue
             }
-            current = Swing(timestamp: reading.timestamp, peakG: Float(reading.magnitude))
+            current = (reading.timestamp, Float(reading.magnitude))
             lastStart = reading.timestamp
         }
         return found

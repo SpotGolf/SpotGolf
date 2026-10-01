@@ -21,8 +21,8 @@ struct Round: Identifiable, Codable, Equatable {
     /// Cancelling the resume puts it back.
     var resumedFromEnd: Date?
     var courseSelection: CourseSelection
-    /// Adds 1 on every mark change on the phone. On the watch, the version last applied.
-    var marksVersion: Int
+    /// Adds 1 on every stroke change on the phone. On the watch, the version last applied.
+    var strokesVersion: Int
     /// Watch only: the stream index of the first record in this round's stream file.
     var streamBase: Int
     /// The index of the watch's last stream record, once the watch has ended the round.
@@ -41,7 +41,7 @@ struct Round: Identifiable, Codable, Equatable {
         self.holeTimeline = [HoleStart(holeIndex: 0, startedAt: date, source: .roundStart)]
         self.status = status
         self.courseSelection = courseSelection
-        self.marksVersion = 0
+        self.strokesVersion = 0
         self.streamBase = 0
         self.endConfirmed = false
     }
@@ -130,29 +130,29 @@ struct Round: Identifiable, Codable, Equatable {
         index >= 0 && index < holes.count ? holes[index] : RoundHole()
     }
 
-    /// Marks for the current hole.
-    var marks: [BallMark] {
-        hole(at: currentHoleIndex).marks
+    /// Strokes for the current hole.
+    var strokes: [Stroke] {
+        hole(at: currentHoleIndex).strokes
     }
 
-    /// All marks across all holes.
-    var allMarks: [BallMark] {
-        holes.flatMap { $0.marks }
+    /// All strokes across all holes.
+    var allStrokes: [Stroke] {
+        holes.flatMap { $0.strokes }
     }
 
-    /// Marks for every hole, as a snapshot for the watch.
-    var marksSnapshot: MarksSnapshot {
-        MarksSnapshot(roundID: id, version: marksVersion, holes: holes.map(\.marks))
+    /// Strokes for every hole, as a snapshot for the watch.
+    var strokesSnapshot: StrokesSnapshot {
+        StrokesSnapshot(roundID: id, version: strokesVersion, holes: holes.map(\.strokes))
     }
 
-    mutating func addMark(_ mark: BallMark, toHoleIndex holeIndex: Int) {
-        guard holeIndex >= 0, !hasMark(id: mark.id) else { return }
+    mutating func addStroke(_ stroke: Stroke, toHoleIndex holeIndex: Int) {
+        guard holeIndex >= 0, !hasStroke(id: stroke.id) else { return }
         ensureHole(holeIndex)
-        holes[min(holeIndex, holes.count - 1)].marks.append(mark)
+        holes[min(holeIndex, holes.count - 1)].strokes.append(stroke)
     }
 
-    func hasMark(id: UUID) -> Bool {
-        holes.contains { $0.marks.contains { $0.id == id } }
+    func hasStroke(id: UUID) -> Bool {
+        holes.contains { $0.strokes.contains { $0.id == id } }
     }
 
     /// Makes sure `holes` reaches `index`, up to `maxHoles`.
@@ -186,7 +186,7 @@ struct Round: Identifiable, Codable, Equatable {
 
     mutating func end(at date: Date) {
         // Trim trailing empty holes
-        while holes.count > 1 && holes.last!.marks.isEmpty {
+        while holes.count > 1 && holes.last!.strokes.isEmpty {
             holes.removeLast()
         }
         status = .ended
@@ -195,10 +195,10 @@ struct Round: Identifiable, Codable, Equatable {
         }
     }
 
-    /// Find which hole contains a given mark by ID.
-    func holeIndex(containing markID: UUID) -> Int? {
+    /// Find which hole contains a given stroke by ID.
+    func holeIndex(containing strokeID: UUID) -> Int? {
         holes.firstIndex(where: { hole in
-            hole.marks.contains(where: { $0.id == markID })
+            hole.strokes.contains(where: { $0.id == strokeID })
         })
     }
 }

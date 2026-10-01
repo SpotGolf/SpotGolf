@@ -109,7 +109,7 @@ final class SyncPair {
     let phoneSync: SyncService
     let phoneRounds: RoundStore
     let phoneStreams: StreamStore
-    let phoneGuesses: GuessStore
+    let phoneSuggestions: SuggestionStore
     let phone: PhoneSync
 
     let watchTransport = FakeTransport()
@@ -134,10 +134,12 @@ final class SyncPair {
         phoneSync = SyncService(transport: phoneTransport)
         phoneRounds = RoundStore(directory: phoneDirectory)
         phoneStreams = StreamStore(directory: phoneDirectory.appendingPathComponent("streams"))
-        phoneGuesses = GuessStore(directory: phoneDirectory)
+        phoneSuggestions = SuggestionStore(directory: phoneDirectory)
         var launches: (() -> Void)?
-        phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams, guesses: phoneGuesses,
-                          startTimeout: startTimeout, retryDelay: retryDelay, launchWatchApp: { launches?() })
+        // Hole starts are worked out on every batch, so tests don't wait for the throttle
+        phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams, suggestions: phoneSuggestions,
+                          startTimeout: startTimeout, retryDelay: retryDelay, timelineFixInterval: 0,
+                          launchWatchApp: { launches?() })
 
         watchSync = SyncService(transport: watchTransport)
         watchRounds = RoundStore(directory: watchDirectory)
@@ -179,7 +181,7 @@ enum StreamFixtures {
     }
 
     static func swing(_ second: TimeInterval, peakG: Float = 12.5) -> StreamRecord {
-        .swing(Swing(timestamp: start.addingTimeInterval(second), peakG: peakG))
+        .swing(StrokeSuggestion.swing(at: start.addingTimeInterval(second), peakG: peakG))
     }
 
     /// Fixes one second apart.

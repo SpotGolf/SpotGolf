@@ -6,7 +6,7 @@ struct RoundListView: View {
     @EnvironmentObject var syncService: SyncService
     @EnvironmentObject var phoneSync: PhoneSync
     @EnvironmentObject var streamStore: StreamStore
-    @EnvironmentObject var guessStore: GuessStore
+    @EnvironmentObject var suggestionStore: SuggestionStore
     @State private var showCourseSelection = false
     @State private var showSettings = false
     @State private var roundToDelete: Round?
@@ -97,7 +97,7 @@ struct RoundListView: View {
             Button("Delete", role: .destructive) {
                 roundStore.deleteRound(round.id)
                 streamStore.delete(round.id)
-                guessStore.deleteRound(round.id)
+                suggestionStore.deleteRound(round.id)
             }
             Button("Cancel", role: .cancel) {}
         } message: { round in
@@ -185,7 +185,7 @@ private struct RoundRow: View {
                     .font(.headline)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
-                Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allMarks.count) mark\(round.allMarks.count == 1 ? "" : "s")")
+                Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allStrokes.count) stroke\(round.allStrokes.count == 1 ? "" : "s")")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

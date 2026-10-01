@@ -6,7 +6,7 @@ enum HoleStartSource: String, Codable {
     case autoAdvance    // HoleAdvancer found the tee
     case playHole       // user tapped "Play this hole"
     case estimated      // filled in for a skipped hole from the GPS track
-    case corrected      // moved by the phone to fit the marks
+    case corrected      // moved by the phone from the GPS path
     case userSet        // set by the user; the phone never moves it
 }
 

@@ -6,7 +6,7 @@ extension XCUIApplication {
         buttons["Hole \(number)"]
     }
 
-    /// Waits until the header marks `number` as the current hole.
+    /// Waits until the header strokes `number` as the current hole.
     func waitForCurrentHole(_ number: Int, timeout: TimeInterval = 5) -> Bool {
         let current = NSPredicate(format: "exists == true AND selected == true")
         let expectation = XCTNSPredicateExpectation(predicate: current, object: holeButton(number))
