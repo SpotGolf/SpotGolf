@@ -1,4 +1,5 @@
 import Foundation
+import os
 import CoreLocation
 
 @MainActor
@@ -35,12 +36,14 @@ class LocationManager: NSObject, ObservableObject {
     func startUpdating() {
         guard !isUpdating else { return }
         isUpdating = true
+        Log.location.notice("Location updates started")
         recentLocations.removeAll()
         manager.startUpdatingLocation()
     }
 
     func stopUpdating() {
         isUpdating = false
+        Log.location.notice("Location updates stopped")
         manager.stopUpdatingLocation()
     }
 }
@@ -94,11 +97,12 @@ extension LocationManager: @preconcurrency CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Location error: \(error.localizedDescription)")
+        Log.location.error("Location error: \(String(describing: error), privacy: .public)")
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        Log.location.notice("Location authorization: \(manager.authorizationStatus.rawValue, privacy: .public)")
         // A one-off fix is only needed when continuous updates are not already running
         if !isUpdating,
            manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {

@@ -1,6 +1,7 @@
 import Combine
 import CoreLocation
 import HealthKit
+import os
 import WatchKit
 
 /// Owns the services that record a round, so recording resumes as soon as the app
@@ -22,6 +23,7 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     private var swingObserver: AnyCancellable?
 
     func applicationDidFinishLaunching() {
+        Log.rounds.notice("Watch app launched")
         // UI tests pass --keep-rounds when relaunching mid-round to test recovery
         if CommandLine.arguments.contains("--ui-testing"),
            !CommandLine.arguments.contains("--keep-rounds") {
@@ -59,6 +61,7 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             .map { $0 && $1 }
             .removeDuplicates()
             .sink { [weak self] detect in
+                Log.swings.notice("Swing detection wanted: \(detect, privacy: .public)")
                 if detect {
                     self?.swingDetector.start()
                 } else {
@@ -78,11 +81,13 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
 
     /// watchOS launches the app here when the phone starts a round with `startWatchApp`.
     func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
+        Log.workout.notice("Launched by the phone to start a workout")
         startWorkoutWaitingForRound()
     }
 
     /// watchOS relaunches the app here when it quit while a workout was running.
     func handleActiveWorkoutRecovery() {
+        Log.workout.notice("Relaunched to recover a running workout")
         startWorkoutWaitingForRound()
     }
 
@@ -92,12 +97,14 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(PhoneSync.defaultStartTimeout * 4))
             guard let self, self.roundStore.activeRound == nil else { return }
+            Log.workout.notice("No round arrived after the workout launch; stopping the workout")
             self.workoutManager.stop()
         }
     }
 
     /// Records while a round is active, and stops everything once it is not.
     private func activeRoundChanged(_ isActive: Bool) {
+        Log.rounds.notice("Active round: \(isActive, privacy: .public)")
         if isActive {
             locationManager.startUpdating()
             workoutManager.start()

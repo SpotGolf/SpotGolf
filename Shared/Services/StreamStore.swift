@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Stores each round's stream from the watch: GPS fixes and swings as fixed-size records,
 /// one append-only file per round. The watch records into it; the phone stores the same
@@ -38,7 +39,15 @@ final class StreamStore: ObservableObject {
 
     /// Rounds that have a stream file.
     func roundIDs() -> [UUID] {
-        let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        let urls: [URL]
+        do {
+            urls = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        } catch CocoaError.fileReadNoSuchFile {
+            urls = []
+        } catch {
+            Log.storage.error("Could not list streams: \(String(describing: error), privacy: .public)")
+            urls = []
+        }
         return urls.compactMap { url in
             guard url.pathExtension == Self.fileExtension else { return nil }
             return UUID(uuidString: String(url.deletingPathExtension().lastPathComponent.prefix(36)))
@@ -82,7 +91,7 @@ final class StreamStore: ObservableObject {
             cache[roundID]? += StreamRecord.records(in: Data(whole))
             revision += 1
         } catch {
-            print("Failed to save stream: \(error)")
+            Log.storage.error("Could not save stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -97,7 +106,7 @@ final class StreamStore: ObservableObject {
             cache.removeValue(forKey: roundID)
             revision += 1
         } catch {
-            print("Failed to truncate stream: \(error)")
+            Log.storage.error("Could not truncate stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -113,7 +122,13 @@ final class StreamStore: ObservableObject {
     }
 
     func delete(_ roundID: UUID) {
-        try? FileManager.default.removeItem(at: fileURL(for: roundID))
+        do {
+            try FileManager.default.removeItem(at: fileURL(for: roundID))
+            Log.storage.notice("Deleted stream for round \(roundID, privacy: .public)")
+        } catch CocoaError.fileNoSuchFile {
+        } catch {
+            Log.storage.error("Could not delete stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+        }
         counts.removeValue(forKey: roundID)
         cache.removeValue(forKey: roundID)
         revision += 1
@@ -124,7 +139,14 @@ final class StreamStore: ObservableObject {
     /// Encoded records starting at position `start`, at most `maxBytes` of them.
     func data(for roundID: UUID, from start: Int, maxBytes: Int) -> Data {
         let count = count(for: roundID)
-        guard start < count, let handle = try? FileHandle(forReadingFrom: fileURL(for: roundID)) else { return Data() }
+        guard start < count else { return Data() }
+        let handle: FileHandle
+        do {
+            handle = try FileHandle(forReadingFrom: fileURL(for: roundID))
+        } catch {
+            Log.storage.error("Could not open stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            return Data()
+        }
         defer { try? handle.close() }
         let maxRecords = max(maxBytes / StreamRecord.size, 1)
         let end = min(count, start + maxRecords)
@@ -132,7 +154,7 @@ final class StreamStore: ObservableObject {
             try handle.seek(toOffset: UInt64(start * StreamRecord.size))
             return try handle.read(upToCount: (end - start) * StreamRecord.size) ?? Data()
         } catch {
-            print("Failed to read stream: \(error)")
+            Log.storage.error("Could not read stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
             return Data()
         }
     }
@@ -145,8 +167,14 @@ final class StreamStore: ObservableObject {
     }
 
     private func readRecords(for roundID: UUID) -> [StreamRecord] {
-        guard let data = try? Data(contentsOf: fileURL(for: roundID)) else { return [] }
-        return StreamRecord.records(in: data)
+        do {
+            return StreamRecord.records(in: try Data(contentsOf: fileURL(for: roundID)))
+        } catch CocoaError.fileReadNoSuchFile {
+            return []
+        } catch {
+            Log.storage.error("Could not read stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            return []
+        }
     }
 
     /// GPS fixes up to `endedAt`, when given.

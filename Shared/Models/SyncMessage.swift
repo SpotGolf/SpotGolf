@@ -99,3 +99,23 @@ struct SyncChunk: Codable, Equatable {
     let totalChunks: Int
     let data: Data
 }
+
+extension SyncMessage {
+    /// The kind of message, for logs. The whole message can be large.
+    var name: String {
+        switch self {
+        case .startRound: "startRound"
+        case .startRoundAck: "startRoundAck"
+        case .cancelRound: "cancelRound"
+        case .endRequest: "endRequest"
+        case .endRound: "endRound"
+        case .endAck: "endAck"
+        case .streamBatch: "streamBatch"
+        case .streamAck: "streamAck"
+        case .holeTimeline: "holeTimeline"
+        case .strokes: "strokes"
+        case .context: "context"
+        case .chunk: "chunk"
+        }
+    }
+}

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Turns messages into the dictionaries WatchConnectivity sends, and back.
 /// Every message is one entry, `["m": Data]`, holding the message as a binary property list.
@@ -32,7 +33,7 @@ enum SyncCodec {
         do {
             return try decode(data)
         } catch {
-            print("[Sync] Could not decode message: \(error)")
+            Log.sync.error("Could not decode message: \(String(describing: error), privacy: .public)")
             return nil
         }
     }
@@ -91,7 +92,7 @@ struct ChunkAssembler {
         do {
             return try SyncCodec.decode(data)
         } catch {
-            print("[Sync] Could not decode chunked message: \(error)")
+            Log.sync.error("Could not decode chunked message: \(String(describing: error), privacy: .public)")
             return nil
         }
     }

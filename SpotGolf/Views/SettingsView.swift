@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
@@ -97,11 +98,13 @@ private struct ImportRoundPickers: ViewModifier {
                     let export = try TrackImporter.read(String(contentsOf: url, encoding: .utf8))
                     let (round, records) = try TrackImporter.round(from: export, courseSelection: courseSelection)
                     guard phoneSync.importRound(round, records: records) else {
+                        Log.export.error("Import failed: another round is in progress")
                         message = "Import failed: another round is in progress."
                         return
                     }
                     message = "Imported \(round.displayTitle): \(export.points.count) fixes, \(export.swings.count) swings, \(export.strokes.count) strokes."
                 } catch {
+                    Log.export.error("Import failed: \(String(describing: error), privacy: .public)")
                     message = "Import failed: \(error.localizedDescription)"
                 }
             }

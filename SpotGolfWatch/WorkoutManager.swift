@@ -1,4 +1,5 @@
 import HealthKit
+import os
 
 @MainActor
 class WorkoutManager: NSObject, ObservableObject {
@@ -29,14 +30,18 @@ class WorkoutManager: NSObject, ObservableObject {
     /// mid-round. Safe to call repeatedly; also answers the system's recovery request.
     func start() {
         wantsWorkout = true
-        guard HKHealthStore.isHealthDataAvailable(),
-              session == nil, !isStarting else { return }
+        guard HKHealthStore.isHealthDataAvailable() else {
+            Log.workout.error("HealthKit not available; no workout, so no swing detection")
+            return
+        }
+        guard session == nil, !isStarting else { return }
         isStarting = true
 
         healthStore.recoverActiveWorkoutSession { [weak self] recovered, _ in
             Task { @MainActor in
                 guard let self else { return }
                 if let recovered {
+                    Log.workout.notice("Recovered running workout, state \(recovered.state.rawValue, privacy: .public)")
                     self.attach(recovered)
                     self.status = .recovered
                     self.isStarting = false
@@ -57,7 +62,7 @@ class WorkoutManager: NSObject, ObservableObject {
 
         healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] _, error in
             if let error {
-                print("WorkoutManager: authorization error – \(error)")
+                Log.workout.error("HealthKit authorization error: \(String(describing: error), privacy: .public)")
             }
             // Start session regardless of authorization — the session keeps the app
             // active even if the user denies permissions. Data just won't be saved.
@@ -78,15 +83,16 @@ class WorkoutManager: NSObject, ObservableObject {
             let session = try HKWorkoutSession(healthStore: healthStore, configuration: config)
             attach(session)
             status = .started
+            Log.workout.notice("Workout session started")
 
             session.startActivity(with: .now)
             builder?.beginCollection(withStart: .now) { _, error in
                 if let error {
-                    print("WorkoutManager: begin collection error – \(error)")
+                    Log.workout.error("Begin collection error: \(String(describing: error), privacy: .public)")
                 }
             }
         } catch {
-            print("WorkoutManager: failed to start session – \(error)")
+            Log.workout.error("Could not create workout session: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -125,13 +131,21 @@ class WorkoutManager: NSObject, ObservableObject {
                 try await builder.endCollection(at: .now)
                 try await builder.finishWorkout()
             } catch {
-                print("WorkoutManager: finish workout error – \(error)")
+                Log.workout.error("Could not save workout: \(String(describing: error), privacy: .public)")
             }
         }
         status = .ended
-        if restart, wantsWorkout, lastRestart.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
-            lastRestart = Date()
-            start()
+        Log.workout.notice("Workout session finished, restart \(restart, privacy: .public), wanted \(self.wantsWorkout, privacy: .public)")
+        if restart, wantsWorkout {
+            if lastRestart.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
+                lastRestart = Date()
+                Log.workout.notice("Restarting workout")
+                start()
+            } else {
+                Log.workout.error("Workout ended again within a minute of a restart; not restarting")
+            }
+        } else if wantsWorkout {
+            Log.workout.error("Workout failed while a round needs it; not restarting")
         }
     }
 }
@@ -141,6 +155,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                                      didChangeTo toState: HKWorkoutSessionState,
                                      from fromState: HKWorkoutSessionState,
                                      date: Date) {
+        Log.workout.notice("Workout state \(fromState.rawValue, privacy: .public) -> \(toState.rawValue, privacy: .public)")
         Task { @MainActor in
             if workoutSession === self.session {
                 self.isRunning = toState == .running
@@ -153,7 +168,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession,
                                      didFailWithError error: Error) {
-        print("WorkoutManager: session error – \(error)")
+        Log.workout.error("Workout session error: \(String(describing: error), privacy: .public)")
         // A failed session does not keep the app running, so let start() make a new one
         Task { @MainActor in
             guard workoutSession === self.session, workoutSession.state != .running else { return }

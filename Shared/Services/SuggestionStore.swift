@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Phone: the stroke suggestions the user dismissed or turned into strokes, per round.
 /// Suggestions themselves are not saved: `StrokeFinder` works them out again when a hole is
@@ -37,7 +38,7 @@ class SuggestionStore: ObservableObject {
         } catch CocoaError.fileReadNoSuchFile {
             return
         } catch {
-            print("Discarding saved suggestions: \(error)")
+            Log.storage.error("Discarding saved suggestions: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -45,7 +46,7 @@ class SuggestionStore: ObservableObject {
         do {
             try JSONEncoder().encode(hidden).write(to: fileURL, options: .atomic)
         } catch {
-            print("Failed to save suggestions: \(error)")
+            Log.storage.error("Could not save suggestions: \(String(describing: error), privacy: .public)")
         }
     }
 }

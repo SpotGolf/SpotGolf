@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// The phone's side of the messaging: starting and ending rounds with the watch, receiving
 /// the watch's stream, and keeping the timeline and strokes in step.
@@ -80,6 +81,7 @@ final class PhoneSync: ObservableObject {
     @discardableResult
     func startRound(courseSelection: CourseSelection) -> UUID {
         let round = rounds.startRound(courseSelection: courseSelection, status: .starting)
+        Log.rounds.notice("Round \(round.id, privacy: .public) starting")
         beginStart(round.id)
         return round.id
     }
@@ -106,6 +108,7 @@ final class PhoneSync: ObservableObject {
     /// A resumed round goes back to ended instead, and keeps its data.
     func cancelStart(_ roundID: UUID) {
         guard let round = rounds.round(roundID), round.status == .starting else { return }
+        Log.rounds.notice("Round \(roundID, privacy: .public) start cancelled")
         stopWaiting(roundID)
         if let endedAt = round.resumedFromEnd {
             rounds.update(roundID) { round in
@@ -143,6 +146,7 @@ final class PhoneSync: ObservableObject {
         startTimers[roundID] = Timer.scheduledTimer(withTimeInterval: startTimeout, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.startStates[roundID] == .waiting else { return }
+                Log.rounds.error("Round \(roundID, privacy: .public): watch did not confirm the start in time")
                 self.startStates[roundID] = .timedOut
             }
         }
@@ -156,7 +160,7 @@ final class PhoneSync: ObservableObject {
         do {
             course = try JSONEncoder().encode(round.courseSelection.trimmed).gzipCompressed()
         } catch {
-            print("[Sync] Could not encode course: \(error)")
+            Log.sync.error("Could not encode the course for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
             sync.syncError = "Could not send the round to the watch."
             return
         }
@@ -167,9 +171,9 @@ final class PhoneSync: ObservableObject {
             if case .startRoundAck(let ack) = reply {
                 self?.started(ack.roundID)
             }
-        }, failure: { [weak self] error in
-            // Sent again after a short wait, and when the watch becomes reachable, until the timeout
-            print("[Sync] Start round failed: \(error)")
+        }, failure: { [weak self] _ in
+            // SyncService logs the failure. Sent again after a short wait, and when the watch
+            // becomes reachable, until the timeout
             self?.retryLater(roundID)
         })
     }
@@ -197,6 +201,7 @@ final class PhoneSync: ObservableObject {
     private func started(_ roundID: UUID) {
         guard rounds.round(roundID)?.status == .starting else { return }
         stopWaiting(roundID)
+        Log.rounds.notice("Round \(roundID, privacy: .public) active: watch confirmed")
         rounds.update(roundID) { round in
             round.status = .active
             round.resumedFromEnd = nil
@@ -220,6 +225,7 @@ final class PhoneSync: ObservableObject {
         case .starting:
             cancelStart(roundID)
         case .active:
+            Log.rounds.notice("Round \(roundID, privacy: .public) ending on the phone")
             rounds.update(roundID) { round in
                 round.status = .ending
                 round.endedAt = Date()
@@ -241,6 +247,7 @@ final class PhoneSync: ObservableObject {
     /// Ends the round now, without waiting for the watch. Late records up to the end time are still kept.
     func forceEnd(_ roundID: UUID) {
         guard rounds.round(roundID)?.status == .ending else { return }
+        Log.rounds.notice("Round \(roundID, privacy: .public) force ended before the watch sent everything")
         finish(roundID)
     }
 
@@ -251,8 +258,8 @@ final class PhoneSync: ObservableObject {
             if case .endAck(let ack) = reply {
                 self?.watchEnded(ack.roundID, lastSeq: ack.lastSeq)
             }
-        }, failure: { [weak self] error in
-            print("[Sync] End request failed: \(error)")
+        }, failure: { [weak self] _ in
+            // SyncService logs the failure
             self?.retryLater(roundID)
         })
     }
@@ -281,6 +288,7 @@ final class PhoneSync: ObservableObject {
     }
 
     private func finish(_ roundID: UUID) {
+        Log.rounds.notice("Round \(roundID, privacy: .public) ended, \(self.receiver.have(for: roundID), privacy: .public) records")
         rounds.update(roundID) { $0.end(at: Date()) }
         // The timeline first: it decides which hole each swing is on
         fixTimeline(roundID)
@@ -333,7 +341,11 @@ final class PhoneSync: ObservableObject {
     }
 
     private func receiveEndRound(_ end: EndRound) {
-        guard let round = rounds.round(end.roundID) else { return }
+        guard let round = rounds.round(end.roundID) else {
+            Log.rounds.error("Watch ended unknown round \(end.roundID, privacy: .public)")
+            return
+        }
+        Log.rounds.notice("Round \(end.roundID, privacy: .public) ended on the watch")
         rounds.update(end.roundID) { round in
             if round.status == .starting || round.status == .active {
                 round.status = .ending

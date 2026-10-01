@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 struct RoundListView: View {
     @Binding var navigationPath: NavigationPath
@@ -143,7 +144,7 @@ struct RoundListView: View {
             try csv.write(to: url, atomically: true, encoding: .utf8)
             export = RoundExport(url: url)
         } catch {
-            print("Failed to write track export: \(error)")
+            Log.export.error("Could not write track export: \(String(describing: error), privacy: .public)")
         }
     }
 }

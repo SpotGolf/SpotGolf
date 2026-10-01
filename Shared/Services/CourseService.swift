@@ -1,4 +1,5 @@
 import Foundation
+import os
 import CoreLocation
 import CourseDataSwift
 
@@ -38,7 +39,11 @@ class CourseService: ObservableObject {
             let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
             self.cacheDirectory = documents.appendingPathComponent("CourseCache")
         }
-        try? fileManager.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
+        } catch {
+            Log.courses.error("Could not create the course cache: \(String(describing: error), privacy: .public)")
+        }
     }
 
     // MARK: - Index Management
@@ -71,9 +76,13 @@ class CourseService: ObservableObject {
                 }
             }
         } catch {
-            print("[CourseService] refreshIndex failed: \(error)")
-            if let cached = try? loadCachedIndex() {
-                index = cached
+            Log.courses.error("Could not refresh the course index: \(String(describing: error), privacy: .public)")
+            do {
+                if let cached = try loadCachedIndex() {
+                    index = cached
+                }
+            } catch {
+                Log.courses.error("Could not load the cached course index: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -125,6 +134,7 @@ class CourseService: ObservableObject {
             let decompressed = try data.gzipDecompressed()
             return try JSONDecoder().decode(Course.self, from: decompressed)
         } catch {
+            Log.courses.error("Could not download course \(path, privacy: .public), trying the cache: \(String(describing: error), privacy: .public)")
             if let cached = try loadCachedCourse(path: path) {
                 return cached
             }
@@ -227,7 +237,11 @@ class CourseService: ObservableObject {
         var currentSize = totalSize
         for file in files {
             guard currentSize > Self.maxCacheBytes else { break }
-            try? fileManager.removeItem(at: file.url)
+            do {
+                try fileManager.removeItem(at: file.url)
+            } catch {
+                Log.courses.error("Could not remove cached course \(file.url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
             currentSize -= file.size
         }
     }

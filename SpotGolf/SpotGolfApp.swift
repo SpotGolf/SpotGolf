@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 import HealthKit
 
 @main
@@ -13,6 +14,7 @@ struct SpotGolfApp: App {
     @StateObject private var streamStore: StreamStore
 
     init() {
+        Log.rounds.notice("Phone app launched")
         let isUITesting = CommandLine.arguments.contains("--ui-testing")
         let rounds = RoundStore()
         if isUITesting {
@@ -31,11 +33,14 @@ struct SpotGolfApp: App {
             configuration.locationType = .outdoor
             // Launching the watch app for a workout needs permission to save workouts. The
             // prompt shows only the first time.
-            healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: []) { _, _ in
+            healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: []) { _, error in
+                if let error {
+                    Log.workout.error("HealthKit authorization error: \(String(describing: error), privacy: .public)")
+                }
                 healthStore.startWatchApp(with: configuration) { success, error in
                     guard !success else { return }
                     let reason = error?.localizedDescription ?? "unknown error"
-                    print("Could not launch the watch app: \(reason)")
+                    Log.workout.error("Could not launch the watch app: \(reason, privacy: .public)")
                     Task { @MainActor in
                         // Nothing to report when the watch app is already running
                         guard !sync.isConnected else { return }

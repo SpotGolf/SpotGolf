@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 @MainActor
 class SettingsStore: ObservableObject {
@@ -16,10 +17,12 @@ class SettingsStore: ObservableObject {
     }
 
     init() {
-        if let data = try? Data(contentsOf: Self.settingsFileURL),
-           let loaded = try? JSONDecoder().decode(AppSettings.self, from: data) {
-            settings = loaded
-        } else {
+        do {
+            settings = try JSONDecoder().decode(AppSettings.self, from: Data(contentsOf: Self.settingsFileURL))
+        } catch CocoaError.fileReadNoSuchFile {
+            settings = .default
+        } catch {
+            Log.storage.error("Discarding saved settings: \(String(describing: error), privacy: .public)")
             settings = .default
         }
     }
@@ -34,7 +37,7 @@ class SettingsStore: ObservableObject {
             let data = try JSONEncoder().encode(settings)
             try data.write(to: fileURL)
         } catch {
-            print("Failed to save settings: \(error)")
+            Log.storage.error("Could not save settings: \(String(describing: error), privacy: .public)")
         }
     }
 }

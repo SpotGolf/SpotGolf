@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Phone: stores the watch's stream records in order. It only stores records that continue
 /// what it holds with no gap, and writes them before replying, so its `have` is always true.
@@ -20,12 +21,16 @@ final class StreamReceiver {
     /// Applies the rules for one batch and returns the reply.
     func receive(_ batch: StreamBatch) -> StreamAck {
         guard let round = rounds.round(batch.roundID) else {
+            Log.sync.error("Stream batch for unknown round \(batch.roundID, privacy: .public)")
             return StreamAck(roundID: batch.roundID, have: nil)
         }
         let have = have(for: round.id)
         let count = batch.records.count / StreamRecord.size
         // A gap before the batch: discard it; the reply tells the watch where to start
         guard batch.from <= have, batch.from + count > have else {
+            if batch.from > have {
+                Log.sync.notice("Stream gap for round \(round.id, privacy: .public): batch from \(batch.from, privacy: .public), have \(have, privacy: .public)")
+            }
             return StreamAck(roundID: round.id, have: have)
         }
 

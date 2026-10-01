@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 import CoreLocation
 import CourseDataSwift
 
@@ -158,6 +159,7 @@ struct CourseSelectionView: View {
                 selectedIndices = defaultIndices(for: course)
             }
         } catch {
+            Log.courses.error("Could not load course \(entry.path, privacy: .public): \(String(describing: error), privacy: .public)")
             errorMessage = "Failed to load course: \(error.localizedDescription)"
         }
         isLoading = false

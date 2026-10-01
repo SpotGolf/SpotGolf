@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// The one place messages go in and out. It encodes messages, splits large ones into chunks
 /// and joins them back, and hands every incoming message to `handler`. What to send and
@@ -42,7 +43,7 @@ final class SyncService: ObservableObject {
         do {
             payloads = try SyncCodec.payloads(for: message)
         } catch {
-            print("[Sync] Could not encode message: \(error)")
+            Log.sync.error("Could not encode \(message.name, privacy: .public): \(String(describing: error), privacy: .public)")
             failure?(error)
             return
         }
@@ -63,6 +64,12 @@ final class SyncService: ObservableObject {
                 answered = true
                 reply?(message)
             }, failure: { error in
+                // Out of range is normal, so it is not an error
+                if case SyncTransportError.unreachable = error {
+                    Log.sync.notice("Send \(message.name, privacy: .public) failed: unreachable")
+                } else {
+                    Log.sync.error("Send \(message.name, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                }
                 guard !answered else { return }
                 answered = true
                 failure?(error)
@@ -75,7 +82,7 @@ final class SyncService: ObservableObject {
         do {
             transport.queue(try SyncCodec.payload(message))
         } catch {
-            print("[Sync] Could not encode queued message: \(error)")
+            Log.sync.error("Could not encode queued \(message.name, privacy: .public): \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -84,7 +91,7 @@ final class SyncService: ObservableObject {
         do {
             transport.updateContext(try SyncCodec.payload(.context(context)))
         } catch {
-            print("[Sync] Could not encode context: \(error)")
+            Log.sync.error("Could not encode context: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -110,9 +117,13 @@ enum SyncServiceError: Error {
 extension SyncService: SyncTransportDelegate {
     func transport(didReceive payload: [String: Any]) -> [String: Any] {
         guard let message = SyncCodec.message(in: payload),
-              let reply = receive(message),
-              let response = try? SyncCodec.payload(reply) else { return [:] }
-        return response
+              let reply = receive(message) else { return [:] }
+        do {
+            return try SyncCodec.payload(reply)
+        } catch {
+            Log.sync.error("Could not encode reply \(reply.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            return [:]
+        }
     }
 
     func transport(didReceiveQueued payload: [String: Any]) {

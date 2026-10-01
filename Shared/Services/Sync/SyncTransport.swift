@@ -1,4 +1,5 @@
 import Foundation
+import os
 import WatchConnectivity
 
 /// What `SyncService` needs from WatchConnectivity. Tests use a fake that connects two services.
@@ -144,16 +145,22 @@ final class WatchConnectivityTransport: NSObject, SyncTransport {
     }
 
     func queue(_ payload: [String: Any]) {
-        guard let session, isActivated else { return }
+        guard let session, isActivated else {
+            Log.sync.error("Queued message dropped: WCSession not activated")
+            return
+        }
         session.transferUserInfo(payload)
     }
 
     func updateContext(_ payload: [String: Any]) {
-        guard let session, isActivated else { return }
+        guard let session, isActivated else {
+            Log.sync.error("Context update dropped: WCSession not activated")
+            return
+        }
         do {
             try session.updateApplicationContext(payload)
         } catch {
-            print("[Sync] Could not update application context: \(error)")
+            Log.sync.error("Could not update application context: \(String(describing: error), privacy: .public)")
         }
     }
 }
@@ -167,7 +174,9 @@ enum SyncTransportError: Error {
 extension WatchConnectivityTransport: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error {
-            print("[Sync] WCSession activation failed: \(error)")
+            Log.sync.error("WCSession activation failed: \(String(describing: error), privacy: .public)")
+        } else {
+            Log.sync.notice("WCSession activated, state \(activationState.rawValue, privacy: .public)")
         }
         Task { @MainActor in
             self.delegate?.transportReachabilityChanged()
@@ -182,6 +191,7 @@ extension WatchConnectivityTransport: WCSessionDelegate {
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
 
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
+        Log.sync.notice("WCSession deactivated; activating again")
         session.activate()
     }
 
@@ -195,6 +205,7 @@ extension WatchConnectivityTransport: WCSessionDelegate {
     }
 
     private func reachabilityChanged() {
+        Log.sync.notice("Reachable: \(self.isReachable, privacy: .public)")
         if !isReachable {
             failWaiting()
         }

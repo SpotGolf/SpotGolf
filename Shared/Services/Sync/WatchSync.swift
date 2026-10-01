@@ -1,4 +1,5 @@
 import Foundation
+import os
 import CoreLocation
 
 /// The watch's side of the messaging: taking rounds the phone starts, recording the stream
@@ -29,13 +30,19 @@ final class WatchSync: ObservableObject {
 
     /// Stores GPS fixes for the active round and sends them.
     func record(_ locations: [CLLocation]) {
-        guard let round = rounds.activeRound else { return }
+        guard let round = rounds.activeRound else {
+            Log.location.error("Dropped \(locations.count, privacy: .public) fixes: no active round")
+            return
+        }
         streams.append(locations.map { .fix(TrackPoint(location: $0)) }, roundID: round.id)
         sender.pump()
     }
 
     func record(_ swing: StrokeSuggestion) {
-        guard let round = rounds.activeRound else { return }
+        guard let round = rounds.activeRound else {
+            Log.swings.error("Dropped a swing: no active round")
+            return
+        }
         streams.append([.swing(swing)], roundID: round.id)
         sender.pump()
     }
@@ -46,6 +53,7 @@ final class WatchSync: ObservableObject {
     /// the last record so it knows when the stream is complete.
     func endRound() {
         guard let round = rounds.activeRound else { return }
+        Log.rounds.notice("Round \(round.id, privacy: .public) ended on the watch")
         end(round.id, at: Date())
         sendEndRound(round.id)
         if let end = endRoundMessage(round.id) {
@@ -85,6 +93,7 @@ final class WatchSync: ObservableObject {
         case .startRound(let start):
             return startRound(start).map { .startRoundAck($0) }
         case .cancelRound(let cancel):
+            Log.rounds.notice("Round \(cancel.roundID, privacy: .public) cancelled by the phone")
             rounds.deleteRound(cancel.roundID)
             streams.delete(cancel.roundID)
             return nil
@@ -117,9 +126,11 @@ final class WatchSync: ObservableObject {
         do {
             selection = try JSONDecoder().decode(CourseSelection.self, from: start.course.gzipDecompressed())
         } catch {
-            print("[Sync] Could not decode course: \(error)")
+            Log.sync.error("Could not decode the course for round \(start.roundID, privacy: .public): \(String(describing: error), privacy: .public)")
             return nil
         }
+
+        Log.rounds.notice("Round \(start.roundID, privacy: .public) started by the phone")
 
         // Another round still recording ends the usual way first
         if let other = rounds.activeRound, other.id != start.roundID {
@@ -158,9 +169,11 @@ final class WatchSync: ObservableObject {
     /// gives the last record so the phone knows when it has everything.
     private func endRequested(_ request: EndRequest) -> EndAck {
         guard let round = rounds.round(request.roundID) else {
+            Log.rounds.notice("End request for unknown round \(request.roundID, privacy: .public)")
             return EndAck(roundID: request.roundID, lastSeq: nil)
         }
         if round.isActive {
+            Log.rounds.notice("Round \(round.id, privacy: .public) ended by the phone")
             streams.truncate(round.id, after: request.endedAt)
             end(round.id, at: request.endedAt)
             // The request may have come through the queue, which has no reply. The queued

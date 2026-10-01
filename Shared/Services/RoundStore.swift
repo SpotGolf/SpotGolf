@@ -1,4 +1,5 @@
 import Foundation
+import os
 import CoreLocation
 import CourseDataSwift
 
@@ -207,7 +208,7 @@ class RoundStore: ObservableObject {
             return
         } catch {
             // Data saved by an older build can't be read and is thrown away
-            print("Discarding saved rounds: \(error)")
+            Log.storage.error("Discarding saved rounds: \(String(describing: error), privacy: .public)")
             rounds = []
         }
     }
@@ -217,7 +218,7 @@ class RoundStore: ObservableObject {
             let data = try JSONEncoder().encode(rounds)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            print("Failed to save rounds: \(error)")
+            Log.storage.error("Could not save rounds: \(String(describing: error), privacy: .public)")
         }
     }
 }

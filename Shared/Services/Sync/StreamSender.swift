@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Watch: sends each round's stream to the phone. One batch is in flight at a time, and the
 /// next batch starts where the phone's last reply said it is, so a lost batch or reply is
@@ -66,9 +67,8 @@ final class StreamSender {
             if case .streamAck(let ack) = reply {
                 handle(ack)
             }
-        }, failure: { [weak self] error in
-            print("[Sync] Stream batch failed: \(error)")
-            // The cursor has not moved, so the same records go again on the next try
+        }, failure: { [weak self] _ in
+            // SyncService logs the failure. The cursor has not moved, so the same records go again on the next try
             self?.isInFlight = false
         })
     }
@@ -87,6 +87,7 @@ final class StreamSender {
     func handle(_ ack: StreamAck) {
         guard let have = ack.have else {
             // The phone does not know the round
+            Log.sync.error("Phone does not know round \(ack.roundID, privacy: .public); deleting its stream")
             cursors.removeValue(forKey: ack.roundID)
             streams.delete(ack.roundID)
             pump()
@@ -116,6 +117,7 @@ final class StreamSender {
         let pending = streams.roundIDs().compactMap { id -> Round? in
             if let round = rounds.round(id) { return round }
             // A stream with no round has no base to send from
+            Log.sync.error("Stream for unknown round \(id, privacy: .public); deleting it")
             streams.delete(id)
             return nil
         }
