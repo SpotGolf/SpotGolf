@@ -5,6 +5,7 @@ import Foundation
 enum SyncMessage: Codable, Equatable {
     case startRound(StartRound)
     case startRoundAck(StartRoundAck)
+    case startRoundRefused(StartRoundRefused)
     case cancelRound(CancelRound)
     case endRequest(EndRequest)
     case endRound(EndRound)
@@ -33,6 +34,13 @@ struct StartRound: Codable, Equatable {
 
 struct StartRoundAck: Codable, Equatable {
     let roundID: UUID
+}
+
+/// Watch → phone, in place of `StartRoundAck`. The watch can't record the round until these
+/// permissions are granted.
+struct StartRoundRefused: Codable, Equatable {
+    let roundID: UUID
+    let missing: [AppPermission]
 }
 
 /// Phone → watch. The phone gave up starting the round.
@@ -106,6 +114,7 @@ extension SyncMessage {
         switch self {
         case .startRound: "startRound"
         case .startRoundAck: "startRoundAck"
+        case .startRoundRefused: "startRoundRefused"
         case .cancelRound: "cancelRound"
         case .endRequest: "endRequest"
         case .endRound: "endRound"

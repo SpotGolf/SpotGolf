@@ -86,6 +86,68 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(pair.watchAppLaunches, 2)
     }
 
+    func testWatchMissingPermissionsRefusesTheRound() {
+        pair.watch.missingPermissions = { [.motion, .health] }
+
+        let id = pair.startRound()
+
+        XCTAssertEqual(phoneRound(id)?.status, .starting)
+        XCTAssertEqual(pair.phone.startStates[id], .needsPermissions([.motion, .health]))
+        XCTAssertNil(watchRound(id))
+        XCTAssertFalse(pair.watchStreams.hasStream(for: id))
+    }
+
+    func testRetryAfterGrantingPermissionsStartsTheRound() {
+        pair.watch.missingPermissions = { [.location] }
+        let id = pair.startRound()
+        XCTAssertEqual(pair.phone.startStates[id], .needsPermissions([.location]))
+
+        // A refused round waits for the user, even when the watch comes back in range
+        pair.watch.missingPermissions = { [] }
+        pair.setReachable(false)
+        pair.setReachable(true)
+        XCTAssertEqual(phoneRound(id)?.status, .starting)
+
+        pair.phone.retryStart(id)
+
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertNil(pair.phone.startStates[id])
+    }
+
+    func testRefusedStartDoesNotTimeOut() {
+        pair.cleanUp()
+        pair = SyncPair(startTimeout: 0.05)
+        pair.watch.missingPermissions = { [.motion] }
+        let id = pair.startRound()
+
+        let waited = expectation(description: "past the start timeout")
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            waited.fulfill()
+        }
+        wait(for: [waited], timeout: 2)
+
+        XCTAssertEqual(pair.phone.startStates[id], .needsPermissions([.motion]))
+    }
+
+    func testRoundAlreadyRecordingIsConfirmedWithoutAPermissionCheck() {
+        let id = pair.startRound()
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        var checks = 0
+        pair.watch.missingPermissions = {
+            checks += 1
+            return [.motion]
+        }
+
+        // A repeat of the same start, after its confirmation was lost
+        pair.phoneRounds.update(id) { $0.status = .starting }
+        pair.phone.retryStart(id)
+
+        XCTAssertEqual(checks, 0)
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+    }
+
     func testRepeatedStartIsSafe() {
         // The watch starts the round, but its confirmation is lost
         pair.phoneTransport.dropsReplies = true

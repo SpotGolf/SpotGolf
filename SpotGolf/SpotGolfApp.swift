@@ -12,6 +12,7 @@ struct SpotGolfApp: App {
     @StateObject private var suggestionStore: SuggestionStore
     @StateObject private var settingsStore = SettingsStore()
     @StateObject private var streamStore: StreamStore
+    @StateObject private var permissions: PermissionChecker
 
     init() {
         Log.rounds.notice("Phone app launched")
@@ -31,21 +32,15 @@ struct SpotGolfApp: App {
             let configuration = HKWorkoutConfiguration()
             configuration.activityType = .golf
             configuration.locationType = .outdoor
-            // Launching the watch app for a workout needs permission to save workouts. The
-            // prompt shows only the first time.
-            healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: []) { _, error in
-                if let error {
-                    Log.workout.error("HealthKit authorization error: \(String(describing: error), privacy: .public)")
-                }
-                healthStore.startWatchApp(with: configuration) { success, error in
-                    guard !success else { return }
-                    let reason = error?.localizedDescription ?? "unknown error"
-                    Log.workout.error("Could not launch the watch app: \(reason, privacy: .public)")
-                    Task { @MainActor in
-                        // Nothing to report when the watch app is already running
-                        guard !sync.isConnected else { return }
-                        sync.syncError = "Could not open SpotGolf on the watch (\(reason)). Open it on the watch, then tap Retry."
-                    }
+            // Needs permission to save workouts, which the app has before it opens
+            healthStore.startWatchApp(with: configuration) { success, error in
+                guard !success else { return }
+                let reason = error?.localizedDescription ?? "unknown error"
+                Log.workout.error("Could not launch the watch app: \(reason, privacy: .public)")
+                Task { @MainActor in
+                    // Nothing to report when the watch app is already running
+                    guard !sync.isConnected else { return }
+                    sync.syncError = "Could not open SpotGolf on the watch (\(reason)). Open it on the watch, then tap Retry."
                 }
             }
         }
@@ -54,11 +49,16 @@ struct SpotGolfApp: App {
         _streamStore = StateObject(wrappedValue: streams)
         _suggestionStore = StateObject(wrappedValue: suggestions)
         _phoneSync = StateObject(wrappedValue: phoneSync)
+        // UI tests run on simulators, where permissions are not the point
+        _permissions = StateObject(wrappedValue: PermissionChecker(
+            source: isUITesting ? GrantedPermissionSource() : PhonePermissionSource(),
+            required: PhonePermissionSource.required))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            PhoneRootView()
+                .environmentObject(permissions)
                 .environmentObject(roundStore)
                 .environmentObject(locationManager)
                 .environmentObject(syncService)
@@ -68,11 +68,32 @@ struct SpotGolfApp: App {
                 .environmentObject(settingsStore)
                 .environmentObject(streamStore)
                 .onAppear {
-                    locationManager.requestPermission()
                     Task {
                         await courseService.refreshIndex()
                     }
                 }
+        }
+    }
+}
+
+/// The permissions screen until every required permission is granted, then the app.
+private struct PhoneRootView: View {
+    @EnvironmentObject var permissions: PermissionChecker
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Group {
+            if permissions.allGranted {
+                ContentView()
+            } else {
+                PhonePermissionsView()
+            }
+        }
+        // Permissions may have changed in Settings, or an "Allow Once" grant ran out
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                permissions.refresh()
+            }
         }
     }
 }

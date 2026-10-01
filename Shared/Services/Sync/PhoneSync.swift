@@ -18,6 +18,8 @@ final class PhoneSync: ObservableObject {
         case waiting
         /// No confirmation in time: the user can retry or cancel.
         case timedOut
+        /// The watch refused until these are granted on it: the user can retry or cancel.
+        case needsPermissions([AppPermission])
     }
 
     /// Rounds that are starting, and whether they are still waiting.
@@ -168,8 +170,10 @@ final class PhoneSync: ObservableObject {
                                holeTimeline: round.holeTimeline, strokes: round.strokesSnapshot,
                                streamBase: receiver.have(for: round.id))
         sync.send(.startRound(start), reply: { [weak self] reply in
-            if case .startRoundAck(let ack) = reply {
-                self?.started(ack.roundID)
+            switch reply {
+            case .startRoundAck(let ack): self?.started(ack.roundID)
+            case .startRoundRefused(let refused): self?.refused(refused)
+            default: break
             }
         }, failure: { [weak self] _ in
             // SyncService logs the failure. Sent again after a short wait, and when the watch
@@ -209,6 +213,14 @@ final class PhoneSync: ObservableObject {
         if let round = rounds.round(roundID) {
             snapshots.updateContext(round)
         }
+    }
+
+    /// The watch is missing permissions. The round waits for the user to retry or cancel.
+    private func refused(_ refused: StartRoundRefused) {
+        guard rounds.round(refused.roundID)?.status == .starting else { return }
+        Log.rounds.error("Round \(refused.roundID, privacy: .public): watch is missing \(refused.missing.map(\.rawValue).joined(separator: ", "), privacy: .public)")
+        startTimers.removeValue(forKey: refused.roundID)?.invalidate()
+        startStates[refused.roundID] = .needsPermissions(refused.missing)
     }
 
     private func stopWaiting(_ roundID: UUID) {
@@ -331,6 +343,9 @@ final class PhoneSync: ObservableObject {
             return nil
         case .startRoundAck(let ack):
             started(ack.roundID)
+            return nil
+        case .startRoundRefused(let refused):
+            self.refused(refused)
             return nil
         case .endAck(let ack):
             watchEnded(ack.roundID, lastSeq: ack.lastSeq)

@@ -19,6 +19,10 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
 
     let holeAdvance = WatchHoleAdvance()
 
+    /// UI tests run on simulators, which can't grant every permission
+    let permissions = PermissionChecker(source: CommandLine.arguments.contains("--ui-testing")
+                                        ? GrantedPermissionSource() : SystemPermissionSource())
+
     private var activeRoundObserver: AnyCancellable?
     private var swingObserver: AnyCancellable?
 
@@ -36,6 +40,12 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         }
 
         let sync = watchSync
+        // Rounds from the phone are refused until every permission is granted
+        let checker = permissions
+        sync.missingPermissions = {
+            checker.refresh()
+            return checker.missing
+        }
         locationManager.onRawLocations = { [weak self] locations in
             sync.record(locations)
             self?.advanceHole(locations.last)
@@ -44,7 +54,6 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         sync.sender.minBatchInterval = 5
         sync.sender.startRetryTimer()
         sync.sender.pump()
-        locationManager.requestPermission()
 
         activeRoundObserver = roundStore.$rounds
             .map { $0.first(where: \.isActive)?.id }

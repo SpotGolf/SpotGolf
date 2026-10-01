@@ -12,6 +12,9 @@ final class WatchSync: ObservableObject {
     let sender: StreamSender
     let snapshots: SnapshotSync
 
+    /// Permissions the watch needs and does not have. A new round is refused until there are none.
+    var missingPermissions: () -> [AppPermission] = { [] }
+
     init(sync: SyncService, rounds: RoundStore, streams: StreamStore) {
         self.sync = sync
         self.rounds = rounds
@@ -91,7 +94,7 @@ final class WatchSync: ObservableObject {
     private func handle(_ message: SyncMessage) -> SyncMessage? {
         switch message {
         case .startRound(let start):
-            return startRound(start).map { .startRoundAck($0) }
+            return startRound(start)
         case .cancelRound(let cancel):
             Log.rounds.notice("Round \(cancel.roundID, privacy: .public) cancelled by the phone")
             rounds.deleteRound(cancel.roundID)
@@ -115,13 +118,22 @@ final class WatchSync: ObservableObject {
         case .context(let context):
             snapshots.apply(context)
             return nil
-        case .startRoundAck, .endRound, .streamBatch, .chunk:
+        case .startRoundAck, .startRoundRefused, .endRound, .streamBatch, .chunk:
             return nil
         }
     }
 
-    /// Takes the round the phone started. A repeat of the same start just confirms again.
-    private func startRound(_ start: StartRound) -> StartRoundAck? {
+    /// Takes the round the phone started, or refuses it while permissions are missing. A
+    /// repeat of the same start for a round already recording just confirms again.
+    private func startRound(_ start: StartRound) -> SyncMessage? {
+        if rounds.round(start.roundID)?.isActive != true {
+            let missing = missingPermissions()
+            guard missing.isEmpty else {
+                Log.rounds.error("Round \(start.roundID, privacy: .public) refused: missing \(missing.map(\.rawValue).joined(separator: ", "), privacy: .public)")
+                return .startRoundRefused(StartRoundRefused(roundID: start.roundID, missing: missing))
+            }
+        }
+
         let selection: CourseSelection
         do {
             selection = try JSONDecoder().decode(CourseSelection.self, from: start.course.gzipDecompressed())
@@ -162,7 +174,7 @@ final class WatchSync: ObservableObject {
         }
         rounds.applyStrokes(start.strokes)
         sender.pump()
-        return StartRoundAck(roundID: start.roundID)
+        return .startRoundAck(StartRoundAck(roundID: start.roundID))
     }
 
     /// The phone ended the round. Records after its end time are dropped, and the reply

@@ -26,10 +26,6 @@ class LocationManager: NSObject, ObservableObject {
         #endif
     }
 
-    func requestPermission() {
-        manager.requestWhenInUseAuthorization()
-    }
-
     private(set) var isUpdating = false
 
     /// Safe to call again while updating; the running updates are left alone.

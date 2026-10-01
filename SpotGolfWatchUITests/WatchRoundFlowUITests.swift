@@ -16,7 +16,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
         let locations = LocationTestHelper.loadTestLocations()
         XCTAssertGreaterThanOrEqual(locations.count, 2, "Need at least 2 test locations")
-
+ 
         // An alert left open by an earlier run outlives the app and would swallow the first tap
         dismissHealthAccessAlerts()
 

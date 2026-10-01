@@ -28,6 +28,8 @@
 	<string>SpotGolf needs your location to record where you hit the ball on the course.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SpotGolf needs your location to record where you hit the ball on the course.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>SpotGolf uses wrist motion on your Apple Watch to detect your swings.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

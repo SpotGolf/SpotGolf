@@ -14,6 +14,12 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: payload), message)
     }
 
+    func testStartRoundRefusedRoundTrips() throws {
+        let message = SyncMessage.startRoundRefused(StartRoundRefused(roundID: roundID, missing: [.location, .health]))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+    }
+
     func testStreamRecordsAreStoredAsRawBytes() throws {
         let records = StreamRecord.data(for: StreamFixtures.fixes(0..<1_000))
         let message = SyncMessage.streamBatch(StreamBatch(roundID: roundID, from: 0, records: records))

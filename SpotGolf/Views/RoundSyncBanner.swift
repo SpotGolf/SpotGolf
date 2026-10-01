@@ -1,15 +1,31 @@
 import SwiftUI
 
-/// Shows a round that is waiting on the watch: starting (with Retry and Cancel) or ending
-/// (with Force end). Shows nothing for an active or ended round.
+/// Shows a round that is waiting on the watch: starting (with Retry and Cancel after a timeout
+/// or a refusal for missing permissions) or ending (with Force end). Shows nothing for an
+/// active or ended round.
 struct RoundSyncBanner: View {
     let round: Round
     @EnvironmentObject var phoneSync: PhoneSync
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         switch round.status {
         case .starting:
-            if phoneSync.startStates[round.id] == .timedOut {
+            if case .needsPermissions(let missing) = phoneSync.startStates[round.id] {
+                // The watch shares the phone's permissions, so they are changed in Settings here
+                banner("The watch is missing \(missing.map(\.title).formatted(.list(type: .and))) permission.") {
+                    Button("Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            openURL(url)
+                        }
+                    }
+                    .accessibilityIdentifier("OpenSettings")
+                    Button("Retry") { phoneSync.retryStart(round.id) }
+                        .accessibilityIdentifier("RetryStart")
+                    Button("Cancel", role: .destructive) { phoneSync.cancelStart(round.id) }
+                        .accessibilityIdentifier("CancelStart")
+                }
+            } else if phoneSync.startStates[round.id] == .timedOut {
                 banner("The watch did not respond.") {
                     Button("Retry") { phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")

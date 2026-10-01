@@ -47,31 +47,17 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.isStarting = false
                     self.endIfUnwanted()
                 } else {
-                    self.requestAuthorizationAndBegin()
+                    self.begin()
                 }
             }
         }
     }
 
-    private func requestAuthorizationAndBegin() {
-        let typesToShare: Set<HKSampleType> = [HKObjectType.workoutType()]
-        let typesToRead: Set<HKObjectType> = [
-            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
-            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
-        ]
-
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] _, error in
-            if let error {
-                Log.workout.error("HealthKit authorization error: \(String(describing: error), privacy: .public)")
-            }
-            // Start session regardless of authorization — the session keeps the app
-            // active even if the user denies permissions. Data just won't be saved.
-            Task { @MainActor in
-                self?.beginSession()
-                self?.isStarting = false
-                self?.endIfUnwanted()
-            }
-        }
+    /// `PermissionChecker` has already asked for HealthKit, since rounds wait for it.
+    private func begin() {
+        beginSession()
+        isStarting = false
+        endIfUnwanted()
     }
 
     private func beginSession() {

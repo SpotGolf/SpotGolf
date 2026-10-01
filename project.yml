@@ -69,6 +69,8 @@ targets:
         NSHealthShareUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
         NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
+        # Asked for on the phone; the watch app's swing detection uses the same permission
+        NSMotionUsageDescription: "SpotGolf uses wrist motion on your Apple Watch to detect your swings."
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
