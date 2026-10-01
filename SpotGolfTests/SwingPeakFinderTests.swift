@@ -46,4 +46,18 @@ final class SwingPeakFinderTests: XCTestCase {
 
         XCTAssertEqual(swings.map(\.timestamp), [start.addingTimeInterval(1.0), start.addingTimeInterval(4.5)])
     }
+
+    func testFlushReturnsASwingWhosePeakWindowIsOpen() {
+        var finder = SwingPeakFinder()
+        XCTAssertTrue(finder.add(readings([(1.0, 11), (1.1, 14)])).isEmpty)
+
+        XCTAssertEqual(finder.flush(), StrokeSuggestion.swing(at: start.addingTimeInterval(1.0), peakG: 14))
+        XCTAssertNil(finder.flush())
+    }
+
+    func testFlushWithNoSwingReturnsNil() {
+        var finder = SwingPeakFinder()
+        _ = finder.add(readings([(0, 1), (1.0, 11), (2.0, 1)]))
+        XCTAssertNil(finder.flush())
+    }
 }

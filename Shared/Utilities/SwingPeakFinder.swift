@@ -43,4 +43,12 @@ struct SwingPeakFinder {
         }
         return found
     }
+
+    /// Returns the swing whose peak window has not closed yet, if any, with the highest force
+    /// so far. Used when readings stop, so that swing is not lost.
+    mutating func flush() -> StrokeSuggestion? {
+        guard let swing = current else { return nil }
+        current = nil
+        return .swing(at: swing.timestamp, peakG: swing.peakG)
+    }
 }

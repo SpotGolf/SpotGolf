@@ -24,7 +24,13 @@ class WorkoutManager: NSObject, ObservableObject {
     // What the app last asked for. A session that finishes starting after stop(), or ends
     // after start(), is brought back in line with it.
     private var wantsWorkout = false
-    private var lastRestart: Date?
+
+    // Restarts a workout that ended, failed, or never ran while a round needs it
+    private var watchdog = RestartWatchdog(startedAt: Date(), checksData: false)
+    private var watchdogTimer: Timer?
+    // watchOS refuses a new workout while another app's workout runs, or while this app
+    // is in the background, so retries wait until the app is on screen
+    private var waitsForForeground = false
 
     /// Starts a golf workout, or takes over the one left running if the app quit
     /// mid-round. Safe to call repeatedly; also answers the system's recovery request.
@@ -34,10 +40,15 @@ class WorkoutManager: NSObject, ObservableObject {
             Log.workout.error("HealthKit not available; no workout, so no swing detection")
             return
         }
+        startWatchdog()
         guard session == nil, !isStarting else { return }
         isStarting = true
+        watchdog.started(at: Date())
 
-        healthStore.recoverActiveWorkoutSession { [weak self] recovered, _ in
+        healthStore.recoverActiveWorkoutSession { [weak self] recovered, error in
+            if let error {
+                Log.workout.error("Could not recover a running workout; starting a new one: \(String(describing: error), privacy: .public)")
+            }
             Task { @MainActor in
                 guard let self else { return }
                 if let recovered {
@@ -79,6 +90,9 @@ class WorkoutManager: NSObject, ObservableObject {
             }
         } catch {
             Log.workout.error("Could not create workout session: \(String(describing: error), privacy: .public)")
+            if Self.needsForeground(error) {
+                waitForForeground()
+            }
         }
     }
 
@@ -96,7 +110,64 @@ class WorkoutManager: NSObject, ObservableObject {
 
     func stop() {
         wantsWorkout = false
+        watchdogTimer?.invalidate()
+        watchdogTimer = nil
         endIfUnwanted()
+    }
+
+    /// watchOS allows a new workout once the app is on screen.
+    func appBecameActive() {
+        guard waitsForForeground else { return }
+        waitsForForeground = false
+        guard wantsWorkout, !isRunning, !isStarting else { return }
+        Log.workout.notice("App on screen; restarting the workout")
+        restart()
+    }
+
+    private func startWatchdog() {
+        guard watchdogTimer == nil else { return }
+        watchdogTimer = Timer.scheduledTimer(withTimeInterval: RestartWatchdog.interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkWorkout() }
+        }
+    }
+
+    private func checkWorkout() {
+        guard wantsWorkout, !waitsForForeground, !isStarting,
+              watchdog.shouldRestart(at: Date(), isActive: isRunning) else { return }
+        Log.workout.error("Workout not running while a round needs it (state \(self.session.map { String($0.state.rawValue) } ?? "none", privacy: .public)); restarting")
+        restart()
+    }
+
+    /// Starts a new workout, or gets a session that is not running to run.
+    private func restart() {
+        guard let session else {
+            start()
+            return
+        }
+        watchdog.started(at: Date())
+        switch session.state {
+        case .notStarted, .prepared:
+            Log.workout.notice("Starting the activity of a workout that never ran")
+            session.startActivity(with: .now)
+        case .paused:
+            Log.workout.notice("Resuming a paused workout")
+            session.resume()
+        default:
+            // Running, or ending; the delegate clears an ended session
+            Log.workout.error("Cannot restart a workout in state \(session.state.rawValue, privacy: .public); waiting for it to end")
+        }
+    }
+
+    private func waitForForeground() {
+        guard !waitsForForeground else { return }
+        waitsForForeground = true
+        Log.workout.error("watchOS refuses a new workout for now; retrying when the app is on screen")
+    }
+
+    /// The errors for which watchOS refuses a new workout until the app is on screen.
+    private static func needsForeground(_ error: Error) -> Bool {
+        guard let code = (error as? HKError)?.code else { return false }
+        return code == .errorAnotherWorkoutSessionStarted || code == .errorBackgroundWorkoutSessionNotAllowed
     }
 
     private func endIfUnwanted() {
@@ -104,9 +175,10 @@ class WorkoutManager: NSObject, ObservableObject {
         session.end()
     }
 
-    /// Clears a session that ended or failed. After an end, starts again if a workout is
-    /// still wanted (a round started while the last one was ending), at most once a minute.
-    private func sessionFinished(_ finished: HKWorkoutSession, restart: Bool) async {
+    /// Clears a session that ended or failed. If a round still needs a workout, the watchdog
+    /// starts a new one; it does not start here, because a failure's error can arrive after
+    /// the end and say that watchOS refuses a new workout for now.
+    private func sessionFinished(_ finished: HKWorkoutSession) async {
         guard finished === session else { return }
         let builder = self.builder
         session = nil
@@ -121,18 +193,7 @@ class WorkoutManager: NSObject, ObservableObject {
             }
         }
         status = .ended
-        Log.workout.notice("Workout session finished, restart \(restart, privacy: .public), wanted \(self.wantsWorkout, privacy: .public)")
-        if restart, wantsWorkout {
-            if lastRestart.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
-                lastRestart = Date()
-                Log.workout.notice("Restarting workout")
-                start()
-            } else {
-                Log.workout.error("Workout ended again within a minute of a restart; not restarting")
-            }
-        } else if wantsWorkout {
-            Log.workout.error("Workout failed while a round needs it; not restarting")
-        }
+        Log.workout.notice("Workout session finished, wanted \(self.wantsWorkout, privacy: .public)")
     }
 }
 
@@ -147,7 +208,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 self.isRunning = toState == .running
             }
             if toState == .ended {
-                await self.sessionFinished(workoutSession, restart: true)
+                await self.sessionFinished(workoutSession)
             }
         }
     }
@@ -157,8 +218,11 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
         Log.workout.error("Workout session error: \(String(describing: error), privacy: .public)")
         // A failed session does not keep the app running, so let start() make a new one
         Task { @MainActor in
+            if Self.needsForeground(error) {
+                self.waitForForeground()
+            }
             guard workoutSession === self.session, workoutSession.state != .running else { return }
-            await self.sessionFinished(workoutSession, restart: false)
+            await self.sessionFinished(workoutSession)
         }
     }
 }

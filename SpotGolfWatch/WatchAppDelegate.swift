@@ -79,6 +79,10 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             }
     }
 
+    func applicationDidBecomeActive() {
+        workoutManager.appBecameActive()
+    }
+
     /// Runs here rather than in a view, so it works while watchOS runs the app in the
     /// background and no view is on screen.
     private func advanceHole(_ location: CLLocation?) {
