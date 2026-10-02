@@ -30,6 +30,12 @@ struct SettingsView: View {
                 #if DEBUG
                 ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
                 #endif
+                Section {
+                    LabeledContent("Version", value: AppVersion.text())
+                        .accessibilityIdentifier("AppVersion")
+                } header: {
+                    Text("About")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

@@ -5,6 +5,11 @@ options:
     iOS: "17.0"
     watchOS: "10.0"
   xcodeVersion: "16.0"
+settings:
+  base:
+    # The app's version, shared by the phone app, the watch app, and the Live Activity.
+    # SemVer; see Versioning in CLAUDE.md before changing it.
+    MARKETING_VERSION: 0.1.0
 fileGroups:
   - CLAUDE.md
   - README.md
@@ -65,8 +70,9 @@ targets:
       path: SpotGolf/Info.plist
       properties:
         CFBundleDisplayName: SpotGolf
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        # iOS needs a bundle version, so it is the same SemVer version
+        CFBundleVersion: $(MARKETING_VERSION)
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
         NSHealthShareUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
@@ -105,8 +111,9 @@ targets:
       path: SpotGolfLiveActivity/Info.plist
       properties:
         CFBundleDisplayName: SpotGolf
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        # iOS needs a bundle version, so it is the same SemVer version
+        CFBundleVersion: $(MARKETING_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -130,8 +137,9 @@ targets:
       path: SpotGolfWatch/Info.plist
       properties:
         CFBundleDisplayName: SpotGolf
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        # iOS needs a bundle version, so it is the same SemVer version
+        CFBundleVersion: $(MARKETING_VERSION)
         NSHealthShareUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
