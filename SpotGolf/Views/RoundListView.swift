@@ -64,17 +64,19 @@ struct RoundListView: View {
         .navigationTitle("SpotGolf")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                HStack(spacing: 12) {
-                    Image(systemName: syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
-                        .foregroundStyle(syncService.isConnected ? .green : .secondary)
-                        .imageScale(.small)
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .imageScale(.small)
-                    }
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
                 }
+                .accessibilityLabel("Settings")
+            }
+            if #available(iOS 26.0, *) {
+                // A status, not a button, so it has no glass background of its own
+                watchStatusItem
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                watchStatusItem
             }
             ToolbarItem(placement: .primaryAction) {
                 if let current = roundStore.currentRound {
@@ -129,6 +131,15 @@ struct RoundListView: View {
     /// The watch records all GPS, so a round needs a paired watch with the app installed.
     /// It does not need to be reachable: starting a round launches the watch app.
     /// UI tests run without a paired watch, so they are exempt.
+
+    /// Whether the watch is connected.
+    private var watchStatusItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Image(systemName: syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
+                .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                .accessibilityLabel(syncService.isConnected ? "Watch connected" : "Watch not connected")
+        }
+    }
     private var canStartRound: Bool {
         CommandLine.arguments.contains("--ui-testing") || syncService.hasCounterpart
     }
