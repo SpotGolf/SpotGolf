@@ -27,9 +27,12 @@ class LocationManager: NSObject, ObservableObject {
     }
 
     private(set) var isUpdating = false
+    // Who wants updates. They stop when the last one is done.
+    private var owners: Set<String> = []
 
     /// Safe to call again while updating; the running updates are left alone.
-    func startUpdating() {
+    func startUpdating(for owner: String = "app") {
+        owners.insert(owner)
         guard !isUpdating else { return }
         isUpdating = true
         Log.location.notice("Location updates started")
@@ -37,11 +40,22 @@ class LocationManager: NSObject, ObservableObject {
         manager.startUpdatingLocation()
     }
 
-    func stopUpdating() {
+    /// Stops the updates once no other owner wants them.
+    func stopUpdating(for owner: String = "app") {
+        owners.remove(owner)
+        guard owners.isEmpty, isUpdating else { return }
         isUpdating = false
         Log.location.notice("Location updates stopped")
         manager.stopUpdatingLocation()
     }
+
+    #if os(iOS)
+    /// Keeps fixes coming with the app in the background. Needs the location background mode.
+    func setUpdatesInBackground(_ enabled: Bool) {
+        manager.allowsBackgroundLocationUpdates = enabled
+        manager.showsBackgroundLocationIndicator = enabled
+    }
+    #endif
 }
 
 extension LocationManager: @preconcurrency CLLocationManagerDelegate {

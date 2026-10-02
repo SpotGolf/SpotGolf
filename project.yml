@@ -43,6 +43,7 @@ targets:
     sources:
       - path: SpotGolf
       - path: Shared
+      - path: LiveActivity
     settings:
       base:
         INFOPLIST_FILE: SpotGolf/Info.plist
@@ -51,6 +52,7 @@ targets:
         DEVELOPMENT_TEAM: 5CRT56YETR
     dependencies:
       - target: SpotGolfWatch
+      - target: SpotGolfLiveActivity
       - package: CourseDataSwift
       - sdk: HealthKit.framework
     entitlements:
@@ -71,6 +73,11 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
         # Asked for on the phone; the watch app's swing detection uses the same permission
         NSMotionUsageDescription: "SpotGolf uses wrist motion on your Apple Watch to detect your swings."
+        # Shows the current hole on the Lock Screen during a round
+        NSSupportsLiveActivities: true
+        # Keeps the yards and hole changes going with the phone locked during a round
+        UIBackgroundModes:
+          - location
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -78,6 +85,30 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
         UILaunchScreen:
           UIColorName: ""
+
+  SpotGolfLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SpotGolfLiveActivity
+      - path: LiveActivity
+    settings:
+      base:
+        INFOPLIST_FILE: SpotGolfLiveActivity/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf.LiveActivity
+        SWIFT_VERSION: "5.9"
+        DEVELOPMENT_TEAM: 5CRT56YETR
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    info:
+      path: SpotGolfLiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: SpotGolf
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
   SpotGolfWatch:
     type: application

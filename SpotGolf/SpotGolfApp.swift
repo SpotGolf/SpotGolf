@@ -5,7 +5,8 @@ import HealthKit
 @main
 struct SpotGolfApp: App {
     @StateObject private var roundStore: RoundStore
-    @StateObject private var locationManager = LocationManager()
+    @StateObject private var locationManager: LocationManager
+    @StateObject private var roundTracker: RoundTracker
     @StateObject private var syncService: SyncService
     @StateObject private var phoneSync: PhoneSync
     @StateObject private var courseService = CourseService()
@@ -21,6 +22,7 @@ struct SpotGolfApp: App {
         if isUITesting {
             rounds.rounds = []
         }
+        let location = LocationManager()
         let sync = SyncService()
         let streams = StreamStore()
         let suggestions = SuggestionStore()
@@ -45,6 +47,9 @@ struct SpotGolfApp: App {
             }
         }
         _roundStore = StateObject(wrappedValue: rounds)
+        _locationManager = StateObject(wrappedValue: location)
+        _roundTracker = StateObject(wrappedValue: RoundTracker(rounds: rounds, location: location,
+                                                               showsActivity: !isUITesting))
         _syncService = StateObject(wrappedValue: sync)
         _streamStore = StateObject(wrappedValue: streams)
         _suggestionStore = StateObject(wrappedValue: suggestions)
@@ -61,6 +66,7 @@ struct SpotGolfApp: App {
                 .environmentObject(permissions)
                 .environmentObject(roundStore)
                 .environmentObject(locationManager)
+                .environmentObject(roundTracker)
                 .environmentObject(syncService)
                 .environmentObject(phoneSync)
                 .environmentObject(courseService)

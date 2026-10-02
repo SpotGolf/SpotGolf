@@ -11,6 +11,7 @@ struct RoundMapView: View {
     @EnvironmentObject var suggestionStore: SuggestionStore
     @EnvironmentObject var streamStore: StreamStore
     @EnvironmentObject var settingsStore: SettingsStore
+    @EnvironmentObject var roundTracker: RoundTracker
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {
@@ -24,11 +25,9 @@ struct RoundMapView: View {
     @State private var draggingStroke: Stroke?
     @State private var dragOffset: CGSize = .zero
     @State private var newSpotIndex: Int = 0
-    @State private var holeAdvancer = HoleAdvancer()
     /// A hole the user picked to look at. Nil while the view follows the round's current hole.
     @State private var viewingHoleIndex: Int?
     @State private var hasInitialPan = false
-    @State private var pendingPanToHole = false
     @State private var isEditing = false
     /// The whole round's GPS, and the part of it on the hole shown.
     @State private var roundTrack: [TrackPoint] = []
@@ -54,6 +53,8 @@ struct RoundMapView: View {
         }
         .onDisappear {
             locationManager.stopUpdating()
+            // The hole picked here is forgotten, so the round goes back to changing holes itself
+            roundTracker.resumeAdvance()
         }
         .onReceive(locationManager.$lastLocation) { location in
             if !hasInitialPan, location != nil, round != nil {
@@ -66,25 +67,15 @@ struct RoundMapView: View {
                     position = .region(MKCoordinateRegion(center: location.coordinate, span: Self.defaultSpan))
                 }
             }
-            if let round, round.isActive, !holeAdvancer.isPaused, let location {
-                if let detected = holeAdvancer.advance(location: location, courseSelection: round.courseSelection, currentHoleIndex: round.currentHoleIndex) {
-                    roundStore.startHole(detected, roundID: round.id, source: .autoAdvance)
-                    pendingPanToHole = true
-                }
-            }
         }
         .onChange(of: roundStore.rounds) {
             if round == nil {
                 dismiss()
             }
-            if pendingPanToHole {
-                pendingPanToHole = false
-                panToHole()
-            }
             refreshSuggestions()
         }
         .onChange(of: round.map(shownHoleIndex)) {
-            // Also covers a hole chosen on the watch
+            // Also covers a hole chosen on the watch, and RoundTracker moving to the next hole
             isEditing = false
             panToHole()
             reloadTrack()
@@ -395,14 +386,7 @@ struct RoundMapView: View {
     /// The round's total strokes, and how they compare to par on the finished holes.
     private func scoreBox(_ round: Round) -> some View {
         let total = round.allStrokes.count
-        // Every played hole of a past round is finished
-        let finished = round.holes.indices.filter {
-            (!round.isActive || $0 != round.currentHoleIndex) && !round.holes[$0].strokes.isEmpty
-        }
-        let pars = finished.compactMap { round.courseHole(at: $0)?.par }
-        let toPar: String? = pars.count == finished.count && !finished.isEmpty
-            ? Self.toParText(finished.reduce(0) { $0 + round.holes[$1].strokeCount } - pars.reduce(0, +))
-            : nil
+        let toPar = HoleOverview.toPar(round).map(HoleOverview.toParText)
         return VStack(spacing: 0) {
             Text("\(total)")
                 .font(.headline)
@@ -421,11 +405,6 @@ struct RoundMapView: View {
         .accessibilityLabel("Score")
         .accessibilityValue(toPar.map { "\(total), \($0)" } ?? "\(total)")
         .accessibilityIdentifier("ScoreBox")
-    }
-
-    /// "E", "+2", or "-1".
-    private static func toParText(_ diff: Int) -> String {
-        diff == 0 ? "E" : diff > 0 ? "+\(diff)" : "\(diff)"
     }
 
     private func holeCircle(_ index: Int, _ round: Round) -> some View {
@@ -467,7 +446,7 @@ struct RoundMapView: View {
                 resumeRound()
             }
         } else {
-            holeAdvancer.pause()
+            roundTracker.pauseAdvance()
             viewingHoleIndex = index
         }
     }
@@ -475,7 +454,7 @@ struct RoundMapView: View {
     /// Goes back to the round's current hole and resumes automatic hole changes.
     private func resumeRound() {
         viewingHoleIndex = nil
-        holeAdvancer.resume()
+        roundTracker.resumeAdvance()
     }
 
     /// Makes the shown hole the round's current hole and resumes automatic hole changes.
@@ -499,10 +478,7 @@ struct RoundMapView: View {
     // MARK: - Key information
 
     private func yardsToGreenCenter(_ round: Round) -> Int? {
-        guard let courseHole = round.courseHole(at: shownHoleIndex(round)),
-              let green = courseHole.green(from: round.course.features),
-              let location = locationManager.lastLocation else { return nil }
-        return Int(DistanceCalculator.yards(from: location, to: green.center.clLocation))
+        HoleOverview.yardsToGreenCenter(round, holeIndex: shownHoleIndex(round), from: locationManager.lastLocation)
     }
 
     /// Feet up (+) or down (-) from the player to the center of the green.

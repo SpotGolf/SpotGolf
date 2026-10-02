@@ -1,0 +1,88 @@
+import XCTest
+import CoreLocation
+import CourseDataSwift
+@testable import SpotGolf
+
+final class HoleOverviewTests: XCTestCase {
+
+    private func strokes(_ count: Int) -> [Stroke] {
+        (0..<count).map { _ in Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.0, longitude: -105.0)) }
+    }
+
+    func testToParIsNilWithNoFinishedHoles() {
+        var round = Round(courseSelection: .test)
+        round.holes = [RoundHole(strokes: strokes(3))]
+
+        // The only played hole is the current one
+        XCTAssertNil(HoleOverview.toPar(round))
+    }
+
+    func testToParLeavesOutTheCurrentHoleOfAnActiveRound() {
+        var round = Round(courseSelection: .test)
+        round.holes = [RoundHole(strokes: strokes(5)), RoundHole(strokes: strokes(3)), RoundHole(strokes: strokes(2))]
+        round.holeTimeline.append(HoleStart(holeIndex: 2, startedAt: Date(), source: .autoAdvance))
+
+        // 5 + 3 on two par 4s
+        XCTAssertEqual(HoleOverview.toPar(round), 0)
+    }
+
+    func testToParCountsEveryPlayedHoleOfAnEndedRound() {
+        var round = Round(holes: [RoundHole(strokes: strokes(5)), RoundHole(strokes: strokes(6))],
+                          status: .ended, courseSelection: .test)
+        round.holeTimeline.append(HoleStart(holeIndex: 1, startedAt: Date(), source: .autoAdvance))
+
+        XCTAssertEqual(HoleOverview.toPar(round), 3)
+    }
+
+    func testToParText() {
+        XCTAssertEqual(HoleOverview.toParText(0), "E")
+        XCTAssertEqual(HoleOverview.toParText(2), "+2")
+        XCTAssertEqual(HoleOverview.toParText(-1), "-1")
+    }
+
+    func testYardsToGreenCenter() {
+        let round = Round(courseSelection: PathCourse.selection)
+        // Hole 1's green is 300 m north of its tee
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+        let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
+
+        let yards = HoleOverview.yardsToGreenCenter(round, holeIndex: 0, from: location)
+
+        XCTAssertEqual(Double(yards ?? 0), 300 * 1.09361, accuracy: 2)
+    }
+
+    func testYardsToGreenCenterIsNilWithoutALocationOrGreen() {
+        let pathRound = Round(courseSelection: PathCourse.selection)
+        XCTAssertNil(HoleOverview.yardsToGreenCenter(pathRound, holeIndex: 0, from: nil))
+
+        let noGreens = Round(courseSelection: .test)
+        let location = CLLocation(latitude: 39.0, longitude: -105.0)
+        XCTAssertNil(HoleOverview.yardsToGreenCenter(noGreens, holeIndex: 0, from: location))
+    }
+
+    func testPreviousYardsIsFromTheLocationToTheLastStroke() {
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+        let ball = PathCourse.coordinate(north: 100, east: 0)
+        let strokes = [Stroke(coordinate: CLLocationCoordinate2D(latitude: tee.latitude, longitude: tee.longitude))]
+        let location = CLLocation(latitude: ball.latitude, longitude: ball.longitude)
+
+        let yards = HoleOverview.previousYards(strokes: strokes, from: location)
+
+        XCTAssertEqual(Double(yards), 100 * 1.09361, accuracy: 2)
+    }
+
+    func testPreviousYardsWithoutALocationIsBetweenTheLastTwoStrokes() {
+        let points = [PathCourse.coordinate(north: 0, east: 0), PathCourse.coordinate(north: 50, east: 0),
+                      PathCourse.coordinate(north: 200, east: 0)]
+        let strokes = points.map { Stroke(coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) }
+
+        let yards = HoleOverview.previousYards(strokes: strokes, from: nil)
+
+        XCTAssertEqual(Double(yards), 150 * 1.09361, accuracy: 2)
+    }
+
+    func testPreviousYardsIsZeroWithoutEnoughStrokes() {
+        XCTAssertEqual(HoleOverview.previousYards(strokes: [], from: CLLocation(latitude: 40, longitude: -105)), 0)
+        XCTAssertEqual(HoleOverview.previousYards(strokes: strokes(1), from: nil), 0)
+    }
+}
