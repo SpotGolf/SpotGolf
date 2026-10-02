@@ -18,6 +18,7 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     private(set) lazy var watchSync = WatchSync(sync: syncService, rounds: roundStore, streams: streamStore)
 
     let holeAdvance = WatchHoleAdvance()
+    private var holeAdvancer = HoleAdvancer()
 
     /// UI tests run on simulators, which can't grant every permission
     let permissions = PermissionChecker(source: CommandLine.arguments.contains("--ui-testing")
@@ -48,7 +49,10 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         }
         locationManager.onRawLocations = { [weak self] locations in
             sync.record(locations)
-            self?.advanceHole(locations.last)
+            // Every fix, so leaving the green is seen over its whole time window
+            for location in locations {
+                self?.advanceHole(location)
+            }
         }
         swingDetector.onSwing = { sync.record($0) }
         sync.sender.minBatchInterval = 5
@@ -85,10 +89,10 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
 
     /// Runs here rather than in a view, so it works while watchOS runs the app in the
     /// background and no view is on screen.
-    private func advanceHole(_ location: CLLocation?) {
-        guard let location, let round = roundStore.activeRound, !holeAdvance.isPaused,
-              let detected = HoleAdvancer.detectHole(location: location, courseSelection: round.courseSelection,
-                                                     currentHoleIndex: round.currentHoleIndex) else { return }
+    private func advanceHole(_ location: CLLocation) {
+        guard let round = roundStore.activeRound, !holeAdvance.isPaused,
+              let detected = holeAdvancer.advance(location: location, courseSelection: round.courseSelection,
+                                                  currentHoleIndex: round.currentHoleIndex) else { return }
         roundStore.startHole(detected, source: .autoAdvance)
     }
 

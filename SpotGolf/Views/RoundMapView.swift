@@ -67,7 +67,7 @@ struct RoundMapView: View {
                 }
             }
             if let round, round.isActive, !holeAdvancer.isPaused, let location {
-                if let detected = HoleAdvancer.detectHole(location: location, courseSelection: round.courseSelection, currentHoleIndex: round.currentHoleIndex) {
+                if let detected = holeAdvancer.advance(location: location, courseSelection: round.courseSelection, currentHoleIndex: round.currentHoleIndex) {
                     roundStore.startHole(detected, roundID: round.id, source: .autoAdvance)
                     pendingPanToHole = true
                 }
