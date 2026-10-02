@@ -35,6 +35,8 @@ struct RoundMapView: View {
     @State private var suggestions: [StrokeSuggestion] = []
     @State private var cameraChanges = 0
     @State private var showHoleTimes = false
+    /// A point the player tapped on the map, to see how far it is.
+    @State private var target: CLLocationCoordinate2D?
 
     var body: some View {
         Group {
@@ -77,6 +79,7 @@ struct RoundMapView: View {
         .onChange(of: round.map(shownHoleIndex)) {
             // Also covers a hole chosen on the watch, and RoundTracker moving to the next hole
             isEditing = false
+            target = nil
             panToHole()
             reloadTrack()
         }
@@ -150,6 +153,15 @@ struct RoundMapView: View {
                     .stroke(Color.blue.opacity(0.7),
                             style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [1, 7]))
                 }
+                if let target {
+                    if let location = locationManager.lastLocation {
+                        MapPolyline(coordinates: [location.coordinate, target])
+                            .stroke(.white, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    }
+                    Annotation("", coordinate: target, anchor: .center) {
+                        targetMarker
+                    }
+                }
                 if isEditing {
                     ForEach(suggestions) { suggestion in
                         if let coordinate = suggestion.coordinate {
@@ -176,6 +188,12 @@ struct RoundMapView: View {
                 if mapCenter.distance(from: userLocation) > 30 {
                     followsUserLocation = false
                 }
+            }
+            .onTapGesture(coordinateSpace: .local) { point in
+                // Distances come from the player's location, and taps while editing are for spots
+                guard round.isActive, !isEditing,
+                      let coordinate = proxy.convert(point, from: .local) else { return }
+                target = coordinate
             }
             .gesture(
                 LongPressGesture(minimumDuration: 0.5)
@@ -554,6 +572,70 @@ struct RoundMapView: View {
         .allowsHitTesting(false)
     }
 
+    /// A bullseye on the tapped point, with the yards to it from the player above.
+    private var targetMarker: some View {
+        let yards = target.flatMap { target in
+            locationManager.lastLocation.map {
+                Int(DistanceCalculator.yards(from: $0, to: CLLocation(latitude: target.latitude, longitude: target.longitude)))
+            }
+        }
+        // The bubble above and an empty space of the same height below keep the
+        // bullseye's center on the tapped point
+        let bubbleHeight: CGFloat = 30
+        return VStack(spacing: 0) {
+            Group {
+                if let yards {
+                    VStack(spacing: 0) {
+                        Text("\(yards) yds")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 6)
+                            .frame(height: 20)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(.white))
+                        BubbleArrow()
+                            .fill(.white)
+                            .frame(width: 10, height: 6)
+                    }
+                    .fixedSize()
+                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+                }
+            }
+            .frame(height: bubbleHeight, alignment: .top)
+
+            targetBullseye
+
+            Color.clear.frame(height: bubbleHeight)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(yards.map { "Target, \($0) yards" } ?? "Target")
+        .accessibilityIdentifier("Target")
+    }
+
+    /// Two thin rings joined by four spokes, open between them so the map shows through,
+    /// with a small dot in the middle.
+    private var targetBullseye: some View {
+        let outer: CGFloat = 40
+        let inner: CGFloat = 22
+        let line: CGFloat = 1.5
+        let spoke = (outer - inner) / 2
+        return ZStack {
+            Circle().stroke(.white, lineWidth: line).frame(width: outer, height: outer)
+            Circle().stroke(.white, lineWidth: line).frame(width: inner, height: inner)
+            ForEach(0..<4, id: \.self) { index in
+                Rectangle()
+                    .fill(.white)
+                    .frame(width: line, height: spoke)
+                    .offset(y: -(inner + spoke) / 2)
+                    .rotationEffect(.degrees(Double(index) * 90))
+            }
+            Circle().fill(.white).frame(width: 4, height: 4)
+        }
+        .frame(width: outer + line, height: outer + line)
+        // See-through, so the player still sees the spot they tapped
+        .opacity(0.75)
+        .shadow(color: .black.opacity(0.4), radius: 1, y: 0.5)
+    }
+
     /// A small white bubble whose arrow tip sits on the start of the hazard.
     private func hazardBubble(yards: Int) -> some View {
         VStack(spacing: 0) {
@@ -625,10 +707,32 @@ struct RoundMapView: View {
                     .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
 
+            if target != nil {
+                clearTargetButton
+            }
+
             if round.isActive {
                 locationButton
             }
         }
+    }
+
+    private var clearTargetButton: some View {
+        Button {
+            target = nil
+        } label: {
+            Image(systemName: "xmark")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .frame(width: 22, height: 22)
+                .padding(14)
+                .background(.thickMaterial)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+        }
+        .accessibilityLabel("Clear target")
+        .accessibilityIdentifier("ClearTarget")
     }
 
     private var locationButton: some View {
