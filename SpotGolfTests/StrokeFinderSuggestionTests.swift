@@ -37,7 +37,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
             }
         }
 
-        /// A swing at the current time.
+        /// A swing at the current time. The default is a full swing; a putt is about 5 g.
         func swing(peakG: Float = 20) -> StrokeSuggestion {
             .swing(at: now, peakG: peakG)
         }
@@ -59,22 +59,34 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         return duration
     }
 
-    // MARK: - Swings
+    // MARK: - Full swings
 
-    func testLastSwingInStopIsTheStroke() {
+    func testStrongestSwingAtTheSpotIsTheStroke() {
         var track = Track()
         track.walk(north: 150)
-        var swings: [StrokeSuggestion] = []
-        for _ in 0..<3 {
-            track.stand(10)
-            swings.append(track.swing())
-        }
+        track.stand(10)
+        let practice = track.swing(peakG: 12)
+        track.stand(10)
+        let stroke = track.swing(peakG: 24)
+        track.stand(10)
+        let after = track.swing(peakG: 11)
         track.walk(north: 250)
 
-        let found = suggestions(track, swings)
-        XCTAssertEqual(found.map(\.timestamp), [swings[2].timestamp])
+        let found = suggestions(track, [practice, stroke, after])
+        XCTAssertEqual(found.map(\.timestamp), [stroke.timestamp])
         XCTAssertEqual(found.first?.latitude ?? 0, PathCourse.coordinate(north: 150, east: 0).latitude, accuracy: 1e-6)
-        XCTAssertEqual(found.first?.kind, .swing(peakG: 20))
+        XCTAssertEqual(found.first?.kind, .swing(peakG: 24))
+    }
+
+    func testSoftSwingInTheFairwayIsNotAStroke() {
+        var track = Track()
+        track.walk(north: 150)
+        track.stand(20)
+        let fidget = track.swing(peakG: 5)
+        track.stand(20)
+        track.walk(north: 250)
+
+        XCTAssertTrue(suggestions(track, [fidget]).isEmpty)
     }
 
     func testShortStrokeCounts() {
@@ -83,9 +95,35 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         track.stand(20)
         let first = track.swing()
         track.stand(5)
-        // Topped: the ball went 8 m
+        // Topped: the ball went 20 m
+        track.walk(north: 170)
+        track.stand(20)
+        let second = track.swing()
+        track.walk(north: 250)
+
+        XCTAssertEqual(suggestions(track, [first, second]).map(\.timestamp), [first.timestamp, second.timestamp])
+    }
+
+    func testDuffHitAgainFromTheSameSpotWithinAMinuteIsOneStroke() {
+        var track = Track()
+        track.walk(north: 150)
+        track.stand(20)
+        let duff = track.swing(peakG: 20)
+        track.stand(5)
         track.walk(north: 158)
         track.stand(20)
+        let again = track.swing(peakG: 22)
+        track.walk(north: 250)
+
+        XCTAssertEqual(suggestions(track, [duff, again]).map(\.timestamp), [again.timestamp])
+    }
+
+    func testSecondStrokeFromTheSameSpotAfterAMinuteCounts() {
+        var track = Track()
+        track.walk(north: 150)
+        track.stand(20)
+        let first = track.swing()
+        track.stand(70)
         let second = track.swing()
         track.walk(north: 250)
 
@@ -100,7 +138,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         track.stand(5)
         track.walk(north: 144, east: 2)
         track.stand(10)
-        let practice = track.swing()
+        let practice = track.swing(peakG: 12)
         track.walk(north: 250)
 
         XCTAssertEqual(suggestions(track, [stroke, practice]).map(\.timestamp), [stroke.timestamp])
@@ -118,13 +156,15 @@ final class StrokeFinderSuggestionTests: XCTestCase {
     func testTeePracticeAtTwoSpotsIsOneStroke() {
         var track = Track()
         track.stand(20)
-        let practice = track.swing()
+        let practice = track.swing(peakG: 12)
         track.walk(north: 0, east: 7)
         track.stand(30)
         let stroke = track.swing()
         track.walk(north: 150)
 
-        XCTAssertEqual(suggestions(track, [practice, stroke]).map(\.timestamp), [stroke.timestamp])
+        let found = suggestions(track, [practice, stroke])
+        XCTAssertEqual(found.map(\.timestamp), [stroke.timestamp])
+        XCTAssertEqual(found.first?.longitude ?? 0, PathCourse.coordinate(north: 0, east: 7).longitude, accuracy: 1e-5)
     }
 
     func testReTeeIsASecondStroke() {
@@ -168,7 +208,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         var track = Track()
         track.walk(north: 300)
         track.stand(20)
-        let putt = track.swing(peakG: 11)
+        let putt = track.swing(peakG: 5)
         track.stand(20)
 
         XCTAssertEqual(suggestions(track, [putt]).map(\.timestamp), [putt.timestamp])
@@ -178,14 +218,40 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         var track = Track()
         track.walk(north: 290)
         track.stand(20)
-        let first = track.swing(peakG: 11)
+        let first = track.swing(peakG: 5)
         // Walks 8 m to the ball, which is no closer to the green's edge
         track.walk(north: 298)
         track.stand(20)
-        let second = track.swing(peakG: 11)
+        let second = track.swing(peakG: 5)
         track.stand(5)
 
         XCTAssertEqual(suggestions(track, [first, second]).filter(\.isSwing).map(\.timestamp), [first.timestamp, second.timestamp])
+    }
+
+    func testSoftSwingsAtOneSpotOnTheGreenAreOnePutt() {
+        var track = Track()
+        track.walk(north: 300)
+        track.stand(20)
+        let fidget = track.swing(peakG: 4)
+        track.stand(10)
+        let putt = track.swing(peakG: 6)
+        track.stand(10)
+
+        let found = suggestions(track, [fidget, putt])
+        XCTAssertEqual(found.map(\.timestamp), [putt.timestamp])
+        XCTAssertEqual(found.first?.kind, .swing(peakG: 6))
+    }
+
+    func testStopWithAFullSwingGetsNoPuttSuggestion() {
+        var track = Track()
+        track.walk(north: 300)
+        track.stand(20)
+        let chip = track.swing(peakG: 13)
+        track.stand(10)
+        let fidget = track.swing(peakG: 4)
+        track.stand(20)
+
+        XCTAssertEqual(suggestions(track, [chip, fidget]).map(\.timestamp), [chip.timestamp])
     }
 
     func testStopWithNoSwingNearTheGreenIsSuggested() {
@@ -236,11 +302,11 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
     // MARK: - IDs
 
-    func testIDComesFromTheStopSoPracticeThenTheRealSwingKeepsIt() {
+    func testIDComesFromTheFirstSwingSoTheRealSwingKeepsIt() {
         var track = Track()
         track.walk(north: 150)
         track.stand(10)
-        let practice = track.swing()
+        let practice = track.swing(peakG: 12)
         track.stand(10)
         let stroke = track.swing()
         track.walk(north: 250)
@@ -255,7 +321,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         var track = Track()
         track.walk(north: 300)
         track.stand(40)
-        let putt = StrokeSuggestion.swing(at: track.now.addingTimeInterval(-10), peakG: 11)
+        let putt = StrokeSuggestion.swing(at: track.now.addingTimeInterval(-10), peakG: 5)
         track.walk(north: 340, east: 40)
 
         let withoutSwing = suggestions(track, [])
@@ -327,17 +393,34 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         XCTAssertEqual(suggestions(track, [teeShot, second], hidden: [first.id]).map(\.timestamp), [second.timestamp])
     }
 
-    func testAtMostTenPerHole() {
+    func testFullSwingsAreNeverCutByTheLimit() {
         var track = Track()
         var swings: [StrokeSuggestion] = []
-        // Twelve short strokes, each 10 m closer to the green
+        // Twelve strokes, each 20 m closer to the green and more than a minute apart
         for index in 0..<12 {
-            track.walk(north: Double(index) * 10 + 10)
-            track.stand(20)
+            track.walk(north: Double(index) * 20 + 10)
+            track.stand(70)
             swings.append(track.swing())
         }
 
-        XCTAssertEqual(suggestions(track, swings).map(\.timestamp), Array(swings.prefix(10)).map(\.timestamp))
+        XCTAssertEqual(suggestions(track, swings).map(\.timestamp), swings.map(\.timestamp))
+    }
+
+    func testPuttsFillTheLimitAfterFullSwings() {
+        var track = Track()
+        track.stand(20)
+        let teeShot = track.swing()
+        var putts: [StrokeSuggestion] = []
+        // Ten soft swings at ten spots from 25 m short of the green's edge onto it
+        for index in 0..<10 {
+            track.walk(north: 260 + Double(index) * 6)
+            track.stand(20)
+            putts.append(track.swing(peakG: 5))
+        }
+
+        let found = suggestions(track, [teeShot] + putts)
+        XCTAssertEqual(found.count, StrokeFinder.maxPerHole)
+        XCTAssertEqual(found.map(\.timestamp), [teeShot.timestamp] + putts.prefix(9).map(\.timestamp))
     }
 
     // MARK: - Stroke times

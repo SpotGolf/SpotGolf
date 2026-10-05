@@ -11,13 +11,14 @@ final class SwingPeakFinderTests: XCTestCase {
 
     func testReadingsBelowThresholdAreNotSwings() {
         var finder = SwingPeakFinder()
-        XCTAssertTrue(finder.add(readings([(0, 1), (0.1, 2.9), (1, 1)])).isEmpty)
+        XCTAssertTrue(finder.add(readings([(0, 1), (0.1, 2.9), (1, 1), (5, 1)])).isEmpty)
+        XCTAssertNil(finder.flush())
     }
 
     func testPuttIsASwing() {
         var finder = SwingPeakFinder()
 
-        let swings = finder.add(readings([(0, 1), (1.0, 3), (1.1, 3.5), (1.2, 2), (2.0, 1)]))
+        let swings = finder.add(readings([(0, 1), (1.0, 3), (1.1, 3.5), (1.2, 2), (2.0, 1), (4.1, 1)]))
 
         XCTAssertEqual(swings, [StrokeSuggestion.swing(at: start.addingTimeInterval(1.0), peakG: 3.5)])
     }
@@ -25,29 +26,39 @@ final class SwingPeakFinderTests: XCTestCase {
     func testSwingStartsAtFirstHighReadingAndKeepsThePeak() {
         var finder = SwingPeakFinder()
 
-        let swings = finder.add(readings([(0, 1), (1.0, 11), (1.1, 15), (1.2, 12), (2.0, 1)]))
+        let swings = finder.add(readings([(0, 1), (1.0, 11), (1.1, 15), (1.2, 12), (2.0, 1), (4.1, 1)]))
 
         XCTAssertEqual(swings, [StrokeSuggestion.swing(at: start.addingTimeInterval(1.0), peakG: 15)])
     }
 
-    func testSwingSpanningBatchesIsReportedOnceItsPeakWindowCloses() {
+    func testSwingIsReportedOnceItsCooldownEnds() {
         var finder = SwingPeakFinder()
 
         XCTAssertTrue(finder.add(readings([(1.0, 11)])).isEmpty)
-        let swings = finder.add(readings([(1.2, 16), (1.8, 1)]))
+        XCTAssertTrue(finder.add(readings([(1.2, 16), (3.9, 1)])).isEmpty)
+        let swings = finder.add(readings([(4.1, 1)]))
 
         XCTAssertEqual(swings, [StrokeSuggestion.swing(at: start.addingTimeInterval(1.0), peakG: 16)])
     }
 
-    func testHighReadingsWithinCooldownAreTheSameSwing() {
+    func testWaggleThenSwingWithinCooldownKeepsTheSwingsForce() {
         var finder = SwingPeakFinder()
 
-        let swings = finder.add(readings([(1.0, 11), (2.0, 1), (2.5, 13), (3.0, 1), (4.5, 12), (5.5, 1)]))
+        let swings = finder.add(readings([(1.0, 4), (1.3, 2), (2.5, 24), (2.6, 18), (4.1, 1)]))
 
-        XCTAssertEqual(swings.map(\.timestamp), [start.addingTimeInterval(1.0), start.addingTimeInterval(4.5)])
+        XCTAssertEqual(swings, [StrokeSuggestion.swing(at: start.addingTimeInterval(1.0), peakG: 24)])
     }
 
-    func testFlushReturnsASwingWhosePeakWindowIsOpen() {
+    func testHighReadingAfterCooldownIsANewSwing() {
+        var finder = SwingPeakFinder()
+
+        let swings = finder.add(readings([(1.0, 11), (2.0, 1), (2.5, 13), (3.0, 1), (4.5, 12), (5.5, 1), (7.6, 1)]))
+
+        XCTAssertEqual(swings, [StrokeSuggestion.swing(at: start.addingTimeInterval(1.0), peakG: 13),
+                                StrokeSuggestion.swing(at: start.addingTimeInterval(4.5), peakG: 12)])
+    }
+
+    func testFlushReturnsASwingWhoseCooldownIsOpen() {
         var finder = SwingPeakFinder()
         XCTAssertTrue(finder.add(readings([(1.0, 11), (1.1, 14)])).isEmpty)
 
@@ -57,7 +68,7 @@ final class SwingPeakFinderTests: XCTestCase {
 
     func testFlushWithNoSwingReturnsNil() {
         var finder = SwingPeakFinder()
-        _ = finder.add(readings([(0, 1), (1.0, 11), (2.0, 1)]))
+        _ = finder.add(readings([(0, 1), (1.0, 11), (4.1, 1)]))
         XCTAssertNil(finder.flush())
     }
 }

@@ -17,8 +17,9 @@ struct StrokeSuggestion: Identifiable, Equatable {
     /// Nil until `StrokeFinder` places it.
     var latitude: Double?
     var longitude: Double?
-    /// From the start time of the stop it was made in, so the same stop always gives the same ID
-    /// (see `id(forStopAt:)`). A swing that has not been placed yet uses its own time.
+    /// From a time that does not change as the round goes on: the first swing at the spot for a
+    /// full swing, the start of the stop for a putt, chip or stop (see `id(at:)`). A swing that has
+    /// not been placed yet uses its own time.
     var id: UUID
 
     init(timestamp: Date, kind: Kind, coordinate: CLLocationCoordinate2D? = nil, id: UUID? = nil) {
@@ -26,7 +27,7 @@ struct StrokeSuggestion: Identifiable, Equatable {
         self.kind = kind
         self.latitude = coordinate?.latitude
         self.longitude = coordinate?.longitude
-        self.id = id ?? Self.id(forStopAt: timestamp)
+        self.id = id ?? Self.id(at: timestamp)
     }
 
     /// A swing the watch detected, not yet placed.
@@ -47,9 +48,9 @@ struct StrokeSuggestion: Identifiable, Equatable {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
-    /// The same UUID every time for the same millisecond, so a stop found again gives the same
-    /// ID and a dismissed suggestion stays dismissed.
-    static func id(forStopAt date: Date) -> UUID {
+    /// The same UUID every time for the same millisecond, so a stop or swing found again gives
+    /// the same ID and a dismissed suggestion stays dismissed.
+    static func id(at date: Date) -> UUID {
         // A fixed base, with the milliseconds in the last 8 bytes
         var bytes: uuid_t = (0x53, 0x47, 0x53, 0x54, 0x52, 0x4B, 0x40, 0x00, 0x80, 0, 0, 0, 0, 0, 0, 0)
         let milliseconds = UInt64(max((date.timeIntervalSince1970 * 1000).rounded(), 0))

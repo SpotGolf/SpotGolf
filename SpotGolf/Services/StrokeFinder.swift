@@ -2,13 +2,15 @@ import Foundation
 import CoreLocation
 import CourseDataSwift
 
-/// Phone: the one place that works out where the player probably hit the ball, with any club,
-/// and when each hole started.
+/// Phone: the one place that works out where the player probably hit the ball, with any club.
 ///
-/// Golf is linear: the player walks from one ball to the next, and from each green to the next
-/// tee. So a hole ends when the player leaves its green for the last time, and a stroke is a
-/// place the player stood still and swung. Stops near the green with no swing are offered too,
-/// because the watch misses most putts.
+/// Golf is linear: the player walks from one ball to the next. On the wrist a full swing is
+/// unmistakable: every recorded shot measured 13 g or more, while waiting, walking and handling
+/// clubs stay under 10 g. So a full swing made while standing still is a stroke, and when several
+/// are made at one spot the strongest is the shot, because practice swings come before it. Softer
+/// swings, and stops with no swing, are offered only on and around the green, where putts and
+/// chips the watch barely feels are made. Measured on the Coal Creek round of 2026-10-02; see
+/// plans/2026-10-04-full-swing-strokes.md.
 enum StrokeFinder {
     // MARK: - Stops
 
@@ -27,17 +29,24 @@ enum StrokeFinder {
     static let swingFixWindow: TimeInterval = 5
     /// A swing this close in time to a stop's ends still belongs to it; fixes come once a second.
     static let stopSlack: TimeInterval = 2
-    /// A swing this close to the hole's tee box is a tee shot.
+    /// A swing of this force or more is a full swing, and a stroke wherever it is made. Shots
+    /// measured 13 to 38 g; the small movements of waiting and handling clubs stay under 10 g.
+    static let fullSwingPeak: Float = 10
+    /// Full swings this close in time, and within `sameShotRadius`, are practice swings and the
+    /// shot, which is the strongest of them. A duff hit again from the same spot within this time
+    /// is lost, and the player adds it by hand.
+    static let sameShotWindow: TimeInterval = 60
+    static let sameShotRadius: CLLocationDistance = 15
+    /// A swing this close to one of the hole's tee boxes is on the hole, even where the centerline
+    /// starts past the tee.
     static let teeShotRadius: CLLocationDistance = 10
     /// A stop farther than this from the hole's centerline is off the hole (the turn, the parking lot).
     static let maxCenterlineDistance: Double = 60
-    /// Tee swings closer together than this are practice then the shot. Farther apart is a re-tee.
-    static let teePracticeWindow: TimeInterval = 90
-    /// A new stop must be this much closer to the green than the last stroke to be a new stroke.
-    static let minCloserToGreen: CLLocationDistance = 3
-    /// A stop with no swing on the green or this close to its edge can be a chip or putt.
+    /// Softer swings, and stops with no swing, count only on the green or this close to its edge:
+    /// putts, and chips the watch barely felt.
     static let chipZoneMargin: CLLocationDistance = 30
-    /// At most this many suggestions are offered per hole.
+    /// At most this many suggestions are offered per hole. Full swings are always kept; putts and
+    /// chips fill the rest.
     static let maxPerHole = 10
 
     // MARK: - Suggestions
@@ -60,73 +69,82 @@ enum StrokeFinder {
     /// The stroke suggestions among the stops that `isOnHole` accepts by their start and end, in
     /// time order.
     ///
-    /// A swing made while stopped is a stroke: practice swings happen in the same stop, so only
-    /// the last swing in a stop counts, and a new stop counts only when it is closer to the green.
-    /// A stop with no swing is offered only near the green.
+    /// A full swing made while stopped is a stroke. Full swings at one spot within `sameShotWindow`
+    /// are one stroke, the strongest of them: practice swings come before the shot. A softer swing
+    /// counts only on or near the green, where the strongest swing in a stop is the putt, and a
+    /// stop with no swing there may be a putt or chip the watch missed.
     static func suggestions(on hole: HoleShape, points: [TrackPoint], swings: [StrokeSuggestion],
                             minStop: TimeInterval, hidden: Set<UUID> = [],
                             isOnHole: (_ stop: (start: Date, end: Date)) -> Bool = { _ in true }) -> [StrokeSuggestion] {
-        struct Candidate {
+        /// A swing in the stop it was made in.
+        struct Placed {
             let swing: StrokeSuggestion
+            let peakG: Float
             let stopIndex: Int
-            let isTee: Bool
+            /// The fix nearest the swing, or the stop's center.
+            let spot: Coordinate
         }
 
         let stops = stops(in: points).filter { isOnHole(($0.start, $0.end)) }
-        let swings = swings.filter(\.isSwing).sorted { $0.timestamp < $1.timestamp }
-        var candidates: [Candidate] = []
-        var stopsWithSwings = Set<Int>()
-        for swing in swings {
+        var placed: [Placed] = []
+        for swing in swings.sorted(by: { $0.timestamp < $1.timestamp }) {
             // A swing while walking, or as the player arrived, is not a stroke
-            guard let stopIndex = stops.firstIndex(where: { $0.contains(swing.timestamp, slack: stopSlack) }),
+            guard let peakG = swing.peakG,
+                  let stopIndex = stops.firstIndex(where: { $0.contains(swing.timestamp, slack: stopSlack) }),
                   swing.timestamp >= stops[stopIndex].start else { continue }
-            stopsWithSwings.insert(stopIndex)
             let stop = stops[stopIndex]
             let spot = nearestFix(to: swing.timestamp, in: points)
                 .map { Coordinate(latitude: $0.latitude, longitude: $0.longitude) } ?? stop.center
+            // Off the hole: the turn, the parking lot. A tee box is on the hole.
+            let atTee = hole.metersToTee(spot).map { $0 <= teeShotRadius } ?? false
+            if !atTee, let off = hole.metersToCenterline(stop.center), off > maxCenterlineDistance { continue }
+            placed.append(Placed(swing: swing, peakG: peakG, stopIndex: stopIndex, spot: spot))
+        }
 
-            let isTee = hole.metersToTee(spot).map { $0 <= teeShotRadius } ?? false
-            if !isTee, let off = hole.metersToCenterline(stop.center), off > maxCenterlineDistance { continue }
-
-            let candidate = Candidate(swing: swing, stopIndex: stopIndex, isTee: isTee)
-            if let previous = candidates.last {
-                // Earlier swings in the same stop were practice
-                if previous.stopIndex == stopIndex {
-                    candidates[candidates.count - 1] = candidate
-                    continue
-                }
-                if isTee && previous.isTee {
-                    // Timed from this stop's last swing, so a practice swing on the way to a
-                    // re-tee doesn't join the two tee shots
-                    let lastInStop = swings.last { stop.contains($0.timestamp, slack: stopSlack) }?.timestamp ?? swing.timestamp
-                    if lastInStop.timeIntervalSince(previous.swing.timestamp) < teePracticeWindow {
-                        candidates[candidates.count - 1] = candidate
-                        continue
-                    }
-                }
-                // On the green every putt is closer to the hole, not to the green
-                if !isTee && !previous.isTee,
-                   let before = hole.metersToGreen(stops[previous.stopIndex].center),
-                   let now = hole.metersToGreen(stop.center), now > 0,
-                   before - now < minCloserToGreen {
-                    continue // a step back for another swing, not a new stroke
-                }
+        // Full swings: the strongest of those made at one spot is the shot. Its ID comes from the
+        // first swing there, which does not change as more arrive.
+        var fullSwings: [StrokeSuggestion] = []
+        var atOneSpot: [Placed] = []
+        func finishShot() {
+            guard let first = atOneSpot.first, let shot = atOneSpot.max(by: { $0.peakG < $1.peakG }) else { return }
+            fullSwings.append(StrokeSuggestion(
+                timestamp: shot.swing.timestamp, kind: shot.swing.kind,
+                coordinate: CLLocationCoordinate2D(latitude: shot.spot.latitude, longitude: shot.spot.longitude),
+                id: StrokeSuggestion.id(at: first.swing.timestamp)))
+            atOneSpot = []
+        }
+        for full in placed where full.peakG >= fullSwingPeak {
+            if let last = atOneSpot.last,
+               full.swing.timestamp.timeIntervalSince(last.swing.timestamp) <= sameShotWindow,
+               LocalDistance.meters(fromLat: last.spot.latitude, lon: last.spot.longitude,
+                                    toLat: full.spot.latitude, lon: full.spot.longitude) <= sameShotRadius {
+                atOneSpot.append(full)
+            } else {
+                finishShot()
+                atOneSpot = [full]
             }
-            candidates.append(candidate)
+        }
+        finishShot()
+
+        // Putts, and chips the watch barely felt: softer swings and stops with no swing near the green
+        var shortGame: [StrokeSuggestion] = []
+        let stopsWithFullSwings = Set(placed.filter { $0.peakG >= fullSwingPeak }.map(\.stopIndex))
+        for (index, stop) in stops.enumerated() where !stopsWithFullSwings.contains(index) {
+            guard let toGreen = hole.metersToGreen(stop.center), toGreen <= chipZoneMargin else { continue }
+            if let putt = placed.filter({ $0.stopIndex == index }).max(by: { $0.peakG < $1.peakG }) {
+                shortGame.append(StrokeSuggestion(timestamp: putt.swing.timestamp, kind: putt.swing.kind,
+                                                  coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
+            } else if stop.duration >= minStop {
+                shortGame.append(StrokeSuggestion(timestamp: stop.start, kind: .stop(duration: stop.duration),
+                                                  coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
+            }
         }
 
-        var found = candidates.map { candidate in
-            let stop = stops[candidate.stopIndex]
-            return StrokeSuggestion(timestamp: candidate.swing.timestamp, kind: candidate.swing.kind,
-                                    coordinate: stop.coordinate, id: StrokeSuggestion.id(forStopAt: stop.start))
-        }
-        // Chips and putts the watch missed
-        for (index, stop) in stops.enumerated() where !stopsWithSwings.contains(index) && stop.duration >= minStop {
-            guard let toGreen = hole.metersToGreen(stop.center), toGreen <= chipZoneMargin else { continue }
-            found.append(StrokeSuggestion(timestamp: stop.start, kind: .stop(duration: stop.duration),
-                                          coordinate: stop.coordinate, id: StrokeSuggestion.id(forStopAt: stop.start)))
-        }
-        return Array(found.filter { !hidden.contains($0.id) }.sorted { $0.timestamp < $1.timestamp }.prefix(maxPerHole))
+        let shownFullSwings = fullSwings.filter { !hidden.contains($0.id) }
+        let shownShortGame = shortGame.filter { !hidden.contains($0.id) }
+            .sorted { $0.timestamp < $1.timestamp }
+            .prefix(max(0, maxPerHole - shownFullSwings.count))
+        return (shownFullSwings + shownShortGame).sorted { $0.timestamp < $1.timestamp }
     }
 
     /// When a stroke was probably hit: the time of the fix nearest to it in `points`, which

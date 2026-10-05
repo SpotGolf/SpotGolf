@@ -74,13 +74,13 @@ These rules are in `StrokeFinder.swift:119-173` and `RoundMapView.swift:845-858`
   `StrokeFinder.swift:99-101`.
   *Result (no change):* this is how ending from the phone works. Swings are only lost if End is tapped before the last shot.
 
-- [ ] **16. Same-stop and closer-to-green rules hide swings.**
+- [x] **16. Same-stop and closer-to-green rules hide swings.**
   Only the last swing in a stop counts. A new stop counts only if it is at least 3 m closer to the green (`StrokeFinder.swift:136-157`). For example, a shot played sideways out of trouble would be hidden.
-  *Fix:* review.
+  *Fix (done):* replaced by the full-swing rules in `plans/2026-10-04-full-swing-strokes.md`. The strongest swing at a spot is the shot, and there is no closer-to-green rule.
 
-- [ ] **17. A cap of 10 suggestions per hole.**
+- [x] **17. A cap of 10 suggestions per hole.**
   `StrokeFinder.swift:41, 173`. Stops near the green fill the list before later swings.
-  *Fix:* review. Consider ranking swings ahead of stops before applying the cap.
+  *Fix (done):* full swings are never cut; the cap applies to putt and chip suggestions (`plans/2026-10-04-full-swing-strokes.md`).
 
 - [ ] **18. Suggestions only show in edit mode.**
   `RoundMapView.swift:846`.
