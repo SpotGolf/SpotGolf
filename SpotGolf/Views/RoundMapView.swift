@@ -32,11 +32,16 @@ struct RoundMapView: View {
     /// The whole round's GPS, and the part of it on the hole shown.
     @State private var roundTrack: [TrackPoint] = []
     @State private var holeTrack: [TrackPoint] = []
+    /// The hole's track as the map draws it, without the fixes too close together to show.
+    @State private var trackLine: [CLLocationCoordinate2D] = []
     @State private var suggestions: [StrokeSuggestion] = []
     @State private var cameraChanges = 0
     @State private var showHoleTimes = false
     /// A point the player tapped on the map, to see how far it is.
     @State private var target: CLLocationCoordinate2D?
+    /// The map's size, and how many meters one point of it covers, to keep gaps a fixed size on screen.
+    @State private var mapSize: CGSize = .zero
+    @State private var metersPerPoint: Double = 0.5
 
     var body: some View {
         Group {
@@ -137,6 +142,7 @@ struct RoundMapView: View {
     private func mapView(_ round: Round) -> some View {
         let strokesToShow = round.hole(at: shownHoleIndex(round)).strokes
         return MapReader { proxy in
+            let targetLines = targetLines(round)
             Map(position: $position) {
                 if round.isActive {
                     UserAnnotation()
@@ -146,18 +152,16 @@ struct RoundMapView: View {
                         spotMarker(index: index, stroke: stroke, round: round, proxy: proxy)
                     }
                 }
-                if holeTrack.count >= 2 {
-                    MapPolyline(coordinates: holeTrack.map {
-                        CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-                    })
-                    .stroke(Color.blue.opacity(0.7),
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [1, 7]))
+                if trackLine.count >= 2 {
+                    MapPolyline(coordinates: trackLine)
+                        .stroke(Color.blue,
+                                style: StrokeStyle(lineWidth: 1, lineCap: .butt, dash: [6, 4]))
+                }
+                ForEach(targetLines.indices, id: \.self) { index in
+                    MapPolyline(coordinates: targetLines[index])
+                        .stroke(.white, style: StrokeStyle(lineWidth: 1, lineCap: .butt))
                 }
                 if let target {
-                    if let location = locationManager.lastLocation {
-                        MapPolyline(coordinates: [location.coordinate, target])
-                            .stroke(.white, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    }
                     Annotation("", coordinate: target, anchor: .center) {
                         targetMarker
                     }
@@ -178,9 +182,11 @@ struct RoundMapView: View {
             .overlay {
                 hazardBubbles(round, proxy: proxy)
             }
-            .onMapCameraChange(frequency: .continuous) { _ in
+            .onMapCameraChange(frequency: .continuous) { context in
                 cameraChanges &+= 1
+                updateMetersPerPoint(context)
             }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
             .onMapCameraChange(frequency: .onEnd) { context in
                 guard followsUserLocation, let userLocation = locationManager.lastLocation else { return }
                 let mapCenter = CLLocation(latitude: context.region.center.latitude,
@@ -315,7 +321,10 @@ struct RoundMapView: View {
         VStack {
             // Distances come from the player's location, so a past round has none
             if round.isActive {
-                HStack {
+                HStack(alignment: .top) {
+                    if target != nil {
+                        targetInformation(round)
+                    }
                     Spacer()
                     keyInformation(round)
                 }
@@ -497,6 +506,44 @@ struct RoundMapView: View {
         .padding(.top, 12)
     }
 
+    /// The tapped point's yards from the player and to the center of the green, with the button
+    /// that clears it underneath. On the left, opposite the hole's key information.
+    private func targetInformation(_ round: Round) -> some View {
+        VStack(spacing: 8) {
+            keyInformationBox(value: yardsFromTargetToGreenCenter(round).map(String.init) ?? "—",
+                              caption: "To green",
+                              identifier: "TargetToGreen")
+            keyInformationBox(value: yardsToTarget.map(String.init) ?? "—",
+                              caption: "To point",
+                              identifier: "DistanceToTarget")
+            clearTargetButton
+        }
+        .padding(.leading, 12)
+        .padding(.top, 12)
+    }
+
+    private var targetLocation: CLLocation? {
+        target.map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    /// Yards from the player to the tapped point.
+    private var yardsToTarget: Int? {
+        guard let targetLocation, let location = locationManager.lastLocation else { return nil }
+        return Int(DistanceCalculator.yards(from: location, to: targetLocation))
+    }
+
+    /// The center of the shown hole's green, or nil when the course has no green for it.
+    private func shownGreenCenter(_ round: Round) -> CLLocationCoordinate2D? {
+        round.courseHole(at: shownHoleIndex(round))?
+            .green(from: round.course.features)?
+            .center.clLocation.coordinate
+    }
+
+    /// Yards from the tapped point to the center of the green.
+    private func yardsFromTargetToGreenCenter(_ round: Round) -> Int? {
+        HoleOverview.yardsToGreenCenter(round, holeIndex: shownHoleIndex(round), from: targetLocation)
+    }
+
     private func keyInformationBox(value: String, caption: String, identifier: String) -> some View {
         VStack(spacing: 0) {
             Text(value)
@@ -546,68 +593,76 @@ struct RoundMapView: View {
         .allowsHitTesting(false)
     }
 
-    /// A bullseye on the tapped point, with the yards to it from the player above.
-    private var targetMarker: some View {
-        let yards = target.flatMap { target in
-            locationManager.lastLocation.map {
-                Int(DistanceCalculator.yards(from: $0, to: CLLocation(latitude: target.latitude, longitude: target.longitude)))
-            }
-        }
-        // The bubble above and an empty space of the same height below keep the
-        // bullseye's center on the tapped point
-        let bubbleHeight: CGFloat = 30
-        return VStack(spacing: 0) {
-            Group {
-                if let yards {
-                    VStack(spacing: 0) {
-                        Text("\(yards) yds")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 6)
-                            .frame(height: 20)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(.white))
-                        BubbleArrow()
-                            .fill(.white)
-                            .frame(width: 10, height: 6)
-                    }
-                    .fixedSize()
-                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
-                }
-            }
-            .frame(height: bubbleHeight, alignment: .top)
+    /// The bullseye's ring diameter, in points.
+    private static let targetRing: CGFloat = 40
+    /// How far the lines to and from the target stop from its center: the ring's radius and a gap.
+    private static let targetLineGap: CGFloat = targetRing / 2 + 6
 
-            targetBullseye
-
-            Color.clear.frame(height: bubbleHeight)
+    /// Thin lines from the player to the target, and from the target to the green center. They
+    /// stop short of the bullseye, so it stays clear. None without a target.
+    private func targetLines(_ round: Round) -> [[CLLocationCoordinate2D]] {
+        guard let target else { return [] }
+        var lines: [[CLLocationCoordinate2D]] = []
+        if let location = locationManager.lastLocation,
+           let end = lineEnd(at: target, toward: location.coordinate) {
+            lines.append([location.coordinate, end])
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(yards.map { "Target, \($0) yards" } ?? "Target")
-        .accessibilityIdentifier("Target")
+        if let greenCenter = shownGreenCenter(round),
+           let start = lineEnd(at: target, toward: greenCenter) {
+            lines.append([start, greenCenter])
+        }
+        return lines
     }
 
-    /// Two thin rings joined by four spokes, open between them so the map shows through,
-    /// with a small dot in the middle.
-    private var targetBullseye: some View {
-        let outer: CGFloat = 40
-        let inner: CGFloat = 22
+    /// Where a line from `target` toward `other` starts: `targetLineGap` points out from the
+    /// target at the map's current scale, so the line stays outside the bullseye. Nil when
+    /// `other` is inside the gap.
+    private func lineEnd(at target: CLLocationCoordinate2D,
+                         toward other: CLLocationCoordinate2D) -> CLLocationCoordinate2D? {
+        let gap = Double(Self.targetLineGap) * metersPerPoint
+        let from = CLLocation(latitude: target.latitude, longitude: target.longitude)
+        let length = from.distance(from: CLLocation(latitude: other.latitude, longitude: other.longitude))
+        guard length > gap else { return nil }
+        let fraction = gap / length
+        return CLLocationCoordinate2D(latitude: target.latitude + (other.latitude - target.latitude) * fraction,
+                                      longitude: target.longitude + (other.longitude - target.longitude) * fraction)
+    }
+
+    /// Meters of ground across one point of the map, from the area it shows. The area is the box
+    /// around the turned map, so the turn is taken back out.
+    private func updateMetersPerPoint(_ context: MapCameraUpdateContext) {
+        guard mapSize.width > 0, mapSize.height > 0 else { return }
+        let heading = context.camera.heading * .pi / 180
+        let cosine = abs(cos(heading)), sine = abs(sin(heading))
+        let pointsAcross = Double(mapSize.width) * cosine + Double(mapSize.height) * sine
+        let metersAcross = context.rect.size.width / MKMapPointsPerMeterAtLatitude(context.region.center.latitude)
+        metersPerPoint = metersAcross / pointsAcross
+    }
+
+    /// A bullseye on the tapped point: one thin ring with four spokes pointing in and a small dot
+    /// in the middle, open so the map shows through. Its yards are in the boxes on the left.
+    private var targetMarker: some View {
+        let ring = Self.targetRing
         let line: CGFloat = 1.5
-        let spoke = (outer - inner) / 2
+        let spoke: CGFloat = 9
         return ZStack {
-            Circle().stroke(.white, lineWidth: line).frame(width: outer, height: outer)
-            Circle().stroke(.white, lineWidth: line).frame(width: inner, height: inner)
+            Circle().stroke(.white, lineWidth: line).frame(width: ring, height: ring)
             ForEach(0..<4, id: \.self) { index in
                 Rectangle()
                     .fill(.white)
                     .frame(width: line, height: spoke)
-                    .offset(y: -(inner + spoke) / 2)
+                    .offset(y: -(ring - spoke) / 2)
                     .rotationEffect(.degrees(Double(index) * 90))
             }
             Circle().fill(.white).frame(width: 4, height: 4)
         }
-        .frame(width: outer + line, height: outer + line)
+        .frame(width: ring + line, height: ring + line)
         // See-through, so the player still sees the spot they tapped
         .opacity(0.75)
         .shadow(color: .black.opacity(0.4), radius: 1, y: 0.5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Target")
+        .accessibilityIdentifier("Target")
     }
 
     /// A small white bubble whose arrow tip sits on the start of the hazard.
@@ -664,10 +719,6 @@ struct RoundMapView: View {
                     .background(.thickMaterial)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-            }
-
-            if target != nil {
-                clearTargetButton
             }
 
             if round.isActive {
@@ -871,6 +922,7 @@ struct RoundMapView: View {
         guard let round else {
             roundTrack = []
             holeTrack = []
+            trackLine = []
             suggestions = []
             return
         }
@@ -884,6 +936,7 @@ struct RoundMapView: View {
         guard let round else { return }
         let holeIndex = shownHoleIndex(round)
         holeTrack = roundTrack.filter { round.possibleHoles(at: $0.timestamp).contains(holeIndex) }
+        trackLine = TrackLine.coordinates(of: holeTrack)
         refreshSuggestions()
     }
 
