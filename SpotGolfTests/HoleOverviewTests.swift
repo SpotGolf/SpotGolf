@@ -13,14 +13,14 @@ final class HoleOverviewTests: XCTestCase {
         var round = Round(courseSelection: .test)
         round.holes = [RoundHole(strokes: strokes(3))]
 
-        // The only played hole is the current one
+        // The only played hole is the one shown
         XCTAssertNil(HoleOverview.toPar(round))
     }
 
-    func testToParLeavesOutTheCurrentHoleOfAnActiveRound() {
+    func testToParLeavesOutTheDisplayHoleOfAnActiveRound() {
         var round = Round(courseSelection: .test)
         round.holes = [RoundHole(strokes: strokes(5)), RoundHole(strokes: strokes(3)), RoundHole(strokes: strokes(2))]
-        round.holeTimeline.append(HoleStart(holeIndex: 2, startedAt: Date(), source: .autoAdvance))
+        round.setDisplayHole(2, at: Date())
 
         // 5 + 3 on two par 4s
         XCTAssertEqual(HoleOverview.toPar(round), 0)
@@ -29,7 +29,7 @@ final class HoleOverviewTests: XCTestCase {
     func testToParCountsEveryPlayedHoleOfAnEndedRound() {
         var round = Round(holes: [RoundHole(strokes: strokes(5)), RoundHole(strokes: strokes(6))],
                           status: .ended, courseSelection: .test)
-        round.holeTimeline.append(HoleStart(holeIndex: 1, startedAt: Date(), source: .autoAdvance))
+        round.setDisplayHole(1, at: Date())
 
         XCTAssertEqual(HoleOverview.toPar(round), 3)
     }

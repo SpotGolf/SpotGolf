@@ -3,7 +3,7 @@ import CourseDataSwift
 @testable import SpotGolf
 
 /// Runs `StrokeFinder` on a real round exported from the app, to catch changes that make its
-/// hole starts or suggestions worse. The round lives in the git-ignored `Data` folder and the
+/// suggestions, or the imported hole starts, worse. The round lives in the git-ignored `Data` folder and the
 /// course in the sibling CourseData checkout, so this is skipped wherever they are missing.
 final class StrokeFinderRealRoundTests: XCTestCase {
 
@@ -20,16 +20,14 @@ final class StrokeFinderRealRoundTests: XCTestCase {
         let course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: courseURL).gzipDecompressed())
         let selection = CourseSelection(course: course, selectedSubCourseIndices: Array(course.subCourses.indices))
         let export = try TrackImporter.read(String(contentsOf: roundURL, encoding: .utf8))
-        var (round, _) = try TrackImporter.round(from: export, courseSelection: selection)
-        round.holeTimeline = StrokeFinder.holeStarts(round: round, points: export.points, swings: export.swings)
+        let (round, _) = try TrackImporter.round(from: export, courseSelection: selection)
         return (round, export.points, export.swings)
     }
 
     func testEveryHoleStartsFromThePath() throws {
-        let (round, points, swings) = try walnutCreek()
+        let (round, _, _) = try walnutCreek()
 
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), Array(0..<18))
-        XCTAssertEqual(StrokeFinder.holeStarts(round: round, points: points, swings: swings), round.holeTimeline)
         // The player's last fix within 10 m of green 1 was at 14:23:28, then they walked to tee 2
         let holeTwo = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-25T14:23:20Z"))
         XCTAssertEqual(round.holeTimeline[1].startedAt.timeIntervalSince(holeTwo), 10, accuracy: 10)
@@ -37,7 +35,7 @@ final class StrokeFinderRealRoundTests: XCTestCase {
 
     func testNoHoleOneSuggestionIsAtHoleTwosTee() throws {
         let (round, points, swings) = try walnutCreek()
-        let teeTwo = StrokeFinder.HoleShape(hole: round.courseHole(at: 1), course: round.course)
+        let teeTwo = HoleShape(hole: round.courseHole(at: 1), course: round.course)
 
         let holeOne = StrokeFinder.suggestions(in: round, holeIndex: 0, points: points, swings: swings, minStop: 30)
 

@@ -1,9 +1,15 @@
 import Foundation
 import CoreLocation
+import CourseDataSwift
 
 /// Reads a `TrackExporter` CSV back into a round, so a recorded round can be replayed on
 /// another device, such as the simulator.
 enum TrackImporter {
+    /// A fix this close to a tee counts as reaching it: the tee box and GPS drift.
+    static let teeArrivalRadius: CLLocationDistance = 10
+    /// A fix on the green or this close to its edge counts as at the green: GPS drift and the fringe.
+    static let greenEdgeMargin: CLLocationDistance = 10
+
     struct Export {
         var points: [TrackPoint] = []
         var swings: [StrokeSuggestion] = []
@@ -24,7 +30,7 @@ enum TrackImporter {
     }
 
     /// The fixes, swings and strokes in a CSV. Rows that can't be read are skipped. The hole on
-    /// swing rows is ignored: `StrokeFinder` works out the hole starts again.
+    /// swing rows is ignored: the hole starts are worked out again from the GPS.
     static func read(_ csv: String) throws -> Export {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -60,12 +66,12 @@ enum TrackImporter {
     }
 
     /// An active round on `courseSelection` holding the export's strokes, and its stream records.
-    /// It stays active so it can still be changed. The timeline holds only the round start:
-    /// `PhoneSync.importRound` works out the rest from the GPS.
+    /// It stays active so it can still be changed. The timeline comes from the GPS and the course.
     static func round(from export: Export, courseSelection: CourseSelection,
                       id: UUID = UUID()) throws -> (round: Round, records: [StreamRecord]) {
         guard let start = export.points.first?.timestamp else { throw ImportError.empty }
         var round = Round(id: id, date: start, courseSelection: courseSelection)
+        round.holeTimeline = holeTimeline(of: round, points: export.points)
         for (stroke, hole) in export.strokes {
             round.addStroke(stroke, toHoleIndex: hole - 1)
         }
@@ -73,5 +79,44 @@ enum TrackImporter {
         let records = (export.points.map(StreamRecord.fix) + export.swings.map(StreamRecord.swing))
             .sorted { $0.timestamp < $1.timestamp }
         return (round, records)
+    }
+
+    // MARK: - Hole timeline
+
+    /// The round's hole timeline from the GPS path and the course alone. Holes are taken in
+    /// playing order, each after the one before it. A hole starts just after the player last
+    /// left the previous green before reaching its tee, or on reaching its tee when they were
+    /// never at that green but were at the previous tee. A hole whose tee was never reached
+    /// that way is left out.
+    static func holeTimeline(of round: Round, points: [TrackPoint]) -> [HoleStart] {
+        var timeline = [HoleStart(holeIndex: 0, startedAt: round.date, source: .roundStart)]
+        guard round.lastHoleIndex > 0 else { return timeline }
+        for hole in 1...round.lastHoleIndex {
+            guard let start = start(of: hole, in: round, after: timeline[timeline.count - 1].startedAt, points: points) else { continue }
+            timeline.append(HoleStart(holeIndex: hole, startedAt: start, source: .estimated))
+        }
+        return timeline
+    }
+
+    /// When `hole` started, after `after`, or nil when its tee was not reached.
+    private static func start(of hole: Int, in round: Round, after: Date, points: [TrackPoint]) -> Date? {
+        let tee = HoleShape(hole: round.courseHole(at: hole), course: round.course)
+        guard !tee.tees.isEmpty else { return nil }
+        let previous = HoleShape(hole: round.courseHole(at: hole - 1), course: round.course)
+        let window = points.filter { $0.timestamp > after }
+
+        func isAtPreviousGreen(_ point: TrackPoint) -> Bool {
+            previous.metersToGreen(Coordinate(latitude: point.latitude, longitude: point.longitude)).map { $0 <= greenEdgeMargin } ?? false
+        }
+        func isAt(_ tees: HoleShape, _ point: TrackPoint) -> Bool {
+            tees.metersToTee(Coordinate(latitude: point.latitude, longitude: point.longitude)).map { $0 <= teeArrivalRadius } ?? false
+        }
+
+        // The tee only counts once the player has been at the previous green, or at the previous
+        // tee when they never reached that green, so a tee passed on the way there does not
+        guard let from = (window.first(where: isAtPreviousGreen) ?? window.first { isAt(previous, $0) })?.timestamp,
+              let arrival = window.first(where: { $0.timestamp >= from && isAt(tee, $0) })?.timestamp else { return nil }
+        guard let lastAtGreen = window.last(where: { $0.timestamp < arrival && isAtPreviousGreen($0) }) else { return arrival }
+        return window.first { $0.timestamp > lastAtGreen.timestamp }?.timestamp ?? arrival
     }
 }

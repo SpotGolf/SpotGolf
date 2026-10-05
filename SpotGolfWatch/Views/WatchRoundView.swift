@@ -10,9 +10,6 @@ struct WatchRoundView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
 
     @State private var liveDistance: String?
-    @EnvironmentObject var holeAdvance: WatchHoleAdvance
-    /// A hole the user picked to look at. Nil while the view follows the round's current hole.
-    @State private var viewingHoleIndex: Int?
 
     var body: some View {
         Group {
@@ -50,9 +47,6 @@ struct WatchRoundView: View {
         .onReceive(roundStore.$rounds) { _ in
             updateLiveDistance(location: locationManager.lastLocation)
         }
-        .onChange(of: roundStore.activeRound?.id) {
-            resumeRound()
-        }
     }
 
     /// Lets UI tests see whether the workout was recovered after a relaunch, and when it was
@@ -68,18 +62,13 @@ struct WatchRoundView: View {
         }
     }
 
-    /// The hole the page describes.
-    private func shownHoleIndex(_ round: Round) -> Int {
-        viewingHoleIndex ?? round.currentHoleIndex
-    }
-
     // MARK: - Info Page
 
     private func infoPage(_ round: Round) -> some View {
         ScrollView {
             VStack(spacing: 8) {
                 let course = round.courseSelection.course
-                if let courseHole = round.courseHole(at: shownHoleIndex(round)),
+                if let courseHole = round.displayCourseHole,
                    let green = courseHole.green(from: course.features),
                    let location = locationManager.lastLocation {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
@@ -102,15 +91,11 @@ struct WatchRoundView: View {
 
                     holeStatsView(round)
                 } else {
-                    holeTitle("Hole \(shownHoleIndex(round) + 1)", round)
+                    holeTitle("Hole \(round.displayHoleNumber)", round)
 
                     Divider()
 
                     holeStatsView(round)
-                }
-
-                if viewingHoleIndex != nil {
-                    viewingButtons(round)
                 }
 
                 workoutStatus
@@ -119,13 +104,13 @@ struct WatchRoundView: View {
         }
     }
 
-    /// The hole's name between two small arrows that show the previous and next hole.
-    /// They only change the hole shown; the round's current hole stays until "Play this hole".
+    /// The hole's name between two small arrows that show the previous and next hole. They
+    /// change the display hole, which the phone shows too; the timeline is set by strokes.
     private func holeTitle(_ title: String, _ round: Round) -> some View {
-        let shown = shownHoleIndex(round)
+        let shown = round.displayHoleIndex
         return HStack(spacing: 4) {
             holeArrow("chevron.left", label: "Previous hole", disabled: shown == 0) {
-                showHole(shown - 1, round)
+                roundStore.setDisplayHole(shown - 1)
             }
 
             Text(title)
@@ -134,42 +119,9 @@ struct WatchRoundView: View {
                 .frame(maxWidth: .infinity)
 
             holeArrow("chevron.right", label: "Next hole", disabled: shown >= round.lastHoleIndex) {
-                showHole(shown + 1, round)
+                roundStore.setDisplayHole(shown + 1)
             }
         }
-    }
-
-    /// "Resume round", and "Play this hole" for a hole after the current one.
-    private func viewingButtons(_ round: Round) -> some View {
-        VStack(spacing: 4) {
-            Button("Resume round") {
-                resumeRound()
-            }
-            if let viewingHoleIndex, viewingHoleIndex > round.currentHoleIndex {
-                Button("Play this hole") {
-                    roundStore.startHole(viewingHoleIndex, source: .playHole)
-                    resumeRound()
-                }
-            }
-        }
-        .font(.caption)
-    }
-
-    /// Shows a hole without changing the round's current hole, and pauses automatic
-    /// hole changes so the page does not jump away while the user looks at it.
-    private func showHole(_ index: Int, _ round: Round) {
-        if index == round.currentHoleIndex {
-            resumeRound()
-        } else {
-            holeAdvance.pause()
-            viewingHoleIndex = index
-        }
-    }
-
-    /// Goes back to the round's current hole and resumes automatic hole changes.
-    private func resumeRound() {
-        viewingHoleIndex = nil
-        holeAdvance.resume()
     }
 
     private func holeArrow(_ systemName: String, label: String, disabled: Bool, action: @escaping () -> Void) -> some View {
@@ -207,8 +159,7 @@ struct WatchRoundView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(viewingHoleIndex == nil ? liveDistance ?? previousDistance(strokes: round.strokes)
-                                         : previousDistance(strokes: round.hole(at: shownHoleIndex(round)).strokes))
+            Text(liveDistance ?? previousDistance(strokes: round.displayHoleStrokes))
                 .font(.caption2)
                 .fontWeight(.semibold)
         }
@@ -217,7 +168,7 @@ struct WatchRoundView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text("\(round.hole(at: shownHoleIndex(round)).strokeCount)")
+            Text("\(round.displayHoleStrokes.count)")
                 .font(.caption2)
                 .fontWeight(.semibold)
         }
@@ -277,7 +228,7 @@ struct WatchRoundView: View {
 
     private func updateLiveDistance(location: CLLocation?) {
         guard let location,
-              let lastStroke = roundStore.activeRound?.strokes.last else {
+              let lastStroke = roundStore.activeRound?.displayHoleStrokes.last else {
             liveDistance = nil
             return
         }

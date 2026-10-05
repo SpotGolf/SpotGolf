@@ -44,7 +44,7 @@ final class TrackExporterTests: XCTestCase {
 
     func testSwingRowCarriesNearestFixHoleAndPeak() {
         var round = Round(date: start, courseSelection: .test)
-        round.startHole(1, at: start.addingTimeInterval(20), source: .autoAdvance)
+        round.startHole(1, at: start.addingTimeInterval(20), source: .stroke)
         let swing = StrokeSuggestion.swing(at: start.addingTimeInterval(32), peakG: 12.5)
 
         let csv = TrackExporter.csv(round: round,

@@ -60,8 +60,7 @@ struct HoleTimelineView: View {
     private func label(for source: HoleStartSource) -> String? {
         switch source {
         case .roundStart: "Round start"
-        case .autoAdvance: nil
-        case .playHole: "Chosen"
+        case .stroke: nil
         case .estimated: "Estimated"
         case .corrected: "Corrected"
         case .userSet: "Set by you"

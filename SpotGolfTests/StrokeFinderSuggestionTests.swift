@@ -9,7 +9,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
     private static let start = Date(timeIntervalSince1970: 1_700_000_000)
 
-    private let hole = StrokeFinder.HoleShape(hole: PathCourse.selection.orderedHoles[0], course: PathCourse.selection.course)
+    private let hole = HoleShape(hole: PathCourse.selection.orderedHoles[0], course: PathCourse.selection.course)
 
     /// A GPS track with one fix per second.
     private struct Track {
@@ -158,7 +158,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         let second = track.swing()
         track.walk(north: 250)
 
-        let found = StrokeFinder.suggestions(on: StrokeFinder.HoleShape(), points: track.points, swings: [first, second], minStop: 30)
+        let found = StrokeFinder.suggestions(on: HoleShape(), points: track.points, swings: [first, second], minStop: 30)
         XCTAssertEqual(found.map(\.timestamp), [first.timestamp, second.timestamp])
     }
 
@@ -283,13 +283,13 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         let second = track.swing()
         track.stand(5)
         let swings = [teeShot, second]
-        let wholeRound = StrokeFinder.suggestions(on: StrokeFinder.HoleShape(), points: track.points, swings: swings, minStop: 30)
+        let wholeRound = StrokeFinder.suggestions(on: HoleShape(), points: track.points, swings: swings, minStop: 30)
 
         // A hole boundary in the middle of the second stop moves that stop to the next hole
         let boundary = second.timestamp.addingTimeInterval(-10)
-        let before = StrokeFinder.suggestions(on: StrokeFinder.HoleShape(), points: track.points, swings: swings,
+        let before = StrokeFinder.suggestions(on: HoleShape(), points: track.points, swings: swings,
                                               minStop: 30) { $0.end < boundary }
-        let after = StrokeFinder.suggestions(on: StrokeFinder.HoleShape(), points: track.points, swings: swings,
+        let after = StrokeFinder.suggestions(on: HoleShape(), points: track.points, swings: swings,
                                              minStop: 30) { $0.end >= boundary }
 
         XCTAssertEqual(wholeRound.count, 2)
@@ -304,7 +304,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         let stop = track.now
         track.walk(north: 340, east: 40)
         var round = Round(date: Self.start, courseSelection: PathCourse.selection)
-        round.holeTimeline.append(HoleStart(holeIndex: 1, startedAt: track.now, source: .autoAdvance))
+        round.holeTimeline.append(HoleStart(holeIndex: 1, startedAt: track.now, source: .stroke))
         XCTAssertEqual(StrokeFinder.suggestions(in: round, holeIndex: 0, points: track.points, swings: [], minStop: 30).count, 1)
 
         // Hole 2 starts just after the stop begins, so the player left the stop on hole 2
@@ -352,5 +352,13 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
         XCTAssertEqual(StrokeFinder.estimatedTime(of: stroke, in: track.points), there)
         XCTAssertNil(StrokeFinder.estimatedTime(of: stroke, in: []))
+    }
+
+    func testDistanceIsZeroInsideAndToTheNearestEdgeOutside() {
+        let square = PathCourse.square(north: 0, east: 0, half: 10)
+
+        XCTAssertEqual(HoleShape.distance(from: PathCourse.coordinate(north: 0, east: 0), to: square), 0)
+        // 5 m out from the middle of an edge, far from any corner
+        XCTAssertEqual(HoleShape.distance(from: PathCourse.coordinate(north: 0, east: 15), to: square), 5, accuracy: 0.1)
     }
 }

@@ -1,5 +1,5 @@
 import XCTest
-@testable import SpotGolf
+@testable import SpotGolfWatch
 
 final class RestartWatchdogTests: XCTestCase {
 

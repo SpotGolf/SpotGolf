@@ -40,64 +40,20 @@ enum StrokeFinder {
     /// At most this many suggestions are offered per hole.
     static let maxPerHole = 10
 
-    // MARK: - Hole starts
-
-    /// A fix or swing this close to a tee counts as reaching the hole. Only the tee box and GPS
-    /// drift: a ball hit over the green can land 20 m from the next tee.
-    static let teeArrivalRadius: CLLocationDistance = 10
-    /// A fix on the green or this close to its edge counts as at the green. Covers GPS drift and the fringe.
-    static let greenEdgeMargin: CLLocationDistance = 10
-
-    /// The shapes of one hole the rules need. Any of them may be missing.
-    struct HoleShape {
-        var tees: [[Coordinate]] = []
-        var green: [Coordinate]?
-        var centerline: [Coordinate] = []
-
-        init(tees: [[Coordinate]] = [], green: [Coordinate]? = nil, centerline: [Coordinate] = []) {
-            self.tees = tees
-            self.green = green
-            self.centerline = centerline
-        }
-
-        init(hole: Hole?, course: Course) {
-            tees = hole?.tees.values.compactMap { id in
-                guard let feature = course.findFeature(id: id), feature.type == .tee,
-                      !feature.polygon.isEmpty else { return nil }
-                return feature.polygon
-            } ?? []
-            green = hole?.green(from: course.features).map(\.polygon).flatMap { $0.isEmpty ? nil : $0 }
-            centerline = hole?.centerline ?? []
-        }
-
-        func metersToTee(_ point: Coordinate) -> CLLocationDistance? {
-            tees.map { StrokeFinder.distance(from: point, to: $0) }.min()
-        }
-
-        /// Meters from the green's edge: zero on the green.
-        func metersToGreen(_ point: Coordinate) -> CLLocationDistance? {
-            green.map { StrokeFinder.distance(from: point, to: $0) }
-        }
-
-        func metersToCenterline(_ point: Coordinate) -> Double? {
-            LocalDistance.meters(fromLat: point.latitude, lon: point.longitude,
-                                 toPolyline: centerline.map { ($0.latitude, $0.longitude) })
-        }
-    }
-
     // MARK: - Suggestions
 
     /// The stroke suggestions for one hole of a round. Stops are found over the whole round, so
     /// moving a hole start never changes a stop or its ID. A stop is on the hole the player was
     /// playing when they walked away from it: a stop picks up a few fixes as the player slows
-    /// down, so its start can fall just before the hole does.
+    /// down, so its start can fall just before the hole does. A hole with no start yet (no stroke
+    /// on it) is also offered the stops after the last hole that has one; see `HoleTimeline.possibleHoles`.
     /// `minStop` is the shortest stop with no swing that is offered; `hidden` holds the IDs of
     /// dismissed and converted suggestions.
     static func suggestions(in round: Round, holeIndex: Int, points: [TrackPoint], swings: [StrokeSuggestion],
                             minStop: TimeInterval, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
         let shape = HoleShape(hole: round.courseHole(at: holeIndex), course: round.course)
         return suggestions(on: shape, points: points, swings: swings, minStop: minStop, hidden: hidden) {
-            round.holeIndex(at: $0.end) == holeIndex
+            round.possibleHoles(at: $0.end).contains(holeIndex)
         }
     }
 
@@ -187,91 +143,6 @@ enum StrokeFinder {
         let nearest = points.min { abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date)) }
         guard let nearest, abs(nearest.timestamp.timeIntervalSince(date)) <= swingFixWindow else { return nil }
         return nearest
-    }
-
-    // MARK: - Hole starts
-
-    /// The round's hole timeline, fixed from the GPS path. Each hole starts just after the
-    /// player leaves the previous hole's green for the last time before reaching its tee, or on
-    /// reaching its tee when that green is missing. Holes the timeline skipped, and holes played
-    /// after its last entry, are filled in where the path shows them. An entry the user set is
-    /// never moved. Running it again on its own result changes nothing.
-    static func holeStarts(round: Round, points: [TrackPoint], swings: [StrokeSuggestion]) -> [HoleStart] {
-        let entries = HoleTimeline.normalized(round.holeTimeline)
-        var filled: [HoleStart] = []
-        for (i, entry) in entries.enumerated() {
-            filled.append(entry)
-            let next = i + 1 < entries.count ? entries[i + 1] : nil
-            let lastHole = next.map { $0.holeIndex - 1 } ?? round.lastHoleIndex
-            guard entry.holeIndex < lastHole else { continue }
-            var after = entry.startedAt
-            for hole in (entry.holeIndex + 1)...lastHole {
-                guard let start = start(of: hole, round: round, after: after, before: next?.startedAt ?? .distantFuture,
-                                        points: points, swings: swings) else { continue }
-                filled.append(HoleStart(holeIndex: hole, startedAt: start, source: .estimated))
-                after = start
-            }
-        }
-
-        var fixed = HoleTimeline.normalized(filled)
-        for i in fixed.indices where i > 0 && fixed[i].source != .userSet {
-            let upper = i + 1 < fixed.count ? fixed[i + 1].startedAt : .distantFuture
-            guard let start = start(of: fixed[i].holeIndex, round: round, after: fixed[i - 1].startedAt, before: upper,
-                                    points: points, swings: swings),
-                  start != fixed[i].startedAt else { continue }
-            fixed[i].startedAt = start
-            if fixed[i].source != .estimated {
-                fixed[i].source = .corrected
-            }
-            fixed[i].version += 1
-        }
-        return HoleTimeline.normalized(fixed)
-    }
-
-    /// When `hole` started, between `after` and `before`: just after the last fix at the
-    /// previous hole's green before the player reached this hole's tee, or on reaching the tee
-    /// when the player was never at that green. Nil when the tee was not reached.
-    private static func start(of hole: Int, round: Round, after: Date, before: Date,
-                              points: [TrackPoint], swings: [StrokeSuggestion]) -> Date? {
-        let tee = HoleShape(hole: round.courseHole(at: hole), course: round.course)
-        guard !tee.tees.isEmpty else { return nil }
-        let previous = hole > 0 ? HoleShape(hole: round.courseHole(at: hole - 1), course: round.course) : HoleShape()
-        let window = points.filter { $0.timestamp > after && $0.timestamp < before }
-
-        func isAtPreviousGreen(_ point: TrackPoint) -> Bool {
-            previous.metersToGreen(Coordinate(latitude: point.latitude, longitude: point.longitude)).map { $0 <= greenEdgeMargin } ?? false
-        }
-        func isNearTee(_ point: TrackPoint) -> Bool {
-            tee.metersToTee(Coordinate(latitude: point.latitude, longitude: point.longitude)).map { $0 <= teeArrivalRadius } ?? false
-        }
-
-        // The next tee is only reached after the previous green, so a tee passed on the way
-        // there does not count
-        let from = window.first(where: isAtPreviousGreen)?.timestamp ?? after
-        let teeSwing = swings.first { swing in
-            guard swing.isSwing, swing.timestamp >= from, swing.timestamp > after, swing.timestamp < before,
-                  let fix = nearestFix(to: swing.timestamp, in: window) else { return false }
-            return isNearTee(fix)
-        }
-        guard let arrival = teeSwing?.timestamp ?? window.first(where: { $0.timestamp >= from && isNearTee($0) })?.timestamp else {
-            return nil
-        }
-
-        guard let lastAtGreen = window.last(where: { $0.timestamp < arrival && isAtPreviousGreen($0) }) else { return arrival }
-        let leftGreen = window.first { $0.timestamp > lastAtGreen.timestamp }?.timestamp ?? arrival
-        return min(leftGreen, arrival)
-    }
-
-    // MARK: - Geometry
-
-    /// Meters from a point to a polygon's nearest edge: zero inside it.
-    static func distance(from point: Coordinate, to polygon: [Coordinate]) -> CLLocationDistance {
-        guard !polygon.isEmpty else { return .infinity }
-        if PolygonGeometry.contains(point, in: polygon) { return 0 }
-        let ring = (polygon + [polygon[0]]).map { (latitude: $0.latitude, longitude: $0.longitude) }
-        return LocalDistance.meters(fromLat: point.latitude, lon: point.longitude, toPolyline: ring)
-            ?? LocalDistance.meters(fromLat: point.latitude, lon: point.longitude,
-                                    toLat: polygon[0].latitude, lon: polygon[0].longitude)
     }
 
     // MARK: - Stops

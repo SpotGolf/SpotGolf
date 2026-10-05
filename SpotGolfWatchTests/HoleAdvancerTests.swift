@@ -1,7 +1,7 @@
 import XCTest
 import CoreLocation
 import CourseDataSwift
-@testable import SpotGolf
+@testable import SpotGolfWatch
 
 final class HoleAdvancerTests: XCTestCase {
 
@@ -48,9 +48,9 @@ final class HoleAdvancerTests: XCTestCase {
     }
 
     /// A new advancer's answer for one fix: the tee-box rule alone.
-    private func detect(location: CLLocation, courseSelection: CourseSelection, currentHoleIndex: Int) -> Int? {
+    private func detect(location: CLLocation, courseSelection: CourseSelection, displayHoleIndex: Int) -> Int? {
         var advancer = HoleAdvancer()
-        return advancer.advance(location: location, courseSelection: courseSelection, currentHoleIndex: currentHoleIndex)
+        return advancer.advance(location: location, courseSelection: courseSelection, displayHoleIndex: displayHoleIndex)
     }
 
     func testAdvancesToNextHoleWhenInsideTeePoly() {
@@ -71,7 +71,7 @@ final class HoleAdvancerTests: XCTestCase {
 
         // Standing on hole 2's tee while on hole 1 → advance to hole 2
         let userLocation = CLLocation(latitude: 33.001, longitude: -97.0)
-        let result = detect(location: userLocation, courseSelection: selection, currentHoleIndex: 0)
+        let result = detect(location: userLocation, courseSelection: selection, displayHoleIndex: 0)
         XCTAssertEqual(result, 1)
     }
 
@@ -93,7 +93,7 @@ final class HoleAdvancerTests: XCTestCase {
 
         // Standing on hole 3's tee while on hole 1 → should NOT advance (skips hole 2)
         let userLocation = CLLocation(latitude: 33.002, longitude: -97.0)
-        let result = detect(location: userLocation, courseSelection: selection, currentHoleIndex: 0)
+        let result = detect(location: userLocation, courseSelection: selection, displayHoleIndex: 0)
         XCTAssertNil(result)
     }
 
@@ -112,7 +112,7 @@ final class HoleAdvancerTests: XCTestCase {
 
         // Far from any tee
         let userLocation = CLLocation(latitude: 34.0, longitude: -96.0)
-        let result = detect(location: userLocation, courseSelection: selection, currentHoleIndex: 0)
+        let result = detect(location: userLocation, courseSelection: selection, displayHoleIndex: 0)
         XCTAssertNil(result)
     }
 
@@ -130,7 +130,7 @@ final class HoleAdvancerTests: XCTestCase {
         let selection = makeSelection(holes: holes, features: features)
 
         // On last hole — no next hole to advance to
-        let result = detect(location: CLLocation(latitude: 33.0, longitude: -97.0), courseSelection: selection, currentHoleIndex: 1)
+        let result = detect(location: CLLocation(latitude: 33.0, longitude: -97.0), courseSelection: selection, displayHoleIndex: 1)
         XCTAssertNil(result)
     }
 
@@ -163,7 +163,7 @@ final class HoleAdvancerTests: XCTestCase {
         let (selection, _, back) = makeFrontBackSelection()
 
         // On the 4th, standing on the 16th's tee (back nine hole 7)
-        let result = detect(location: standing(on: back[6]), courseSelection: selection, currentHoleIndex: 3)
+        let result = detect(location: standing(on: back[6]), courseSelection: selection, displayHoleIndex: 3)
         XCTAssertNil(result)
     }
 
@@ -171,7 +171,7 @@ final class HoleAdvancerTests: XCTestCase {
         let (selection, _, back) = makeFrontBackSelection()
 
         // On the 9th, standing on the 10th's tee (back nine hole 1)
-        let result = detect(location: standing(on: back[0]), courseSelection: selection, currentHoleIndex: 8)
+        let result = detect(location: standing(on: back[0]), courseSelection: selection, displayHoleIndex: 8)
         XCTAssertEqual(result, 9)
     }
 
@@ -179,7 +179,7 @@ final class HoleAdvancerTests: XCTestCase {
         let (selection, front, _) = makeFrontBackSelection()
 
         // On the 12th, standing on the 3rd's tee
-        let result = detect(location: standing(on: front[2]), courseSelection: selection, currentHoleIndex: 11)
+        let result = detect(location: standing(on: front[2]), courseSelection: selection, displayHoleIndex: 11)
         XCTAssertNil(result)
     }
 
@@ -187,22 +187,8 @@ final class HoleAdvancerTests: XCTestCase {
         let (selection, front, _) = makeFrontBackSelection(frontOrder: [1, 3, 2, 4, 5, 6, 7, 8, 9])
 
         // On the 1st: the 2nd's tee advances, the 3rd's does not
-        XCTAssertEqual(detect(location: standing(on: front[1]), courseSelection: selection, currentHoleIndex: 0), 1)
-        XCTAssertNil(detect(location: standing(on: front[2]), courseSelection: selection, currentHoleIndex: 0))
-    }
-
-    func testManualOverridePausesAutoAdvance() {
-        var advancer = HoleAdvancer()
-        XCTAssertFalse(advancer.isPaused)
-        advancer.pause()
-        XCTAssertTrue(advancer.isPaused)
-    }
-
-    func testResumeReEnablesAutoAdvance() {
-        var advancer = HoleAdvancer()
-        advancer.pause()
-        advancer.resume()
-        XCTAssertFalse(advancer.isPaused)
+        XCTAssertEqual(detect(location: standing(on: front[1]), courseSelection: selection, displayHoleIndex: 0), 1)
+        XCTAssertNil(detect(location: standing(on: front[2]), courseSelection: selection, displayHoleIndex: 0))
     }
 
     // MARK: - Leaving the green
@@ -250,7 +236,7 @@ final class HoleAdvancerTests: XCTestCase {
     private func firstAdvance(_ fixes: [CLLocation], selection: CourseSelection, holeIndex: Int = 0) -> (index: Int, east: Double)? {
         var advancer = HoleAdvancer()
         for (index, location) in fixes.enumerated()
-        where advancer.advance(location: location, courseSelection: selection, currentHoleIndex: holeIndex) == holeIndex + 1 {
+        where advancer.advance(location: location, courseSelection: selection, displayHoleIndex: holeIndex) == holeIndex + 1 {
             return (index, (location.coordinate.longitude + 97.0) * Self.metersPerDegreeLongitude)
         }
         return nil
@@ -315,13 +301,13 @@ final class HoleAdvancerTests: XCTestCase {
         var advancer = HoleAdvancer()
         let fixes = path(onGreen: 30, walk: 50)
         for location in fixes.prefix(30) {
-            _ = advancer.advance(location: location, courseSelection: selection, currentHoleIndex: 0)
+            _ = advancer.advance(location: location, courseSelection: selection, displayHoleIndex: 0)
         }
 
         // The hole changed by hand, and back
-        _ = advancer.advance(location: fixes[29], courseSelection: selection, currentHoleIndex: 1)
+        _ = advancer.advance(location: fixes[29], courseSelection: selection, displayHoleIndex: 1)
         let advancedAt = fixes.dropFirst(30).firstIndex {
-            advancer.advance(location: $0, courseSelection: selection, currentHoleIndex: 0) == 1
+            advancer.advance(location: $0, courseSelection: selection, displayHoleIndex: 0) == 1
         }
 
         // Only the tee box advances now

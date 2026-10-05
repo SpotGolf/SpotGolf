@@ -1,8 +1,8 @@
 import Foundation
 
-/// Keeps the hole timeline and strokes the same on both devices. Every change sends the full
-/// state, so a lost message is fixed by the next one, and a late or repeated one does no harm:
-/// timelines are merged and strokes keep the highest version.
+/// Keeps the hole timeline, the display hole and strokes the same on both devices. Every change
+/// sends the full state, so a lost message is fixed by the next one, and a late or repeated one
+/// does no harm: timelines are merged, the later display hole wins, and strokes keep the highest version.
 @MainActor
 final class SnapshotSync {
     private let sync: SyncService
@@ -22,6 +22,12 @@ final class SnapshotSync {
         updateContext(round)
     }
 
+    func sendDisplayHole(_ round: Round) {
+        guard round.isActive else { return }
+        sync.send(.displayHole(DisplayHoleMessage(roundID: round.id, displayHole: round.displayHole)))
+        updateContext(round)
+    }
+
     func sendStrokes(_ round: Round) {
         guard sendsStrokes, round.isActive else { return }
         sync.send(.strokes(round.strokesSnapshot))
@@ -33,6 +39,7 @@ final class SnapshotSync {
         guard round.isActive else { return }
         sync.updateContext(SyncContext(
             timeline: HoleTimelineMessage(roundID: round.id, entries: round.holeTimeline),
+            displayHole: DisplayHoleMessage(roundID: round.id, displayHole: round.displayHole),
             strokes: sendsStrokes ? round.strokesSnapshot : nil
         ))
     }
@@ -41,6 +48,12 @@ final class SnapshotSync {
     @discardableResult
     func apply(_ message: HoleTimelineMessage) -> Bool {
         rounds.mergeTimeline(message.entries, roundID: message.roundID)
+    }
+
+    /// Returns true if the display hole changed.
+    @discardableResult
+    func apply(_ message: DisplayHoleMessage) -> Bool {
+        rounds.mergeDisplayHole(message.displayHole, roundID: message.roundID)
     }
 
     @discardableResult
@@ -54,6 +67,9 @@ final class SnapshotSync {
     func apply(_ context: SyncContext) -> UUID? {
         if let strokes = context.strokes {
             apply(strokes)
+        }
+        if let displayHole = context.displayHole {
+            apply(displayHole)
         }
         if let timeline = context.timeline, apply(timeline) {
             return timeline.roundID

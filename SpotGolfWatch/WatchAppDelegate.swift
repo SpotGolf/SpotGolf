@@ -17,7 +17,6 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     private let swingDetector = SwingDetector()
     private(set) lazy var watchSync = WatchSync(sync: syncService, rounds: roundStore, streams: streamStore)
 
-    let holeAdvance = WatchHoleAdvance()
     private var holeAdvancer = HoleAdvancer()
 
     /// UI tests run on simulators, which can't grant every permission
@@ -47,6 +46,7 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             checker.refresh()
             return checker.missing
         }
+        locationManager.setUpdatesInBackground()
         locationManager.onRawLocations = { [weak self] locations in
             sync.record(locations)
             // Every fix, so leaving the green is seen over its whole time window
@@ -88,12 +88,13 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     }
 
     /// Runs here rather than in a view, so it works while watchOS runs the app in the
-    /// background and no view is on screen.
+    /// background and no view is on screen. Only the display hole moves; the timeline is set
+    /// by the strokes added on the phone.
     private func advanceHole(_ location: CLLocation) {
-        guard let round = roundStore.activeRound, !holeAdvance.isPaused,
-              let detected = holeAdvancer.advance(location: location, courseSelection: round.courseSelection,
-                                                  currentHoleIndex: round.currentHoleIndex) else { return }
-        roundStore.startHole(detected, source: .autoAdvance)
+        guard let round = roundStore.activeRound,
+              let next = holeAdvancer.advance(location: location, courseSelection: round.courseSelection,
+                                              displayHoleIndex: round.displayHoleIndex) else { return }
+        roundStore.setDisplayHole(next)
     }
 
     /// watchOS launches the app here when the phone starts a round with `startWatchApp`.
@@ -112,7 +113,7 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     private func startWorkoutWaitingForRound() {
         workoutManager.start()
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(PhoneSync.defaultStartTimeout * 4))
+            try? await Task.sleep(for: .seconds(SyncService.startTimeout * 4))
             guard let self, self.roundStore.activeRound == nil else { return }
             Log.workout.notice("No round arrived after the workout launch; stopping the workout")
             self.workoutManager.stop()
@@ -130,14 +131,4 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             workoutManager.stop()
         }
     }
-}
-
-/// Whether the round moves to the next hole when the player reaches its tee. Paused while
-/// the user looks at another hole on the watch.
-@MainActor
-final class WatchHoleAdvance: ObservableObject {
-    private(set) var isPaused = false
-
-    func pause() { isPaused = true }
-    func resume() { isPaused = false }
 }

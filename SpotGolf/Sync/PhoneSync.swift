@@ -5,14 +5,8 @@ import os
 /// the watch's stream, and keeping the timeline and strokes in step.
 @MainActor
 final class PhoneSync: ObservableObject {
-    /// How long the phone waits for the watch to confirm a start before offering Retry.
-    nonisolated static let defaultStartTimeout: TimeInterval = 15
-
     /// How long the phone waits before sending a failed start or end request again.
     nonisolated static let defaultRetryDelay: TimeInterval = 5
-
-    /// While GPS arrives, the hole starts are worked out at most this often.
-    nonisolated static let defaultTimelineFixInterval: TimeInterval = 5
 
     enum StartState: Equatable {
         case waiting
@@ -36,18 +30,14 @@ final class PhoneSync: ObservableObject {
     private let requiresWatch: Bool
     private let startTimeout: TimeInterval
     private let retryDelay: TimeInterval
-    private let timelineFixInterval: TimeInterval
-    // When each round's hole starts were last worked out from arriving GPS
-    private var lastTimelineFix: [UUID: Date] = [:]
     /// Launches the watch app so it can take the round. `HKHealthStore.startWatchApp` in the app.
     private let launchWatchApp: () -> Void
     private var startTimers: [UUID: Timer] = [:]
     private var retryTimers: [UUID: Timer] = [:]
 
     init(sync: SyncService, rounds: RoundStore, streams: StreamStore, suggestions: SuggestionStore,
-         requiresWatch: Bool = true, startTimeout: TimeInterval = PhoneSync.defaultStartTimeout,
+         requiresWatch: Bool = true, startTimeout: TimeInterval = SyncService.startTimeout,
          retryDelay: TimeInterval = PhoneSync.defaultRetryDelay,
-         timelineFixInterval: TimeInterval = PhoneSync.defaultTimelineFixInterval,
          launchWatchApp: @escaping () -> Void = {}) {
         self.sync = sync
         self.rounds = rounds
@@ -56,16 +46,13 @@ final class PhoneSync: ObservableObject {
         self.requiresWatch = requiresWatch
         self.startTimeout = startTimeout
         self.retryDelay = retryDelay
-        self.timelineFixInterval = timelineFixInterval
         self.launchWatchApp = launchWatchApp
         receiver = StreamReceiver(rounds: rounds, streams: streams)
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: true)
 
         sync.handler = { [weak self] message in self?.handle(message) }
-        rounds.onTimelineChanged = { [weak self] round in
-            self?.snapshots.sendTimeline(round)
-            self?.fixTimeline(round.id)
-        }
+        rounds.onTimelineChanged = { [weak self] round in self?.snapshots.sendTimeline(round) }
+        rounds.onDisplayHoleChanged = { [weak self] round in self?.snapshots.sendDisplayHole(round) }
         rounds.onStrokesChanged = { [weak self] round in
             self?.snapshots.sendStrokes(round)
         }
@@ -167,7 +154,8 @@ final class PhoneSync: ObservableObject {
             return
         }
         let start = StartRound(roundID: round.id, date: round.date, course: course,
-                               holeTimeline: round.holeTimeline, strokes: round.strokesSnapshot,
+                               holeTimeline: round.holeTimeline, displayHole: round.displayHole,
+                               strokes: round.strokesSnapshot,
                                streamBase: receiver.have(for: round.id))
         sync.send(.startRound(start), reply: { [weak self] reply in
             switch reply {
@@ -302,20 +290,17 @@ final class PhoneSync: ObservableObject {
     private func finish(_ roundID: UUID) {
         Log.rounds.notice("Round \(roundID, privacy: .public) ended, \(self.receiver.have(for: roundID), privacy: .public) records")
         rounds.update(roundID) { $0.end(at: Date()) }
-        // The timeline first: it decides which hole each swing is on
-        fixTimeline(roundID)
     }
 
     // MARK: - Import
 
-    /// Adds an active round read from an export, with its stream, and works out its hole starts.
+    /// Adds an active round read from an export, with its stream.
     /// Returns false when another round is in progress, since only one can be.
     @discardableResult
     func importRound(_ round: Round, records: [StreamRecord]) -> Bool {
         guard rounds.currentRound == nil else { return false }
         rounds.rounds.insert(round, at: 0)
         streams.append(records, roundID: round.id)
-        fixTimeline(round.id)
         return true
     }
 
@@ -329,17 +314,15 @@ final class PhoneSync: ObservableObject {
         case .streamBatch(let batch):
             let ack = receiver.receive(batch)
             finishIfComplete(batch.roundID)
-            fixTimelineThrottled(batch.roundID)
             return .streamAck(ack)
         case .holeTimeline(let timeline):
-            if snapshots.apply(timeline) {
-                fixTimeline(timeline.roundID)
-            }
+            snapshots.apply(timeline)
+            return nil
+        case .displayHole(let displayHole):
+            snapshots.apply(displayHole)
             return nil
         case .context(let context):
-            if let roundID = snapshots.apply(context) {
-                fixTimeline(roundID)
-            }
+            snapshots.apply(context)
             return nil
         case .startRoundAck(let ack):
             started(ack.roundID)
@@ -373,26 +356,6 @@ final class PhoneSync: ObservableObject {
             stopWaiting(end.roundID)
         }
         watchEnded(end.roundID, lastSeq: end.lastSeq)
-    }
-
-    // MARK: - Timeline
-
-    /// Works out the hole starts from the GPS path (see `StrokeFinder.holeStarts`), and sends any change.
-    func fixTimeline(_ roundID: UUID) {
-        guard let round = rounds.round(roundID) else { return }
-        lastTimelineFix[roundID] = Date()
-        let fixed = StrokeFinder.holeStarts(round: round,
-                                            points: streams.points(for: roundID, until: round.endedAt),
-                                            swings: streams.swings(for: roundID, until: round.endedAt))
-        if fixed != round.holeTimeline {
-            rounds.setTimeline(fixed, roundID: roundID)
-        }
-    }
-
-    /// `fixTimeline`, at most once every `timelineFixInterval`: GPS arrives about once a second.
-    private func fixTimelineThrottled(_ roundID: UUID) {
-        if let last = lastTimelineFix[roundID], Date().timeIntervalSince(last) < timelineFixInterval { return }
-        fixTimeline(roundID)
     }
 
     // MARK: - Reachability

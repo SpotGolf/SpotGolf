@@ -11,7 +11,6 @@ struct RoundMapView: View {
     @EnvironmentObject var suggestionStore: SuggestionStore
     @EnvironmentObject var streamStore: StreamStore
     @EnvironmentObject var settingsStore: SettingsStore
-    @EnvironmentObject var roundTracker: RoundTracker
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {
@@ -25,8 +24,9 @@ struct RoundMapView: View {
     @State private var draggingStroke: Stroke?
     @State private var dragOffset: CGSize = .zero
     @State private var newSpotIndex: Int = 0
-    /// A hole the user picked to look at. Nil while the view follows the round's current hole.
-    @State private var viewingHoleIndex: Int?
+    /// The hole shown in a past round. An active round shows its display hole, which the watch's
+    /// GPS and the user move.
+    @State private var pastHoleIndex = 0
     @State private var hasInitialPan = false
     @State private var isEditing = false
     /// The whole round's GPS, and the part of it on the hole shown.
@@ -55,8 +55,6 @@ struct RoundMapView: View {
         }
         .onDisappear {
             locationManager.stopUpdating()
-            // The hole picked here is forgotten, so the round goes back to changing holes itself
-            roundTracker.resumeAdvance()
         }
         .onReceive(locationManager.$lastLocation) { location in
             if !hasInitialPan, location != nil, round != nil {
@@ -74,14 +72,15 @@ struct RoundMapView: View {
             if round == nil {
                 dismiss()
             }
-            refreshSuggestions()
+            // A new stroke can start its hole in the timeline, which changes the hole's track
+            filterTrack()
         }
         .onChange(of: round.map(shownHoleIndex)) {
-            // Also covers a hole chosen on the watch, and RoundTracker moving to the next hole
+            // Also covers a hole change from the watch
             isEditing = false
             target = nil
             panToHole()
-            reloadTrack()
+            filterTrack()
         }
         .onReceive(suggestionStore.$hidden) { _ in
             refreshSuggestions()
@@ -92,9 +91,10 @@ struct RoundMapView: View {
         }
     }
 
-    /// The hole the map, header, and distances describe. A past round opens on its first hole.
+    /// The hole the map, header, and distances describe: an active round's display hole, which
+    /// the watch shows too. A past round opens on its first hole.
     private func shownHoleIndex(_ round: Round) -> Int {
-        viewingHoleIndex ?? (round.isActive ? round.currentHoleIndex : 0)
+        round.isActive ? round.displayHoleIndex : pastHoleIndex
     }
 
     @ViewBuilder
@@ -206,7 +206,9 @@ struct RoundMapView: View {
                             let stroke = Stroke(coordinate: coordinate)
                             let holeIndex = shownHoleIndex(round)
                             newSpotIndex = round.hole(at: holeIndex).strokes.count // capture before append
-                            roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
+                            // Hit when the player was nearest to it, going by the hole's GPS
+                            roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke,
+                                                 hitAt: StrokeFinder.estimatedTime(of: stroke, in: holeTrack))
                             selectedStroke = stroke
                         default:
                             break
@@ -427,8 +429,6 @@ struct RoundMapView: View {
 
     private func holeCircle(_ index: Int, _ round: Round) -> some View {
         let isShown = index == shownHoleIndex(round)
-        // While another hole is shown, the round's current hole keeps a green ring
-        let isCurrent = round.isActive && index == round.currentHoleIndex
         let isPlayed = index < round.holes.count && !round.holes[index].strokes.isEmpty
         return Button {
             selectHole(index, round)
@@ -439,49 +439,23 @@ struct RoundMapView: View {
                 .foregroundStyle(isShown ? Color.white : Color.primary)
                 .frame(width: 36, height: 36)
                 .background(Circle().fill(isShown ? Color.green : isPlayed ? Color.green.opacity(0.18) : Color.clear))
-                .overlay(Circle().stroke(isShown || isCurrent ? Color.green : Color.secondary.opacity(0.5),
-                                         lineWidth: isCurrent && !isShown ? 3 : 1.5))
+                .overlay(Circle().stroke(isShown ? Color.green : Color.secondary.opacity(0.5), lineWidth: 1.5))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Hole \(index + 1)")
-        .accessibilityValue(isCurrent ? "Current hole" : "")
         .accessibilityAddTraits(isShown ? .isSelected : [])
     }
 
-    /// Shows a hole without changing the round's current hole, and pauses automatic
-    /// hole changes so the view does not jump away while the user looks at it.
+    /// Shows a hole. During a round the watch shows it too, and its GPS moves on from there.
+    /// The timeline does not change: a hole starts with its first stroke.
     private func selectHole(_ index: Int, _ round: Round) {
-        if !round.isActive {
-            if index == shownHoleIndex(round) {
-                panToHole()
-            } else {
-                viewingHoleIndex = index
-            }
-        } else if index == round.currentHoleIndex {
-            if viewingHoleIndex == nil {
-                panToHole()
-            } else {
-                resumeRound()
-            }
+        if index == shownHoleIndex(round) {
+            panToHole()
+        } else if round.isActive {
+            roundStore.setDisplayHole(index, roundID: round.id)
         } else {
-            roundTracker.pauseAdvance()
-            viewingHoleIndex = index
+            pastHoleIndex = index
         }
-    }
-
-    /// Goes back to the round's current hole and resumes automatic hole changes.
-    private func resumeRound() {
-        viewingHoleIndex = nil
-        roundTracker.resumeAdvance()
-    }
-
-    /// Makes the shown hole the round's current hole and resumes automatic hole changes.
-    /// Only offered for a hole after the current one: golf is played in order.
-    private func playViewingHole(_ round: Round) {
-        if let viewingHoleIndex {
-            roundStore.startHole(viewingHoleIndex, roundID: round.id, source: .playHole)
-        }
-        resumeRound()
     }
 
     /// "Par 4 - 156 yds", or whichever part is known. Nil past the course's last hole.
@@ -654,8 +628,7 @@ struct RoundMapView: View {
         .accessibilityLabel("Hazard in \(yards) yards")
     }
 
-    /// Edit at the bottom left, and the map buttons at the right. While another hole is shown,
-    /// "Resume round" and "Play hole" join Edit.
+    /// Edit at the bottom left, and the map buttons at the right.
     private func buttonBar(_ round: Round) -> some View {
         HStack(alignment: .bottom, spacing: 10) {
             Button {
@@ -672,20 +645,6 @@ struct RoundMapView: View {
             }
             .accessibilityLabel(isEditing ? "Done" : "Edit")
             .accessibilityIdentifier("EditHole")
-
-            if round.isActive, let viewingHoleIndex {
-                Button("Resume round") {
-                    resumeRound()
-                }
-                .modifier(BarButtonStyle(horizontalPadding: 16))
-
-                if viewingHoleIndex > round.currentHoleIndex {
-                    Button("Play hole") {
-                        playViewingHole(round)
-                    }
-                    .modifier(BarButtonStyle(horizontalPadding: 16))
-                }
-            }
 
             Spacer(minLength: 0)
 
@@ -907,8 +866,7 @@ struct RoundMapView: View {
 
     // MARK: - Stroke Suggestions
 
-    /// Loads the watch's GPS track for the hole being viewed and recomputes suggestions.
-    /// A fix belongs to the hole the timeline says was being played at its time.
+    /// Loads the watch's GPS track and picks out the hole shown.
     private func reloadTrack() {
         guard let round else {
             roundTrack = []
@@ -917,8 +875,15 @@ struct RoundMapView: View {
             return
         }
         roundTrack = streamStore.points(for: round.id, until: round.endedAt)
+        filterTrack()
+    }
+
+    /// Picks out the track on the hole shown and recomputes suggestions. A fix belongs to the
+    /// hole the timeline says was being played at its time, or to a later hole with no start yet.
+    private func filterTrack() {
+        guard let round else { return }
         let holeIndex = shownHoleIndex(round)
-        holeTrack = roundTrack.filter { round.holeIndex(at: $0.timestamp) == holeIndex }
+        holeTrack = roundTrack.filter { round.possibleHoles(at: $0.timestamp).contains(holeIndex) }
         refreshSuggestions()
     }
 
@@ -970,7 +935,7 @@ struct RoundMapView: View {
         let strokes = round.hole(at: holeIndex).strokes
         let insertAt = insertionIndex(for: suggestion.timestamp, in: strokes)
         let appending = insertAt == strokes.count
-        roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
+        roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke, hitAt: suggestion.timestamp)
         if !appending {
             roundStore.reorderStroke(stroke, to: insertAt, in: round.id)
         }
@@ -983,22 +948,6 @@ struct RoundMapView: View {
         strokes.firstIndex { stroke in
             StrokeFinder.estimatedTime(of: stroke, in: holeTrack).map { timestamp < $0 } ?? false
         } ?? strokes.count
-    }
-}
-
-/// The look of the Edit button: a capsule on a thick material with a shadow.
-private struct BarButtonStyle: ViewModifier {
-    let horizontalPadding: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .font(.headline)
-            .lineLimit(1)
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, 12)
-            .background(.thickMaterial)
-            .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 }
 

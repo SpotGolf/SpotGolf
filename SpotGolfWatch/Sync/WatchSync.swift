@@ -24,6 +24,7 @@ final class WatchSync: ObservableObject {
 
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.onTimelineChanged = { [weak self] round in self?.snapshots.sendTimeline(round) }
+        rounds.onDisplayHoleChanged = { [weak self] round in self?.snapshots.sendDisplayHole(round) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
         sender.onStreamDeleted = { [weak self] in self?.pruneFinishedRounds() }
         pruneFinishedRounds()
@@ -112,6 +113,9 @@ final class WatchSync: ObservableObject {
         case .holeTimeline(let timeline):
             snapshots.apply(timeline)
             return nil
+        case .displayHole(let displayHole):
+            snapshots.apply(displayHole)
+            return nil
         case .strokes(let strokes):
             snapshots.apply(strokes)
             return nil
@@ -157,7 +161,7 @@ final class WatchSync: ObservableObject {
             rounds.startRound(id: start.roundID, date: start.date, courseSelection: selection)
             rounds.update(start.roundID) { round in
                 round.holeTimeline = HoleTimeline.normalized(start.holeTimeline)
-                round.ensureHole(round.currentHoleIndex)
+                round.displayHole = start.displayHole
             }
         } else {
             rounds.update(start.roundID) { round in
@@ -166,6 +170,7 @@ final class WatchSync: ObservableObject {
                 round.lastSeq = nil
                 round.endConfirmed = false
                 round.mergeTimeline(start.holeTimeline)
+                round.mergeDisplayHole(start.displayHole)
             }
         }
         // A stream still on the watch keeps its own base; the phone holds only part of it

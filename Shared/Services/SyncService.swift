@@ -6,6 +6,9 @@ import os
 /// how to answer is decided by `PhoneSync` or `WatchSync`.
 @MainActor
 final class SyncService: ObservableObject {
+    /// How long the phone waits for the watch to confirm a round start before offering Retry.
+    nonisolated static let startTimeout: TimeInterval = 15
+
     /// The other app can receive messages right now.
     @Published private(set) var isConnected = false
 

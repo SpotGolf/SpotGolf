@@ -3,10 +3,9 @@ import Foundation
 /// How a hole timeline entry was made.
 enum HoleStartSource: String, Codable {
     case roundStart     // first entry
-    case autoAdvance    // HoleAdvancer found the tee
-    case playHole       // user tapped "Play this hole"
-    case estimated      // filled in for a skipped hole from the GPS track
-    case corrected      // moved by the phone from the GPS path
+    case stroke         // the hole's first stroke, added on the phone
+    case estimated      // worked out from the GPS track when a round is imported
+    case corrected      // moved by the phone from the GPS path; only in rounds saved before it stopped
     case userSet        // set by the user; the phone never moves it
 }
 
@@ -59,5 +58,14 @@ enum HoleTimeline {
     /// The hole being played at `date`. Before the first entry, the first entry's hole.
     static func holeIndex(at date: Date, in entries: [HoleStart]) -> Int {
         (entries.last(where: { $0.startedAt <= date }) ?? entries.first)?.holeIndex ?? 0
+    }
+
+    /// The holes a moment can be on: the hole being played by the timeline, and the holes after
+    /// it with no start yet, up to the next one that has. A hole gets its start from its first
+    /// stroke, so until then its GPS reads as the hole before it by time alone.
+    static func possibleHoles(at date: Date, in entries: [HoleStart], lastHoleIndex: Int) -> ClosedRange<Int> {
+        let current = holeIndex(at: date, in: entries)
+        let next = entries.first(where: { $0.startedAt > date && $0.holeIndex > current })?.holeIndex ?? lastHoleIndex + 1
+        return current...max(current, next - 1)
     }
 }

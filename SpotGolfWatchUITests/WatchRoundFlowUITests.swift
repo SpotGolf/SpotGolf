@@ -73,30 +73,22 @@ final class WatchRoundFlowUITests: XCTestCase {
         endRound()
     }
 
-    func testArrowsOnlyViewHolesUntilPlayThisHole() throws {
+    func testArrowsChangeTheHoleShownWithNothingToConfirm() throws {
         app.launchArguments.append("--start-round")
         app.launch()
         dismissHealthAccessAlerts()
         XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "Hole 1 label should be visible")
 
-        // The arrow shows hole 2 without playing it
+        // The arrow shows hole 2; there is nothing to confirm or go back to
         app.buttons["Next hole"].tap()
         XCTAssertTrue(app.staticTexts["Hole 2"].waitForExistence(timeout: 5), "Hole 2 should be shown")
-        XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round should appear")
-        let playButton = app.buttons["Play this hole"]
-        XCTAssertTrue(playButton.exists, "Play this hole should appear for a later hole")
+        XCTAssertFalse(app.buttons["Resume round"].exists, "There is no round position to go back to")
+        XCTAssertFalse(app.buttons["Play this hole"].exists, "Showing a hole is all there is to do")
 
-        playButton.tap()
-        XCTAssertFalse(app.buttons["Resume round"].waitForExistence(timeout: 2), "The round is now on hole 2")
-
-        // Hole 1 can be viewed but not played again
+        // And back to hole 1
         app.buttons["Previous hole"].tap()
         XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "Hole 1 should be shown")
-        XCTAssertTrue(app.buttons["Resume round"].waitForExistence(timeout: 5), "Resume round should appear")
-        XCTAssertFalse(app.buttons["Play this hole"].exists, "Play this hole should not appear for an earlier hole")
-
-        app.buttons["Resume round"].tap()
-        XCTAssertTrue(app.staticTexts["Hole 2"].waitForExistence(timeout: 5), "Resume round returns to hole 2")
+        XCTAssertFalse(app.buttons["Resume round"].exists, "There is no round position to go back to")
 
         // ── End the round so no workout is left running ──
         endRound()

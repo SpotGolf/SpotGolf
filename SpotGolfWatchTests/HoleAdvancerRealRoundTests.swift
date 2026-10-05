@@ -1,7 +1,7 @@
 import XCTest
 import CoreLocation
 import CourseDataSwift
-@testable import SpotGolf
+@testable import SpotGolfWatch
 
 /// Replays a real round through `HoleAdvancer`, the way the watch feeds it. The round lives in
 /// the git-ignored `Data` folder and the course in the sibling CourseData checkout, so this is
@@ -20,12 +20,20 @@ final class HoleAdvancerRealRoundTests: XCTestCase {
 
         let course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: courseURL).gzipDecompressed())
         let selection = CourseSelection(course: course, selectedSubCourseIndices: Array(course.subCourses.indices))
-        let export = try TrackImporter.read(String(contentsOf: roundURL, encoding: .utf8))
-        let fixes = export.points.map { point in
-            CLLocation(coordinate: CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude),
-                       altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 5, timestamp: point.timestamp)
+        return (selection, try Self.fixes(csv: String(contentsOf: roundURL, encoding: .utf8)))
+    }
+
+    /// The GPS rows of an exported round: type,timestamp,latitude,longitude,...
+    private static func fixes(csv: String) throws -> [CLLocation] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return csv.split(whereSeparator: \.isNewline).compactMap { line in
+            let fields = line.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+            guard fields.count >= 4, fields[0] == "track", let date = formatter.date(from: fields[1]),
+                  let latitude = Double(fields[2]), let longitude = Double(fields[3]) else { return nil }
+            return CLLocation(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                              altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 5, timestamp: date)
         }
-        return (selection, fixes)
     }
 
     /// Each hole changes after the player's last fix on the green and no later than reaching
@@ -39,9 +47,9 @@ final class HoleAdvancerRealRoundTests: XCTestCase {
         var advances = 0
 
         for (index, location) in fixes.enumerated() {
-            guard let next = advancer.advance(location: location, courseSelection: selection, currentHoleIndex: holeIndex) else { continue }
-            let green = StrokeFinder.HoleShape(hole: holes[holeIndex], course: selection.course)
-            let tees = StrokeFinder.HoleShape(hole: holes[next], course: selection.course)
+            guard let next = advancer.advance(location: location, courseSelection: selection, displayHoleIndex: holeIndex) else { continue }
+            let green = HoleShape(hole: holes[holeIndex], course: selection.course)
+            let tees = HoleShape(hole: holes[next], course: selection.course)
             let reachedTee = fixes[holeStart...].firstIndex { tees.metersToTee(Self.coordinate($0)) == 0 } ?? fixes.endIndex
             // The player's real exit: the last fix at the green before walking onto the next tee
             let lastOnGreen = try XCTUnwrap(fixes[holeStart..<reachedTee].lastIndex { green.metersToGreen(Self.coordinate($0)).map { $0 <= 5 } ?? false },

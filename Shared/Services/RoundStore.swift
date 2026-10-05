@@ -4,16 +4,19 @@ import CoreLocation
 import CourseDataSwift
 
 /// Holds and saves every round. Changes made on this device are reported through
-/// `onTimelineChanged` and `onStrokesChanged` so they can be sent to the other device;
-/// changes applied from the other device are not reported.
+/// `onTimelineChanged`, `onDisplayHoleChanged` and `onStrokesChanged` so they can be sent to
+/// the other device; changes applied from the other device are not reported.
 @MainActor
 class RoundStore: ObservableObject {
     @Published var rounds: [Round] = [] {
         didSet { save() }
     }
 
-    /// A hole change or timeline correction made on this device.
+    /// A timeline change made on this device: a hole's first stroke, or a start time set by hand.
     var onTimelineChanged: ((Round) -> Void)?
+
+    /// A display hole change made on this device.
+    var onDisplayHoleChanged: ((Round) -> Void)?
 
     /// A stroke change made on this device.
     var onStrokesChanged: ((Round) -> Void)?
@@ -67,17 +70,29 @@ class RoundStore: ObservableObject {
         rounds.removeAll { $0.id == id }
     }
 
-    // MARK: - Holes
+    // MARK: - Display hole
 
-    /// Moves play to a later hole. Earlier holes can't be played again, so a lower hole is ignored.
-    func startHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date(), source: HoleStartSource) {
+    /// Shows a hole on both devices. The active round when `roundID` is nil.
+    func setDisplayHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date()) {
         guard let id = roundID ?? activeRound?.id,
               let i = rounds.firstIndex(where: { $0.id == id }) else { return }
         var round = rounds[i]
-        guard round.startHole(index, at: date, source: source) else { return }
+        guard round.setDisplayHole(index, at: date) else { return }
         rounds[i] = round
-        onTimelineChanged?(round)
+        onDisplayHoleChanged?(round)
     }
+
+    /// Takes the other device's display hole when it is newer. Returns true if it changed.
+    @discardableResult
+    func mergeDisplayHole(_ displayHole: DisplayHole, roundID: UUID) -> Bool {
+        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
+        var round = rounds[i]
+        guard round.mergeDisplayHole(displayHole) else { return false }
+        rounds[i] = round
+        return true
+    }
+
+    // MARK: - Hole timeline
 
     /// Merges the other device's timeline. Returns true if anything changed.
     @discardableResult
@@ -89,14 +104,13 @@ class RoundStore: ObservableObject {
         return true
     }
 
-    /// Replaces the timeline with a corrected one made on this device.
+    /// Replaces the timeline with one changed on this device.
     func setTimeline(_ entries: [HoleStart], roundID: UUID) {
         guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
         let normalized = HoleTimeline.normalized(entries)
         guard normalized != rounds[i].holeTimeline else { return }
         var round = rounds[i]
         round.holeTimeline = normalized
-        round.ensureHole(round.currentHoleIndex)
         rounds[i] = round
         onTimelineChanged?(round)
     }
@@ -124,12 +138,21 @@ class RoundStore: ObservableObject {
 
     // MARK: - Strokes
 
-    func addStroke(to roundID: UUID, holeIndex: Int, stroke: Stroke) {
+    /// Adds a stroke. `hitAt` is when it was hit, when known: a hole's first stroke starts the
+    /// hole in the timeline, and an earlier one added later moves the start back.
+    func addStroke(to roundID: UUID, holeIndex: Int, stroke: Stroke, hitAt: Date? = nil) {
+        var added = false
         changeStrokes(roundID) { round in
             guard !round.hasStroke(id: stroke.id) else { return false }
             round.addStroke(stroke, toHoleIndex: holeIndex)
+            added = true
             return true
         }
+        guard added, let hitAt, let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        var round = rounds[i]
+        guard round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
+        rounds[i] = round
+        onTimelineChanged?(round)
     }
 
     func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
@@ -173,7 +196,6 @@ class RoundStore: ObservableObject {
             holes = [RoundHole()]
         }
         round.holes = holes
-        round.ensureHole(round.currentHoleIndex)
         round.strokesVersion = snapshot.version
         rounds[i] = round
         return true

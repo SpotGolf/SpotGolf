@@ -21,7 +21,7 @@ final class PastRoundUITests: XCTestCase {
         // The header: back button, every hole, and the score box
         XCTAssertTrue(app.buttons["Back"].exists, "Back button should be in the header")
         XCTAssertTrue(app.holeButton(18).exists, "Header should list 18 holes")
-        XCTAssertTrue(app.waitForCurrentHole(1), "A past round should open on Hole 1")
+        XCTAssertTrue(app.waitForShownHole(1), "A past round should open on Hole 1")
         XCTAssertEqual(scoreTotal, "5", "Score box should count all 5 strokes")
         XCTAssertTrue((scoreBox.value as? String)?.contains(",") == true,
                       "Score box should compare every played hole to par, not leave one out as current")
@@ -38,8 +38,6 @@ final class PastRoundUITests: XCTestCase {
 
         app.goToHole(2)
         assertStrokeCount(2, onHole: 2)
-        XCTAssertFalse(app.buttons["Resume round"].exists, "A past round cannot be resumed from here")
-        XCTAssertFalse(app.buttons["Play hole"].exists, "A past round has no hole to play")
 
         app.goToHole(3)
         assertStrokeCount(0, onHole: 3)
@@ -106,7 +104,7 @@ final class PastRoundUITests: XCTestCase {
         // Changes survive leaving and reopening the round
         app.buttons["Back"].tap()
         openPastRound()
-        XCTAssertTrue(app.waitForCurrentHole(1), "A past round should open on Hole 1")
+        XCTAssertTrue(app.waitForShownHole(1), "A past round should open on Hole 1")
         assertStrokeCount(2, onHole: 1)
         // The map re-centers on reopening, so compare where the strokes sit to each other
         let reopenedLayout = strokeOffset()

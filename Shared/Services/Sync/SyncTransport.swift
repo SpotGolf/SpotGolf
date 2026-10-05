@@ -50,7 +50,7 @@ final class WatchConnectivityTransport: NSObject, SyncTransport {
 
     weak var delegate: SyncTransportDelegate?
 
-    private let session: WCSession?
+    let session: WCSession?
 
     private struct PendingSend {
         let payload: [String: Any]
@@ -68,21 +68,12 @@ final class WatchConnectivityTransport: NSObject, SyncTransport {
         session?.activate()
     }
 
-    private var isActivated: Bool {
+    var isActivated: Bool {
         session?.activationState == .activated
     }
 
     var isReachable: Bool {
         isActivated && session?.isReachable == true
-    }
-
-    var hasCounterpart: Bool {
-        #if os(iOS)
-        guard let session, isActivated else { return false }
-        return session.isPaired && session.isWatchAppInstalled
-        #else
-        return isActivated
-        #endif
     }
 
     func send(_ payload: [String: Any],
@@ -187,24 +178,11 @@ extension WatchConnectivityTransport: WCSessionDelegate {
         }
     }
 
-    #if os(iOS)
-    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
-
-    nonisolated func sessionDidDeactivate(_ session: WCSession) {
-        Log.sync.notice("WCSession deactivated; activating again")
-        session.activate()
-    }
-
-    nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
-        Task { @MainActor in self.reachabilityChanged() }
-    }
-    #endif
-
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         Task { @MainActor in self.reachabilityChanged() }
     }
 
-    private func reachabilityChanged() {
+    func reachabilityChanged() {
         Log.sync.notice("Reachable: \(self.isReachable, privacy: .public)")
         if !isReachable {
             failWaiting()

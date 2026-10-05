@@ -43,6 +43,7 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(watch.status, .active)
         XCTAssertEqual(watch.course.name, "Test Course")
         XCTAssertEqual(watch.holeTimeline, phoneRound(id)?.holeTimeline)
+        XCTAssertEqual(watch.displayHole, phoneRound(id)?.displayHole)
         XCTAssertEqual(pair.watchAppLaunches, 1)
     }
 
@@ -416,25 +417,6 @@ final class SyncFlowTests: XCTestCase {
         return path
     }
 
-    func testStreamedPathStartsTheNextHoleWhenThePlayerLeavesTheGreen() throws {
-        let id = pair.startRound(PathCourse.selection)
-        // The round starts when the fixtures do. A higher version, so the watch takes it too.
-        pair.phoneRounds.update(id) { round in
-            round.holeTimeline[0].startedAt = StreamFixtures.start
-            round.holeTimeline[0].version += 1
-        }
-        let path = pathToSecondTee()
-
-        pair.watch.record(path)
-
-        let round = try XCTUnwrap(phoneRound(id))
-        XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 1])
-        // Green 1 is 30 m wide, so the last fix within 10 m of its edge is 25 m east of its center
-        let leftGreen = try XCTUnwrap(path.first { $0.coordinate.longitude > PathCourse.coordinate(north: 300, east: 25).longitude })
-        XCTAssertEqual(round.holeTimeline[1].startedAt, leftGreen.timestamp)
-        XCTAssertEqual(watchRound(id)?.holeTimeline.map(\.holeIndex), [0, 1])
-    }
-
     // MARK: - End round: phone starts it
 
     func testPhoneEndWaitsForStreamThenEnds() {
@@ -696,7 +678,7 @@ final class SyncFlowTests: XCTestCase {
 
         let watch = try XCTUnwrap(watchRound(id))
         XCTAssertEqual(watch.strokesVersion, 2)
-        XCTAssertEqual(watch.strokes.first?.latitude, 39.91)
+        XCTAssertEqual(watch.displayHoleStrokes.first?.latitude, 39.91)
     }
 
     func testDeleteBeforeAddCannotBringStrokeBack() {
@@ -735,53 +717,103 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(watchRound(id)?.allStrokes.count, 1)
     }
 
-    // MARK: - Hole timeline
+    // MARK: - Display hole
 
-    func testHoleChangeOnWatchReachesPhone() {
+    func testDisplayHoleChangeOnWatchReachesPhone() {
         let id = pair.startRound()
 
-        pair.watchRounds.startHole(1, source: .autoAdvance)
+        pair.watchRounds.setDisplayHole(1)
 
-        XCTAssertEqual(phoneRound(id)?.currentHoleIndex, 1)
-        XCTAssertEqual(phoneRound(id)?.holeTimeline, watchRound(id)?.holeTimeline)
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
+        XCTAssertEqual(phoneRound(id)?.displayHole, watchRound(id)?.displayHole)
+        // The timeline is set by strokes, not by the hole shown
+        XCTAssertEqual(phoneRound(id)?.holeTimeline.count, 1)
     }
 
-    func testEarlierHoleCannotBePlayed() {
+    func testDisplayHoleChangeOnPhoneReachesWatch() {
         let id = pair.startRound()
-        pair.phoneRounds.startHole(5, source: .playHole)
 
-        pair.phoneRounds.startHole(3, source: .playHole)
-        pair.watchRounds.startHole(2, source: .autoAdvance)
+        pair.phoneRounds.setDisplayHole(3, roundID: id)
 
-        XCTAssertEqual(phoneRound(id)?.currentHoleIndex, 5)
-        XCTAssertEqual(watchRound(id)?.currentHoleIndex, 5)
+        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 3)
     }
 
-    func testHoleChangesAtTheSameTimeEndTheSameOnBoth() {
+    func testLaterDisplayHoleChangeWinsOnBoth() {
         let id = pair.startRound()
         let now = Date()
         pair.phoneTransport.holdsSends = true
         pair.watchTransport.holdsSends = true
 
-        pair.phoneRounds.startHole(6, at: now, source: .playHole)
-        pair.watchRounds.startHole(1, at: now.addingTimeInterval(1), source: .autoAdvance)
+        pair.phoneRounds.setDisplayHole(6, roundID: id, at: now)
+        pair.watchRounds.setDisplayHole(1, at: now.addingTimeInterval(1))
         pair.phoneTransport.holdsSends = false
         pair.watchTransport.holdsSends = false
         pair.phoneTransport.releaseHeld()
         pair.watchTransport.releaseHeld()
 
-        XCTAssertEqual(phoneRound(id)?.holeTimeline.map(\.holeIndex), [0, 6])
-        XCTAssertEqual(watchRound(id)?.holeTimeline.map(\.holeIndex), [0, 6])
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
+        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 1)
     }
 
-    func testTimelineContextReachesPhone() {
+    func testDisplayHoleContextReachesPhone() {
         let id = pair.startRound()
         pair.setReachable(false)
-        pair.watchRounds.startHole(1, source: .autoAdvance)
+        pair.watchRounds.setDisplayHole(1)
 
         pair.watchTransport.deliverContext()
 
-        XCTAssertEqual(phoneRound(id)?.currentHoleIndex, 1)
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
+    }
+
+    func testResumedRoundShowsTheSameHoleOnTheWatch() {
+        let id = pair.startRound()
+        pair.phone.endRound(id)
+        pair.phoneRounds.setDisplayHole(4, roundID: id)
+
+        pair.phone.resumeRound(id)
+
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 4)
+    }
+
+    // MARK: - Hole timeline
+
+    private func stroke() -> Stroke {
+        Stroke(coordinate: .init(latitude: 39.9, longitude: -105))
+    }
+
+    func testFirstStrokeOnAHoleStartsItOnBothDevices() {
+        let id = pair.startRound()
+        let hitAt = Date().addingTimeInterval(600)
+
+        pair.phoneRounds.addStroke(to: id, holeIndex: 1, stroke: stroke(), hitAt: hitAt)
+
+        XCTAssertEqual(watchRound(id)?.holeTimeline.map(\.holeIndex), [0, 1])
+        XCTAssertEqual(watchRound(id)?.holeTimeline.last?.startedAt, hitAt)
+        XCTAssertEqual(watchRound(id)?.holeTimeline, phoneRound(id)?.holeTimeline)
+        XCTAssertEqual(watchRound(id)?.allStrokes.count, 1)
+    }
+
+    func testStartTimeSetByHandReachesWatch() throws {
+        let id = pair.startRound()
+        let hitAt = Date().addingTimeInterval(600)
+        pair.phoneRounds.addStroke(to: id, holeIndex: 1, stroke: stroke(), hitAt: hitAt)
+        let entry = try XCTUnwrap(phoneRound(id)?.holeTimeline.last)
+
+        pair.phoneRounds.setStartTime(hitAt.addingTimeInterval(-60), entryID: entry.id, roundID: id)
+
+        XCTAssertEqual(watchRound(id)?.holeTimeline.last?.startedAt, hitAt.addingTimeInterval(-60))
+        XCTAssertEqual(watchRound(id)?.holeTimeline.last?.source, .userSet)
+    }
+
+    func testTimelineContextReachesWatch() {
+        let id = pair.startRound()
+        pair.setReachable(false)
+        pair.phoneRounds.addStroke(to: id, holeIndex: 1, stroke: stroke(), hitAt: Date().addingTimeInterval(600))
+
+        pair.phoneTransport.deliverContext()
+
+        XCTAssertEqual(watchRound(id)?.holeTimeline.map(\.holeIndex), [0, 1])
     }
 
     // MARK: - Import
@@ -794,15 +826,16 @@ final class SyncFlowTests: XCTestCase {
         return (round, records.sorted { $0.timestamp < $1.timestamp })
     }
 
-    func testImportedRoundStaysActiveAndGetsItsHoleStartsFromThePath() {
-        let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
+    func testImportedRoundStaysActiveAndKeepsItsTimeline() {
+        var round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
+        round.startHole(1, at: StreamFixtures.start.addingTimeInterval(400), source: .estimated)
         let records = pathToSecondTee().map { StreamRecord.fix(TrackPoint(location: $0)) }
 
         XCTAssertTrue(pair.phone.importRound(round, records: records))
 
         XCTAssertEqual(phoneRound(round.id)?.status, .active)
         XCTAssertEqual(pair.phoneStreams.count(for: round.id), records.count)
-        XCTAssertEqual(phoneRound(round.id)?.holeTimeline.map(\.holeIndex), [0, 1])
+        XCTAssertEqual(phoneRound(round.id)?.holeTimeline, round.holeTimeline)
     }
 
     func testImportIsRefusedWhileAnotherRoundIsInProgress() {

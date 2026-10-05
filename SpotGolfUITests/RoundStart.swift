@@ -17,6 +17,6 @@ extension XCUIApplication {
         XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start Round button should exist", file: file, line: line)
         startButton.tap()
 
-        XCTAssertTrue(waitForCurrentHole(1), "The round should start on Hole 1", file: file, line: line)
+        XCTAssertTrue(waitForShownHole(1), "The round should start on Hole 1", file: file, line: line)
     }
 }

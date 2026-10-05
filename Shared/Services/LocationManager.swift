@@ -10,7 +10,7 @@ class LocationManager: NSObject, ObservableObject {
     /// Called with every valid fix, before accuracy filtering and smoothing.
     var onRawLocations: (@MainActor ([CLLocation]) -> Void)?
 
-    private let manager = CLLocationManager()
+    let manager = CLLocationManager()
     private var recentLocations: [CLLocation] = []
     private static let maxRecent = 3
     private static let maxAccuracy: CLLocationAccuracy = 20 // meters
@@ -20,10 +20,6 @@ class LocationManager: NSObject, ObservableObject {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = kCLDistanceFilterNone
-        #if os(watchOS)
-        // Keeps fixes coming while the wrist is down. Needs the location background mode.
-        manager.allowsBackgroundLocationUpdates = true
-        #endif
     }
 
     private(set) var isUpdating = false
@@ -48,14 +44,6 @@ class LocationManager: NSObject, ObservableObject {
         Log.location.notice("Location updates stopped")
         manager.stopUpdatingLocation()
     }
-
-    #if os(iOS)
-    /// Keeps fixes coming with the app in the background. Needs the location background mode.
-    func setUpdatesInBackground(_ enabled: Bool) {
-        manager.allowsBackgroundLocationUpdates = enabled
-        manager.showsBackgroundLocationIndicator = enabled
-    }
-    #endif
 }
 
 extension LocationManager: @preconcurrency CLLocationManagerDelegate {

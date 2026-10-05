@@ -18,7 +18,7 @@ final class TrackImporterTests: XCTestCase {
     /// A round on two holes: fixes every 10 seconds, a swing and a stroke on each hole.
     private func exportedCSV() -> String {
         var round = Round(date: start, courseSelection: .test)
-        round.startHole(1, at: start.addingTimeInterval(100), source: .autoAdvance)
+        round.startHole(1, at: start.addingTimeInterval(100), source: .stroke)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9, longitude: -105.0)), toHoleIndex: 0)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.8, longitude: -105.1), type: .penalty),
                         toHoleIndex: 1)

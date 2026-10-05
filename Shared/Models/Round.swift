@@ -15,6 +15,8 @@ struct Round: Identifiable, Codable, Equatable {
     let date: Date
     var holes: [RoundHole]
     var holeTimeline: [HoleStart]
+    /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
+    var displayHole: DisplayHole
     var status: RoundStatus
     var endedAt: Date?
     /// Phone: the end time a resumed round had, until the watch confirms the resume.
@@ -39,6 +41,7 @@ struct Round: Identifiable, Codable, Equatable {
         self.date = date
         self.holes = holes
         self.holeTimeline = [HoleStart(holeIndex: 0, startedAt: date, source: .roundStart)]
+        self.displayHole = DisplayHole(holeIndex: 0, changedAt: date)
         self.status = status
         self.courseSelection = courseSelection
         self.strokesVersion = 0
@@ -86,30 +89,54 @@ struct Round: Identifiable, Codable, Equatable {
         return s.trimmingCharacters(in: .whitespaces)
     }
 
-    /// The hole being played now: the last entry in the timeline.
-    var currentHoleIndex: Int {
-        holeTimeline.last?.holeIndex ?? 0
-    }
-
-    /// The hole being played at `date`.
+    /// The hole being played at `date`, by the timeline.
     func holeIndex(at date: Date) -> Int {
         HoleTimeline.holeIndex(at: date, in: holeTimeline)
     }
 
-    var currentHole: RoundHole {
-        hole(at: currentHoleIndex)
-    }
-
-    var currentHoleNumber: Int {
-        currentHoleIndex + 1
+    /// The holes a moment can be on. See `HoleTimeline.possibleHoles`.
+    func possibleHoles(at date: Date) -> ClosedRange<Int> {
+        HoleTimeline.possibleHoles(at: date, in: holeTimeline, lastHoleIndex: lastHoleIndex)
     }
 
     var course: Course {
         courseSelection.course
     }
 
-    var currentCourseHole: Hole? {
-        courseHole(at: currentHoleIndex)
+    /// The hole both devices show.
+    var displayHoleIndex: Int {
+        displayHole.holeIndex
+    }
+
+    var displayHoleNumber: Int {
+        displayHoleIndex + 1
+    }
+
+    var displayCourseHole: Hole? {
+        courseHole(at: displayHoleIndex)
+    }
+
+    /// Strokes on the display hole.
+    var displayHoleStrokes: [Stroke] {
+        hole(at: displayHoleIndex).strokes
+    }
+
+    /// Shows hole `index` from `date` on. Returns false when it is shown already or is not on the
+    /// course. A time before the last change (the two devices' clocks differ slightly) is moved just after it.
+    @discardableResult
+    mutating func setDisplayHole(_ index: Int, at date: Date) -> Bool {
+        guard index != displayHoleIndex, index >= 0, index <= lastHoleIndex else { return false }
+        let changedAt = date > displayHole.changedAt ? date : displayHole.changedAt.addingTimeInterval(0.001)
+        displayHole = DisplayHole(holeIndex: index, changedAt: changedAt)
+        return true
+    }
+
+    /// Takes the other device's display hole when it was set later. Returns true if it changed.
+    @discardableResult
+    mutating func mergeDisplayHole(_ other: DisplayHole) -> Bool {
+        guard displayHole.isOlder(than: other), other.holeIndex >= 0, other.holeIndex <= lastHoleIndex else { return false }
+        displayHole = other
+        return true
     }
 
     /// The course data for the hole at `index`, or nil past the course's last hole.
@@ -128,11 +155,6 @@ struct Round: Identifiable, Codable, Equatable {
     /// The hole at `index`, or an empty hole when play has not reached it yet.
     func hole(at index: Int) -> RoundHole {
         index >= 0 && index < holes.count ? holes[index] : RoundHole()
-    }
-
-    /// Strokes for the current hole.
-    var strokes: [Stroke] {
-        hole(at: currentHoleIndex).strokes
     }
 
     /// All strokes across all holes.
@@ -162,15 +184,31 @@ struct Round: Identifiable, Codable, Equatable {
         }
     }
 
-    /// Moves play to a later hole. Returns false when the hole is not after the current one.
-    /// A time before the last entry (the two devices' clocks differ slightly) is moved just after it.
+    /// Adds a start for hole `index` when it has none. Holes are played in order, so the start
+    /// must fall between the starts of the holes before and after it; otherwise nothing changes.
     @discardableResult
     mutating func startHole(_ index: Int, at date: Date, source: HoleStartSource) -> Bool {
-        guard index > currentHoleIndex, index <= lastHoleIndex else { return false }
-        let last = holeTimeline.last?.startedAt ?? .distantPast
-        let startedAt = date > last ? date : last.addingTimeInterval(0.001)
-        holeTimeline.append(HoleStart(holeIndex: index, startedAt: startedAt, source: source))
+        guard index > 0, index <= lastHoleIndex, !holeTimeline.contains(where: { $0.holeIndex == index }) else { return false }
+        let merged = HoleTimeline.normalized(holeTimeline + [HoleStart(holeIndex: index, startedAt: date, source: source)])
+        guard merged.count == holeTimeline.count + 1 else { return false }
+        holeTimeline = merged
         ensureHole(index)
+        return true
+    }
+
+    /// A stroke on hole `index` hit at `date` starts the hole when it has no start yet, and moves
+    /// the start back when it was hit before it. A start the user set by hand is never moved.
+    /// Returns true if the timeline changed.
+    @discardableResult
+    mutating func strokeHit(onHole index: Int, at date: Date) -> Bool {
+        guard let i = holeTimeline.firstIndex(where: { $0.holeIndex == index }) else {
+            return startHole(index, at: date, source: .stroke)
+        }
+        guard i > 0, date < holeTimeline[i].startedAt, holeTimeline[i].source != .userSet,
+              date > holeTimeline[i - 1].startedAt else { return false }
+        holeTimeline[i].startedAt = date
+        holeTimeline[i].source = .stroke
+        holeTimeline[i].version += 1
         return true
     }
 
@@ -180,7 +218,6 @@ struct Round: Identifiable, Codable, Equatable {
         let merged = HoleTimeline.merge(holeTimeline, entries)
         guard merged != holeTimeline else { return false }
         holeTimeline = merged
-        ensureHole(currentHoleIndex)
         return true
     }
 

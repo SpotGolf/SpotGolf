@@ -120,7 +120,7 @@ final class SyncPair {
 
     private(set) var watchAppLaunches = 0
 
-    init(startTimeout: TimeInterval = PhoneSync.defaultStartTimeout,
+    init(startTimeout: TimeInterval = SyncService.startTimeout,
          retryDelay: TimeInterval = PhoneSync.defaultRetryDelay) {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let phoneDirectory = directory.appendingPathComponent("phone")
@@ -136,9 +136,8 @@ final class SyncPair {
         phoneStreams = StreamStore(directory: phoneDirectory.appendingPathComponent("streams"))
         phoneSuggestions = SuggestionStore(directory: phoneDirectory)
         var launches: (() -> Void)?
-        // Hole starts are worked out on every batch, so tests don't wait for the throttle
         phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams, suggestions: phoneSuggestions,
-                          startTimeout: startTimeout, retryDelay: retryDelay, timelineFixInterval: 0,
+                          startTimeout: startTimeout, retryDelay: retryDelay,
                           launchWatchApp: { launches?() })
 
         watchSync = SyncService(transport: watchTransport)

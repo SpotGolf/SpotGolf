@@ -9,7 +9,7 @@ settings:
   base:
     # The app's version, shared by the phone app, the watch app, and the Live Activity.
     # SemVer; see Versioning in CLAUDE.md before changing it.
-    MARKETING_VERSION: 0.1.1
+    MARKETING_VERSION: 0.2.0
 fileGroups:
   - CLAUDE.md
   - README.md
@@ -36,9 +36,11 @@ schemes:
     build:
       targets:
         SpotGolfWatch: all
+        SpotGolfWatchTests: [test]
         SpotGolfWatchUITests: [test]
     test:
       targets:
+        - SpotGolfWatchTests
         - SpotGolfWatchUITests
 
 targets:
@@ -162,6 +164,15 @@ targets:
     sources:
       - path: SpotGolfTests
       - path: Shared
+      # The apps' logic, built here like Shared so it takes the test target's copies of the
+      # Shared types. The sync tests run the phone's and the watch's sides together.
+      - path: SpotGolf/Import
+      - path: SpotGolf/Models
+      - path: SpotGolf/Services
+      - path: SpotGolf/Sync
+      - path: SpotGolf/Utilities
+      - path: LiveActivity
+      - path: SpotGolfWatch/Sync
       - path: TestFixtures/Broadlands-Golf-Course.json.gz
         buildPhase: resources
     settings:
@@ -189,6 +200,19 @@ targets:
         TEST_TARGET_NAME: SpotGolf
     dependencies:
       - target: SpotGolf
+
+  SpotGolfWatchTests:
+    type: bundle.unit-test
+    platform: watchOS
+    sources:
+      - path: SpotGolfWatchTests
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: SpotGolfWatch
+      - package: CourseDataSwift
 
   SpotGolfWatchUITests:
     type: bundle.ui-testing

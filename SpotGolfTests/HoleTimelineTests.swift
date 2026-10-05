@@ -6,7 +6,7 @@ final class HoleTimelineTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_700_000_000)
 
     private func entry(_ hole: Int, _ minutes: Double, id: UUID = UUID(), version: Int = 0,
-                       source: HoleStartSource = .autoAdvance) -> HoleStart {
+                       source: HoleStartSource = .stroke) -> HoleStart {
         HoleStart(id: id, holeIndex: hole, startedAt: start.addingTimeInterval(minutes * 60), source: source, version: version)
     }
 
@@ -56,5 +56,15 @@ final class HoleTimelineTests: XCTestCase {
         XCTAssertEqual(HoleTimeline.holeIndex(at: start.addingTimeInterval(9 * 60), in: entries), 0)
         XCTAssertEqual(HoleTimeline.holeIndex(at: start.addingTimeInterval(10 * 60), in: entries), 1)
         XCTAssertEqual(HoleTimeline.holeIndex(at: start.addingTimeInterval(45 * 60), in: entries), 4)
+    }
+
+    func testPossibleHolesRunToTheNextStart() {
+        let entries = [entry(0, 0), entry(1, 10), entry(4, 40)]
+
+        // Holes 3 and 4 have no start, so from hole 2's start to hole 5's a moment can be on 2, 3 or 4
+        XCTAssertEqual(HoleTimeline.possibleHoles(at: start.addingTimeInterval(-60), in: entries, lastHoleIndex: 17), 0...0)
+        XCTAssertEqual(HoleTimeline.possibleHoles(at: start.addingTimeInterval(5 * 60), in: entries, lastHoleIndex: 17), 0...0)
+        XCTAssertEqual(HoleTimeline.possibleHoles(at: start.addingTimeInterval(10 * 60), in: entries, lastHoleIndex: 17), 1...3)
+        XCTAssertEqual(HoleTimeline.possibleHoles(at: start.addingTimeInterval(45 * 60), in: entries, lastHoleIndex: 17), 4...17)
     }
 }

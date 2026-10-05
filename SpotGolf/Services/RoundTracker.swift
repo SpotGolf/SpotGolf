@@ -5,7 +5,8 @@ import UIKit
 import os
 
 /// Follows the active round on the phone, with the app open or in the background: keeps location
-/// updates on, moves to the next hole, and shows the current hole in a Live Activity.
+/// updates on and shows the display hole in a Live Activity. The phone's GPS is only for showing
+/// yards; the watch's GPS changes the hole.
 @MainActor
 final class RoundTracker: ObservableObject {
     private static let locationOwner = "round"
@@ -14,7 +15,6 @@ final class RoundTracker: ObservableObject {
     private let location: LocationManager
     /// False for UI tests, which do not need the Lock Screen.
     private let showsActivity: Bool
-    private var holeAdvancer = HoleAdvancer()
     private var trackedRoundID: UUID?
     private var activity: Activity<HoleActivityAttributes>?
     // The content the activity shows, so a fix that changes nothing sends no update
@@ -45,15 +45,6 @@ final class RoundTracker: ObservableObject {
         }
     }
 
-    /// Stops moving to the next hole while the user looks at another one.
-    func pauseAdvance() {
-        holeAdvancer.pause()
-    }
-
-    func resumeAdvance() {
-        holeAdvancer.resume()
-    }
-
     // MARK: - Round
 
     private func roundsChanged(_ all: [Round]) {
@@ -74,7 +65,6 @@ final class RoundTracker: ObservableObject {
     private func startTracking(_ round: Round) {
         Log.rounds.notice("Tracking round \(round.id, privacy: .public) on the phone")
         trackedRoundID = round.id
-        holeAdvancer = HoleAdvancer()
         location.setUpdatesInBackground(true)
         location.startUpdating(for: Self.locationOwner)
         startActivity(round)
@@ -95,14 +85,7 @@ final class RoundTracker: ObservableObject {
 
     private func locationChanged(_ fix: CLLocation?) {
         guard let id = trackedRoundID, let fix, let round = rounds.round(id) else { return }
-        if !holeAdvancer.isPaused,
-           let next = holeAdvancer.advance(location: fix, courseSelection: round.courseSelection,
-                                           currentHoleIndex: round.currentHoleIndex) {
-            rounds.startHole(next, roundID: id, source: .autoAdvance)
-        }
-        if let round = rounds.round(id) {
-            updateActivity(round, location: fix)
-        }
+        updateActivity(round, location: fix)
     }
 
     // MARK: - Live Activity
@@ -110,13 +93,13 @@ final class RoundTracker: ObservableObject {
     /// What the activity shows for `round`. An ended round shows no yards.
     static func content(_ round: Round, location: CLLocation?) -> HoleActivityAttributes.ContentState {
         HoleActivityAttributes.ContentState(
-            holeNumber: round.currentHoleNumber,
-            par: round.currentCourseHole?.par,
+            holeNumber: round.displayHoleNumber,
+            par: round.displayCourseHole?.par,
             yardsToGreen: round.isActive
-                ? HoleOverview.yardsToGreenCenter(round, holeIndex: round.currentHoleIndex, from: location)
+                ? HoleOverview.yardsToGreenCenter(round, holeIndex: round.displayHoleIndex, from: location)
                 : nil,
-            previousYards: HoleOverview.previousYards(strokes: round.strokes, from: round.isActive ? location : nil),
-            holeStrokes: round.strokes.count,
+            previousYards: HoleOverview.previousYards(strokes: round.displayHoleStrokes, from: round.isActive ? location : nil),
+            holeStrokes: round.displayHoleStrokes.count,
             totalStrokes: round.allStrokes.count,
             toPar: HoleOverview.toPar(round))
     }
