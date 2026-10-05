@@ -9,7 +9,7 @@ settings:
   base:
     # The app's version, shared by the phone app, the watch app, and the Live Activity.
     # SemVer; see Versioning in CLAUDE.md before changing it.
-    MARKETING_VERSION: 0.2.0
+    MARKETING_VERSION: 0.3.0
 fileGroups:
   - CLAUDE.md
   - README.md
