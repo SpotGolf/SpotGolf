@@ -151,6 +151,8 @@ targets:
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
         NSMotionUsageDescription: "SpotGolf uses wrist motion to detect your swings."
+        # Putt Lab records the sound of the stroke, to tell a putt from a practice stroke
+        NSMicrophoneUsageDescription: "SpotGolf records sound in Putt Lab to learn what a putt sounds like."
         WKBackgroundModes:
           - workout-processing
         UIBackgroundModes:

@@ -23,14 +23,18 @@ final class TrackImporterTests: XCTestCase {
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.8, longitude: -105.1), type: .penalty),
                         toHoleIndex: 1)
         let points = stride(from: 0.0, through: 200, by: 10).map(point)
-        return TrackExporter.csv(round: round, points: points, swings: swings)
+        return TrackExporter.csv(round: round, points: points, swings: swings, contacts: contacts)
     }
+
+    /// Turning is not exported, so it reads back as zero.
+    private let contacts = [ContactEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_105), score: 6.5, burst: 0.25, click: 40, turning: 0)]
 
     func testReadsWhatTheExporterWrites() throws {
         let export = try TrackImporter.read(exportedCSV())
 
         XCTAssertEqual(export.points, stride(from: 0.0, through: 200, by: 10).map(point))
         XCTAssertEqual(export.swings, swings)
+        XCTAssertEqual(export.contacts, contacts)
         XCTAssertEqual(export.strokes.map(\.hole), [1, 2])
         XCTAssertEqual(export.strokes.map(\.stroke.type), [.regular, .penalty])
         XCTAssertEqual(export.strokes.map(\.stroke.latitude), [39.9, 39.8])
@@ -38,6 +42,15 @@ final class TrackImporterTests: XCTestCase {
 
     func testRejectsAFileThatIsNotAnExport() {
         XCTAssertThrowsError(try TrackImporter.read("a,b,c\n1,2,3\n"))
+    }
+
+    func testReadsAnExportFromBeforeContacts() throws {
+        let csv = TrackExporter.headerWithoutContacts + "\ntrack,2023-11-14T22:13:20.000Z,39.9555,-105.0422,1609.5,4.2,watch,,,,\nswing,2023-11-14T22:13:52.000Z,39.1,-105.1,,,watch,2,,,12.5\n"
+
+        let export = try TrackImporter.read(csv)
+
+        XCTAssertEqual(export.points.count, 1)
+        XCTAssertEqual(export.swings.map(\.peakG), [12.5])
     }
 
     func testRejectsTheOldHeader() {
@@ -55,7 +68,7 @@ final class TrackImporterTests: XCTestCase {
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0])
         XCTAssertEqual(round.holes.map { $0.strokes.count }, [1, 1])
 
-        XCTAssertEqual(records.count, 23)
+        XCTAssertEqual(records.count, 24)
         XCTAssertEqual(records.map(\.timestamp), records.map(\.timestamp).sorted())
         XCTAssertEqual(records.filter { if case .swing = $0 { true } else { false } }.count, 2)
     }

@@ -18,6 +18,12 @@ final class SwingDetector {
     /// Called with each swing once its peak force is known.
     var onSwing: ((StrokeSuggestion) -> Void)?
 
+    /// Called on the sensor thread with every accelerometer batch, for `ContactMonitor`.
+    var onBatch: (([CMAccelerometerData]) -> Void)?
+
+    /// Taps on the app's buttons, whose readings are not swings.
+    var taps: TapGuard?
+
     func start() {
         guard !isRunning else { return }
         guard CMBatchedSensorManager.isAccelerometerSupported else {
@@ -50,15 +56,19 @@ final class SwingDetector {
     private func startUpdates() {
         watchdog.started(at: Date())
         hasReceivedBatch = false
+        let onBatch = BatchCallback(onBatch)
+        let taps = taps
         manager.startAccelerometerUpdates { [weak self] batch, error in
             if let error {
                 Log.swings.error("Accelerometer error: \(String(describing: error), privacy: .public)")
                 Task { @MainActor in self?.updatesFailed() }
             }
             guard let batch else { return }
+            onBatch.handler?(batch)
             // Reading timestamps count from boot
             let bootDate = Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime)
-            let readings = batch.map { data in
+            let readings = batch.compactMap { data -> SwingPeakFinder.Reading? in
+                guard taps?.covers(uptime: data.timestamp) != true else { return nil }
                 let a = data.acceleration
                 return SwingPeakFinder.Reading(timestamp: bootDate.addingTimeInterval(data.timestamp),
                                                magnitude: (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot())
@@ -99,4 +109,10 @@ final class SwingDetector {
         manager.stopAccelerometerUpdates()
         startUpdates()
     }
+}
+
+// The batch hook, captured when updates start so the sensor thread never touches the main actor
+private struct BatchCallback: @unchecked Sendable {
+    let handler: (([CMAccelerometerData]) -> Void)?
+    init(_ handler: (([CMAccelerometerData]) -> Void)?) { self.handler = handler }
 }

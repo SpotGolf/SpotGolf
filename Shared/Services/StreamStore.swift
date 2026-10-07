@@ -192,4 +192,12 @@ final class StreamStore: ObservableObject {
             return swing
         }
     }
+
+    /// Contacts up to `endedAt`, when given.
+    func contacts(for roundID: UUID, until endedAt: Date? = nil) -> [ContactEvent] {
+        records(for: roundID).compactMap { record in
+            guard case .contact(let contact) = record, endedAt.map({ contact.timestamp <= $0 }) ?? true else { return nil }
+            return contact
+        }
+    }
 }

@@ -12,14 +12,17 @@ struct RoundSyncBanner: View {
         switch round.status {
         case .starting:
             if case .needsPermissions(let missing) = phoneSync.startStates[round.id] {
-                // The watch shares the phone's permissions, so they are changed in Settings here
-                banner("The watch is missing \(missing.map(\.title).formatted(.list(type: .and))) permission.") {
-                    Button("Settings") {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            openURL(url)
+                // The watch shares the phone's permissions, so they are changed in Settings here;
+                // the microphone is granted on the watch, where Settings here cannot reach
+                banner(missingText(missing)) {
+                    if missing.contains(where: { !$0.isAskedOnWatch }) {
+                        Button("Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                openURL(url)
+                            }
                         }
+                        .accessibilityIdentifier("OpenSettings")
                     }
-                    .accessibilityIdentifier("OpenSettings")
                     Button("Retry") { phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
                     Button("Cancel", role: .destructive) { phoneSync.cancelStart(round.id) }
@@ -64,5 +67,19 @@ struct RoundSyncBanner: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(.bar)
+    }
+
+    /// Where each missing permission is granted: the microphone on the watch, the rest here.
+    private func missingText(_ missing: [AppPermission]) -> String {
+        let onWatch = missing.filter(\.isAskedOnWatch)
+        let onPhone = missing.filter { !$0.isAskedOnWatch }
+        var parts: [String] = []
+        if !onPhone.isEmpty {
+            parts.append("The watch is missing \(onPhone.map(\.title).formatted(.list(type: .and))) permission.")
+        }
+        if !onWatch.isEmpty {
+            parts.append("Open SpotGolf on the watch and allow the \(onWatch.map(\.title).formatted(.list(type: .and))).")
+        }
+        return parts.joined(separator: " ")
     }
 }

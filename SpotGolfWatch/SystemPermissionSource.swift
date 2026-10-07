@@ -1,7 +1,7 @@
 import Foundation
 
-/// Reads the watch's real permissions. They are shared with the iPhone app and asked for
-/// there, so the watch never asks.
+/// Reads the watch's real permissions. Location, motion and health are shared with the iPhone
+/// app and asked for there; the microphone is asked for here.
 @MainActor
 final class SystemPermissionSource: PermissionSource {
     private let location = LocationPermission()
@@ -13,10 +13,14 @@ final class SystemPermissionSource: PermissionSource {
         case .location: location.state
         case .motion: motion.state
         case .health: health.state
+        case .microphone: MicrophoneInput.permission
         }
     }
 
-    func request(_ permission: AppPermission) async {}
+    func request(_ permission: AppPermission) async {
+        guard permission == .microphone else { return }
+        await MicrophoneInput.requestPermission()
+    }
 
     func observe(_ changed: @escaping () -> Void) {
         location.observe(changed)

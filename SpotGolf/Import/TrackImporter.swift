@@ -13,6 +13,7 @@ enum TrackImporter {
     struct Export {
         var points: [TrackPoint] = []
         var swings: [StrokeSuggestion] = []
+        var contacts: [ContactEvent] = []
         /// Strokes, with the 1-based hole they are on, in stroke order.
         var strokes: [(stroke: Stroke, hole: Int)] = []
     }
@@ -29,17 +30,19 @@ enum TrackImporter {
         }
     }
 
-    /// The fixes, swings and strokes in a CSV. Rows that can't be read are skipped. The hole on
-    /// swing rows is ignored: the hole starts are worked out again from the GPS.
+    /// The fixes, swings, contacts and strokes in a CSV. Rows that can't be read are skipped.
+    /// The hole on swing and contact rows is ignored: the hole starts are worked out again from
+    /// the GPS. Exports from before contacts were recorded are read too.
     static func read(_ csv: String) throws -> Export {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let lines = csv.split(whereSeparator: \.isNewline)
-        guard lines.first?.trimmingCharacters(in: .whitespaces) == TrackExporter.header else { throw ImportError.wrongHeader }
+        let header = lines.first?.trimmingCharacters(in: .whitespaces)
+        guard header == TrackExporter.header || header == TrackExporter.headerWithoutContacts else { throw ImportError.wrongHeader }
 
         var export = Export()
         var strokes: [(stroke: Stroke, hole: Int, number: Int)] = []
-        // type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG
+        // type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click
         for line in lines.dropFirst() {
             let fields = line.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
             guard fields.count >= 11 else { continue }
@@ -52,6 +55,10 @@ enum TrackImporter {
             case "swing":
                 guard let date = formatter.date(from: fields[1]), let peakG = Float(fields[10]) else { continue }
                 export.swings.append(.swing(at: date, peakG: peakG))
+            case "contact":
+                guard fields.count >= 14, let date = formatter.date(from: fields[1]), let score = Float(fields[11]),
+                      let burst = Float(fields[12]), let click = Float(fields[13]) else { continue }
+                export.contacts.append(ContactEvent(timestamp: date, score: score, burst: burst, click: click, turning: 0))
             case "stroke":
                 guard let lat = Double(fields[2]), let lon = Double(fields[3]),
                       let hole = Int(fields[7]), let number = Int(fields[8]) else { continue }
@@ -76,7 +83,8 @@ enum TrackImporter {
             round.addStroke(stroke, toHoleIndex: hole - 1)
         }
 
-        let records = (export.points.map(StreamRecord.fix) + export.swings.map(StreamRecord.swing))
+        let records = (export.points.map(StreamRecord.fix) + export.swings.map(StreamRecord.swing)
+                       + export.contacts.map(StreamRecord.contact))
             .sorted { $0.timestamp < $1.timestamp }
         return (round, records)
     }

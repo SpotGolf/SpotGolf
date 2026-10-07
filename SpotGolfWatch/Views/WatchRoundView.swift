@@ -9,6 +9,7 @@ struct WatchRoundView: View {
     @EnvironmentObject var syncService: SyncService
     @EnvironmentObject var watchSync: WatchSync
     @EnvironmentObject var workoutManager: WorkoutManager
+    @EnvironmentObject var contactMonitor: ContactMonitor
 
     @State private var liveDistance: String?
 
@@ -21,25 +22,11 @@ struct WatchRoundView: View {
                 }
                 .tabViewStyle(.page)
             } else {
-                VStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
-                            .font(.system(size: 10))
-                            .foregroundStyle(syncService.isConnected ? .green : .secondary)
-                        Text("No active round")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // A round needs a course, and courses are picked on the phone
-                    Text("Start a round on your iPhone")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-
-                    workoutStatus
+                TabView {
+                    noRoundPage
+                    PuttLabView()
                 }
-                .padding()
+                .tabViewStyle(.page)
             }
         }
         .onReceive(locationManager.$lastLocation) { location in
@@ -61,6 +48,28 @@ struct WatchRoundView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("workoutStatus")
         }
+    }
+
+    private var noRoundPage: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 4) {
+                Image(systemName: syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                    .font(.system(size: 10))
+                    .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                Text("No active round")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+
+            // A round needs a course, and courses are picked on the phone
+            Text("Start a round on your iPhone")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            workoutStatus
+        }
+        .padding()
     }
 
     // MARK: - Info Page
@@ -118,6 +127,7 @@ struct WatchRoundView: View {
         let shown = round.displayHoleIndex
         return HStack(spacing: 4) {
             holeArrow("chevron.left", label: "Previous hole", disabled: shown == 0) {
+                contactMonitor.tapped()
                 roundStore.setDisplayHole(shown - 1)
             }
 
@@ -127,6 +137,7 @@ struct WatchRoundView: View {
                 .frame(maxWidth: .infinity)
 
             holeArrow("chevron.right", label: "Next hole", disabled: shown >= round.lastHoleIndex) {
+                contactMonitor.tapped()
                 roundStore.setDisplayHole(shown + 1)
             }
         }

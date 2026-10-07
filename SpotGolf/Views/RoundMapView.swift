@@ -1024,12 +1024,14 @@ struct RoundMapView: View {
             holeIndex: shownHoleIndex(round),
             points: roundTrack,
             swings: streamStore.swings(for: round.id, until: round.endedAt),
+            contacts: streamStore.contacts(for: round.id, until: round.endedAt),
             minStop: settingsStore.settings.stationaryThreshold,
             hidden: suggestionStore.hiddenIDs(for: round.id)
         )
     }
 
-    /// A pin with a plus sign. Tapping converts the suggestion into a real stroke.
+    /// A pin with a plus sign, or a flag for a putt the watch heard. Tapping converts the
+    /// suggestion into a real stroke.
     private func suggestionPin(_ suggestion: StrokeSuggestion, round: Round) -> some View {
         Button {
             convertSuggestion(suggestion, round: round)
@@ -1039,7 +1041,7 @@ struct RoundMapView: View {
                     .fill(Color.green)
                     .frame(width: 28, height: 28)
                     .overlay {
-                        Image(systemName: "plus")
+                        Image(systemName: suggestion.isContact ? "flag.fill" : "plus")
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundStyle(.white)
@@ -1051,7 +1053,7 @@ struct RoundMapView: View {
             .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add suggested stroke")
+        .accessibilityLabel(suggestion.isContact ? "Add suggested putt" : "Add suggested stroke")
     }
 
     private func convertSuggestion(_ suggestion: StrokeSuggestion, round: Round) {

@@ -103,6 +103,8 @@ struct PhonePermissionsView: View {
             "In Settings, turn on Motion & Fitness. If it is greyed out, turn on Fitness Tracking in Settings → Privacy & Security → Motion & Fitness."
         case .health:
             "In Settings → Privacy & Security → Health → SpotGolf, turn on Workouts."
+        case .microphone:
+            "On the watch, in Settings → Privacy & Security → Microphone, turn on SpotGolf."
         }
     }
 }

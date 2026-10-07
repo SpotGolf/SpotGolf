@@ -13,6 +13,9 @@ struct SpotGolfWatchApp: App {
                 .environmentObject(appDelegate.watchSync)
                 .environmentObject(appDelegate.workoutManager)
                 .environmentObject(appDelegate.permissions)
+                .environmentObject(appDelegate.puttCapture)
+                .environmentObject(appDelegate.captureUploader)
+                .environmentObject(appDelegate.contactMonitor)
         }
     }
 }

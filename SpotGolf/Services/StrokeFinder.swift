@@ -7,10 +7,11 @@ import CourseDataSwift
 /// Golf is linear: the player walks from one ball to the next. On the wrist a full swing is
 /// unmistakable: every recorded shot measured 13 g or more, while waiting, walking and handling
 /// clubs stay under 10 g. So a full swing made while standing still is a stroke, and when several
-/// are made at one spot the strongest is the shot, because practice swings come before it. Softer
-/// swings, and stops with no swing, are offered only on and around the green, where putts and
-/// chips the watch barely feels are made. Measured on the Coal Creek round of 2026-10-02; see
-/// plans/2026-10-04-full-swing-strokes.md.
+/// are made at one spot the strongest is the shot, because practice swings come before it. Putts
+/// never reach the swing threshold, so on and around the green the watch listens for the putter
+/// hitting the ball instead: each contact it heard is a putt, and a stop with no contact may be
+/// one it missed. Measured on the Coal Creek round of 2026-10-02 and the putting captures of
+/// 2026-10-06; see plans/2026-10-04-full-swing-strokes.md and plans/2026-10-06-putt-detection.md.
 enum StrokeFinder {
     // MARK: - Stops
 
@@ -42,9 +43,17 @@ enum StrokeFinder {
     static let teeShotRadius: CLLocationDistance = 10
     /// A stop farther than this from the hole's centerline is off the hole (the turn, the parking lot).
     static let maxCenterlineDistance: Double = 60
-    /// Softer swings, and stops with no swing, count only on the green or this close to its edge:
-    /// putts, and chips the watch barely felt.
-    static let chipZoneMargin: CLLocationDistance = 30
+    /// Contacts, and stops with no contact, count only on the green or this close to its edge:
+    /// putts, and chips the watch barely felt. The watch listens in the same zone.
+    static let chipZoneMargin = HoleShape.chipZoneMargin
+    /// A contact of this score or more is a putt. Every indoor practice stroke scored under it.
+    static let puttScore: Float = 2.7
+    /// After a putt at a spot, a later contact of this score or more is the tap-in. Soft putts
+    /// scored this much; practice strokes that do come before a putt, not after.
+    static let tapInScore: Float = 1.2
+    /// Contacts this close together are one stroke: practice strokes come 2 to 5 s before the
+    /// putt. A tap-in comes at least this long after the putt.
+    static let sameStrokeGap: TimeInterval = 5
     /// At most this many suggestions are offered per hole. Full swings are always kept; putts and
     /// chips fill the rest.
     static let maxPerHole = 10
@@ -59,9 +68,9 @@ enum StrokeFinder {
     /// `minStop` is the shortest stop with no swing that is offered; `hidden` holds the IDs of
     /// dismissed and converted suggestions.
     static func suggestions(in round: Round, holeIndex: Int, points: [TrackPoint], swings: [StrokeSuggestion],
-                            minStop: TimeInterval, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
+                            contacts: [ContactEvent] = [], minStop: TimeInterval, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
         let shape = HoleShape(hole: round.courseHole(at: holeIndex), course: round.course)
-        return suggestions(on: shape, points: points, swings: swings, minStop: minStop, hidden: hidden) {
+        return suggestions(on: shape, points: points, swings: swings, contacts: contacts, minStop: minStop, hidden: hidden) {
             round.possibleHoles(at: $0.end).contains(holeIndex)
         }
     }
@@ -70,11 +79,12 @@ enum StrokeFinder {
     /// time order.
     ///
     /// A full swing made while stopped is a stroke. Full swings at one spot within `sameShotWindow`
-    /// are one stroke, the strongest of them: practice swings come before the shot. A softer swing
-    /// counts only on or near the green, where the strongest swing in a stop is the putt, and a
-    /// stop with no swing there may be a putt or chip the watch missed.
+    /// are one stroke, the strongest of them: practice swings come before the shot. On or near
+    /// the green, each contact of `puttScore` or more is a putt, the first later contact of
+    /// `tapInScore` or more after it is the tap-in, and a stop with no contact may be a putt or
+    /// chip the watch missed. Softer swings are not strokes: putts never reach the swing threshold.
     static func suggestions(on hole: HoleShape, points: [TrackPoint], swings: [StrokeSuggestion],
-                            minStop: TimeInterval, hidden: Set<UUID> = [],
+                            contacts: [ContactEvent] = [], minStop: TimeInterval, hidden: Set<UUID> = [],
                             isOnHole: (_ stop: (start: Date, end: Date)) -> Bool = { _ in true }) -> [StrokeSuggestion] {
         /// A swing in the stop it was made in.
         struct Placed {
@@ -126,17 +136,45 @@ enum StrokeFinder {
         }
         finishShot()
 
-        // Putts, and chips the watch barely felt: softer swings and stops with no swing near the green
+        // Contacts in the stops they were made in, at the fix nearest each
+        struct PlacedContact {
+            let contact: ContactEvent
+            let stopIndex: Int
+            let coordinate: CLLocationCoordinate2D
+        }
+        var placedContacts: [PlacedContact] = []
+        for contact in contacts.sorted(by: { $0.timestamp < $1.timestamp }) {
+            guard let stopIndex = stops.firstIndex(where: { $0.contains(contact.timestamp, slack: stopSlack) }) else { continue }
+            let coordinate = nearestFix(to: contact.timestamp, in: points)
+                .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } ?? stops[stopIndex].coordinate
+            placedContacts.append(PlacedContact(contact: contact, stopIndex: stopIndex, coordinate: coordinate))
+        }
+
+        // Putts and tap-ins the watch heard, and stops with no contact near the green. In a
+        // stop with a full swing, a chip, the contacts after the shot are the putts that followed
+        // it from the same spot; those around the shot are its own.
         var shortGame: [StrokeSuggestion] = []
-        let stopsWithFullSwings = Set(placed.filter { $0.peakG >= fullSwingPeak }.map(\.stopIndex))
-        for (index, stop) in stops.enumerated() where !stopsWithFullSwings.contains(index) {
+        for (index, stop) in stops.enumerated() {
             guard let toGreen = hole.metersToGreen(stop.center), toGreen <= chipZoneMargin else { continue }
-            if let putt = placed.filter({ $0.stopIndex == index }).max(by: { $0.peakG < $1.peakG }) {
-                shortGame.append(StrokeSuggestion(timestamp: putt.swing.timestamp, kind: putt.swing.kind,
-                                                  coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
-            } else if stop.duration >= minStop {
-                shortGame.append(StrokeSuggestion(timestamp: stop.start, kind: .stop(duration: stop.duration),
-                                                  coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
+            let lastFullSwing = placed.filter { $0.stopIndex == index && $0.peakG >= fullSwingPeak }
+                .map(\.swing.timestamp).max()
+            let stopContacts = placedContacts.filter { contact in
+                contact.stopIndex == index
+                    && (lastFullSwing.map { contact.contact.timestamp.timeIntervalSince($0) > sameStrokeGap } ?? true)
+            }
+            let strokes = putts(among: stopContacts.map(\.contact))
+            if strokes.isEmpty {
+                // Weak contacts alone say nothing either way: a stop may still be a putt the watch missed
+                if lastFullSwing == nil, stop.duration >= minStop {
+                    shortGame.append(StrokeSuggestion(timestamp: stop.start, kind: .stop(duration: stop.duration),
+                                                      coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
+                }
+                continue
+            }
+            for stroke in strokes {
+                let placedStroke = stopContacts.first { $0.contact == stroke }!
+                shortGame.append(StrokeSuggestion(timestamp: stroke.timestamp, kind: .contact(score: stroke.score),
+                                                  coordinate: placedStroke.coordinate, id: StrokeSuggestion.id(at: stroke.timestamp)))
             }
         }
 
@@ -145,6 +183,32 @@ enum StrokeFinder {
             .sorted { $0.timestamp < $1.timestamp }
             .prefix(max(0, maxPerHole - shownFullSwings.count))
         return (shownFullSwings + shownShortGame).sorted { $0.timestamp < $1.timestamp }
+    }
+
+    /// The putts among one stop's contacts, in time order: each contact of `puttScore` or more
+    /// with no stronger contact within `sameStrokeGap`, and after each of those, the first
+    /// contact of `tapInScore` or more at least `sameStrokeGap` later and at least
+    /// `sameStrokeGap` before the next putt, so the next putt's practice stroke is not taken.
+    static func putts(among contacts: [ContactEvent]) -> [ContactEvent] {
+        let sorted = contacts.sorted { $0.timestamp < $1.timestamp }
+        let strong = sorted.filter { $0.score >= puttScore }
+        let putts = strong.filter { candidate in
+            !strong.contains { other in
+                other.score > candidate.score && abs(other.timestamp.timeIntervalSince(candidate.timestamp)) <= sameStrokeGap
+            }
+        }
+        var strokes: [ContactEvent] = []
+        for (index, putt) in putts.enumerated() {
+            strokes.append(putt)
+            let next = index + 1 < putts.count ? putts[index + 1].timestamp : Date.distantFuture
+            if let tapIn = sorted.first(where: {
+                $0.score >= tapInScore && $0.timestamp.timeIntervalSince(putt.timestamp) >= sameStrokeGap
+                    && next.timeIntervalSince($0.timestamp) > sameStrokeGap
+            }) {
+                strokes.append(tapIn)
+            }
+        }
+        return strokes
     }
 
     /// When a stroke was probably hit: the time of the fix nearest to it in `points`, which

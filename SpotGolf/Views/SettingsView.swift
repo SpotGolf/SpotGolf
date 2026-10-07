@@ -35,6 +35,13 @@ struct SettingsView: View {
                 } footer: {
                     Text("Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts.")
                 }
+                Section {
+                    NavigationLink("Putt Captures") { PuttCapturesView() }
+                } header: {
+                    Text("Putt Lab")
+                } footer: {
+                    Text("Sensor recordings from the watch's Putt Lab page, for working out how to detect putts.")
+                }
                 #if DEBUG
                 ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
                 #endif

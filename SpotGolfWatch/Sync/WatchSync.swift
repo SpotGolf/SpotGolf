@@ -52,6 +52,15 @@ final class WatchSync: ObservableObject {
         sender.pump()
     }
 
+    func record(_ contact: ContactEvent) {
+        guard let round = rounds.activeRound else {
+            Log.contacts.error("Dropped a contact: no active round")
+            return
+        }
+        streams.append([.contact(contact)], roundID: round.id)
+        sender.pump()
+    }
+
     // MARK: - End
 
     /// The user ended the round on the watch. The watch is done right away; the phone is told

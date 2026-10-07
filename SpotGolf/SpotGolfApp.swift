@@ -15,6 +15,7 @@ struct SpotGolfApp: App {
     @StateObject private var streamStore: StreamStore
     @StateObject private var permissions: PermissionChecker
     @StateObject private var pinShare: PinShareCoordinator
+    @StateObject private var puttCaptures: PuttCaptureStore
 
     init() {
         Log.rounds.notice("Phone app launched")
@@ -48,6 +49,11 @@ struct SpotGolfApp: App {
                 }
             }
         }
+        let puttCaptures = PuttCaptureStore()
+        (sync.transport as? WatchConnectivityTransport)?.onFileReceived = { url, metadata in
+            puttCaptures.receive(file: url, metadata: metadata)
+        }
+        _puttCaptures = StateObject(wrappedValue: puttCaptures)
         _roundStore = StateObject(wrappedValue: rounds)
         _locationManager = StateObject(wrappedValue: location)
         _roundTracker = StateObject(wrappedValue: RoundTracker(rounds: rounds, location: location,
@@ -81,6 +87,7 @@ struct SpotGolfApp: App {
                 .environmentObject(suggestionStore)
                 .environmentObject(settingsStore)
                 .environmentObject(streamStore)
+                .environmentObject(puttCaptures)
                 .onAppear {
                     Task {
                         await courseService.refreshIndex()

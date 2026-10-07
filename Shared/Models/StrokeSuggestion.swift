@@ -2,11 +2,13 @@ import Foundation
 import CoreLocation
 
 /// A place the player may have hit the ball from. The watch records each swing as one with no
-/// location; `StrokeFinder` places swings and stops near the green on the course.
+/// location; `StrokeFinder` places swings, contacts and stops near the green on the course.
 struct StrokeSuggestion: Identifiable, Equatable {
     enum Kind: Equatable {
         /// The watch felt a swing, with its highest force in g.
         case swing(peakG: Float)
+        /// The watch heard the putter hit the ball, with the contact's score.
+        case contact(score: Float)
         /// The player stood still near the green with no swing: a chip or putt the watch missed.
         case stop(duration: TimeInterval)
     }
@@ -42,6 +44,11 @@ struct StrokeSuggestion: Identifiable, Equatable {
     }
 
     var isSwing: Bool { peakG != nil }
+
+    var isContact: Bool {
+        if case .contact = kind { return true }
+        return false
+    }
 
     var coordinate: CLLocationCoordinate2D? {
         guard let latitude, let longitude else { return nil }

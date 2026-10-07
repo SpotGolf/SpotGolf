@@ -1,5 +1,6 @@
 import HealthKit
 import os
+import WatchKit
 
 @MainActor
 class WorkoutManager: NSObject, ObservableObject {
@@ -18,6 +19,15 @@ class WorkoutManager: NSObject, ObservableObject {
     /// The session is running. Batched sensor data only arrives while it is.
     @Published private(set) var isRunning = false
 
+    /// What is going on, for the screen while a start is waited on.
+    var stateText: String {
+        var parts = [status.rawValue]
+        if let session { parts.append("session \(session.state.rawValue)") }
+        if isStarting { parts.append("starting") }
+        if waitsForForeground { parts.append("refused") }
+        return parts.joined(separator: ", ")
+    }
+
     // True from start() until a session is running, so repeated calls start only one
     private var isStarting = false
 
@@ -31,6 +41,11 @@ class WorkoutManager: NSObject, ObservableObject {
     // watchOS refuses a new workout while another app's workout runs, or while this app
     // is in the background, so retries wait until the app is on screen
     private var waitsForForeground = false
+    // Refusals while on screen are retried after a wait that doubles each time, since the
+    // cause may be another app's workout, which no retry here can end
+    private var refusedRetryDelay: TimeInterval = RestartWatchdog.interval
+    private var refusedRetryAt: Date?
+    private static let maxRefusedRetryDelay: TimeInterval = 5 * 60
 
     /// Starts a golf workout, or takes over the one left running if the app quit
     /// mid-round. Safe to call repeatedly; also answers the system's recovery request.
@@ -41,6 +56,7 @@ class WorkoutManager: NSObject, ObservableObject {
             return
         }
         startWatchdog()
+        dropFinishedSession()
         guard session == nil, !isStarting else { return }
         isStarting = true
         watchdog.started(at: Date())
@@ -51,7 +67,8 @@ class WorkoutManager: NSObject, ObservableObject {
             }
             Task { @MainActor in
                 guard let self else { return }
-                if let recovered {
+                // A session that already ended, such as the last capture's, is no use
+                if let recovered, recovered.state != .ended, recovered.state != .stopped {
                     Log.workout.notice("Recovered running workout, state \(recovered.state.rawValue, privacy: .public)")
                     self.attach(recovered)
                     self.status = .recovered
@@ -119,6 +136,7 @@ class WorkoutManager: NSObject, ObservableObject {
     func appBecameActive() {
         guard waitsForForeground else { return }
         waitsForForeground = false
+        refusedRetryDelay = RestartWatchdog.interval
         guard wantsWorkout, !isRunning, !isStarting else { return }
         Log.workout.notice("App on screen; restarting the workout")
         restart()
@@ -132,14 +150,36 @@ class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func checkWorkout() {
-        guard wantsWorkout, !waitsForForeground, !isStarting,
-              watchdog.shouldRestart(at: Date(), isActive: isRunning) else { return }
+        guard wantsWorkout, !isStarting else { return }
+        if waitsForForeground {
+            // The refusal can come while the app is on screen, when a workout that just ended
+            // is still being saved; then no foreground event ever arrives to retry on
+            guard WKApplication.shared().applicationState == .active,
+                  Date() >= refusedRetryAt ?? .distantPast else { return }
+            Log.workout.notice("App is on screen; retrying the refused workout")
+            waitsForForeground = false
+            refusedRetryDelay = min(refusedRetryDelay * 2, Self.maxRefusedRetryDelay)
+            restart()
+            return
+        }
+        guard watchdog.shouldRestart(at: Date(), isActive: isRunning) else { return }
         Log.workout.error("Workout not running while a round needs it (state \(self.session.map { String($0.state.rawValue) } ?? "none", privacy: .public)); restarting")
         restart()
     }
 
+    /// Clears a session that has ended or stopped, so `start` makes a new one. The delegate
+    /// clears a session that ends while attached; this is for one that was already over.
+    private func dropFinishedSession() {
+        guard let session, session.state == .ended || session.state == .stopped else { return }
+        Log.workout.notice("Dropping a workout already in state \(session.state.rawValue, privacy: .public)")
+        self.session = nil
+        builder = nil
+        isRunning = false
+    }
+
     /// Starts a new workout, or gets a session that is not running to run.
     private func restart() {
+        dropFinishedSession()
         guard let session else {
             start()
             return
@@ -161,7 +201,8 @@ class WorkoutManager: NSObject, ObservableObject {
     private func waitForForeground() {
         guard !waitsForForeground else { return }
         waitsForForeground = true
-        Log.workout.error("watchOS refuses a new workout for now; retrying when the app is on screen")
+        refusedRetryAt = Date().addingTimeInterval(refusedRetryDelay)
+        Log.workout.error("watchOS refuses a new workout for now; retrying when the app is on screen, in \(Int(self.refusedRetryDelay), privacy: .public) s at the soonest")
     }
 
     /// The errors for which watchOS refuses a new workout until the app is on screen.
@@ -206,6 +247,9 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
         Task { @MainActor in
             if workoutSession === self.session {
                 self.isRunning = toState == .running
+                if toState == .running {
+                    self.refusedRetryDelay = RestartWatchdog.interval
+                }
             }
             if toState == .ended {
                 await self.sessionFinished(workoutSession)

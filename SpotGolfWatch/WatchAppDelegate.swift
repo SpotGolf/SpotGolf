@@ -15,7 +15,13 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     let workoutManager = WorkoutManager()
     let streamStore = StreamStore()
     private let swingDetector = SwingDetector()
+    private(set) lazy var contactMonitor = ContactMonitor { [weak self] in self?.workoutManager.isRunning == true }
     private(set) lazy var watchSync = WatchSync(sync: syncService, rounds: roundStore, streams: streamStore)
+    private(set) lazy var captureUploader = PuttCaptureUploader(transport: syncService.transport as? WatchConnectivityTransport,
+                                                                directory: PuttCaptureRecorder.directory)
+    private(set) lazy var puttCapture = PuttCaptureRecorder(workouts: workoutManager, uploader: captureUploader) { [weak self] in
+        self?.roundStore.activeRound != nil
+    }
 
     private var holeAdvancer = HoleAdvancer()
 
@@ -52,12 +58,20 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             // Every fix, so leaving the green is seen over its whole time window
             for location in locations {
                 self?.advanceHole(location)
+                if let self, let round = self.roundStore.activeRound {
+                    self.contactMonitor.update(location: location, round: round)
+                }
             }
         }
         swingDetector.onSwing = { sync.record($0) }
+        swingDetector.taps = contactMonitor.taps
+        swingDetector.onBatch = { [runner = contactMonitor.runner] batch in runner.addAccelerometer(batch) }
+        contactMonitor.onContact = { sync.record($0) }
         sync.sender.minBatchInterval = 5
         sync.sender.startRetryTimer()
         sync.sender.pump()
+        // Captures whose files never reached the phone
+        captureUploader.resumePending()
 
         activeRoundObserver = roundStore.$rounds
             .map { $0.first(where: \.isActive)?.id }
@@ -124,9 +138,12 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     private func activeRoundChanged(_ isActive: Bool) {
         Log.rounds.notice("Active round: \(isActive, privacy: .public)")
         if isActive {
+            // A round's swing detection and a capture can't share the sensors
+            puttCapture.stop()
             locationManager.startUpdating()
             workoutManager.start()
         } else {
+            contactMonitor.roundEnded()
             locationManager.stopUpdating()
             workoutManager.stop()
         }

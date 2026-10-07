@@ -1,6 +1,8 @@
 import Foundation
 
-/// A permission the watch needs to record a round.
+/// A permission the watch needs to record a round. Location, motion and health are shared
+/// with the iPhone app and asked for there; the microphone is the watch's own and is asked
+/// for on the watch.
 enum AppPermission: String, Codable, CaseIterable {
     /// GPS fixes.
     case location
@@ -8,6 +10,8 @@ enum AppPermission: String, Codable, CaseIterable {
     case motion
     /// Saving the workout that keeps the app running and turns on swing data.
     case health
+    /// Hearing the putter hit the ball on the green.
+    case microphone
 
     /// The name the system uses for it.
     var title: String {
@@ -15,7 +19,13 @@ enum AppPermission: String, Codable, CaseIterable {
         case .location: "Location"
         case .motion: "Motion & Fitness"
         case .health: "Health"
+        case .microphone: "Microphone"
         }
+    }
+
+    /// The watch shows the prompt itself; the others are granted on the phone.
+    var isAskedOnWatch: Bool {
+        self == .microphone
     }
 }
 

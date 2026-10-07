@@ -148,7 +148,8 @@ struct RoundListView: View {
     private func exportRound(_ round: Round) {
         let csv = TrackExporter.csv(round: round,
                                     points: streamStore.points(for: round.id, until: round.endedAt),
-                                    swings: streamStore.swings(for: round.id, until: round.endedAt))
+                                    swings: streamStore.swings(for: round.id, until: round.endedAt),
+                                    contacts: streamStore.contacts(for: round.id, until: round.endedAt))
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(TrackExporter.fileName(for: round))
         do {
@@ -163,17 +164,6 @@ struct RoundListView: View {
 private struct RoundExport: Identifiable {
     let id = UUID()
     let url: URL
-}
-
-/// The standard iOS share panel.
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 private struct RoundRow: View {

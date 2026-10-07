@@ -11,12 +11,14 @@ import os
 enum Log {
     static let subsystem = "golf.spot.SpotGolf"
 
+    static let contacts = Logger(subsystem: subsystem, category: "contacts")
     static let courses = Logger(subsystem: subsystem, category: "courses")
     static let export = Logger(subsystem: subsystem, category: "export")
     static let liveActivity = Logger(subsystem: subsystem, category: "liveActivity")
     static let location = Logger(subsystem: subsystem, category: "location")
     static let permissions = Logger(subsystem: subsystem, category: "permissions")
     static let pins = Logger(subsystem: subsystem, category: "pins")
+    static let puttLab = Logger(subsystem: subsystem, category: "puttLab")
     static let rounds = Logger(subsystem: subsystem, category: "rounds")
     static let storage = Logger(subsystem: subsystem, category: "storage")
     static let swings = Logger(subsystem: subsystem, category: "swings")

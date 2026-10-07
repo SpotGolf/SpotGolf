@@ -1,15 +1,19 @@
 import Foundation
 
-/// Builds CSV exports of a round's GPS track, swings, and strokes.
+/// Builds CSV exports of a round's GPS track, swings, contacts, and strokes.
 enum TrackExporter {
-    static let header = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG"
+    static let header = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click"
+    /// Exports from before the watch recorded contacts, which the importer still reads.
+    static let headerWithoutContacts = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG"
 
-    /// One row per GPS fix and swing in time order, then one row per stroke in hole and stroke
-    /// order. Strokes have no time, so their timestamp is blank. Track rows fill altitude/accuracy/source and leave the rest blank. Swing rows fill the
-    /// location of the nearest fix (blank if none is close enough), source, hole (1-based, from
-    /// the hole timeline), and peak force in g. Stroke rows fill hole (1-based), stroke (1-based)
-    /// and stroke type. Altitude and accuracy are blank when the fix had no valid reading.
-    static func csv(round: Round, points: [TrackPoint], swings: [StrokeSuggestion]) -> String {
+    /// One row per GPS fix, swing and contact in time order, then one row per stroke in hole and
+    /// stroke order. Strokes have no time, so their timestamp is blank. Track rows fill
+    /// altitude/accuracy/source and leave the rest blank. Swing rows fill the location of the
+    /// nearest fix (blank if none is close enough), source, hole (1-based, from the hole
+    /// timeline), and peak force in g; contact rows the same with score, burst and click instead.
+    /// Stroke rows fill hole (1-based), stroke (1-based) and stroke type. Altitude and accuracy
+    /// are blank when the fix had no valid reading.
+    static func csv(round: Round, points: [TrackPoint], swings: [StrokeSuggestion], contacts: [ContactEvent] = []) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -19,7 +23,7 @@ enum TrackExporter {
             let altitude = point.altitude.map { String($0) } ?? ""
             let accuracy = point.horizontalAccuracy.map { String($0) } ?? ""
             rows.append((point.timestamp,
-                         "track,\(formatter.string(from: point.timestamp)),\(point.latitude),\(point.longitude),\(altitude),\(accuracy),watch,,,,"))
+                         "track,\(formatter.string(from: point.timestamp)),\(point.latitude),\(point.longitude),\(altitude),\(accuracy),watch,,,,,,,"))
         }
 
         for swing in swings {
@@ -28,13 +32,22 @@ enum TrackExporter {
             let longitude = fix.map { String($0.longitude) } ?? ""
             let hole = round.holeIndex(at: swing.timestamp) + 1
             rows.append((swing.timestamp,
-                         "swing,\(formatter.string(from: swing.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,\(swing.peakG ?? 0)"))
+                         "swing,\(formatter.string(from: swing.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,\(swing.peakG ?? 0),,,"))
+        }
+
+        for contact in contacts {
+            let fix = StrokeFinder.nearestFix(to: contact.timestamp, in: points)
+            let latitude = fix.map { String($0.latitude) } ?? ""
+            let longitude = fix.map { String($0.longitude) } ?? ""
+            let hole = round.holeIndex(at: contact.timestamp) + 1
+            rows.append((contact.timestamp,
+                         "contact,\(formatter.string(from: contact.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,,\(contact.score),\(contact.burst),\(contact.click)"))
         }
 
         var lines = rows.sorted { $0.timestamp < $1.timestamp }.map(\.line)
         for (holeIndex, hole) in round.holes.enumerated() {
             for (strokeIndex, stroke) in hole.strokes.enumerated() {
-                lines.append("stroke,,\(stroke.coordinate.latitude),\(stroke.coordinate.longitude),,,,\(holeIndex + 1),\(strokeIndex + 1),\(stroke.type.rawValue),")
+                lines.append("stroke,,\(stroke.coordinate.latitude),\(stroke.coordinate.longitude),,,,\(holeIndex + 1),\(strokeIndex + 1),\(stroke.type.rawValue),,,,")
             }
         }
         return ([header] + lines).joined(separator: "\n") + "\n"

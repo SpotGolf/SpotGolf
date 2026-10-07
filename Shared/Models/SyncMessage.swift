@@ -45,6 +45,19 @@ struct StartRoundAck: Codable, Equatable {
 struct StartRoundRefused: Codable, Equatable {
     let roundID: UUID
     let missing: [AppPermission]
+
+    init(roundID: UUID, missing: [AppPermission]) {
+        self.roundID = roundID
+        self.missing = missing
+    }
+
+    /// A permission this build does not know, from a newer watch, is left out rather than
+    /// making the whole refusal unreadable.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        roundID = try values.decode(UUID.self, forKey: .roundID)
+        missing = try values.decode([String].self, forKey: .missing).compactMap(AppPermission.init(rawValue:))
+    }
 }
 
 /// Phone → watch. The phone gave up starting the round.
