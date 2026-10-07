@@ -68,6 +68,11 @@ targets:
         com.apple.security.app-sandbox: true
         # Needed to launch the watch app when a round starts
         com.apple.developer.healthkit: true
+        # Shares pin locations with other golfers. See plans/2026-10-06-shared-pins.md
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.golf.spot.SpotGolf
+        com.apple.developer.icloud-services:
+          - CloudKit
     info:
       path: SpotGolf/Info.plist
       properties:

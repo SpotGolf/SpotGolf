@@ -11,9 +11,10 @@ struct SpotGolfApp: App {
     @StateObject private var phoneSync: PhoneSync
     @StateObject private var courseService = CourseService()
     @StateObject private var suggestionStore: SuggestionStore
-    @StateObject private var settingsStore = SettingsStore()
+    @StateObject private var settingsStore: SettingsStore
     @StateObject private var streamStore: StreamStore
     @StateObject private var permissions: PermissionChecker
+    @StateObject private var pinShare: PinShareCoordinator
 
     init() {
         Log.rounds.notice("Phone app launched")
@@ -27,6 +28,7 @@ struct SpotGolfApp: App {
         let streams = StreamStore()
         let suggestions = SuggestionStore()
         let healthStore = HKHealthStore()
+        let settings = SettingsStore()
         // UI tests run without a paired watch, so rounds start and end on the phone alone
         let phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams, suggestions: suggestions,
                                   requiresWatch: !isUITesting) {
@@ -54,6 +56,12 @@ struct SpotGolfApp: App {
         _streamStore = StateObject(wrappedValue: streams)
         _suggestionStore = StateObject(wrappedValue: suggestions)
         _phoneSync = StateObject(wrappedValue: phoneSync)
+        _settingsStore = StateObject(wrappedValue: settings)
+        // UI tests run without iCloud
+        _pinShare = StateObject(wrappedValue: PinShareCoordinator(
+            rounds: rounds,
+            sharing: isUITesting ? NoPinSharing() : CloudKitPinSharing(),
+            sharesPins: { settings.settings.sharePins }))
         // UI tests run on simulators, where permissions are not the point
         _permissions = StateObject(wrappedValue: PermissionChecker(
             source: isUITesting ? GrantedPermissionSource() : PhonePermissionSource(),

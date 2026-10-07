@@ -4,12 +4,11 @@ import CourseDataSwift
 /// The numbers shown for a hole: its par, the yards to its green, and the round's score.
 /// Used by the phone's map header and its Live Activity.
 enum HoleOverview {
-    /// Yards from `location` to the center of the hole's green, or nil without a green or location.
-    static func yardsToGreenCenter(_ round: Round, holeIndex: Int, from location: CLLocation?) -> Int? {
-        guard let courseHole = round.courseHole(at: holeIndex),
-              let green = courseHole.green(from: round.course.features),
-              let location else { return nil }
-        return Int(DistanceCalculator.yards(from: location, to: green.center.clLocation))
+    /// Yards from `location` to the hole's pin, or to the center of its green without one. Nil
+    /// without a green or location.
+    static func yardsToPin(_ round: Round, holeIndex: Int, from location: CLLocation?) -> Int? {
+        guard let target = round.targetCoordinate(holeIndex: holeIndex), let location else { return nil }
+        return Int(DistanceCalculator.yards(from: location, to: CLLocation(latitude: target.latitude, longitude: target.longitude)))
     }
 
     /// The watch's "Previous": yards from `location` to the hole's last stroke, so it shows how

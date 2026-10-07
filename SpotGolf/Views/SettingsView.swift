@@ -27,6 +27,14 @@ struct SettingsView: View {
                 } footer: {
                     Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested.")
                 }
+                Section {
+                    Toggle("Share Pin Locations", isOn: $settingsStore.settings.sharePins)
+                        .accessibilityIdentifier("SharePinLocations")
+                } header: {
+                    Text("Pins")
+                } footer: {
+                    Text("Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts.")
+                }
                 #if DEBUG
                 ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
                 #endif

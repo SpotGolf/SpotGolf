@@ -16,6 +16,7 @@ enum Log {
     static let liveActivity = Logger(subsystem: subsystem, category: "liveActivity")
     static let location = Logger(subsystem: subsystem, category: "location")
     static let permissions = Logger(subsystem: subsystem, category: "permissions")
+    static let pins = Logger(subsystem: subsystem, category: "pins")
     static let rounds = Logger(subsystem: subsystem, category: "rounds")
     static let storage = Logger(subsystem: subsystem, category: "storage")
     static let swings = Logger(subsystem: subsystem, category: "swings")

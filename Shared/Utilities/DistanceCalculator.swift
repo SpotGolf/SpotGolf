@@ -35,7 +35,10 @@ enum DistanceCalculator {
         formattedYards(from: a.location, to: b.location)
     }
 
-    static func greenDistances(from location: CLLocation, green: Feature, direction: Vector2D) -> GreenDistances {
+    /// Yards to the front and back of the green along the line of play, and to `middle`: the pin,
+    /// or the green's center when nil. A point already passed is negative.
+    static func greenDistances(from location: CLLocation, green: Feature, direction: Vector2D,
+                               middle: Coordinate? = nil) -> GreenDistances {
         let playerCoord = Coordinate(location.coordinate)
         let playerProj = playerCoord.latitude * direction.dx + playerCoord.longitude * direction.dy
 
@@ -47,7 +50,7 @@ enum DistanceCalculator {
 
         return GreenDistances(
             front: signedYards(to: green.front(vector: direction)),
-            middle: signedYards(to: green.middle()),
+            middle: signedYards(to: middle ?? green.middle()),
             back: signedYards(to: green.back(vector: direction))
         )
     }

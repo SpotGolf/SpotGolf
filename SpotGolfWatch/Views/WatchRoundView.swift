@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 import CoreLocation
 import CourseDataSwift
 
@@ -72,13 +73,20 @@ struct WatchRoundView: View {
                    let green = courseHole.green(from: course.features),
                    let location = locationManager.lastLocation {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
-                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction)
+                    // Mid is to the pin once it is known; the center pin is the green's center
+                    let pin = round.targetCoordinate(holeIndex: round.displayHoleIndex)
+                        .map { Coordinate(latitude: $0.latitude, longitude: $0.longitude) }
+                    let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction, middle: pin)
 
                     holeTitle("Hole \(courseHole.number) · Par \(courseHole.par)", round)
 
+                    if round.isOnGreen(location.coordinate, holeIndex: round.displayHoleIndex) {
+                        setPinButton(location, round)
+                    }
+
                     Divider()
 
-                    greenDistancesView(greenDist)
+                    greenDistancesView(greenDist, toPin: round.hasKnownPin(holeIndex: round.displayHoleIndex))
 
                     let holeFeatures = course.features(for: courseHole)
                     let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green, limit: 7)
@@ -138,6 +146,21 @@ struct WatchRoundView: View {
         .accessibilityLabel(label)
     }
 
+    /// Shown only on the green: saves where the player stands as the shown hole's pin.
+    private func setPinButton(_ location: CLLocation, _ round: Round) -> some View {
+        Button {
+            roundStore.setPin(location.coordinate, holeIndex: round.displayHoleIndex)
+            WKInterfaceDevice.current().play(.success)
+        } label: {
+            Label("Set pin location", systemImage: "flag.fill")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+        }
+        .tint(.red)
+        .accessibilityIdentifier("setPinLocation")
+    }
+
     private var endRoundPage: some View {
         VStack {
             Spacer()
@@ -174,7 +197,8 @@ struct WatchRoundView: View {
         }
     }
 
-    private func greenDistancesView(_ distances: GreenDistances) -> some View {
+    /// Front, middle and back. The middle is labeled Pin once the pin is known.
+    private func greenDistancesView(_ distances: GreenDistances, toPin: Bool) -> some View {
         HStack(spacing: 12) {
             VStack(spacing: 1) {
                 Text("\(distances.front)")
@@ -186,7 +210,7 @@ struct WatchRoundView: View {
             VStack(spacing: 1) {
                 Text("\(distances.middle)")
                     .font(.body).fontWeight(.bold)
-                Text("Mid")
+                Text(toPin ? "Pin" : "Mid")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             }

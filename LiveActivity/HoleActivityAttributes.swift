@@ -8,8 +8,10 @@ struct HoleActivityAttributes: ActivityAttributes {
         var holeNumber: Int
         /// Nil when the course has no data for the hole.
         var par: Int?
-        /// Nil without a location or a green.
+        /// To the pin, or the center of the green without one. Nil without a location or a green.
         var yardsToGreen: Int?
+        /// The hole's pin is known, so the yards are to it rather than the center.
+        var toPin: Bool
         /// The watch's "Previous": yards to the hole's last stroke, or between its last two.
         var previousYards: Int
         var holeStrokes: Int

@@ -20,6 +20,14 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }
 
+    func testPinsRoundTrip() throws {
+        let pin = PinLocation(holeIndex: 3, coordinate: .init(latitude: 39.9, longitude: -105.1),
+                              setAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let message = SyncMessage.pins(PinsMessage(roundID: roundID, pins: [pin]))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+    }
+
     func testStreamRecordsAreStoredAsRawBytes() throws {
         let records = StreamRecord.data(for: StreamFixtures.fixes(0..<1_000))
         let message = SyncMessage.streamBatch(StreamBatch(roundID: roundID, from: 0, records: records))

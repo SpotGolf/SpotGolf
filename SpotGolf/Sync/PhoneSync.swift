@@ -53,6 +53,7 @@ final class PhoneSync: ObservableObject {
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.onTimelineChanged = { [weak self] round in self?.snapshots.sendTimeline(round) }
         rounds.onDisplayHoleChanged = { [weak self] round in self?.snapshots.sendDisplayHole(round) }
+        rounds.onPinsChanged = { [weak self] round in self?.snapshots.sendPins(round) }
         rounds.onStrokesChanged = { [weak self] round in
             self?.snapshots.sendStrokes(round)
         }
@@ -155,6 +156,7 @@ final class PhoneSync: ObservableObject {
         }
         let start = StartRound(roundID: round.id, date: round.date, course: course,
                                holeTimeline: round.holeTimeline, displayHole: round.displayHole,
+                               pins: round.pins,
                                strokes: round.strokesSnapshot,
                                streamBase: receiver.have(for: round.id))
         sync.send(.startRound(start), reply: { [weak self] reply in
@@ -198,6 +200,8 @@ final class PhoneSync: ObservableObject {
             round.status = .active
             round.resumedFromEnd = nil
         }
+        // Holes without a pin show the green's center until a real pin is known
+        rounds.addCenterPins(roundID: roundID)
         if let round = rounds.round(roundID) {
             snapshots.updateContext(round)
         }
@@ -300,6 +304,7 @@ final class PhoneSync: ObservableObject {
     func importRound(_ round: Round, records: [StreamRecord]) -> Bool {
         guard rounds.currentRound == nil else { return false }
         rounds.rounds.insert(round, at: 0)
+        rounds.addCenterPins(roundID: round.id)
         streams.append(records, roundID: round.id)
         return true
     }
@@ -320,6 +325,9 @@ final class PhoneSync: ObservableObject {
             return nil
         case .displayHole(let displayHole):
             snapshots.apply(displayHole)
+            return nil
+        case .pins(let pins):
+            snapshots.apply(pins)
             return nil
         case .context(let context):
             snapshots.apply(context)

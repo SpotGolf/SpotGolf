@@ -4,7 +4,7 @@ import CoreLocation
 import CourseDataSwift
 
 /// Holds and saves every round. Changes made on this device are reported through
-/// `onTimelineChanged`, `onDisplayHoleChanged` and `onStrokesChanged` so they can be sent to
+/// `onTimelineChanged`, `onDisplayHoleChanged`, `onPinsChanged` and `onStrokesChanged` so they can be sent to
 /// the other device; changes applied from the other device are not reported.
 @MainActor
 class RoundStore: ObservableObject {
@@ -17,6 +17,9 @@ class RoundStore: ObservableObject {
 
     /// A display hole change made on this device.
     var onDisplayHoleChanged: ((Round) -> Void)?
+
+    /// A pin set on this device.
+    var onPinsChanged: ((Round) -> Void)?
 
     /// A stroke change made on this device.
     var onStrokesChanged: ((Round) -> Void)?
@@ -88,6 +91,49 @@ class RoundStore: ObservableObject {
         guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
         var round = rounds[i]
         guard round.mergeDisplayHole(displayHole) else { return false }
+        rounds[i] = round
+        return true
+    }
+
+    // MARK: - Pins
+
+    /// Sets the pin on a hole, in the active round when `roundID` is nil. Does nothing when the
+    /// point is not on that hole's green.
+    func setPin(_ coordinate: CLLocationCoordinate2D, holeIndex: Int, roundID: UUID? = nil, at date: Date = Date()) {
+        guard let id = roundID ?? activeRound?.id,
+              let i = rounds.firstIndex(where: { $0.id == id }) else { return }
+        var round = rounds[i]
+        guard round.setPin(coordinate, onHole: holeIndex, at: date) else { return }
+        rounds[i] = round
+        onPinsChanged?(round)
+    }
+
+    /// Gives every hole with a green and no pin a pin at the green's center, when a round starts
+    /// or resumes. Reported like a pin set here, so the other device gets them too.
+    func addCenterPins(roundID: UUID) {
+        changePins(roundID) { $0.addCenterPins() }
+    }
+
+    /// Adds other golfers' pins, by the merge rules. Reported like a pin set here, so the other
+    /// device gets them too.
+    func addSharedPins(_ pins: [PinLocation], roundID: UUID) {
+        changePins(roundID) { $0.mergePins(pins) }
+    }
+
+    private func changePins(_ roundID: UUID, _ change: (inout Round) -> Bool) {
+        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        var round = rounds[i]
+        guard change(&round) else { return }
+        rounds[i] = round
+        onPinsChanged?(round)
+    }
+
+    /// Takes the other device's pins that replace this one's. Returns true if any changed.
+    @discardableResult
+    func mergePins(_ pins: [PinLocation], roundID: UUID) -> Bool {
+        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
+        var round = rounds[i]
+        guard round.mergePins(pins) else { return false }
         rounds[i] = round
         return true
     }

@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import CourseDataSwift
 
 enum RoundStatus: String, Codable {
@@ -32,6 +33,8 @@ struct Round: Identifiable, Codable, Equatable {
     var lastSeq: Int?
     /// Phone: the watch has confirmed `lastSeq`. Watch: the phone has acknowledged the end.
     var endConfirmed: Bool
+    /// Where the pin is, at most one per hole. See plans/2026-10-06-pin-location.md.
+    var pins: [PinLocation]
 
     static let maxHoles = 18
 
@@ -47,6 +50,7 @@ struct Round: Identifiable, Codable, Equatable {
         self.strokesVersion = 0
         self.streamBase = 0
         self.endConfirmed = false
+        self.pins = []
     }
 
     /// Recording and syncing.
@@ -137,6 +141,80 @@ struct Round: Identifiable, Codable, Equatable {
         guard displayHole.isOlder(than: other), other.holeIndex >= 0, other.holeIndex <= lastHoleIndex else { return false }
         displayHole = other
         return true
+    }
+
+    /// The pin on hole `index`, if it has been set.
+    func pin(onHole index: Int) -> PinLocation? {
+        pins.first { $0.holeIndex == index }
+    }
+
+    /// The green of hole `index`, or nil when the course has no green outline for it.
+    func green(holeIndex index: Int) -> Feature? {
+        guard let green = courseHole(at: index)?.green(from: course.features), !green.polygon.isEmpty else { return nil }
+        return green
+    }
+
+    /// The center of hole `index`'s green, or nil without a green.
+    func greenCenter(holeIndex index: Int) -> CLLocationCoordinate2D? {
+        green(holeIndex: index).map { CLLocationCoordinate2D(latitude: $0.center.latitude, longitude: $0.center.longitude) }
+    }
+
+    /// True when `coordinate` is inside the green of hole `index`. False when the course has no green for it.
+    func isOnGreen(_ coordinate: CLLocationCoordinate2D, holeIndex index: Int) -> Bool {
+        guard let green = green(holeIndex: index) else { return false }
+        return PolygonGeometry.contains(Coordinate(latitude: coordinate.latitude, longitude: coordinate.longitude),
+                                        in: green.polygon)
+    }
+
+    /// Sets the player's pin on hole `index`, replacing any earlier one. Returns false when the
+    /// point is not on that hole's green.
+    @discardableResult
+    mutating func setPin(_ coordinate: CLLocationCoordinate2D, onHole index: Int, at date: Date) -> Bool {
+        guard isOnGreen(coordinate, holeIndex: index) else { return false }
+        let pin = PinLocation(holeIndex: index, coordinate: coordinate, setAt: date, source: .set)
+        if let i = pins.firstIndex(where: { $0.holeIndex == index }) {
+            pins[i] = pin
+        } else {
+            pins.append(pin)
+        }
+        return true
+    }
+
+    /// Takes each pin that replaces the one on its hole, by `PinLocation.isReplaced(by:)`: from
+    /// the other device, from other golfers, or the green centers. Returns true if any changed.
+    @discardableResult
+    mutating func mergePins(_ others: [PinLocation]) -> Bool {
+        var changed = false
+        for other in others where other.holeIndex >= 0 && other.holeIndex <= lastHoleIndex {
+            if let i = pins.firstIndex(where: { $0.holeIndex == other.holeIndex }) {
+                guard pins[i].isReplaced(by: other) else { continue }
+                pins[i] = other
+            } else {
+                pins.append(other)
+            }
+            changed = true
+        }
+        return changed
+    }
+
+    /// Where distances to the middle of hole `index`'s green go: its pin, or the green's center
+    /// without one. Nil when the course has no green for the hole.
+    func targetCoordinate(holeIndex index: Int) -> CLLocationCoordinate2D? {
+        pin(onHole: index)?.coordinate ?? greenCenter(holeIndex: index)
+    }
+
+    /// True when hole `index` has a real pin: shared by other golfers or set by the player.
+    func hasKnownPin(holeIndex index: Int) -> Bool {
+        guard let source = pin(onHole: index)?.source else { return false }
+        return source != .center
+    }
+
+    /// A center pin for every hole that has a green and no pin yet. Returns true if any were added.
+    @discardableResult
+    mutating func addCenterPins() -> Bool {
+        mergePins((0...lastHoleIndex).compactMap { index in
+            greenCenter(holeIndex: index).map { PinLocation(holeIndex: index, coordinate: $0, setAt: date, source: .center) }
+        })
     }
 
     /// The course data for the hole at `index`, or nil past the course's last hole.
@@ -237,5 +315,26 @@ struct Round: Identifiable, Codable, Equatable {
         holes.firstIndex(where: { hole in
             hole.strokes.contains(where: { $0.id == strokeID })
         })
+    }
+}
+
+extension Round {
+    /// `pins` may be missing from rounds saved by builds before it was added.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        holes = try container.decode([RoundHole].self, forKey: .holes)
+        holeTimeline = try container.decode([HoleStart].self, forKey: .holeTimeline)
+        displayHole = try container.decode(DisplayHole.self, forKey: .displayHole)
+        status = try container.decode(RoundStatus.self, forKey: .status)
+        endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
+        resumedFromEnd = try container.decodeIfPresent(Date.self, forKey: .resumedFromEnd)
+        courseSelection = try container.decode(CourseSelection.self, forKey: .courseSelection)
+        strokesVersion = try container.decode(Int.self, forKey: .strokesVersion)
+        streamBase = try container.decode(Int.self, forKey: .streamBase)
+        lastSeq = try container.decodeIfPresent(Int.self, forKey: .lastSeq)
+        endConfirmed = try container.decode(Bool.self, forKey: .endConfirmed)
+        pins = try container.decodeIfPresent([PinLocation].self, forKey: .pins) ?? []
     }
 }

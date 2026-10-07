@@ -776,6 +776,60 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(watchRound(id)?.displayHoleIndex, 4)
     }
 
+    // MARK: - Pins
+
+    private func onGreen(_ hole: Int, east: Double = 0) -> CLLocationCoordinate2D {
+        let green = PathCourse.greens[hole]
+        return PathCourse.coordinate(north: green.north, east: green.east + east).clLocation.coordinate
+    }
+
+    func testStartedRoundHasCenterPinsOnBothDevices() {
+        let id = pair.startRound(PathCourse.selection)
+
+        XCTAssertEqual(phoneRound(id)?.pins.map(\.source), [.center, .center, .center])
+        XCTAssertEqual(watchRound(id)?.pins, phoneRound(id)?.pins)
+    }
+
+    func testPinSetOnWatchReachesPhone() {
+        let id = pair.startRound(PathCourse.selection)
+
+        pair.watchRounds.setPin(onGreen(1), holeIndex: 1)
+
+        XCTAssertNotNil(phoneRound(id)?.pin(onHole: 1))
+        XCTAssertEqual(phoneRound(id)?.pins, watchRound(id)?.pins)
+    }
+
+    func testPinSetOnPhoneReachesWatch() {
+        let id = pair.startRound(PathCourse.selection)
+
+        pair.phoneRounds.setPin(onGreen(2), holeIndex: 2, roundID: id)
+
+        XCTAssertNotNil(watchRound(id)?.pin(onHole: 2))
+        XCTAssertEqual(watchRound(id)?.pins, phoneRound(id)?.pins)
+    }
+
+    func testPinContextReachesPhone() {
+        let id = pair.startRound(PathCourse.selection)
+        pair.setReachable(false)
+        pair.watchRounds.setPin(onGreen(0), holeIndex: 0)
+
+        pair.watchTransport.deliverContext()
+
+        XCTAssertEqual(phoneRound(id)?.pins, watchRound(id)?.pins)
+    }
+
+    func testResumedRoundKeepsItsPinsOnTheWatch() {
+        let id = pair.startRound(PathCourse.selection)
+        pair.watchRounds.setPin(onGreen(2), holeIndex: 2)
+        pair.phone.endRound(id)
+        pair.watchRounds.deleteRound(id)
+
+        pair.phone.resumeRound(id)
+
+        XCTAssertEqual(watchRound(id)?.pins, phoneRound(id)?.pins)
+        XCTAssertNotNil(watchRound(id)?.pin(onHole: 2))
+    }
+
     // MARK: - Hole timeline
 
     private func stroke() -> Stroke {

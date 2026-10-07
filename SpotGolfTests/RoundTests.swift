@@ -548,4 +548,158 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.holes[0].strokes.count, 1)
         XCTAssertEqual(round.holes[1].strokes.count, 0)
     }
+
+    // MARK: - Pins
+
+    private func onGreen(_ hole: Int, north: Double = 0, east: Double = 0) -> CLLocationCoordinate2D {
+        let green = PathCourse.greens[hole]
+        return PathCourse.coordinate(north: green.north + north, east: green.east + east).clLocation.coordinate
+    }
+
+    func testSetPinOnTheGreen() {
+        var round = Round(courseSelection: PathCourse.selection)
+        let when = round.date.addingTimeInterval(600)
+
+        XCTAssertTrue(round.setPin(onGreen(1, north: 5), onHole: 1, at: when))
+
+        XCTAssertEqual(round.pin(onHole: 1), PinLocation(holeIndex: 1, coordinate: onGreen(1, north: 5), setAt: when))
+        XCTAssertNil(round.pin(onHole: 0))
+    }
+
+    func testSetPinOffTheGreenIsRefused() {
+        var round = Round(courseSelection: PathCourse.selection)
+
+        // 20 m past the edge of a 30 m green
+        XCTAssertFalse(round.setPin(onGreen(1, north: 35), onHole: 1, at: round.date))
+        // On another hole's green
+        XCTAssertFalse(round.setPin(onGreen(0), onHole: 1, at: round.date))
+        XCTAssertTrue(round.pins.isEmpty)
+    }
+
+    func testSetPinWithoutAGreenIsRefused() {
+        var round = Round(courseSelection: .test)
+
+        XCTAssertFalse(round.setPin(CLLocationCoordinate2D(latitude: 39, longitude: -105), onHole: 0, at: round.date))
+    }
+
+    func testSetPinAgainReplacesIt() {
+        var round = Round(courseSelection: PathCourse.selection)
+        round.setPin(onGreen(0), onHole: 0, at: round.date)
+
+        round.setPin(onGreen(0, east: 10), onHole: 0, at: round.date.addingTimeInterval(60))
+
+        XCTAssertEqual(round.pins.count, 1)
+        XCTAssertEqual(round.pin(onHole: 0)?.coordinate.longitude, onGreen(0, east: 10).longitude)
+    }
+
+    func testMergePinsTakesTheLaterPinPerHole() {
+        var round = Round(courseSelection: PathCourse.selection)
+        let now = round.date
+        round.setPin(onGreen(0), onHole: 0, at: now.addingTimeInterval(100))
+        let older = PinLocation(holeIndex: 0, coordinate: onGreen(0, east: 5), setAt: now.addingTimeInterval(50))
+        let newHole = PinLocation(holeIndex: 2, coordinate: onGreen(2), setAt: now)
+
+        XCTAssertTrue(round.mergePins([older, newHole]))
+
+        XCTAssertEqual(round.pin(onHole: 0)?.setAt, now.addingTimeInterval(100))
+        XCTAssertEqual(round.pin(onHole: 2), newHole)
+        XCTAssertFalse(round.mergePins(round.pins))
+
+        let later = PinLocation(holeIndex: 0, coordinate: onGreen(0, east: 5), setAt: now.addingTimeInterval(200))
+        XCTAssertTrue(round.mergePins([later]))
+        XCTAssertEqual(round.pin(onHole: 0), later)
+    }
+
+    func testPinsSurviveEncoding() throws {
+        var round = Round(courseSelection: PathCourse.selection)
+        round.setPin(onGreen(1), onHole: 1, at: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let decoded = try JSONDecoder().decode(Round.self, from: JSONEncoder().encode(round))
+
+        XCTAssertEqual(decoded, round)
+    }
+
+    func testRoundSavedWithoutPinsStillLoads() throws {
+        let round = Round(courseSelection: .test)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(round)) as? [String: Any])
+        json.removeValue(forKey: "pins")
+
+        let decoded = try JSONDecoder().decode(Round.self, from: JSONSerialization.data(withJSONObject: json))
+
+        XCTAssertEqual(decoded, round)
+    }
+
+    func testPinMergeTable() {
+        let at = Date(timeIntervalSince1970: 1_700_000_000)
+        let spot = CLLocationCoordinate2D(latitude: 40, longitude: -105)
+        func pin(_ source: PinSource, _ offset: TimeInterval = 0) -> PinLocation {
+            PinLocation(holeIndex: 0, coordinate: spot, setAt: at.addingTimeInterval(offset), source: source)
+        }
+
+        // A center pin never replaces anything
+        XCTAssertFalse(pin(.center).isReplaced(by: pin(.center, 10)))
+        XCTAssertFalse(pin(.shared).isReplaced(by: pin(.center, 10)))
+        XCTAssertFalse(pin(.set).isReplaced(by: pin(.center, 10)))
+        // A center pin is replaced by any real pin, even an older one
+        XCTAssertTrue(pin(.center).isReplaced(by: pin(.shared, -10)))
+        XCTAssertTrue(pin(.center).isReplaced(by: pin(.set, -10)))
+        // A shared pin is replaced by a set pin or another shared pin: a fetch returns the current one
+        XCTAssertTrue(pin(.shared).isReplaced(by: pin(.set, -10)))
+        XCTAssertTrue(pin(.shared).isReplaced(by: pin(.shared, -10)))
+        // A set pin is never replaced by a shared pin; only a later set pin from the other device
+        XCTAssertFalse(pin(.set).isReplaced(by: pin(.shared, 10)))
+        XCTAssertTrue(pin(.set).isReplaced(by: pin(.set, 10)))
+        XCTAssertFalse(pin(.set).isReplaced(by: pin(.set, -10)))
+        XCTAssertFalse(pin(.set).isReplaced(by: pin(.set)))
+    }
+
+    func testCenterPinsForHolesWithAGreenAndNoPin() {
+        var round = Round(courseSelection: PathCourse.selection)
+        round.setPin(onGreen(1, north: 5), onHole: 1, at: round.date)
+
+        XCTAssertTrue(round.addCenterPins())
+
+        XCTAssertEqual(round.pins.count, 3)
+        XCTAssertEqual(round.pin(onHole: 0)?.source, .center)
+        XCTAssertEqual(round.pin(onHole: 0)?.latitude ?? 0, onGreen(0).latitude, accuracy: 1e-6)
+        XCTAssertEqual(round.pin(onHole: 1)?.source, .set)
+        XCTAssertFalse(round.addCenterPins())
+    }
+
+    func testTargetIsThePinOrTheGreenCenter() {
+        var round = Round(courseSelection: PathCourse.selection)
+        XCTAssertEqual(round.targetCoordinate(holeIndex: 0)?.latitude ?? 0, onGreen(0).latitude, accuracy: 1e-6)
+        XCTAssertFalse(round.hasKnownPin(holeIndex: 0))
+
+        round.addCenterPins()
+        XCTAssertFalse(round.hasKnownPin(holeIndex: 0))
+
+        round.setPin(onGreen(0, north: 8), onHole: 0, at: round.date.addingTimeInterval(60))
+        XCTAssertEqual(round.targetCoordinate(holeIndex: 0)?.latitude, onGreen(0, north: 8).latitude)
+        XCTAssertTrue(round.hasKnownPin(holeIndex: 0))
+
+        round.mergePins([PinLocation(holeIndex: 1, coordinate: onGreen(1), setAt: round.date, source: .shared)])
+        XCTAssertTrue(round.hasKnownPin(holeIndex: 1))
+        XCTAssertNil(Round(courseSelection: .test).targetCoordinate(holeIndex: 0))
+    }
+
+    func testNoCenterPinsWithoutGreens() {
+        var round = Round(courseSelection: .test)
+
+        XCTAssertFalse(round.addCenterPins())
+        XCTAssertTrue(round.pins.isEmpty)
+    }
+
+    func testHoleKeyAndIndexFollowTheNinesPicked() {
+        let backFirst = CourseSelection(course: CourseSelection.test.course, selectedSubCourseIndices: [1, 0])
+
+        XCTAssertEqual(backFirst.holeKey(at: 0)?.subCourse, "Back")
+        XCTAssertEqual(backFirst.holeKey(at: 0)?.number, 10)
+        XCTAssertNil(backFirst.holeKey(at: 18))
+        XCTAssertEqual(backFirst.holeIndex(subCourse: "Front", number: 1), 9)
+        XCTAssertNil(backFirst.holeIndex(subCourse: "Front", number: 10))
+        // The keys line up with the holes in playing order
+        XCTAssertEqual(backFirst.orderedHoles.indices.compactMap { backFirst.holeKey(at: $0)?.number },
+                       backFirst.orderedHoles.map(\.number))
+    }
 }

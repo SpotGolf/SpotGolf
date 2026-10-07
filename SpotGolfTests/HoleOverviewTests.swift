@@ -40,24 +40,35 @@ final class HoleOverviewTests: XCTestCase {
         XCTAssertEqual(HoleOverview.toParText(-1), "-1")
     }
 
-    func testYardsToGreenCenter() {
+    func testYardsToPinIsToTheCenterWithoutAPin() {
         let round = Round(courseSelection: PathCourse.selection)
         // Hole 1's green is 300 m north of its tee
         let tee = PathCourse.coordinate(north: 0, east: 0)
         let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
 
-        let yards = HoleOverview.yardsToGreenCenter(round, holeIndex: 0, from: location)
+        let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: location)
 
         XCTAssertEqual(Double(yards ?? 0), 300 * 1.09361, accuracy: 2)
     }
 
-    func testYardsToGreenCenterIsNilWithoutALocationOrGreen() {
+    func testYardsToPinGoesToThePin() {
+        var round = Round(courseSelection: PathCourse.selection)
+        let pin = PathCourse.coordinate(north: 310, east: 0)
+        round.setPin(pin.clLocation.coordinate, onHole: 0, at: round.date)
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+
+        let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: CLLocation(latitude: tee.latitude, longitude: tee.longitude))
+
+        XCTAssertEqual(Double(yards ?? 0), 310 * 1.09361, accuracy: 2)
+    }
+
+    func testYardsToPinIsNilWithoutALocationOrGreen() {
         let pathRound = Round(courseSelection: PathCourse.selection)
-        XCTAssertNil(HoleOverview.yardsToGreenCenter(pathRound, holeIndex: 0, from: nil))
+        XCTAssertNil(HoleOverview.yardsToPin(pathRound, holeIndex: 0, from: nil))
 
         let noGreens = Round(courseSelection: .test)
         let location = CLLocation(latitude: 39.0, longitude: -105.0)
-        XCTAssertNil(HoleOverview.yardsToGreenCenter(noGreens, holeIndex: 0, from: location))
+        XCTAssertNil(HoleOverview.yardsToPin(noGreens, holeIndex: 0, from: location))
     }
 
     func testPreviousYardsIsFromTheLocationToTheLastStroke() {

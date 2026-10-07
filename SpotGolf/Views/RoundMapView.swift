@@ -147,6 +147,13 @@ struct RoundMapView: View {
                 if round.isActive {
                     UserAnnotation()
                 }
+                if let pin = round.pin(onHole: shownHoleIndex(round)) {
+                    // The base of the pole sits on the pin
+                    Annotation("", coordinate: pin.coordinate,
+                               anchor: UnitPoint(x: Self.flagPoleWidth / 2 / Self.flagSize.width, y: 1)) {
+                        pinFlag(pin.source)
+                    }
+                }
                 ForEach(Array(strokesToShow.enumerated()), id: \.element.id) { index, stroke in
                     Annotation("", coordinate: stroke.coordinate) {
                         spotMarker(index: index, stroke: stroke, round: round, proxy: proxy)
@@ -472,14 +479,15 @@ struct RoundMapView: View {
     private func holeSummary(_ round: Round) -> String? {
         guard let courseHole = round.courseHole(at: shownHoleIndex(round)) else { return nil }
         let par = "Par \(courseHole.par)"
-        guard round.isActive, let yards = yardsToGreenCenter(round) else { return par }
+        guard round.isActive, let yards = yardsToPin(round) else { return par }
         return "\(par) - \(yards) yds"
     }
 
     // MARK: - Key information
 
-    private func yardsToGreenCenter(_ round: Round) -> Int? {
-        HoleOverview.yardsToGreenCenter(round, holeIndex: shownHoleIndex(round), from: locationManager.lastLocation)
+    /// To the pin, or the center of the green until the pin is known.
+    private func yardsToPin(_ round: Round) -> Int? {
+        HoleOverview.yardsToPin(round, holeIndex: shownHoleIndex(round), from: locationManager.lastLocation)
     }
 
     /// Feet up (+) or down (-) from the player to the center of the green.
@@ -495,8 +503,8 @@ struct RoundMapView: View {
     private func keyInformation(_ round: Round) -> some View {
         let feet = feetToGreenCenter(round)
         return VStack(spacing: 8) {
-            keyInformationBox(value: yardsToGreenCenter(round).map(String.init) ?? "—",
-                              caption: "yds to center",
+            keyInformationBox(value: yardsToPin(round).map(String.init) ?? "—",
+                              caption: round.hasKnownPin(holeIndex: shownHoleIndex(round)) ? "yds to pin" : "yds to center",
                               identifier: "DistanceToCenter")
             keyInformationBox(value: feet.map { $0 > 0 ? "+\($0)" : "\($0)" } ?? "—",
                               caption: "ft elevation",
@@ -510,8 +518,8 @@ struct RoundMapView: View {
     /// that clears it underneath. On the left, opposite the hole's key information.
     private func targetInformation(_ round: Round) -> some View {
         VStack(spacing: 8) {
-            keyInformationBox(value: yardsFromTargetToGreenCenter(round).map(String.init) ?? "—",
-                              caption: "To green",
+            keyInformationBox(value: yardsFromTargetToPin(round).map(String.init) ?? "—",
+                              caption: round.hasKnownPin(holeIndex: shownHoleIndex(round)) ? "To pin" : "To green",
                               identifier: "TargetToGreen")
             keyInformationBox(value: yardsToTarget.map(String.init) ?? "—",
                               caption: "To point",
@@ -539,9 +547,9 @@ struct RoundMapView: View {
             .center.clLocation.coordinate
     }
 
-    /// Yards from the tapped point to the center of the green.
-    private func yardsFromTargetToGreenCenter(_ round: Round) -> Int? {
-        HoleOverview.yardsToGreenCenter(round, holeIndex: shownHoleIndex(round), from: targetLocation)
+    /// Yards from the tapped point to the pin, or the center of the green until the pin is known.
+    private func yardsFromTargetToPin(_ round: Round) -> Int? {
+        HoleOverview.yardsToPin(round, holeIndex: shownHoleIndex(round), from: targetLocation)
     }
 
     private func keyInformationBox(value: String, caption: String, identifier: String) -> some View {
@@ -665,6 +673,30 @@ struct RoundMapView: View {
         .accessibilityIdentifier("Target")
     }
 
+    private static let flagSize = CGSize(width: 12, height: 24)
+    private static let flagPoleWidth: CGFloat = 1.5
+    /// Darker than the map's greens, so the flag stands out on them.
+    private static let realPinGreen = Color(red: 0.0, green: 0.55, blue: 0.15)
+
+    /// A thin dark pole with a small flag at the top, on the hole's pin: green for a real pin,
+    /// red for the center of the green until a real pin is known.
+    private func pinFlag(_ source: PinSource) -> some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Color(white: 0.15))
+                .frame(width: Self.flagPoleWidth, height: Self.flagSize.height)
+            FlagShape()
+                .fill(source == .center ? Color.red : Self.realPinGreen)
+                .frame(width: Self.flagSize.width - Self.flagPoleWidth, height: 8)
+                .offset(x: Self.flagPoleWidth)
+        }
+        .frame(width: Self.flagSize.width, height: Self.flagSize.height, alignment: .topLeading)
+        .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(source == .center ? "Green center" : "Pin")
+        .accessibilityIdentifier("Pin")
+    }
+
     /// A small white bubble whose arrow tip sits on the start of the hazard.
     private func hazardBubble(yards: Int) -> some View {
         VStack(spacing: 0) {
@@ -683,7 +715,7 @@ struct RoundMapView: View {
         .accessibilityLabel("Hazard in \(yards) yards")
     }
 
-    /// Edit at the bottom left, and the map buttons at the right.
+    /// Edit at the bottom left, the map buttons at the right, and setting the pin in the middle.
     private func buttonBar(_ round: Round) -> some View {
         HStack(alignment: .bottom, spacing: 10) {
             Button {
@@ -705,8 +737,34 @@ struct RoundMapView: View {
 
             mapButtons(round)
         }
+        .overlay(alignment: .bottom) {
+            setPinButton(round)
+        }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
+    }
+
+    /// Shown only during a round, while the phone is on the shown hole's green: saves where the
+    /// player stands as the hole's pin, as the watch's button does.
+    @ViewBuilder
+    private func setPinButton(_ round: Round) -> some View {
+        let holeIndex = shownHoleIndex(round)
+        if round.isActive, !isEditing, let location = locationManager.lastLocation,
+           round.isOnGreen(location.coordinate, holeIndex: holeIndex) {
+            Button {
+                roundStore.setPin(location.coordinate, holeIndex: holeIndex, roundID: round.id)
+            } label: {
+                Label("Set pin location", systemImage: "flag.fill")
+                    .font(.headline)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(.thickMaterial)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            }
+            .accessibilityIdentifier("SetPinLocation")
+        }
     }
 
     /// Hole times (only while editing), and following the player's location (only during a round).
@@ -1011,6 +1069,18 @@ private struct BubbleArrow: Shape {
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// A triangle pointing right, for the pin's flag.
+private struct FlagShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         path.closeSubpath()
         return path
     }

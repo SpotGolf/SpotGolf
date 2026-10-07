@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import CourseDataSwift
 @testable import SpotGolf
 
 @MainActor
@@ -178,6 +179,48 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.round(id)?.displayHoleIndex, 4)
         XCTAssertTrue(displayHoleChanges.isEmpty)
         XCTAssertFalse(store.mergeDisplayHole(later, roundID: id))
+    }
+
+    // MARK: - Pins
+
+    private func pathGreen(_ hole: Int) -> CLLocationCoordinate2D {
+        let green = PathCourse.greens[hole]
+        return PathCourse.coordinate(north: green.north, east: green.east).clLocation.coordinate
+    }
+
+    func testSetPinReportsChange() {
+        let id = store.startRound(courseSelection: PathCourse.selection).id
+        var changes: [Round] = []
+        store.onPinsChanged = { changes.append($0) }
+
+        store.setPin(pathGreen(1), holeIndex: 1)
+
+        XCTAssertNotNil(store.round(id)?.pin(onHole: 1))
+        XCTAssertEqual(changes.count, 1)
+    }
+
+    func testSetPinOffTheGreenIsNoOp() {
+        let id = store.startRound(courseSelection: PathCourse.selection).id
+        var changes: [Round] = []
+        store.onPinsChanged = { changes.append($0) }
+
+        store.setPin(pathGreen(0), holeIndex: 1)
+
+        XCTAssertTrue(store.round(id)?.pins.isEmpty == true)
+        XCTAssertTrue(changes.isEmpty)
+    }
+
+    func testMergePinsDoesNotReportChange() {
+        let id = store.startRound(courseSelection: PathCourse.selection).id
+        var changes: [Round] = []
+        store.onPinsChanged = { changes.append($0) }
+        let pin = PinLocation(holeIndex: 0, coordinate: pathGreen(0), setAt: Date())
+
+        XCTAssertTrue(store.mergePins([pin], roundID: id))
+
+        XCTAssertEqual(store.round(id)?.pins, [pin])
+        XCTAssertTrue(changes.isEmpty)
+        XCTAssertFalse(store.mergePins([pin], roundID: id))
     }
 
     // MARK: - Hole timeline

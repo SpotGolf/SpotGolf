@@ -124,6 +124,28 @@ final class DistanceCalculatorTests: XCTestCase {
         XCTAssertGreaterThan(distances.front, 0)
     }
 
+    func testMiddleDistanceGoesToThePinWhenGiven() {
+        let playerLocation = CLLocation(latitude: 33.4400, longitude: -112.07)
+        let green = Feature(id: 1, type: .green, polygon: [
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0695),
+            Coordinate(latitude: 33.4430, longitude: -112.0695),
+            Coordinate(latitude: 33.4430, longitude: -112.0705),
+            Coordinate(latitude: 33.4420, longitude: -112.0705),
+        ])
+        let direction = Vector2D(dx: 1, dy: 0).normalized()
+        let pin = Coordinate(latitude: 33.4428, longitude: -112.07)
+
+        let toCenter = DistanceCalculator.greenDistances(from: playerLocation, green: green, direction: direction)
+        let toPin = DistanceCalculator.greenDistances(from: playerLocation, green: green, direction: direction, middle: pin)
+
+        XCTAssertEqual(toPin.middle, Int(DistanceCalculator.yards(from: playerLocation, to: pin.clLocation)))
+        XCTAssertGreaterThan(toPin.middle, toCenter.middle)
+        // The front and back stay on the green's edges
+        XCTAssertEqual(toPin.front, toCenter.front)
+        XCTAssertEqual(toPin.back, toCenter.back)
+    }
+
     func testDistancesToGreenNegativeWhenPast() {
         // Player is north of the green (past the back)
         let playerLocation = CLLocation(latitude: 33.4435, longitude: -112.07)

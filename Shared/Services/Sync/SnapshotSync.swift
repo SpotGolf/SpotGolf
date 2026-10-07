@@ -1,8 +1,8 @@
 import Foundation
 
-/// Keeps the hole timeline, the display hole and strokes the same on both devices. Every change
+/// Keeps the hole timeline, the display hole, pins and strokes the same on both devices. Every change
 /// sends the full state, so a lost message is fixed by the next one, and a late or repeated one
-/// does no harm: timelines are merged, the later display hole wins, and strokes keep the highest version.
+/// does no harm: timelines are merged, the later display hole and pins win, and strokes keep the highest version.
 @MainActor
 final class SnapshotSync {
     private let sync: SyncService
@@ -28,6 +28,12 @@ final class SnapshotSync {
         updateContext(round)
     }
 
+    func sendPins(_ round: Round) {
+        guard round.isActive else { return }
+        sync.send(.pins(PinsMessage(roundID: round.id, pins: round.pins)))
+        updateContext(round)
+    }
+
     func sendStrokes(_ round: Round) {
         guard sendsStrokes, round.isActive else { return }
         sync.send(.strokes(round.strokesSnapshot))
@@ -40,6 +46,7 @@ final class SnapshotSync {
         sync.updateContext(SyncContext(
             timeline: HoleTimelineMessage(roundID: round.id, entries: round.holeTimeline),
             displayHole: DisplayHoleMessage(roundID: round.id, displayHole: round.displayHole),
+            pins: PinsMessage(roundID: round.id, pins: round.pins),
             strokes: sendsStrokes ? round.strokesSnapshot : nil
         ))
     }
@@ -56,6 +63,12 @@ final class SnapshotSync {
         rounds.mergeDisplayHole(message.displayHole, roundID: message.roundID)
     }
 
+    /// Returns true if any pin changed.
+    @discardableResult
+    func apply(_ message: PinsMessage) -> Bool {
+        rounds.mergePins(message.pins, roundID: message.roundID)
+    }
+
     @discardableResult
     func apply(_ snapshot: StrokesSnapshot) -> Bool {
         guard !sendsStrokes else { return false }
@@ -70,6 +83,9 @@ final class SnapshotSync {
         }
         if let displayHole = context.displayHole {
             apply(displayHole)
+        }
+        if let pins = context.pins {
+            apply(pins)
         }
         if let timeline = context.timeline, apply(timeline) {
             return timeline.roundID

@@ -100,7 +100,7 @@ private struct LockScreenView: View {
                 Text(yardsText(state))
                     .font(.system(size: 34, weight: .bold))
                     .monospacedDigit()
-                Text("yds to center")
+                Text(state.toPin ? "yds to pin" : "yds to center")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

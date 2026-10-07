@@ -14,8 +14,9 @@ enum SyncMessage: Codable, Equatable {
     case streamAck(StreamAck)
     case holeTimeline(HoleTimelineMessage)
     case displayHole(DisplayHoleMessage)
+    case pins(PinsMessage)
     case strokes(StrokesSnapshot)
-    /// The latest timeline, display hole and strokes, sent as application context.
+    /// The latest timeline, display hole, pins and strokes, sent as application context.
     case context(SyncContext)
     /// Part of a message too large for one send.
     case chunk(SyncChunk)
@@ -29,6 +30,7 @@ struct StartRound: Codable, Equatable {
     let course: Data
     let holeTimeline: [HoleStart]
     let displayHole: DisplayHole
+    let pins: [PinLocation]
     let strokes: StrokesSnapshot
     /// The first stream index for the round: nonzero when an ended round is resumed.
     let streamBase: Int
@@ -96,6 +98,12 @@ struct DisplayHoleMessage: Codable, Equatable {
     let displayHole: DisplayHole
 }
 
+/// Both ways. Every pin in the round; per hole, the later one wins.
+struct PinsMessage: Codable, Equatable {
+    let roundID: UUID
+    let pins: [PinLocation]
+}
+
 /// Phone → watch. Every stroke in the round. The watch keeps the highest version.
 struct StrokesSnapshot: Codable, Equatable {
     let roundID: UUID
@@ -107,6 +115,7 @@ struct StrokesSnapshot: Codable, Equatable {
 struct SyncContext: Codable, Equatable {
     let timeline: HoleTimelineMessage?
     let displayHole: DisplayHoleMessage?
+    let pins: PinsMessage?
     let strokes: StrokesSnapshot?
 }
 
@@ -132,6 +141,7 @@ extension SyncMessage {
         case .streamAck: "streamAck"
         case .holeTimeline: "holeTimeline"
         case .displayHole: "displayHole"
+        case .pins: "pins"
         case .strokes: "strokes"
         case .context: "context"
         case .chunk: "chunk"

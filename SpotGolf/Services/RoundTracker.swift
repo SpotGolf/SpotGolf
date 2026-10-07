@@ -96,8 +96,9 @@ final class RoundTracker: ObservableObject {
             holeNumber: round.displayHoleNumber,
             par: round.displayCourseHole?.par,
             yardsToGreen: round.isActive
-                ? HoleOverview.yardsToGreenCenter(round, holeIndex: round.displayHoleIndex, from: location)
+                ? HoleOverview.yardsToPin(round, holeIndex: round.displayHoleIndex, from: location)
                 : nil,
+            toPin: round.hasKnownPin(holeIndex: round.displayHoleIndex),
             previousYards: HoleOverview.previousYards(strokes: round.displayHoleStrokes, from: round.isActive ? location : nil),
             holeStrokes: round.displayHoleStrokes.count,
             totalStrokes: round.allStrokes.count,
