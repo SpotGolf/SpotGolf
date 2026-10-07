@@ -149,8 +149,7 @@ struct RoundMapView: View {
                 }
                 if let pin = round.pin(onHole: shownHoleIndex(round)) {
                     // The base of the pole sits on the pin
-                    Annotation("", coordinate: pin.coordinate,
-                               anchor: UnitPoint(x: Self.flagPoleWidth / 2 / Self.flagSize.width, y: 1)) {
+                    Annotation("", coordinate: pin.coordinate, anchor: Self.flagBase) {
                         pinFlag(pin.source)
                     }
                 }
@@ -675,11 +674,27 @@ struct RoundMapView: View {
 
     private static let flagSize = CGSize(width: 12, height: 24)
     private static let flagPoleWidth: CGFloat = 1.5
+    /// The flag's base, where the pole meets the ground: the map anchors and scales it there.
+    private static let flagBase = UnitPoint(x: flagPoleWidth / 2 / flagSize.width, y: 1)
+    /// The flag grows with the zoom level: its normal size at the whole-hole view and below,
+    /// growing evenly per zoom level up to `largestFlagScale` when zoomed in close, and no larger.
+    private static let normalFlagMetersPerPoint = 0.6
+    private static let largestFlagMetersPerPoint = 0.1
+    private static let largestFlagScale = 1.5
+
+    /// How much larger than normal the flag is drawn at the map's zoom. The zoom level is the
+    /// log of meters per point, as each pinch step halves or doubles it.
+    private var flagScale: CGFloat {
+        let zoom = log2(Self.normalFlagMetersPerPoint / metersPerPoint)
+        let fullZoom = log2(Self.normalFlagMetersPerPoint / Self.largestFlagMetersPerPoint)
+        let progress = min(max(zoom / fullZoom, 0), 1)
+        return 1 + (Self.largestFlagScale - 1) * progress
+    }
     /// Darker than the map's greens, so the flag stands out on them.
     private static let realPinGreen = Color(red: 0.0, green: 0.55, blue: 0.15)
 
     /// A thin dark pole with a small flag at the top, on the hole's pin: green for a real pin,
-    /// red for the center of the green until a real pin is known.
+    /// red for the center of the green until a real pin is known. Larger as the map zooms in.
     private func pinFlag(_ source: PinSource) -> some View {
         ZStack(alignment: .topLeading) {
             Rectangle()
@@ -691,6 +706,7 @@ struct RoundMapView: View {
                 .offset(x: Self.flagPoleWidth)
         }
         .frame(width: Self.flagSize.width, height: Self.flagSize.height, alignment: .topLeading)
+        .scaleEffect(flagScale, anchor: Self.flagBase)
         .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(source == .center ? "Green center" : "Pin")

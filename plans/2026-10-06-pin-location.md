@@ -39,6 +39,14 @@ Pins sync both ways, like the display hole:
 
 The shown hole's pin is drawn at its coordinate: a thin dark pole with a small triangular flag at the top. The base of the pole sits on the pin. The flag's color depends on where the pin came from; see `2026-10-06-shared-pins.md`.
 
+The flag grows evenly with the zoom level, from its base, with no animation:
+
+| Map scale (meters per point) | Flag height |
+|---|---|
+| 0.6 (the whole-hole view) or more | 24 points (normal) |
+| Between 0.6 and 0.1 | Grows evenly per zoom level (the log of meters per point) |
+| 0.1 or less | 36 points (1.5×) |
+
 ## Distances
 
 Distances to the middle of the green go to the hole's pin (`Round.targetCoordinate`), or to the green's center when the hole has no pin. A `center` pin is the green's center, so it gives the same number.
