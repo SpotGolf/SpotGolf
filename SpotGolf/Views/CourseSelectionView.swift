@@ -8,10 +8,10 @@ struct CourseSelectionView: View {
     /// When set, picking a course calls this instead of starting a round.
     var onCourseSelected: ((CourseSelection) -> Void)?
 
-    @EnvironmentObject var courseService: CourseService
-    @EnvironmentObject var locationManager: LocationManager
-    @EnvironmentObject var roundStore: RoundStore
-    @EnvironmentObject var phoneSync: PhoneSync
+    @Environment(CourseService.self) private var courseService
+    @Environment(LocationManager.self) private var locationManager
+    @Environment(RoundStore.self) private var roundStore
+    @Environment(PhoneSync.self) private var phoneSync
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""

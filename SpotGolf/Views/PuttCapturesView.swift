@@ -3,7 +3,7 @@ import os
 
 /// The putt captures the watch has sent, each shareable as a zip.
 struct PuttCapturesView: View {
-    @EnvironmentObject var store: PuttCaptureStore
+    @Environment(PuttCaptureStore.self) private var store
     @State private var export: CaptureExport?
     @State private var exportError: String?
 

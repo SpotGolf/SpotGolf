@@ -1,12 +1,14 @@
 import Foundation
+import Observation
 import os
 
 /// Phone: the stroke suggestions the user dismissed or turned into strokes, per round.
 /// Suggestions themselves are not saved: `StrokeFinder` works them out again when a hole is
 /// shown, and gives the same stop the same ID, so a hidden suggestion stays hidden.
 @MainActor
-class SuggestionStore: ObservableObject {
-    @Published private(set) var hidden: [UUID: Set<UUID>] = [:] // keyed by round ID
+@Observable
+class SuggestionStore {
+    private(set) var hidden: [UUID: Set<UUID>] = [:] // keyed by round ID
 
     private let fileURL: URL
 

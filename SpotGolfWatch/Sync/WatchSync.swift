@@ -1,11 +1,13 @@
 import Foundation
+import Observation
 import os
 import CoreLocation
 
 /// The watch's side of the messaging: taking rounds the phone starts, recording the stream
 /// and sending it, ending rounds, and keeping the timeline and strokes in step.
 @MainActor
-final class WatchSync: ObservableObject {
+@Observable
+final class WatchSync {
     let sync: SyncService
     let rounds: RoundStore
     let streams: StreamStore
@@ -13,7 +15,7 @@ final class WatchSync: ObservableObject {
     let snapshots: SnapshotSync
 
     /// Permissions the watch needs and does not have. A new round is refused until there are none.
-    var missingPermissions: () -> [AppPermission] = { [] }
+    @ObservationIgnored var missingPermissions: () -> [AppPermission] = { [] }
 
     init(sync: SyncService, rounds: RoundStore, streams: StreamStore) {
         self.sync = sync

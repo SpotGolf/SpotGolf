@@ -1,24 +1,26 @@
 import Foundation
+import Observation
 import os
 
 /// Stores each round's stream from the watch: GPS fixes and swings as fixed-size records,
 /// one append-only file per round. The watch records into it; the phone stores the same
 /// records as they arrive, so its record count is exactly what it holds on disk.
 @MainActor
-final class StreamStore: ObservableObject {
+@Observable
+final class StreamStore {
     nonisolated static let fileExtension = "stream"
 
     private let directory: URL
 
     // Record counts, read from disk once per round
-    private var counts: [UUID: Int] = [:]
+    @ObservationIgnored private var counts: [UUID: Int] = [:]
 
     // Records read by `records(for:)`, kept up to date on append. The phone reads the whole
     // stream after every batch, so this saves reading and decoding the file each time.
-    private var cache: [UUID: [StreamRecord]] = [:]
+    @ObservationIgnored private var cache: [UUID: [StreamRecord]] = [:]
 
     /// Bumped whenever records are added or removed, so views can reload.
-    @Published private(set) var revision = 0
+    private(set) var revision = 0
 
     init(directory: URL? = nil) {
         if let directory {

@@ -1,9 +1,11 @@
+import Observation
 import HealthKit
 import os
 import WatchKit
 
 @MainActor
-class WorkoutManager: NSObject, ObservableObject {
+@Observable
+class WorkoutManager: NSObject {
     private let healthStore = HKHealthStore()
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
@@ -14,10 +16,10 @@ class WorkoutManager: NSObject, ObservableObject {
     enum Status: String {
         case none, started, recovered, ended
     }
-    @Published private(set) var status = Status.none
+    private(set) var status = Status.none
 
     /// The session is running. Batched sensor data only arrives while it is.
-    @Published private(set) var isRunning = false {
+    private(set) var isRunning = false {
         didSet {
             guard isRunning != oldValue else { return }
             for listener in runningListeners {
@@ -26,7 +28,7 @@ class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    private var runningListeners: [(Bool) -> Void] = []
+    @ObservationIgnored private var runningListeners: [(Bool) -> Void] = []
 
     /// Adds a listener called each time `isRunning` changes. Listeners stay for the manager's life.
     func addRunningListener(_ listener: @escaping (Bool) -> Void) {

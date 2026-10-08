@@ -6,11 +6,11 @@ struct RoundMapView: View {
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
 
     let roundID: UUID
-    @EnvironmentObject var roundStore: RoundStore
-    @EnvironmentObject var locationManager: LocationManager
-    @EnvironmentObject var suggestionStore: SuggestionStore
-    @EnvironmentObject var streamStore: StreamStore
-    @EnvironmentObject var settingsStore: SettingsStore
+    @Environment(RoundStore.self) private var roundStore
+    @Environment(LocationManager.self) private var locationManager
+    @Environment(SuggestionStore.self) private var suggestionStore
+    @Environment(StreamStore.self) private var streamStore
+    @Environment(SettingsStore.self) private var settingsStore
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {

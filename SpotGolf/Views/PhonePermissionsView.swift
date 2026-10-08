@@ -3,7 +3,7 @@ import SwiftUI
 /// Shown in place of the app until every required permission is granted. Allow shows the
 /// prompt for each one not yet asked; a denied one can only be turned on in Settings.
 struct PhonePermissionsView: View {
-    @EnvironmentObject var permissions: PermissionChecker
+    @Environment(PermissionChecker.self) private var permissions
     @Environment(\.openURL) private var openURL
     @State private var isAsking = false
 

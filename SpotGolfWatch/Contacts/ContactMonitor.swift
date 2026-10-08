@@ -2,6 +2,7 @@ import CoreLocation
 import CoreMotion
 import CourseDataSwift
 import Foundation
+import Observation
 import os
 
 /// Detects ball contact during a round while the watch is within `zoneMargin` of the display
@@ -10,7 +11,8 @@ import os
 /// leaves the zone, when the display hole changes, and when the round ends. See
 /// `plans/2026-10-06-putt-detection.md`.
 @MainActor
-final class ContactMonitor: ObservableObject {
+@Observable
+final class ContactMonitor {
     /// The zone the phone suggests putts in.
     static let zoneMargin = HoleShape.chipZoneMargin
     /// Fixes beyond the zone for this long stop the detector.
@@ -18,10 +20,10 @@ final class ContactMonitor: ObservableObject {
     /// After the mic refuses to start, or its permission is missing, the next try waits this long.
     static let retryDelay: TimeInterval = 60
 
-    @Published private(set) var isRunning = false
+    private(set) var isRunning = false
 
     /// Called on the main actor with each contact.
-    var onContact: ((ContactEvent) -> Void)?
+    @ObservationIgnored var onContact: ((ContactEvent) -> Void)?
 
     let runner: ContactRunner
     let taps: TapGuard

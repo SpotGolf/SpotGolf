@@ -1,10 +1,12 @@
 import Foundation
+import Observation
 import os
 
 /// The phone's side of the messaging: starting and ending rounds with the watch, receiving
 /// the watch's stream, and keeping the timeline and strokes in step.
 @MainActor
-final class PhoneSync: ObservableObject {
+@Observable
+final class PhoneSync {
     /// How long the phone waits before sending a failed start or end request again.
     nonisolated static let defaultRetryDelay: TimeInterval = 5
 
@@ -17,7 +19,7 @@ final class PhoneSync: ObservableObject {
     }
 
     /// Rounds that are starting, and whether they are still waiting.
-    @Published private(set) var startStates: [UUID: StartState] = [:]
+    private(set) var startStates: [UUID: StartState] = [:]
 
     let sync: SyncService
     let rounds: RoundStore

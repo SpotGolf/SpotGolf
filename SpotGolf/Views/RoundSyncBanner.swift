@@ -5,7 +5,7 @@ import SwiftUI
 /// active or ended round.
 struct RoundSyncBanner: View {
     let round: Round
-    @EnvironmentObject var phoneSync: PhoneSync
+    @Environment(PhoneSync.self) private var phoneSync
     @Environment(\.openURL) private var openURL
 
     var body: some View {

@@ -4,12 +4,12 @@ import CoreLocation
 import CourseDataSwift
 
 struct WatchRoundView: View {
-    @EnvironmentObject var roundStore: RoundStore
-    @EnvironmentObject var locationManager: LocationManager
-    @EnvironmentObject var syncService: SyncService
-    @EnvironmentObject var watchSync: WatchSync
-    @EnvironmentObject var workoutManager: WorkoutManager
-    @EnvironmentObject var contactMonitor: ContactMonitor
+    @Environment(RoundStore.self) private var roundStore
+    @Environment(LocationManager.self) private var locationManager
+    @Environment(SyncService.self) private var syncService
+    @Environment(WatchSync.self) private var watchSync
+    @Environment(WorkoutManager.self) private var workoutManager
+    @Environment(ContactMonitor.self) private var contactMonitor
 
     @State private var liveDistance: String?
 

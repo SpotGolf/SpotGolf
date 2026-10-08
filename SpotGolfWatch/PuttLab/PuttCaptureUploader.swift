@@ -1,13 +1,15 @@
 import Foundation
+import Observation
 import os
 
 /// Sends finished captures to the phone, one file at a time through WatchConnectivity, and
 /// deletes each file once it has arrived. Files that fail are sent again at the next launch
 /// or the next capture.
 @MainActor
-final class PuttCaptureUploader: ObservableObject {
+@Observable
+final class PuttCaptureUploader {
     /// Files queued and not yet on the phone.
-    @Published private(set) var pendingFiles = 0
+    private(set) var pendingFiles = 0
 
     private let transport: WatchConnectivityTransport?
     private let directory: URL

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os
 
 /// Reads and asks for permissions. Each app reads the system; tests and UI tests use fakes.
@@ -26,8 +27,9 @@ final class GrantedPermissionSource: PermissionSource {
 /// Checks and asks for the permissions an app needs. The app does nothing else until all
 /// are granted.
 @MainActor
-final class PermissionChecker: ObservableObject {
-    @Published private(set) var states: [AppPermission: PermissionState] = [:]
+@Observable
+final class PermissionChecker {
+    private(set) var states: [AppPermission: PermissionState] = [:]
 
     /// The permissions this app needs, in the order they are asked for.
     let required: [AppPermission]

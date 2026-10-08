@@ -7,15 +7,15 @@ struct SpotGolfWatchApp: App {
     var body: some Scene {
         WindowGroup {
             WatchRootView()
-                .environmentObject(appDelegate.roundStore)
-                .environmentObject(appDelegate.locationManager)
-                .environmentObject(appDelegate.syncService)
-                .environmentObject(appDelegate.watchSync)
-                .environmentObject(appDelegate.workoutManager)
-                .environmentObject(appDelegate.permissions)
-                .environmentObject(appDelegate.puttCapture)
-                .environmentObject(appDelegate.captureUploader)
-                .environmentObject(appDelegate.contactMonitor)
+                .environment(appDelegate.roundStore)
+                .environment(appDelegate.locationManager)
+                .environment(appDelegate.syncService)
+                .environment(appDelegate.watchSync)
+                .environment(appDelegate.workoutManager)
+                .environment(appDelegate.permissions)
+                .environment(appDelegate.puttCapture)
+                .environment(appDelegate.captureUploader)
+                .environment(appDelegate.contactMonitor)
         }
     }
 }
@@ -23,8 +23,8 @@ struct SpotGolfWatchApp: App {
 /// The permissions screen until every permission is granted, then the round screen. A round
 /// already recording stays on screen, so it can still be ended.
 private struct WatchRootView: View {
-    @EnvironmentObject var permissions: PermissionChecker
-    @EnvironmentObject var roundStore: RoundStore
+    @Environment(PermissionChecker.self) private var permissions
+    @Environment(RoundStore.self) private var roundStore
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os
 
 /// Shares pins with other golfers on the same course. When a round starts or resumes, whether it
@@ -8,7 +9,8 @@ import os
 /// device from then on, never ones set while the round was not sharing. Nothing is tried again:
 /// a failed fetch or upload is only logged. See plans/2026-10-06-shared-pins.md.
 @MainActor
-final class PinShareCoordinator: ObservableObject {
+@Observable
+final class PinShareCoordinator {
     private let rounds: RoundStore
     private let sharing: PinSharing
     private let sharesPins: () -> Bool

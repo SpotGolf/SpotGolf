@@ -1,9 +1,11 @@
 import Foundation
+import Observation
 import os
 
 @MainActor
-class SettingsStore: ObservableObject {
-    @Published var settings: AppSettings {
+@Observable
+class SettingsStore {
+    var settings: AppSettings {
         didSet {
             if settings != oldValue {
                 save()

@@ -3,11 +3,11 @@ import os
 
 struct RoundListView: View {
     @Binding var navigationPath: NavigationPath
-    @EnvironmentObject var roundStore: RoundStore
-    @EnvironmentObject var syncService: SyncService
-    @EnvironmentObject var phoneSync: PhoneSync
-    @EnvironmentObject var streamStore: StreamStore
-    @EnvironmentObject var suggestionStore: SuggestionStore
+    @Environment(RoundStore.self) private var roundStore
+    @Environment(SyncService.self) private var syncService
+    @Environment(PhoneSync.self) private var phoneSync
+    @Environment(StreamStore.self) private var streamStore
+    @Environment(SuggestionStore.self) private var suggestionStore
     @State private var showCourseSelection = false
     @State private var showSettings = false
     @State private var roundToDelete: Round?

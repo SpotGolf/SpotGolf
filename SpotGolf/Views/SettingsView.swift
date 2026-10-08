@@ -3,7 +3,7 @@ import os
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @EnvironmentObject var settingsStore: SettingsStore
+    @Environment(SettingsStore.self) private var settingsStore
     @Environment(\.dismiss) private var dismiss
 
     #if DEBUG
@@ -14,6 +14,7 @@ struct SettingsView: View {
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
     var body: some View {
+        @Bindable var settingsStore = settingsStore
         NavigationStack {
             Form {
                 Section {
@@ -72,7 +73,7 @@ private struct ImportRoundSection: View {
     @Binding var showCoursePicker: Bool
     let message: String?
 
-    @EnvironmentObject var roundStore: RoundStore
+    @Environment(RoundStore.self) private var roundStore
 
     var body: some View {
         Section {
@@ -98,7 +99,7 @@ private struct ImportRoundPickers: ViewModifier {
     @Binding var showCoursePicker: Bool
     @Binding var message: String?
 
-    @EnvironmentObject var phoneSync: PhoneSync
+    @Environment(PhoneSync.self) private var phoneSync
     @State private var courseSelection: CourseSelection?
     @State private var showFilePicker = false
 

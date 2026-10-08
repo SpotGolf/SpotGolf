@@ -4,7 +4,7 @@ import SwiftUI
 /// and health are shared with the iPhone app and can only be granted there; the microphone
 /// is the watch's own, with its prompt here.
 struct PermissionsView: View {
-    @EnvironmentObject var permissions: PermissionChecker
+    @Environment(PermissionChecker.self) private var permissions
     @State private var isAsking = false
 
     private var phonePermissions: [AppPermission] { permissions.required.filter { !$0.isAskedOnWatch } }

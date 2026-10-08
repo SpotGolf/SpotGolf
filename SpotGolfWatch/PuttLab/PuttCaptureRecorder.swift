@@ -1,5 +1,6 @@
 import CoreMotion
 import Foundation
+import Observation
 import os
 import WatchKit
 
@@ -7,7 +8,8 @@ import WatchKit
 /// player's marks, into one folder per capture. Needs a workout for the batched sensors, so
 /// it starts one and ends it when the capture stops, unless a round is using it.
 @MainActor
-final class PuttCaptureRecorder: ObservableObject {
+@Observable
+final class PuttCaptureRecorder {
     enum State: Equatable {
         case idle
         /// Waiting for the workout to run.
@@ -15,17 +17,17 @@ final class PuttCaptureRecorder: ObservableObject {
         case recording
     }
 
-    @Published private(set) var state = State.idle
+    private(set) var state = State.idle
     /// What is not being recorded, for the screen.
-    @Published private(set) var problems: [String] = []
-    @Published private(set) var micPermission = MicrophoneInput.permission
+    private(set) var problems: [String] = []
+    private(set) var micPermission = MicrophoneInput.permission
     /// Record sound. Off to measure the sensors' battery cost alone.
-    @Published var microphone = true
+    var microphone = true
     /// Write readings and audio. Off for a battery test: the sensors and the scoring math run,
     /// nothing is written, and the capture keeps only its counts and battery levels.
-    @Published var savesData = true
+    var savesData = true
     /// Contacts the detector found so far, shown live.
-    @Published private(set) var contactCount = 0
+    private(set) var contactCount = 0
 
     let uploader: PuttCaptureUploader
 

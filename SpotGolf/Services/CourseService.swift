@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os
 import CoreLocation
 import CourseDataSwift
@@ -20,9 +21,10 @@ enum CourseServiceError: Error {
 // MARK: - CourseService
 
 @MainActor
-class CourseService: ObservableObject {
+@Observable
+class CourseService {
 
-    @Published var index: [CourseIndexEntry] = []
+    var index: [CourseIndexEntry] = []
 
     static let maxCacheBytes = 5 * 1024 * 1024
     private static let tenMilesInMeters: Double = 16093.44

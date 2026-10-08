@@ -4,18 +4,18 @@ import HealthKit
 
 @main
 struct SpotGolfApp: App {
-    @StateObject private var roundStore: RoundStore
-    @StateObject private var locationManager: LocationManager
-    @StateObject private var roundTracker: RoundTracker
-    @StateObject private var syncService: SyncService
-    @StateObject private var phoneSync: PhoneSync
-    @StateObject private var courseService = CourseService()
-    @StateObject private var suggestionStore: SuggestionStore
-    @StateObject private var settingsStore: SettingsStore
-    @StateObject private var streamStore: StreamStore
-    @StateObject private var permissions: PermissionChecker
-    @StateObject private var pinShare: PinShareCoordinator
-    @StateObject private var puttCaptures: PuttCaptureStore
+    @State private var roundStore: RoundStore
+    @State private var locationManager: LocationManager
+    @State private var roundTracker: RoundTracker
+    @State private var syncService: SyncService
+    @State private var phoneSync: PhoneSync
+    @State private var courseService = CourseService()
+    @State private var suggestionStore: SuggestionStore
+    @State private var settingsStore: SettingsStore
+    @State private var streamStore: StreamStore
+    @State private var permissions: PermissionChecker
+    @State private var pinShare: PinShareCoordinator
+    @State private var puttCaptures: PuttCaptureStore
 
     init() {
         Log.rounds.notice("Phone app launched")
@@ -53,23 +53,23 @@ struct SpotGolfApp: App {
         (sync.transport as? WatchConnectivityTransport)?.onFileReceived = { url, metadata in
             puttCaptures.receive(file: url, metadata: metadata)
         }
-        _puttCaptures = StateObject(wrappedValue: puttCaptures)
-        _roundStore = StateObject(wrappedValue: rounds)
-        _locationManager = StateObject(wrappedValue: location)
-        _roundTracker = StateObject(wrappedValue: RoundTracker(rounds: rounds, location: location,
-                                                               showsActivity: !isUITesting))
-        _syncService = StateObject(wrappedValue: sync)
-        _streamStore = StateObject(wrappedValue: streams)
-        _suggestionStore = StateObject(wrappedValue: suggestions)
-        _phoneSync = StateObject(wrappedValue: phoneSync)
-        _settingsStore = StateObject(wrappedValue: settings)
+        _puttCaptures = State(initialValue: puttCaptures)
+        _roundStore = State(initialValue: rounds)
+        _locationManager = State(initialValue: location)
+        _roundTracker = State(initialValue: RoundTracker(rounds: rounds, location: location,
+                                                         showsActivity: !isUITesting))
+        _syncService = State(initialValue: sync)
+        _streamStore = State(initialValue: streams)
+        _suggestionStore = State(initialValue: suggestions)
+        _phoneSync = State(initialValue: phoneSync)
+        _settingsStore = State(initialValue: settings)
         // UI tests run without iCloud
-        _pinShare = StateObject(wrappedValue: PinShareCoordinator(
+        _pinShare = State(initialValue: PinShareCoordinator(
             rounds: rounds,
             sharing: isUITesting ? NoPinSharing() : CloudKitPinSharing(),
             sharesPins: { settings.settings.sharePins }))
         // UI tests run on simulators, where permissions are not the point
-        _permissions = StateObject(wrappedValue: PermissionChecker(
+        _permissions = State(initialValue: PermissionChecker(
             source: isUITesting ? GrantedPermissionSource() : PhonePermissionSource(),
             required: PhonePermissionSource.required))
     }
@@ -77,17 +77,17 @@ struct SpotGolfApp: App {
     var body: some Scene {
         WindowGroup {
             PhoneRootView()
-                .environmentObject(permissions)
-                .environmentObject(roundStore)
-                .environmentObject(locationManager)
-                .environmentObject(roundTracker)
-                .environmentObject(syncService)
-                .environmentObject(phoneSync)
-                .environmentObject(courseService)
-                .environmentObject(suggestionStore)
-                .environmentObject(settingsStore)
-                .environmentObject(streamStore)
-                .environmentObject(puttCaptures)
+                .environment(permissions)
+                .environment(roundStore)
+                .environment(locationManager)
+                .environment(roundTracker)
+                .environment(syncService)
+                .environment(phoneSync)
+                .environment(courseService)
+                .environment(suggestionStore)
+                .environment(settingsStore)
+                .environment(streamStore)
+                .environment(puttCaptures)
                 .onAppear {
                     Task {
                         await courseService.refreshIndex()
@@ -99,8 +99,8 @@ struct SpotGolfApp: App {
 
 /// The permissions screen until every required permission is granted, then the app.
 private struct PhoneRootView: View {
-    @EnvironmentObject var permissions: PermissionChecker
-    @EnvironmentObject var roundTracker: RoundTracker
+    @Environment(PermissionChecker.self) private var permissions
+    @Environment(RoundTracker.self) private var roundTracker
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {

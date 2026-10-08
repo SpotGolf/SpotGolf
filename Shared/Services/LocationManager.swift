@@ -1,25 +1,27 @@
 import Foundation
+import Observation
 import os
 import CoreLocation
 
 @MainActor
-class LocationManager: NSObject, ObservableObject {
-    @Published var lastLocation: CLLocation? {
+@Observable
+class LocationManager: NSObject {
+    var lastLocation: CLLocation? {
         didSet {
             for listener in locationListeners {
                 listener(lastLocation)
             }
         }
     }
-    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    var authorizationStatus: CLAuthorizationStatus = .notDetermined
 
     /// Called with every valid fix, before accuracy filtering and smoothing.
-    var onRawLocations: (@MainActor ([CLLocation]) -> Void)?
+    @ObservationIgnored var onRawLocations: (@MainActor ([CLLocation]) -> Void)?
 
-    private var locationListeners: [(CLLocation?) -> Void] = []
+    @ObservationIgnored private var locationListeners: [(CLLocation?) -> Void] = []
 
     let manager = CLLocationManager()
-    private var recentLocations: [CLLocation] = []
+    @ObservationIgnored private var recentLocations: [CLLocation] = []
     private static let maxRecent = 3
     private static let maxAccuracy: CLLocationAccuracy = 20 // meters
 

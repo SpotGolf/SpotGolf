@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os
 import CoreLocation
 import CourseDataSwift
@@ -21,8 +22,9 @@ enum RoundEvent {
 /// `RoundEvent`s so they can be sent to the other device; changes applied from the other
 /// device are only reported as `roundsChanged`.
 @MainActor
-class RoundStore: ObservableObject {
-    @Published var rounds: [Round] = [] {
+@Observable
+class RoundStore {
+    var rounds: [Round] = [] {
         didSet {
             save()
             report(.roundsChanged)
@@ -30,7 +32,7 @@ class RoundStore: ObservableObject {
     }
 
     // Run in the order added, during the change, so messages to the other device keep its order
-    private var listeners: [(RoundEvent) -> Void] = []
+    @ObservationIgnored private var listeners: [(RoundEvent) -> Void] = []
 
     private let fileURL: URL
 

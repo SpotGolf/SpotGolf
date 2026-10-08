@@ -3,7 +3,7 @@ import SwiftUI
 /// When each hole started. Estimated times can be wrong, so any start time can be set by hand.
 struct HoleTimelineView: View {
     let roundID: UUID
-    @EnvironmentObject var roundStore: RoundStore
+    @Environment(RoundStore.self) private var roundStore
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {

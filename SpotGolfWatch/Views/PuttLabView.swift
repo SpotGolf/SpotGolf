@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Records raw sensor data for putting detection work. Shown when no round is active.
 struct PuttLabView: View {
-    @EnvironmentObject var recorder: PuttCaptureRecorder
-    @EnvironmentObject var uploader: PuttCaptureUploader
-    @EnvironmentObject var workoutManager: WorkoutManager
+    @Environment(PuttCaptureRecorder.self) private var recorder
+    @Environment(PuttCaptureUploader.self) private var uploader
+    @Environment(WorkoutManager.self) private var workoutManager
 
     /// The mark just made, shown with Undo until it is accepted or `confirmationTime` passes.
     @State private var lastMark: PuttCapture.MarkLabel?
@@ -48,7 +48,9 @@ struct PuttLabView: View {
         }
     }
 
+    @ViewBuilder
     private var idle: some View {
+        @Bindable var recorder = recorder
         VStack(spacing: 8) {
             Text("Records wrist motion and sound while you putt. Tap a button after each stroke.")
                 .font(.caption2)

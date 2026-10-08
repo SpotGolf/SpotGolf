@@ -1,3 +1,4 @@
+import Observation
 import ActivityKit
 import CoreLocation
 import os
@@ -6,7 +7,8 @@ import os
 /// updates on and shows the display hole in a Live Activity. The phone's GPS is only for showing
 /// yards; the watch's GPS changes the hole.
 @MainActor
-final class RoundTracker: ObservableObject {
+@Observable
+final class RoundTracker {
     private static let locationOwner = "round"
 
     private let rounds: RoundStore

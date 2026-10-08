@@ -1,10 +1,12 @@
 import Foundation
+import Observation
 import os
 
 /// Phone: keeps the putt captures the watch sends, one folder per capture under Documents,
 /// and zips one up for sharing.
 @MainActor
-final class PuttCaptureStore: ObservableObject {
+@Observable
+final class PuttCaptureStore {
     struct File: Equatable {
         let name: String
         let bytes: Int
@@ -25,7 +27,7 @@ final class PuttCaptureStore: ObservableObject {
     }
 
     /// Newest first.
-    @Published private(set) var captures: [Capture] = []
+    private(set) var captures: [Capture] = []
 
     private let directory: URL
 

@@ -1,29 +1,31 @@
 import Foundation
+import Observation
 import os
 
 /// The one place messages go in and out. It encodes messages, splits large ones into chunks
 /// and joins them back, and hands every incoming message to `handler`. What to send and
 /// how to answer is decided by `PhoneSync` or `WatchSync`.
 @MainActor
-final class SyncService: ObservableObject {
+@Observable
+final class SyncService {
     /// How long the phone waits for the watch to confirm a round start before offering Retry.
     nonisolated static let startTimeout: TimeInterval = 15
 
     /// The other app can receive messages right now.
-    @Published private(set) var isConnected = false
+    private(set) var isConnected = false
 
     /// A counterpart app exists: on the phone, a paired watch with the app installed.
-    @Published private(set) var hasCounterpart = false
+    private(set) var hasCounterpart = false
 
-    @Published var syncError: String?
+    var syncError: String?
 
     let transport: SyncTransport
 
     /// Answers an incoming message. The returned message is the reply.
-    var handler: ((SyncMessage) -> SyncMessage?)?
+    @ObservationIgnored var handler: ((SyncMessage) -> SyncMessage?)?
 
-    private var reachabilityObservers: [() -> Void] = []
-    private var assembler = ChunkAssembler()
+    @ObservationIgnored private var reachabilityObservers: [() -> Void] = []
+    @ObservationIgnored private var assembler = ChunkAssembler()
 
     init(transport: SyncTransport? = nil) {
         self.transport = transport ?? WatchConnectivityTransport()
