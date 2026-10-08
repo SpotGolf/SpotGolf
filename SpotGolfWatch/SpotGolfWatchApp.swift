@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -8,6 +9,7 @@ struct SpotGolfWatchApp: App {
         WindowGroup {
             WatchRootView()
                 .environment(appDelegate.services)
+                .modelContainer(appDelegate.services.container)
         }
     }
 }

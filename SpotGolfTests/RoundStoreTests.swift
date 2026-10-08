@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 import CoreLocation
 import CourseDataSwift
@@ -6,37 +7,41 @@ import CourseDataSwift
 @MainActor
 final class RoundStoreTests: XCTestCase {
 
-    private var directory: URL!
+    private var container: ModelContainer!
     private var store: RoundStore!
     private var timelineChanges: [Round]!
     private var displayHoleChanges: [Round]!
     private var strokeChanges: [Round]!
+    /// The round's strokes version when each stroke change was reported.
+    private var strokeVersions: [Int]!
 
     override func setUp() {
         super.setUp()
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        store = RoundStore(directory: directory)
+        container = Storage.inMemoryContainer()
+        store = RoundStore(context: ModelContext(container))
         timelineChanges = []
         displayHoleChanges = []
         strokeChanges = []
+        strokeVersions = []
         store.addListener { [weak self] event in
             switch event {
             case .timelineChanged(let round): self?.timelineChanges.append(round)
             case .displayHoleChanged(let round): self?.displayHoleChanges.append(round)
-            case .strokesChanged(let round): self?.strokeChanges.append(round)
+            case .strokesChanged(let round):
+                self?.strokeChanges.append(round)
+                self?.strokeVersions.append(round.strokesVersion)
             case .pinsChanged, .roundsChanged: break
             }
         }
     }
 
     override func tearDown() {
-        try? FileManager.default.removeItem(at: directory)
         store = nil
         timelineChanges = nil
         displayHoleChanges = nil
         strokeChanges = nil
-        directory = nil
+        strokeVersions = nil
+        container = nil
         super.tearDown()
     }
 
@@ -55,15 +60,10 @@ final class RoundStoreTests: XCTestCase {
         let id = startRound()
         store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
 
-        let reloaded = RoundStore(directory: directory)
+        let reloaded = RoundStore(context: ModelContext(container))
 
-        XCTAssertEqual(reloaded.rounds, store.rounds)
-    }
-
-    func testUnreadableSavedRoundsAreDiscarded() throws {
-        try Data("not json".utf8).write(to: directory.appendingPathComponent("rounds.json"))
-
-        XCTAssertTrue(RoundStore(directory: directory).rounds.isEmpty)
+        XCTAssertEqual(reloaded.rounds.map(\.id), store.rounds.map(\.id))
+        XCTAssertEqual(reloaded.round(id)?.allStrokes, store.round(id)?.allStrokes)
     }
 
     // MARK: - startRound
@@ -226,23 +226,24 @@ final class RoundStoreTests: XCTestCase {
 
     func testMergeTimelineDoesNotReportChange() {
         let id = startRound()
-        var other = store.round(id)!
-        other.startHole(4, at: other.date.addingTimeInterval(600), source: .stroke)
+        let round = store.round(id)!
+        // The other device's copy, with hole 5 started
+        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600), source: .stroke)]
 
-        XCTAssertTrue(store.mergeTimeline(other.holeTimeline, roundID: id))
+        XCTAssertTrue(store.mergeTimeline(other, roundID: id))
 
         XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 4])
         XCTAssertTrue(timelineChanges.isEmpty)
-        XCTAssertFalse(store.mergeTimeline(other.holeTimeline, roundID: id))
+        XCTAssertFalse(store.mergeTimeline(other, roundID: id))
     }
 
     func testSetTimelineReportsChangeOnlyWhenDifferent() {
         let id = startRound()
-        var round = store.round(id)!
-        round.startHole(2, at: round.date.addingTimeInterval(600), source: .estimated)
+        let round = store.round(id)!
+        let entries = round.holeTimeline + [HoleStart(holeIndex: 2, startedAt: round.date.addingTimeInterval(600), source: .estimated)]
 
-        store.setTimeline(round.holeTimeline, roundID: id)
-        store.setTimeline(round.holeTimeline, roundID: id)
+        store.setTimeline(entries, roundID: id)
+        store.setTimeline(entries, roundID: id)
 
         XCTAssertEqual(store.round(id)?.holeTimeline.last?.holeIndex, 2)
         XCTAssertEqual(timelineChanges.count, 1)
@@ -417,7 +418,7 @@ final class RoundStoreTests: XCTestCase {
         store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 35.0, longitude: -114.0), in: id)
 
         XCTAssertEqual(store.round(id)?.strokesVersion, 3)
-        XCTAssertEqual(strokeChanges.map(\.strokesVersion), [1, 2, 3])
+        XCTAssertEqual(strokeVersions, [1, 2, 3])
     }
 
     // MARK: - reorderStroke
@@ -637,7 +638,7 @@ final class RoundStoreTests: XCTestCase {
         let (id, first, _) = endedRound()
         store.setStrokeType(strokeID: first.id, type: .penalty, in: id)
 
-        let reloaded = RoundStore(directory: directory)
+        let reloaded = RoundStore(context: ModelContext(container))
 
         XCTAssertEqual(reloaded.round(id)?.holes[0].strokes[0].type, .penalty)
         XCTAssertEqual(reloaded.round(id)?.status, .ended)
@@ -736,7 +737,7 @@ final class RoundStoreTests: XCTestCase {
     // MARK: - No listeners
 
     func testMutationsWorkWithoutListeners() {
-        store = RoundStore(directory: directory)
+        store = RoundStore(context: ModelContext(container))
 
         let id = startRound()
         store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
@@ -775,5 +776,17 @@ final class RoundStoreTests: XCTestCase {
         guard case .roundsChanged = events.first else {
             return XCTFail("Expected roundsChanged, got \(String(describing: events.first))")
         }
+    }
+
+    // MARK: - Hidden suggestions
+
+    func testHiddenSuggestionsAreSavedOnceWithTheRound() {
+        let id = startRound()
+        let suggestion = UUID()
+
+        store.hideSuggestion(suggestion, roundID: id)
+        store.hideSuggestion(suggestion, roundID: id)
+
+        XCTAssertEqual(RoundStore(context: ModelContext(container)).round(id)?.hiddenSuggestionIDs, [suggestion])
     }
 }

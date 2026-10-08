@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import os
 
@@ -6,7 +7,9 @@ struct RoundListView: View {
     @Environment(PhoneServices.self) private var services
     @State private var showCourseSelection = false
     @State private var showSettings = false
-    @State private var roundToDelete: Round?
+    @Query(sort: \Round.date, order: .reverse) private var rounds: [Round]
+    /// Its ID and title, since the alert can still show while the deleted round goes away.
+    @State private var roundToDelete: (id: UUID, title: String)?
     @State private var export: RoundExport?
 
     var body: some View {
@@ -24,14 +27,14 @@ struct RoundListView: View {
             }
 
             Section("Past Rounds") {
-                ForEach(services.roundStore.rounds.filter { $0.status == .ended }) { round in
+                ForEach(rounds.filter { $0.status == .ended }) { round in
                     NavigationLink(value: round.id) {
                         RoundRow(round: round)
                     }
                     .swipeActions(edge: .trailing) {
                         // Not role: .destructive — that would animate the row away before the alert confirms.
                         Button {
-                            roundToDelete = round
+                            roundToDelete = (round.id, round.displayTitle)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -96,11 +99,10 @@ struct RoundListView: View {
             Button("Delete", role: .destructive) {
                 services.roundStore.deleteRound(round.id)
                 services.streamStore.delete(round.id)
-                services.suggestionStore.deleteRound(round.id)
             }
             Button("Cancel", role: .cancel) {}
         } message: { round in
-            Text("Delete \"\(round.displayTitle)\"? This cannot be undone.")
+            Text("Delete \"\(round.title)\"? This cannot be undone.")
         }
         .alert("Sync Error", isPresented: Binding(
             get: { services.syncService.syncError != nil },

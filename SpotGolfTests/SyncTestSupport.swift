@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import CoreLocation
 @testable import SpotGolf
 
@@ -100,16 +101,16 @@ final class FakeTransport: SyncTransport {
     }
 }
 
-/// A phone and a watch linked by fake transports, each with its own files.
+/// A phone and a watch linked by fake transports, each with its own saved data.
 @MainActor
 final class SyncPair {
-    let directory: URL
+    let phoneContainer = Storage.inMemoryContainer()
+    let watchContainer = Storage.inMemoryContainer()
 
     let phoneTransport = FakeTransport()
     let phoneSync: SyncService
     let phoneRounds: RoundStore
     let phoneStreams: StreamStore
-    let phoneSuggestions: SuggestionStore
     let phone: PhoneSync
 
     let watchTransport = FakeTransport()
@@ -122,35 +123,27 @@ final class SyncPair {
 
     init(startTimeout: TimeInterval = SyncService.startTimeout,
          retryDelay: TimeInterval = PhoneSync.defaultRetryDelay) {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let phoneDirectory = directory.appendingPathComponent("phone")
-        let watchDirectory = directory.appendingPathComponent("watch")
-        try! FileManager.default.createDirectory(at: phoneDirectory, withIntermediateDirectories: true)
-        try! FileManager.default.createDirectory(at: watchDirectory, withIntermediateDirectories: true)
-
         phoneTransport.peer = watchTransport
         watchTransport.peer = phoneTransport
 
         phoneSync = SyncService(transport: phoneTransport)
-        phoneRounds = RoundStore(directory: phoneDirectory)
-        phoneStreams = StreamStore(directory: phoneDirectory.appendingPathComponent("streams"))
-        phoneSuggestions = SuggestionStore(directory: phoneDirectory)
+        phoneRounds = RoundStore(context: phoneContainer.mainContext)
+        phoneStreams = StreamStore(context: phoneContainer.mainContext)
         var launches: (() -> Void)?
-        phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams, suggestions: phoneSuggestions,
+        phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams,
                           startTimeout: startTimeout, retryDelay: retryDelay,
                           launchWatchApp: { launches?() })
 
         watchSync = SyncService(transport: watchTransport)
-        watchRounds = RoundStore(directory: watchDirectory)
-        watchStreams = StreamStore(directory: watchDirectory.appendingPathComponent("streams"))
+        watchRounds = RoundStore(context: watchContainer.mainContext)
+        watchStreams = StreamStore(context: watchContainer.mainContext)
         watch = WatchSync(sync: watchSync, rounds: watchRounds, streams: watchStreams)
 
         launches = { [weak self] in self?.watchAppLaunches += 1 }
     }
 
-    func cleanUp() {
-        try? FileManager.default.removeItem(at: directory)
-    }
+    /// Nothing to clean up: each pair's data is in memory.
+    func cleanUp() {}
 
     /// Both devices reachable or not.
     func setReachable(_ reachable: Bool) {

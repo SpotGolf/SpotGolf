@@ -104,20 +104,21 @@ Breaking change: rounds saved by earlier builds are not read. Old JSON files are
 
 | Model | Fields | Replaces |
 |---|---|---|
-| `@Model final class Round` | `@Attribute(.unique) id`, `date`, `status`, `endedAt`, `resumedFromEnd`, `strokesVersion`, `streamBase`, `lastSeq`, `endConfirmed`, `hiddenSuggestionIDs: Set<UUID>` (phone only), and the Codable structs `holes`, `holeTimeline`, `displayHole`, `courseSelection`, `pins` | `struct Round` in `rounds.json` |
-| `@Model final class StreamEntry` | `roundID`, `index`, `timestamp`, `record: Data` (the 25-byte record, as the watch sends it) | `streams/<id>_watch.stream` |
+| `@Model final class Round` | `@Attribute(.unique) id`, `date`, `status`, `endedAt`, `resumedFromEnd`, `strokesVersion`, `streamBase`, `lastSeq`, `endConfirmed`, `hiddenSuggestionIDs: [UUID]` (phone only). `holes`, `holeTimeline`, `displayHole`, `courseSelection` and `pins` are saved as encoded JSON data, decoded once when first read | `struct Round` in `rounds.json` |
+| `@Model final class StreamEntry` | `roundID`, `index`, `record: Data` (the 25-byte record, as the watch sends it) | `streams/<id>_watch.stream` |
 | Hidden suggestions | `Round.hiddenSuggestionIDs` | `suggestions.json`, `SuggestionStore` |
 
-- `RoundHole`, `Stroke`, `HoleStart`, `DisplayHole`, `PinLocation` and `CourseSelection` stay `Codable` structs, stored inside `Round`.
+- `RoundHole`, `Stroke`, `HoleStart`, `DisplayHole`, `PinLocation` and `CourseSelection` stay `Codable` structs. They are saved as encoded data, not as SwiftData's own nested values: `CourseSelection` holds the whole course, and SwiftData's support for deeply nested structs is unreliable.
+- Reading one of those values also reads its saved data, so views and observers see it change.
 - `Round` keeps its computed properties and methods. Its `mutating` methods become plain methods.
-- `SuggestionStore` is deleted. Hiding a suggestion is a `RoundStore` method.
+- `SuggestionStore` is deleted. Hiding a suggestion is `RoundStore.hideSuggestion`.
 
 ### Stores
 
 | Store | After |
 |---|---|
-| `RoundStore` | Holds the `ModelContext`. Still the only place that changes rounds, so it can send `RoundEvent`s. `update(_:_:)` changes the model in place and saves. The early return for "no change" compares the Codable fields before and after |
-| `StreamStore` | Same methods. `append` inserts one `StreamEntry` per record. `truncate` deletes entries from an index on. `count` and `records` fetch by `roundID`, sorted by `index`. The in-memory cache stays |
+| `RoundStore` | Holds the `ModelContext` and `rounds`, newest first. Still the only place that changes rounds, so it can send `RoundEvent`s. `update(_:_:)` changes the round object and saves. Every change adds 1 to `revision`, which views watch with `onChange`, since an array of round objects does not change when a round's fields do |
+| `StreamStore` | Same methods. `append` inserts one `StreamEntry` per record and saves. `truncate` and `delete` delete entries. Record counts per round are read once at launch and kept up to date. A round "has a stream" when it has at least one record. The in-memory cache stays |
 
 ### Settings
 
@@ -134,12 +135,13 @@ Breaking change: rounds saved by earlier builds are not read. Old JSON files are
 - `SettingsView` and the round map use `@AppStorage(SettingsKey.sharePins) private var sharePins = true`, and the same for `stationaryThreshold`.
 - `PinShareCoordinator` reads `UserDefaults.standard` through a `sharesPins` closure, as it does now, so tests still pass their own value.
 - `PhoneServices` registers the defaults with `UserDefaults.standard.register(defaults:)` at launch, so code outside views gets the same defaults.
-- UI tests reset both keys at launch, since `UserDefaults` is not in memory like the model container.
+- UI tests reset both keys at launch, since `UserDefaults` keeps values between runs.
 
 ### Container
 
-- One `ModelContainer` per app, for `Round` and `StreamEntry`. Built in `PhoneServices` / `WatchServices`.
-- On disk normally. In memory for UI tests (`ModelConfiguration(isStoredInMemoryOnly: true)`), which replaces clearing `rounds` at launch.
+- One `ModelContainer` per app, for `Round` and `StreamEntry`, made by `Storage.container(for:)`. Built in `PhoneServices` / `WatchServices`.
+- `cloudKitDatabase: .none`: the phone has a CloudKit container for shared pins, and SwiftData would otherwise try to sync the store to it.
+- UI tests delete the store at launch unless `--keep-rounds` is passed, as they cleared `rounds.json` before. Every launch uses the same store file: watchOS can relaunch the app itself, without the test's arguments, to recover a running workout, so a separate test store or one in memory would lose the round.
 - The root view gets `.modelContainer(container)`.
 
 ### Views
@@ -149,8 +151,8 @@ Breaking change: rounds saved by earlier builds are not read. Old JSON files are
 
 ### Tests
 
-- A test helper `makeTestContainer()` returns an in-memory container. `RoundStoreTests`, `StreamStore` tests, sync tests and `RoundSimulator` use it instead of temporary folders.
-- Tests that compare `Round` values compare their fields, since `Round` is now a class.
+- `Storage.inMemoryContainer()` gives each test an empty store. Tests that reload open a new `ModelContext` on the same container instead of a new store on the same folder.
+- Tests that compare `Round` values compare their fields, since `Round` is now a class. JSON round-trip tests become save-and-reload tests; tests of the old JSON format are deleted.
 
 ## 6. `feature/split-round-map`: smaller `RoundMapView`
 

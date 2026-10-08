@@ -1,6 +1,8 @@
 import Foundation
 import CoreLocation
 import CourseDataSwift
+import os
+import SwiftData
 
 enum RoundStatus: String, Codable {
     /// Phone only: waiting for the watch to confirm it started the round.
@@ -11,30 +13,45 @@ enum RoundStatus: String, Codable {
     case ended
 }
 
-struct Round: Identifiable, Codable, Equatable {
-    let id: UUID
-    let date: Date
-    var holes: [RoundHole]
-    var holeTimeline: [HoleStart]
-    /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
-    var displayHole: DisplayHole
+/// A round of golf, saved with SwiftData. `RoundStore` makes and changes every round, so
+/// changes made on one device can be sent to the other.
+///
+/// Values with parts of their own (holes, timeline, display hole, pins, course) are saved as
+/// encoded data and decoded once when first read. Reading one also reads its saved data, so
+/// views and observers see it change.
+@Model
+final class Round {
+    @Attribute(.unique) var id: UUID
+    var date: Date
     var status: RoundStatus
     var endedAt: Date?
     /// Phone: the end time a resumed round had, until the watch confirms the resume.
     /// Cancelling the resume puts it back.
     var resumedFromEnd: Date?
-    var courseSelection: CourseSelection
     /// Adds 1 on every stroke change on the phone. On the watch, the version last applied.
     var strokesVersion: Int
-    /// Watch only: the stream index of the first record in this round's stream file.
+    /// Watch only: the stream index of the first record in this round's stream.
     var streamBase: Int
     /// The index of the watch's last stream record, once the watch has ended the round.
     /// Nil when the watch recorded nothing.
     var lastSeq: Int?
     /// Phone: the watch has confirmed `lastSeq`. Watch: the phone has acknowledged the end.
     var endConfirmed: Bool
-    /// Where the pin is, at most one per hole. See plans/2026-10-06-pin-location.md.
-    var pins: [PinLocation]
+    /// Phone only: stroke suggestions the user dismissed or turned into strokes. Suggestions
+    /// are not saved: `StrokeFinder` works them out again and gives the same stop the same ID.
+    var hiddenSuggestionIDs: [UUID]
+
+    private var holesData: Data
+    private var holeTimelineData: Data
+    private var displayHoleData: Data
+    private var courseSelectionData: Data
+    private var pinsData: Data
+
+    @Transient private var holesCache: [RoundHole]?
+    @Transient private var holeTimelineCache: [HoleStart]?
+    @Transient private var displayHoleCache: DisplayHole?
+    @Transient private var courseSelectionCache: CourseSelection?
+    @Transient private var pinsCache: [PinLocation]?
 
     static let maxHoles = 18
 
@@ -42,15 +59,81 @@ struct Round: Identifiable, Codable, Equatable {
          status: RoundStatus = .active, courseSelection: CourseSelection) {
         self.id = id
         self.date = date
-        self.holes = holes
-        self.holeTimeline = [HoleStart(holeIndex: 0, startedAt: date, source: .roundStart)]
-        self.displayHole = DisplayHole(holeIndex: 0, changedAt: date)
         self.status = status
-        self.courseSelection = courseSelection
         self.strokesVersion = 0
         self.streamBase = 0
         self.endConfirmed = false
-        self.pins = []
+        self.hiddenSuggestionIDs = []
+        holesData = Self.encode(holes)
+        holeTimelineData = Self.encode([HoleStart(holeIndex: 0, startedAt: date, source: .roundStart)])
+        displayHoleData = Self.encode(DisplayHole(holeIndex: 0, changedAt: date))
+        courseSelectionData = Self.encode(courseSelection)
+        pinsData = Self.encode([PinLocation]())
+    }
+
+    var holes: [RoundHole] {
+        get { Self.value(holesData, cache: &holesCache) ?? [RoundHole()] }
+        set {
+            holesCache = newValue
+            holesData = Self.encode(newValue)
+        }
+    }
+
+    var holeTimeline: [HoleStart] {
+        get { Self.value(holeTimelineData, cache: &holeTimelineCache) ?? [] }
+        set {
+            holeTimelineCache = newValue
+            holeTimelineData = Self.encode(newValue)
+        }
+    }
+
+    /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
+    var displayHole: DisplayHole {
+        get { Self.value(displayHoleData, cache: &displayHoleCache) ?? DisplayHole(holeIndex: 0, changedAt: date) }
+        set {
+            displayHoleCache = newValue
+            displayHoleData = Self.encode(newValue)
+        }
+    }
+
+    /// Written once at the start, by this build, so it always decodes.
+    var courseSelection: CourseSelection {
+        get { Self.value(courseSelectionData, cache: &courseSelectionCache)! }
+        set {
+            courseSelectionCache = newValue
+            courseSelectionData = Self.encode(newValue)
+        }
+    }
+
+    /// Where the pin is, at most one per hole. See plans/2026-10-06-pin-location.md.
+    var pins: [PinLocation] {
+        get { Self.value(pinsData, cache: &pinsCache) ?? [] }
+        set {
+            pinsCache = newValue
+            pinsData = Self.encode(newValue)
+        }
+    }
+
+    private static func encode<T: Encodable>(_ value: T) -> Data {
+        do {
+            return try JSONEncoder().encode(value)
+        } catch {
+            Log.storage.error("Could not encode \(String(describing: T.self), privacy: .public): \(String(describing: error), privacy: .public)")
+            return Data()
+        }
+    }
+
+    /// The decoded value, from `cache` once it has been decoded. Nil when it can't be decoded.
+    private static func value<T: Decodable>(_ data: Data, cache: inout T?) -> T? {
+        if let cache { return cache }
+        do {
+            let value = try JSONDecoder().decode(T.self, from: data)
+            cache = value
+            return value
+        } catch {
+            Log.storage.error("Could not decode \(String(describing: T.self), privacy: .public): \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// Recording and syncing.
@@ -128,7 +211,7 @@ struct Round: Identifiable, Codable, Equatable {
     /// Shows hole `index` from `date` on. Returns false when it is shown already or is not on the
     /// course. A time before the last change (the two devices' clocks differ slightly) is moved just after it.
     @discardableResult
-    mutating func setDisplayHole(_ index: Int, at date: Date) -> Bool {
+    func setDisplayHole(_ index: Int, at date: Date) -> Bool {
         guard index != displayHoleIndex, index >= 0, index <= lastHoleIndex else { return false }
         let changedAt = date > displayHole.changedAt ? date : displayHole.changedAt.addingTimeInterval(0.001)
         displayHole = DisplayHole(holeIndex: index, changedAt: changedAt)
@@ -137,7 +220,7 @@ struct Round: Identifiable, Codable, Equatable {
 
     /// Takes the other device's display hole when it was set later. Returns true if it changed.
     @discardableResult
-    mutating func mergeDisplayHole(_ other: DisplayHole) -> Bool {
+    func mergeDisplayHole(_ other: DisplayHole) -> Bool {
         guard displayHole.isOlder(than: other), other.holeIndex >= 0, other.holeIndex <= lastHoleIndex else { return false }
         displayHole = other
         return true
@@ -169,7 +252,7 @@ struct Round: Identifiable, Codable, Equatable {
     /// Sets the player's pin on hole `index`, replacing any earlier one. Returns false when the
     /// point is not on that hole's green.
     @discardableResult
-    mutating func setPin(_ coordinate: CLLocationCoordinate2D, onHole index: Int, at date: Date) -> Bool {
+    func setPin(_ coordinate: CLLocationCoordinate2D, onHole index: Int, at date: Date) -> Bool {
         guard isOnGreen(coordinate, holeIndex: index) else { return false }
         let pin = PinLocation(holeIndex: index, coordinate: coordinate, setAt: date, source: .set)
         if let i = pins.firstIndex(where: { $0.holeIndex == index }) {
@@ -183,7 +266,7 @@ struct Round: Identifiable, Codable, Equatable {
     /// Takes each pin that replaces the one on its hole, by `PinLocation.isReplaced(by:)`: from
     /// the other device, from other golfers, or the green centers. Returns true if any changed.
     @discardableResult
-    mutating func mergePins(_ others: [PinLocation]) -> Bool {
+    func mergePins(_ others: [PinLocation]) -> Bool {
         var changed = false
         for other in others where other.holeIndex >= 0 && other.holeIndex <= lastHoleIndex {
             if let i = pins.firstIndex(where: { $0.holeIndex == other.holeIndex }) {
@@ -211,7 +294,7 @@ struct Round: Identifiable, Codable, Equatable {
 
     /// A center pin for every hole that has a green and no pin yet. Returns true if any were added.
     @discardableResult
-    mutating func addCenterPins() -> Bool {
+    func addCenterPins() -> Bool {
         mergePins((0...lastHoleIndex).compactMap { index in
             greenCenter(holeIndex: index).map { PinLocation(holeIndex: index, coordinate: $0, setAt: date, source: .center) }
         })
@@ -245,7 +328,7 @@ struct Round: Identifiable, Codable, Equatable {
         StrokesSnapshot(roundID: id, version: strokesVersion, holes: holes.map(\.strokes))
     }
 
-    mutating func addStroke(_ stroke: Stroke, toHoleIndex holeIndex: Int) {
+    func addStroke(_ stroke: Stroke, toHoleIndex holeIndex: Int) {
         guard holeIndex >= 0, !hasStroke(id: stroke.id) else { return }
         ensureHole(holeIndex)
         holes[min(holeIndex, holes.count - 1)].strokes.append(stroke)
@@ -256,7 +339,7 @@ struct Round: Identifiable, Codable, Equatable {
     }
 
     /// Makes sure `holes` reaches `index`, up to `maxHoles`.
-    mutating func ensureHole(_ index: Int) {
+    func ensureHole(_ index: Int) {
         while holes.count <= index && holes.count < Self.maxHoles {
             holes.append(RoundHole())
         }
@@ -265,7 +348,7 @@ struct Round: Identifiable, Codable, Equatable {
     /// Adds a start for hole `index` when it has none. Holes are played in order, so the start
     /// must fall between the starts of the holes before and after it; otherwise nothing changes.
     @discardableResult
-    mutating func startHole(_ index: Int, at date: Date, source: HoleStartSource) -> Bool {
+    func startHole(_ index: Int, at date: Date, source: HoleStartSource) -> Bool {
         guard index > 0, index <= lastHoleIndex, !holeTimeline.contains(where: { $0.holeIndex == index }) else { return false }
         let merged = HoleTimeline.normalized(holeTimeline + [HoleStart(holeIndex: index, startedAt: date, source: source)])
         guard merged.count == holeTimeline.count + 1 else { return false }
@@ -278,7 +361,7 @@ struct Round: Identifiable, Codable, Equatable {
     /// the start back when it was hit before it. A start the user set by hand is never moved.
     /// Returns true if the timeline changed.
     @discardableResult
-    mutating func strokeHit(onHole index: Int, at date: Date) -> Bool {
+    func strokeHit(onHole index: Int, at date: Date) -> Bool {
         guard let i = holeTimeline.firstIndex(where: { $0.holeIndex == index }) else {
             return startHole(index, at: date, source: .stroke)
         }
@@ -292,14 +375,14 @@ struct Round: Identifiable, Codable, Equatable {
 
     /// Merges another copy of the timeline into this one. Returns true if anything changed.
     @discardableResult
-    mutating func mergeTimeline(_ entries: [HoleStart]) -> Bool {
+    func mergeTimeline(_ entries: [HoleStart]) -> Bool {
         let merged = HoleTimeline.merge(holeTimeline, entries)
         guard merged != holeTimeline else { return false }
         holeTimeline = merged
         return true
     }
 
-    mutating func end(at date: Date) {
+    func end(at date: Date) {
         // Trim trailing empty holes
         while holes.count > 1 && holes.last!.strokes.isEmpty {
             holes.removeLast()
@@ -315,26 +398,5 @@ struct Round: Identifiable, Codable, Equatable {
         holes.firstIndex(where: { hole in
             hole.strokes.contains(where: { $0.id == strokeID })
         })
-    }
-}
-
-extension Round {
-    /// `pins` may be missing from rounds saved by builds before it was added.
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        date = try container.decode(Date.self, forKey: .date)
-        holes = try container.decode([RoundHole].self, forKey: .holes)
-        holeTimeline = try container.decode([HoleStart].self, forKey: .holeTimeline)
-        displayHole = try container.decode(DisplayHole.self, forKey: .displayHole)
-        status = try container.decode(RoundStatus.self, forKey: .status)
-        endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
-        resumedFromEnd = try container.decodeIfPresent(Date.self, forKey: .resumedFromEnd)
-        courseSelection = try container.decode(CourseSelection.self, forKey: .courseSelection)
-        strokesVersion = try container.decode(Int.self, forKey: .strokesVersion)
-        streamBase = try container.decode(Int.self, forKey: .streamBase)
-        lastSeq = try container.decodeIfPresent(Int.self, forKey: .lastSeq)
-        endConfirmed = try container.decode(Bool.self, forKey: .endConfirmed)
-        pins = try container.decodeIfPresent([PinLocation].self, forKey: .pins) ?? []
     }
 }

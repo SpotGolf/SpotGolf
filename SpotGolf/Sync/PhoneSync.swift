@@ -24,7 +24,6 @@ final class PhoneSync {
     let sync: SyncService
     let rounds: RoundStore
     let streams: StreamStore
-    let suggestions: SuggestionStore
     let receiver: StreamReceiver
     let snapshots: SnapshotSync
 
@@ -37,14 +36,13 @@ final class PhoneSync {
     private var startTimers: [UUID: Timer] = [:]
     private var retryTimers: [UUID: Timer] = [:]
 
-    init(sync: SyncService, rounds: RoundStore, streams: StreamStore, suggestions: SuggestionStore,
+    init(sync: SyncService, rounds: RoundStore, streams: StreamStore,
          requiresWatch: Bool = true, startTimeout: TimeInterval = SyncService.startTimeout,
          retryDelay: TimeInterval = PhoneSync.defaultRetryDelay,
          launchWatchApp: @escaping () -> Void = {}) {
         self.sync = sync
         self.rounds = rounds
         self.streams = streams
-        self.suggestions = suggestions
         self.requiresWatch = requiresWatch
         self.startTimeout = startTimeout
         self.retryDelay = retryDelay
@@ -127,7 +125,6 @@ final class PhoneSync {
         }
         rounds.deleteRound(roundID)
         streams.delete(roundID)
-        suggestions.deleteRound(roundID)
         let message = SyncMessage.cancelRound(CancelRound(roundID: roundID))
         sync.send(message)
         sync.queue(message)
@@ -311,7 +308,7 @@ final class PhoneSync {
     @discardableResult
     func importRound(_ round: Round, records: [StreamRecord]) -> Bool {
         guard rounds.currentRound == nil else { return false }
-        rounds.rounds.insert(round, at: 0)
+        rounds.add(round)
         rounds.addCenterPins(roundID: round.id)
         streams.append(records, roundID: round.id)
         return true

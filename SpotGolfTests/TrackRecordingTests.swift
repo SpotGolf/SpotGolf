@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 import CoreLocation
 import CourseDataSwift
@@ -14,7 +15,7 @@ final class TrackRecordingTests: XCTestCase {
     private static let holeNumbers = 1...3
     private static let fixCount = 2_700
 
-    private var directory: URL!
+    private var container: ModelContainer!
     private var store: StreamStore!
     private var locationManager: LocationManager!
     private var course: Course!
@@ -23,8 +24,8 @@ final class TrackRecordingTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        store = StreamStore(directory: directory)
+        container = Storage.inMemoryContainer()
+        store = StreamStore(context: ModelContext(container))
         locationManager = LocationManager()
 
         // The course file CourseBuilder produced, as published in CourseData
@@ -33,11 +34,10 @@ final class TrackRecordingTests: XCTestCase {
     }
 
     override func tearDown() {
-        try? FileManager.default.removeItem(at: directory)
         course = nil
         locationManager = nil
         store = nil
-        directory = nil
+        container = nil
         super.tearDown()
     }
 
@@ -85,8 +85,7 @@ final class TrackRecordingTests: XCTestCase {
         }
 
         // 25 bytes per fix: 67,500 bytes for three holes
-        let url = store.fileURL(for: roundID)
-        let size = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int)
+        let size = store.data(for: roundID, from: 0, maxBytes: .max).count
         XCTAssertEqual(size, Self.fixCount * StreamRecord.size)
         XCTAssertEqual(size, 67_500)
 

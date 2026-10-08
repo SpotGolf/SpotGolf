@@ -2,6 +2,7 @@ import CoreLocation
 import Foundation
 import Observation
 import os
+import SwiftData
 
 /// Every service the watch app runs, built and wired together once at launch. Owned by the app
 /// delegate, so recording resumes as soon as the app launches, even when watchOS launches it in
@@ -14,7 +15,10 @@ final class WatchServices {
     let locationManager = LocationManager()
     let syncService = SyncService()
     let workoutManager = WorkoutManager()
-    let streamStore = StreamStore()
+    let streamStore: StreamStore
+    /// Where rounds and streams are saved. UI tests start each run empty, unless a test
+    /// relaunches mid-round with --keep-rounds and needs the round it saved.
+    let container: ModelContainer
     let contactMonitor: ContactMonitor
     let watchSync: WatchSync
     let captureUploader: PuttCaptureUploader
@@ -31,11 +35,9 @@ final class WatchServices {
     @ObservationIgnored private var detectsSwings = false
 
     init(options: LaunchOptions = .current) {
-        let rounds = RoundStore()
-        // UI tests pass --keep-rounds when relaunching mid-round to test recovery
-        if options.isUITesting, !options.keepsRounds {
-            rounds.rounds = []
-        }
+        container = Storage.container(for: options)
+        let rounds = RoundStore(context: container.mainContext)
+        streamStore = StreamStore(context: container.mainContext)
         // Rounds start on the phone, so UI tests pass --start-round to begin one on the watch alone
         if options.isUITesting, options.startsRound {
             rounds.startRound(courseSelection: .uiTestCourse)

@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import os
 
@@ -14,6 +15,7 @@ struct SpotGolfApp: App {
         WindowGroup {
             PhoneRootView()
                 .environment(services)
+                .modelContainer(services.container)
                 .onAppear {
                     Task {
                         await services.courseService.refreshIndex()

@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 import CoreLocation
 import CourseDataSwift
@@ -91,32 +92,30 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.endedAt, first)
     }
 
-    func testCodableRoundTrip() throws {
+    func testRoundSurvivesSaving() throws {
         var round = Round(courseSelection: .test)
         let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         round.addStroke(stroke, toHoleIndex: 0)
 
-        let data = try JSONEncoder().encode(round)
-        let decoded = try JSONDecoder().decode(Round.self, from: data)
+        let decoded = try saved(round)
 
         XCTAssertEqual(decoded.id, round.id)
         XCTAssertEqual(decoded.date, round.date)
         XCTAssertEqual(decoded.displayHoleStrokes.count, 1)
         XCTAssertEqual(decoded.displayHoleStrokes[0].id, stroke.id)
-        XCTAssertEqual(decoded, round)
+        assertSameContent(decoded, round)
     }
 
-    func testCodableRoundTripEndedRound() throws {
+    func testEndedRoundSurvivesSaving() throws {
         var round = Round(courseSelection: .test)
         round.lastSeq = 41
         round.endConfirmed = true
         round.end(at: Date(timeIntervalSince1970: 1_000_000))
 
-        let data = try JSONEncoder().encode(round)
-        let decoded = try JSONDecoder().decode(Round.self, from: data)
+        let decoded = try saved(round)
 
         XCTAssertFalse(decoded.isActive)
-        XCTAssertEqual(decoded, round)
+        assertSameContent(decoded, round)
     }
 
     // MARK: - Display hole
@@ -330,13 +329,13 @@ final class RoundTests: XCTestCase {
     }
 
     func testMergeTimelineReportsChange() {
-        var round = Round(courseSelection: .test)
-        var other = round
-        other.startHole(4, at: round.date.addingTimeInterval(600), source: .stroke)
+        let round = Round(courseSelection: .test)
+        // The other device's copy, with hole 5 started
+        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600), source: .stroke)]
 
-        XCTAssertTrue(round.mergeTimeline(other.holeTimeline))
+        XCTAssertTrue(round.mergeTimeline(other))
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 4])
-        XCTAssertFalse(round.mergeTimeline(other.holeTimeline))
+        XCTAssertFalse(round.mergeTimeline(other))
     }
 
     func testAllStrokes() {
@@ -422,20 +421,11 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.courseSelection.selectedSubCourseIndices, [0])
     }
 
-    func testDecodeWithoutCourseFails() throws {
-        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Round(courseSelection: .test))) as! [String: Any]
-        json["courseSelection"] = nil
-        let data = try JSONSerialization.data(withJSONObject: json)
-
-        XCTAssertThrowsError(try JSONDecoder().decode(Round.self, from: data))
-    }
-
-    func testRoundCourseSelectionEncodeDecode() throws {
+    func testCourseSelectionSurvivesSaving() throws {
         let selection = makeCourseSelection()
         let round = Round(courseSelection: selection)
 
-        let data = try JSONEncoder().encode(round)
-        let decoded = try JSONDecoder().decode(Round.self, from: data)
+        let decoded = try saved(round)
 
         XCTAssertEqual(decoded.courseSelection, selection)
         XCTAssertEqual(decoded.course.name, "Test Course")
@@ -461,15 +451,14 @@ final class RoundTests: XCTestCase {
         XCTAssertNil(round.courseHole(at: 2))
     }
 
-    func testCodableRoundTripWithMultipleHoles() throws {
+    func testRoundWithMultipleHolesSurvivesSaving() throws {
         var round = Round(courseSelection: .test)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
         round.startHole(1, at: round.date.addingTimeInterval(600), source: .stroke)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)), toHoleIndex: 1)
         round.setDisplayHole(1, at: round.date.addingTimeInterval(700))
 
-        let data = try JSONEncoder().encode(round)
-        let decoded = try JSONDecoder().decode(Round.self, from: data)
+        let decoded = try saved(round)
 
         XCTAssertEqual(decoded.holes.count, 2)
         XCTAssertEqual(decoded.holeTimeline, round.holeTimeline)
@@ -610,23 +599,13 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.pin(onHole: 0), later)
     }
 
-    func testPinsSurviveEncoding() throws {
+    func testPinsSurviveSaving() throws {
         var round = Round(courseSelection: PathCourse.selection)
         round.setPin(onGreen(1), onHole: 1, at: Date(timeIntervalSince1970: 1_700_000_000))
 
-        let decoded = try JSONDecoder().decode(Round.self, from: JSONEncoder().encode(round))
+        let decoded = try saved(round)
 
-        XCTAssertEqual(decoded, round)
-    }
-
-    func testRoundSavedWithoutPinsStillLoads() throws {
-        let round = Round(courseSelection: .test)
-        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(round)) as? [String: Any])
-        json.removeValue(forKey: "pins")
-
-        let decoded = try JSONDecoder().decode(Round.self, from: JSONSerialization.data(withJSONObject: json))
-
-        XCTAssertEqual(decoded, round)
+        assertSameContent(decoded, round)
     }
 
     func testPinMergeTable() {
@@ -701,5 +680,37 @@ final class RoundTests: XCTestCase {
         // The keys line up with the holes in playing order
         XCTAssertEqual(backFirst.orderedHoles.indices.compactMap { backFirst.holeKey(at: $0)?.number },
                        backFirst.orderedHoles.map(\.number))
+    }
+
+    // MARK: - Helpers for saving
+
+    /// The round as read back after saving it, from a new context on a new store.
+    private func saved(_ round: Round) throws -> Round {
+        let container = Storage.inMemoryContainer()
+        let context = ModelContext(container)
+        context.insert(round)
+        try context.save()
+        let id = round.id
+        let fetched = try ModelContext(container).fetch(FetchDescriptor<Round>(predicate: #Predicate { $0.id == id }))
+        return try XCTUnwrap(fetched.first)
+    }
+
+    private func assertSameContent(_ a: Round, _ b: Round, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertFalse(a === b, "Compare a saved copy, not the same object", file: file, line: line)
+        XCTAssertEqual(a.id, b.id, file: file, line: line)
+        XCTAssertEqual(a.date, b.date, file: file, line: line)
+        XCTAssertEqual(a.status, b.status, file: file, line: line)
+        XCTAssertEqual(a.endedAt, b.endedAt, file: file, line: line)
+        XCTAssertEqual(a.resumedFromEnd, b.resumedFromEnd, file: file, line: line)
+        XCTAssertEqual(a.strokesVersion, b.strokesVersion, file: file, line: line)
+        XCTAssertEqual(a.streamBase, b.streamBase, file: file, line: line)
+        XCTAssertEqual(a.lastSeq, b.lastSeq, file: file, line: line)
+        XCTAssertEqual(a.endConfirmed, b.endConfirmed, file: file, line: line)
+        XCTAssertEqual(a.hiddenSuggestionIDs, b.hiddenSuggestionIDs, file: file, line: line)
+        XCTAssertEqual(a.holes, b.holes, file: file, line: line)
+        XCTAssertEqual(a.holeTimeline, b.holeTimeline, file: file, line: line)
+        XCTAssertEqual(a.displayHole, b.displayHole, file: file, line: line)
+        XCTAssertEqual(a.courseSelection, b.courseSelection, file: file, line: line)
+        XCTAssertEqual(a.pins, b.pins, file: file, line: line)
     }
 }

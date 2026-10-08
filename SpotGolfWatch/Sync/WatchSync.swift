@@ -235,8 +235,8 @@ final class WatchSync {
     static let finishedRoundKeepTime: TimeInterval = 24 * 60 * 60
 
     /// Deletes rounds the phone has fully: ended a day ago, end confirmed, and stream sent
-    /// and deleted. Each round holds its whole course, and every save rewrites all rounds,
-    /// so the list must not grow round after round. A resume on the phone sends the round again.
+    /// and deleted. Each round holds its whole course, so the watch must not keep them round
+    /// after round. A resume on the phone sends the round again.
     func pruneFinishedRounds(now: Date = Date()) {
         for round in rounds.rounds where round.status == .ended && round.endConfirmed
             && (round.endedAt.map { now.timeIntervalSince($0) > Self.finishedRoundKeepTime } ?? true)

@@ -1,23 +1,23 @@
+import SwiftData
 import XCTest
 @testable import SpotGolf
 
 @MainActor
 final class StreamStoreTests: XCTestCase {
 
-    private var directory: URL!
+    private var container: ModelContainer!
     private var store: StreamStore!
     private let roundID = UUID()
 
     override func setUp() {
         super.setUp()
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        store = StreamStore(directory: directory)
+        container = Storage.inMemoryContainer()
+        store = StreamStore(context: ModelContext(container))
     }
 
     override func tearDown() {
-        try? FileManager.default.removeItem(at: directory)
         store = nil
-        directory = nil
+        container = nil
         super.tearDown()
     }
 
@@ -27,12 +27,10 @@ final class StreamStoreTests: XCTestCase {
         XCTAssertTrue(store.records(for: roundID).isEmpty)
     }
 
-    func testAppendIsWrittenAtOnce() throws {
+    func testAppendIsSavedAtOnce() throws {
         store.append(StreamFixtures.fixes(0..<3), roundID: roundID)
 
-        let size = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: store.fileURL(for: roundID).path)[.size] as? Int)
-        XCTAssertEqual(size, 3 * StreamRecord.size)
-        XCTAssertEqual(StreamStore(directory: directory).count(for: roundID), 3)
+        XCTAssertEqual(StreamStore(context: ModelContext(container)).count(for: roundID), 3)
         XCTAssertEqual(store.roundIDs(), [roundID])
     }
 
@@ -52,18 +50,15 @@ final class StreamStoreTests: XCTestCase {
         XCTAssertTrue(store.swings(for: roundID, until: end).isEmpty)
     }
 
-    func testPartialRecordFromCutShortWriteIsDropped() throws {
-        store.append(StreamFixtures.fixes(0..<2), roundID: roundID)
-        let handle = try FileHandle(forWritingTo: store.fileURL(for: roundID))
-        try handle.seekToEnd()
-        try handle.write(contentsOf: Data(count: 7))
-        try handle.close()
+    func testPartialRecordAtEndIsDropped() {
+        var data = StreamRecord.data(for: StreamFixtures.fixes(0..<2))
+        data.append(Data(count: 7))
 
-        let reopened = StreamStore(directory: directory)
-        XCTAssertEqual(reopened.count(for: roundID), 2)
-        reopened.append([StreamFixtures.fix(2)], roundID: roundID)
+        store.appendData(data, roundID: roundID)
+        store.append([StreamFixtures.fix(2)], roundID: roundID)
 
-        XCTAssertEqual(reopened.records(for: roundID), StreamFixtures.fixes(0..<3))
+        XCTAssertEqual(store.count(for: roundID), 3)
+        XCTAssertEqual(StreamStore(context: ModelContext(container)).records(for: roundID), StreamFixtures.fixes(0..<3))
     }
 
     func testDataSliceStartsAtPositionAndIsCapped() {
@@ -81,7 +76,7 @@ final class StreamStoreTests: XCTestCase {
         store.truncate(roundID, to: 2)
 
         XCTAssertEqual(store.records(for: roundID), StreamFixtures.fixes(0..<2))
-        XCTAssertEqual(StreamStore(directory: directory).count(for: roundID), 2)
+        XCTAssertEqual(StreamStore(context: ModelContext(container)).count(for: roundID), 2)
     }
 
     func testTruncateAfterDateDropsFromFirstLaterRecord() {
@@ -93,7 +88,7 @@ final class StreamStoreTests: XCTestCase {
         XCTAssertEqual(store.count(for: roundID), 3)
     }
 
-    func testDeleteRemovesFile() {
+    func testDeleteRemovesRecords() {
         store.append(StreamFixtures.fixes(0..<2), roundID: roundID)
 
         store.delete(roundID)

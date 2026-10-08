@@ -11,14 +11,16 @@ struct SettingsView: View {
     @State private var importMessage: String?
     #endif
 
+    @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
+    @AppStorage(SettingsKey.sharePins) private var sharePins = true
+
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
     var body: some View {
-        @Bindable var settingsStore = services.settingsStore
         NavigationStack {
             Form {
                 Section {
-                    Picker("Stationary Threshold", selection: $settingsStore.settings.stationaryThreshold) {
+                    Picker("Stationary Threshold", selection: $stationaryThreshold) {
                         ForEach(thresholdOptions, id: \.self) { seconds in
                             Text("\(seconds)s").tag(TimeInterval(seconds))
                         }
@@ -29,7 +31,7 @@ struct SettingsView: View {
                     Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested.")
                 }
                 Section {
-                    Toggle("Share Pin Locations", isOn: $settingsStore.settings.sharePins)
+                    Toggle("Share Pin Locations", isOn: $sharePins)
                         .accessibilityIdentifier("SharePinLocations")
                 } header: {
                     Text("Pins")

@@ -27,7 +27,7 @@ struct WatchRoundView: View {
         .onChange(of: services.locationManager.lastLocation, initial: true) { _, location in
             updateLiveDistance(location: location)
         }
-        .onChange(of: services.roundStore.rounds) {
+        .onChange(of: services.roundStore.revision) {
             updateLiveDistance(location: services.locationManager.lastLocation)
         }
     }

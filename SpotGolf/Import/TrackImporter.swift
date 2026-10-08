@@ -77,7 +77,7 @@ enum TrackImporter {
     static func round(from export: Export, courseSelection: CourseSelection,
                       id: UUID = UUID()) throws -> (round: Round, records: [StreamRecord]) {
         guard let start = export.points.first?.timestamp else { throw ImportError.empty }
-        var round = Round(id: id, date: start, courseSelection: courseSelection)
+        let round = Round(id: id, date: start, courseSelection: courseSelection)
         round.holeTimeline = holeTimeline(of: round, points: export.points)
         for (stroke, hole) in export.strokes {
             round.addStroke(stroke, toHoleIndex: hole - 1)

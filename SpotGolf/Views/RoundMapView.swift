@@ -8,6 +8,7 @@ struct RoundMapView: View {
     let roundID: UUID
     @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
 
     private var round: Round? {
         services.roundStore.rounds.first(where: { $0.id == roundID })
@@ -69,7 +70,7 @@ struct RoundMapView: View {
                 }
             }
         }
-        .onChange(of: services.roundStore.rounds) {
+        .onChange(of: services.roundStore.revision) {
             if round == nil {
                 dismiss()
             }
@@ -83,7 +84,7 @@ struct RoundMapView: View {
             panToHole()
             filterTrack()
         }
-        .onChange(of: services.suggestionStore.hidden, initial: true) {
+        .onChange(of: round?.hiddenSuggestionIDs, initial: true) {
             refreshSuggestions()
         }
         .onChange(of: services.streamStore.revision) {
@@ -1021,8 +1022,8 @@ struct RoundMapView: View {
             points: roundTrack,
             swings: services.streamStore.swings(for: round.id, until: round.endedAt),
             contacts: services.streamStore.contacts(for: round.id, until: round.endedAt),
-            minStop: services.settingsStore.settings.stationaryThreshold,
-            hidden: services.suggestionStore.hiddenIDs(for: round.id)
+            minStop: stationaryThreshold,
+            hidden: Set(round.hiddenSuggestionIDs)
         )
     }
 
@@ -1064,7 +1065,7 @@ struct RoundMapView: View {
         if !appending {
             services.roundStore.reorderStroke(stroke, to: insertAt, in: round.id)
         }
-        services.suggestionStore.hide(suggestion.id, roundID: round.id)
+        services.roundStore.hideSuggestion(suggestion.id, roundID: round.id)
     }
 
     /// Where a stroke hit at `timestamp` goes among a hole's strokes: before the first one that

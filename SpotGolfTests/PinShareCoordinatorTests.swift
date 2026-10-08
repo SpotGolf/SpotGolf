@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 import CoreLocation
 import CourseDataSwift
@@ -30,7 +31,7 @@ final class FakePinSharing: PinSharing {
 @MainActor
 final class PinShareCoordinatorTests: XCTestCase {
 
-    private var directory: URL!
+    private var container: ModelContainer!
     private var store: RoundStore!
     private var sharing: FakePinSharing!
     private var sharesPins = true
@@ -40,9 +41,8 @@ final class PinShareCoordinatorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        store = RoundStore(directory: directory)
+        container = Storage.inMemoryContainer()
+        store = RoundStore(context: ModelContext(container))
         store.addListener { [weak self] event in
             if case .pinsChanged = event { self?.pinChanges += 1 }
         }
@@ -55,11 +55,10 @@ final class PinShareCoordinatorTests: XCTestCase {
     }
 
     override func tearDown() {
-        try? FileManager.default.removeItem(at: directory)
         coordinator = nil
         store = nil
         sharing = nil
-        directory = nil
+        container = nil
         super.tearDown()
     }
 

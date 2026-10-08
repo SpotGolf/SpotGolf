@@ -3,6 +3,7 @@ import Observation
 import os
 import CoreLocation
 import CourseDataSwift
+import SwiftData
 
 /// A change to the rounds, passed to every listener while the change is made.
 enum RoundEvent {
@@ -18,27 +19,26 @@ enum RoundEvent {
     case strokesChanged(Round)
 }
 
-/// Holds and saves every round. Changes made on this device are reported to listeners as
-/// `RoundEvent`s so they can be sent to the other device; changes applied from the other
-/// device are only reported as `roundsChanged`.
+/// Holds every round and saves it with SwiftData. Every change to a round goes through here.
+/// Changes made on this device are reported to listeners as `RoundEvent`s so they can be sent
+/// to the other device; changes applied from the other device are only reported as
+/// `roundsChanged`.
 @MainActor
 @Observable
 class RoundStore {
-    var rounds: [Round] = [] {
-        didSet {
-            save()
-            report(.roundsChanged)
-        }
-    }
+    /// Every round, newest first.
+    private(set) var rounds: [Round] = []
+
+    /// Adds 1 on every change to any round, so views can react to changes inside a round.
+    private(set) var revision = 0
+
+    @ObservationIgnored private let context: ModelContext
 
     // Run in the order added, during the change, so messages to the other device keep its order
     @ObservationIgnored private var listeners: [(RoundEvent) -> Void] = []
 
-    private let fileURL: URL
-
-    init(directory: URL? = nil) {
-        let directory = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        fileURL = directory.appendingPathComponent("rounds.json")
+    init(context: ModelContext) {
+        self.context = context
         load()
     }
 
@@ -67,14 +67,11 @@ class RoundStore {
         rounds.first(where: { $0.id == id })
     }
 
-    /// Changes a round in place and saves. Does nothing for an unknown round.
-    func update(_ id: UUID, _ change: (inout Round) -> Void) {
-        guard let index = rounds.firstIndex(where: { $0.id == id }) else { return }
-        var round = rounds[index]
-        change(&round)
-        // Every change rewrites the whole file, so a change that changes nothing is skipped
-        guard round != rounds[index] else { return }
-        rounds[index] = round
+    /// Changes a round and saves. Does nothing for an unknown round.
+    func update(_ id: UUID, _ change: (Round) -> Void) {
+        guard let round = round(id) else { return }
+        change(round)
+        changed()
     }
 
     // MARK: - Rounds
@@ -85,34 +82,49 @@ class RoundStore {
                     status: RoundStatus = .active) -> Round {
         if let existing = round(id) { return existing }
         let round = Round(id: id, date: date, status: status, courseSelection: courseSelection)
-        rounds.insert(round, at: 0)
+        add(round)
         return round
     }
 
+    /// Adds a round made elsewhere, such as one read from an export.
+    func add(_ round: Round) {
+        guard self.round(round.id) == nil else { return }
+        context.insert(round)
+        rounds.insert(round, at: 0)
+        changed()
+    }
+
     func deleteRound(_ id: UUID) {
-        guard rounds.contains(where: { $0.id == id }) else { return }
+        guard let round = round(id) else { return }
+        context.delete(round)
         rounds.removeAll { $0.id == id }
+        changed()
+    }
+
+    // MARK: - Suggestions
+
+    /// Hides a stroke suggestion the user dismissed or turned into a stroke.
+    func hideSuggestion(_ suggestionID: UUID, roundID: UUID) {
+        guard let round = round(roundID), !round.hiddenSuggestionIDs.contains(suggestionID) else { return }
+        round.hiddenSuggestionIDs.append(suggestionID)
+        changed()
     }
 
     // MARK: - Display hole
 
     /// Shows a hole on both devices. The active round when `roundID` is nil.
     func setDisplayHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date()) {
-        guard let id = roundID ?? activeRound?.id,
-              let i = rounds.firstIndex(where: { $0.id == id }) else { return }
-        var round = rounds[i]
-        guard round.setDisplayHole(index, at: date) else { return }
-        rounds[i] = round
+        guard let id = roundID ?? activeRound?.id, let round = round(id),
+              round.setDisplayHole(index, at: date) else { return }
+        changed()
         report(.displayHoleChanged(round))
     }
 
     /// Takes the other device's display hole when it is newer. Returns true if it changed.
     @discardableResult
     func mergeDisplayHole(_ displayHole: DisplayHole, roundID: UUID) -> Bool {
-        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
-        var round = rounds[i]
-        guard round.mergeDisplayHole(displayHole) else { return false }
-        rounds[i] = round
+        guard let round = round(roundID), round.mergeDisplayHole(displayHole) else { return false }
+        changed()
         return true
     }
 
@@ -121,11 +133,9 @@ class RoundStore {
     /// Sets the pin on a hole, in the active round when `roundID` is nil. Does nothing when the
     /// point is not on that hole's green.
     func setPin(_ coordinate: CLLocationCoordinate2D, holeIndex: Int, roundID: UUID? = nil, at date: Date = Date()) {
-        guard let id = roundID ?? activeRound?.id,
-              let i = rounds.firstIndex(where: { $0.id == id }) else { return }
-        var round = rounds[i]
-        guard round.setPin(coordinate, onHole: holeIndex, at: date) else { return }
-        rounds[i] = round
+        guard let id = roundID ?? activeRound?.id, let round = round(id),
+              round.setPin(coordinate, onHole: holeIndex, at: date) else { return }
+        changed()
         report(.pinsChanged(round))
     }
 
@@ -141,21 +151,17 @@ class RoundStore {
         changePins(roundID) { $0.mergePins(pins) }
     }
 
-    private func changePins(_ roundID: UUID, _ change: (inout Round) -> Bool) {
-        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
-        var round = rounds[i]
-        guard change(&round) else { return }
-        rounds[i] = round
+    private func changePins(_ roundID: UUID, _ change: (Round) -> Bool) {
+        guard let round = round(roundID), change(round) else { return }
+        changed()
         report(.pinsChanged(round))
     }
 
     /// Takes the other device's pins that replace this one's. Returns true if any changed.
     @discardableResult
     func mergePins(_ pins: [PinLocation], roundID: UUID) -> Bool {
-        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
-        var round = rounds[i]
-        guard round.mergePins(pins) else { return false }
-        rounds[i] = round
+        guard let round = round(roundID), round.mergePins(pins) else { return false }
+        changed()
         return true
     }
 
@@ -164,21 +170,18 @@ class RoundStore {
     /// Merges the other device's timeline. Returns true if anything changed.
     @discardableResult
     func mergeTimeline(_ entries: [HoleStart], roundID: UUID) -> Bool {
-        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return false }
-        var round = rounds[i]
-        guard round.mergeTimeline(entries) else { return false }
-        rounds[i] = round
+        guard let round = round(roundID), round.mergeTimeline(entries) else { return false }
+        changed()
         return true
     }
 
     /// Replaces the timeline with one changed on this device.
     func setTimeline(_ entries: [HoleStart], roundID: UUID) {
-        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
+        guard let round = round(roundID) else { return }
         let normalized = HoleTimeline.normalized(entries)
-        guard normalized != rounds[i].holeTimeline else { return }
-        var round = rounds[i]
+        guard normalized != round.holeTimeline else { return }
         round.holeTimeline = normalized
-        rounds[i] = round
+        changed()
         report(.timelineChanged(round))
     }
 
@@ -215,10 +218,9 @@ class RoundStore {
             added = true
             return true
         }
-        guard added, let hitAt, let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
-        var round = rounds[i]
-        guard round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
-        rounds[i] = round
+        guard added, let hitAt, let round = round(roundID),
+              round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
+        changed()
         report(.timelineChanged(round))
     }
 
@@ -255,16 +257,14 @@ class RoundStore {
     /// Applies the phone's strokes on the watch when the snapshot is newer than the last one applied.
     @discardableResult
     func applyStrokes(_ snapshot: StrokesSnapshot) -> Bool {
-        guard let i = rounds.firstIndex(where: { $0.id == snapshot.roundID }),
-              snapshot.version > rounds[i].strokesVersion else { return false }
-        var round = rounds[i]
+        guard let round = round(snapshot.roundID), snapshot.version > round.strokesVersion else { return false }
         var holes = snapshot.holes.map { RoundHole(strokes: $0) }
         if holes.isEmpty {
             holes = [RoundHole()]
         }
         round.holes = holes
         round.strokesVersion = snapshot.version
-        rounds[i] = round
+        changed()
         return true
     }
 
@@ -278,36 +278,32 @@ class RoundStore {
     }
 
     /// Every stroke change adds 1 to the round's strokes version, so the watch can tell newer from older.
-    private func changeStrokes(_ roundID: UUID, _ change: (inout Round) -> Bool) {
-        guard let i = rounds.firstIndex(where: { $0.id == roundID }) else { return }
-        var round = rounds[i]
-        guard change(&round) else { return }
+    private func changeStrokes(_ roundID: UUID, _ change: (Round) -> Bool) {
+        guard let round = round(roundID), change(round) else { return }
         round.strokesVersion += 1
-        rounds[i] = round
+        changed()
         report(.strokesChanged(round))
     }
 
     // MARK: - Saving
 
     private func load() {
+        let newestFirst = FetchDescriptor<Round>(sortBy: [SortDescriptor(\.date, order: .reverse)])
         do {
-            let data = try Data(contentsOf: fileURL)
-            rounds = try JSONDecoder().decode([Round].self, from: data)
-        } catch CocoaError.fileReadNoSuchFile {
-            return
+            rounds = try context.fetch(newestFirst)
         } catch {
-            // Data saved by an older build can't be read and is thrown away
-            Log.storage.error("Discarding saved rounds: \(String(describing: error), privacy: .public)")
-            rounds = []
+            Log.storage.error("Could not load rounds: \(String(describing: error), privacy: .public)")
         }
     }
 
-    private func save() {
+    /// Saves, and tells views and listeners that a round changed.
+    private func changed() {
         do {
-            let data = try JSONEncoder().encode(rounds)
-            try data.write(to: fileURL, options: .atomic)
+            try context.save()
         } catch {
             Log.storage.error("Could not save rounds: \(String(describing: error), privacy: .public)")
         }
+        revision += 1
+        report(.roundsChanged)
     }
 }
