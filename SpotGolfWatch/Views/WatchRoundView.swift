@@ -37,7 +37,7 @@ struct WatchRoundView: View {
     /// the accessibility tree drops it and queries can't find it.
     @ViewBuilder
     private var workoutStatus: some View {
-        if CommandLine.arguments.contains("--ui-testing") {
+        if services.showsWorkoutStatus {
             Text(services.workoutManager.status.rawValue)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

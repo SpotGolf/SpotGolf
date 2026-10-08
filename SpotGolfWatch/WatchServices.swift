@@ -19,9 +19,9 @@ final class WatchServices {
     let watchSync: WatchSync
     let captureUploader: PuttCaptureUploader
     let puttCapture: PuttCaptureRecorder
-    /// UI tests run on simulators, which can't grant every permission
-    let permissions = PermissionChecker(source: CommandLine.arguments.contains("--ui-testing")
-                                        ? GrantedPermissionSource() : SystemPermissionSource())
+    let permissions: PermissionChecker
+    /// Shows the workout's status, which UI tests read to check recovery after a relaunch.
+    let showsWorkoutStatus: Bool
     @ObservationIgnored private let swingDetector = SwingDetector()
     @ObservationIgnored private var holeAdvancer = HoleAdvancer()
 
@@ -30,18 +30,20 @@ final class WatchServices {
     @ObservationIgnored private var activeRoundID: UUID?
     @ObservationIgnored private var detectsSwings = false
 
-    init() {
+    init(options: LaunchOptions = .current) {
         let rounds = RoundStore()
         // UI tests pass --keep-rounds when relaunching mid-round to test recovery
-        if CommandLine.arguments.contains("--ui-testing"),
-           !CommandLine.arguments.contains("--keep-rounds") {
+        if options.isUITesting, !options.keepsRounds {
             rounds.rounds = []
         }
         // Rounds start on the phone, so UI tests pass --start-round to begin one on the watch alone
-        if CommandLine.arguments.contains("--ui-testing"),
-           CommandLine.arguments.contains("--start-round") {
+        if options.isUITesting, options.startsRound {
             rounds.startRound(courseSelection: .uiTestCourse)
         }
+        // UI tests run on simulators, which can't grant every permission
+        permissions = PermissionChecker(source: options.isUITesting
+                                        ? GrantedPermissionSource() : SystemPermissionSource())
+        showsWorkoutStatus = options.isUITesting
         roundStore = rounds
 
         let workouts = workoutManager

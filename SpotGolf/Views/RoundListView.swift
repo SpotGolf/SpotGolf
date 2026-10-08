@@ -137,7 +137,7 @@ struct RoundListView: View {
         }
     }
     private var canStartRound: Bool {
-        CommandLine.arguments.contains("--ui-testing") || services.syncService.hasCounterpart
+        !services.requiresWatch || services.syncService.hasCounterpart
     }
 
     /// Writes the round's GPS track to a temporary CSV file and opens the share panel.

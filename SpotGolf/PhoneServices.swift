@@ -20,9 +20,12 @@ final class PhoneServices {
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
     let puttCaptures: PuttCaptureStore
+    /// A round can only start with a paired watch that has the app. UI tests run without one.
+    let requiresWatch: Bool
 
-    init() {
-        let isUITesting = CommandLine.arguments.contains("--ui-testing")
+    init(options: LaunchOptions = .current) {
+        let isUITesting = options.isUITesting
+        requiresWatch = !isUITesting
         let rounds = RoundStore()
         if isUITesting {
             rounds.rounds = []
@@ -40,7 +43,7 @@ final class PhoneServices {
         settingsStore = settings
         courseService = CourseService()
 
-        // UI tests run without a paired watch, so rounds start and end on the phone alone
+        // Without a watch, rounds start and end on the phone alone
         phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams, suggestions: suggestions,
                               requiresWatch: !isUITesting) {
             Self.launchWatchApp(sync: sync)

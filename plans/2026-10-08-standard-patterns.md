@@ -92,7 +92,8 @@ struct LaunchOptions {
   | Live Activity | Shown | Not shown |
   | Saved data | On disk | In memory (from branch 5); empty at launch until then |
 
-- `RoundListView` (line 144) and `WatchRoundView` (line 45) read a property of the services instead of `CommandLine.arguments`.
+- `RoundListView` reads `services.requiresWatch`, and `WatchRoundView` reads `services.showsWorkoutStatus`, instead of `CommandLine.arguments`.
+- `LaunchOptions` is in `Shared/Utilities`, with unit tests for reading the arguments.
 - After this branch, `CommandLine.arguments` appears only in `LaunchOptions`.
 
 ## 5. `feature/swiftdata`: SwiftData storage
