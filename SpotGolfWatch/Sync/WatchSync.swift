@@ -23,12 +23,20 @@ final class WatchSync: ObservableObject {
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: false)
 
         sync.handler = { [weak self] message in self?.handle(message) }
-        rounds.onTimelineChanged = { [weak self] round in self?.snapshots.sendTimeline(round) }
-        rounds.onDisplayHoleChanged = { [weak self] round in self?.snapshots.sendDisplayHole(round) }
-        rounds.onPinsChanged = { [weak self] round in self?.snapshots.sendPins(round) }
+        rounds.addListener { [weak self] event in self?.roundChanged(event) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
         sender.onStreamDeleted = { [weak self] in self?.pruneFinishedRounds() }
         pruneFinishedRounds()
+    }
+
+    /// Sends changes made on the watch to the phone. Strokes change only on the phone.
+    private func roundChanged(_ event: RoundEvent) {
+        switch event {
+        case .timelineChanged(let round): snapshots.sendTimeline(round)
+        case .displayHoleChanged(let round): snapshots.sendDisplayHole(round)
+        case .pinsChanged(let round): snapshots.sendPins(round)
+        case .strokesChanged, .roundsChanged: break
+        }
     }
 
     // MARK: - Recording

@@ -17,7 +17,21 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published private(set) var status = Status.none
 
     /// The session is running. Batched sensor data only arrives while it is.
-    @Published private(set) var isRunning = false
+    @Published private(set) var isRunning = false {
+        didSet {
+            guard isRunning != oldValue else { return }
+            for listener in runningListeners {
+                listener(isRunning)
+            }
+        }
+    }
+
+    private var runningListeners: [(Bool) -> Void] = []
+
+    /// Adds a listener called each time `isRunning` changes. Listeners stay for the manager's life.
+    func addRunningListener(_ listener: @escaping (Bool) -> Void) {
+        runningListeners.append(listener)
+    }
 
     /// What is going on, for the screen while a start is waited on.
     var stateText: String {

@@ -20,14 +20,13 @@ final class RoundStoreTests: XCTestCase {
         timelineChanges = []
         displayHoleChanges = []
         strokeChanges = []
-        store.onTimelineChanged = { [weak self] round in
-            self?.timelineChanges.append(round)
-        }
-        store.onDisplayHoleChanged = { [weak self] round in
-            self?.displayHoleChanges.append(round)
-        }
-        store.onStrokesChanged = { [weak self] round in
-            self?.strokeChanges.append(round)
+        store.addListener { [weak self] event in
+            switch event {
+            case .timelineChanged(let round): self?.timelineChanges.append(round)
+            case .displayHoleChanged(let round): self?.displayHoleChanges.append(round)
+            case .strokesChanged(let round): self?.strokeChanges.append(round)
+            case .pinsChanged, .roundsChanged: break
+            }
         }
     }
 
@@ -191,7 +190,7 @@ final class RoundStoreTests: XCTestCase {
     func testSetPinReportsChange() {
         let id = store.startRound(courseSelection: PathCourse.selection).id
         var changes: [Round] = []
-        store.onPinsChanged = { changes.append($0) }
+        store.addListener { if case .pinsChanged(let round) = $0 { changes.append(round) } }
 
         store.setPin(pathGreen(1), holeIndex: 1)
 
@@ -202,7 +201,7 @@ final class RoundStoreTests: XCTestCase {
     func testSetPinOffTheGreenIsNoOp() {
         let id = store.startRound(courseSelection: PathCourse.selection).id
         var changes: [Round] = []
-        store.onPinsChanged = { changes.append($0) }
+        store.addListener { if case .pinsChanged(let round) = $0 { changes.append(round) } }
 
         store.setPin(pathGreen(0), holeIndex: 1)
 
@@ -213,7 +212,7 @@ final class RoundStoreTests: XCTestCase {
     func testMergePinsDoesNotReportChange() {
         let id = store.startRound(courseSelection: PathCourse.selection).id
         var changes: [Round] = []
-        store.onPinsChanged = { changes.append($0) }
+        store.addListener { if case .pinsChanged(let round) = $0 { changes.append(round) } }
         let pin = PinLocation(holeIndex: 0, coordinate: pathGreen(0), setAt: Date())
 
         XCTAssertTrue(store.mergePins([pin], roundID: id))
@@ -734,12 +733,10 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.currentRound?.id, id)
     }
 
-    // MARK: - No handlers set
+    // MARK: - No listeners
 
-    func testMutationsWorkWithoutHandlers() {
-        store.onTimelineChanged = nil
-        store.onDisplayHoleChanged = nil
-        store.onStrokesChanged = nil
+    func testMutationsWorkWithoutListeners() {
+        store = RoundStore(directory: directory)
 
         let id = startRound()
         store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
@@ -751,5 +748,32 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.rounds[0].allStrokes.count, 2)
         XCTAssertEqual(store.rounds[0].holeTimeline.map(\.holeIndex), [0, 1])
         XCTAssertEqual(store.rounds[0].displayHoleIndex, 1)
+    }
+
+    // MARK: - Listeners
+
+    func testListenersRunDuringTheChangeInOrder() {
+        var calls: [String] = []
+        store.addListener { if case .strokesChanged = $0 { calls.append("first") } }
+        store.addListener { if case .strokesChanged = $0 { calls.append("second") } }
+        let id = startRound()
+
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
+
+        XCTAssertEqual(calls, ["first", "second"])
+    }
+
+    func testChangeFromOtherDeviceIsOnlyRoundsChanged() {
+        let id = store.startRound(courseSelection: PathCourse.selection).id
+        var events: [RoundEvent] = []
+        store.addListener { events.append($0) }
+        let pin = PinLocation(holeIndex: 0, coordinate: pathGreen(0), setAt: Date())
+
+        XCTAssertTrue(store.mergePins([pin], roundID: id))
+
+        XCTAssertEqual(events.count, 1)
+        guard case .roundsChanged = events.first else {
+            return XCTFail("Expected roundsChanged, got \(String(describing: events.first))")
+        }
     }
 }

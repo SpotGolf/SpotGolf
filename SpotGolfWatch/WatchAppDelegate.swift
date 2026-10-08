@@ -1,4 +1,3 @@
-import Combine
 import CoreLocation
 import HealthKit
 import os
@@ -29,8 +28,10 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     let permissions = PermissionChecker(source: CommandLine.arguments.contains("--ui-testing")
                                         ? GrantedPermissionSource() : SystemPermissionSource())
 
-    private var activeRoundObserver: AnyCancellable?
-    private var swingObserver: AnyCancellable?
+    // The last values acted on, so only changes are acted on. Swing detection starts off.
+    private var hasLaunched = false
+    private var activeRoundID: UUID?
+    private var detectsSwings = false
 
     func applicationDidFinishLaunching() {
         Log.rounds.notice("Watch app launched")
@@ -73,28 +74,12 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         // Captures whose files never reached the phone
         captureUploader.resumePending()
 
-        activeRoundObserver = roundStore.$rounds
-            .map { $0.first(where: \.isActive)?.id }
-            .removeDuplicates()
-            .sink { [weak self] activeID in
-                self?.activeRoundChanged(activeID != nil)
-            }
-
-        // Batched accelerometer data only arrives while the workout runs, which is some time
-        // after it is asked to start
-        swingObserver = roundStore.$rounds
-            .map { $0.contains(where: \.isActive) }
-            .combineLatest(workoutManager.$isRunning)
-            .map { $0 && $1 }
-            .removeDuplicates()
-            .sink { [weak self] detect in
-                Log.swings.notice("Swing detection wanted: \(detect, privacy: .public)")
-                if detect {
-                    self?.swingDetector.start()
-                } else {
-                    self?.swingDetector.stop()
-                }
-            }
+        roundStore.addListener { [weak self] event in
+            if case .roundsChanged = event { self?.recordingInputsChanged() }
+        }
+        workoutManager.addRunningListener { [weak self] _ in self?.recordingInputsChanged() }
+        // A round already active at launch, after a crash or a relaunch by watchOS
+        recordingInputsChanged()
     }
 
     func applicationDidBecomeActive() {
@@ -131,6 +116,30 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             guard let self, self.roundStore.activeRound == nil else { return }
             Log.workout.notice("No round arrived after the workout launch; stopping the workout")
             self.workoutManager.stop()
+        }
+    }
+
+    /// Starts and stops recording, and swing detection, as the active round and workout change.
+    private func recordingInputsChanged() {
+        let activeID = roundStore.activeRound?.id
+        let isActive = activeID != nil
+        let isFirst = !hasLaunched
+        hasLaunched = true
+        if isFirst || activeID != activeRoundID {
+            activeRoundID = activeID
+            activeRoundChanged(isActive)
+        }
+        // Batched accelerometer data only arrives while the workout runs, which is some time
+        // after it is asked to start
+        let detect = isActive && workoutManager.isRunning
+        if detect != detectsSwings {
+            detectsSwings = detect
+            Log.swings.notice("Swing detection wanted: \(detect, privacy: .public)")
+            if detect {
+                swingDetector.start()
+            } else {
+                swingDetector.stop()
+            }
         }
     }
 

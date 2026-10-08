@@ -100,6 +100,7 @@ struct SpotGolfApp: App {
 /// The permissions screen until every required permission is granted, then the app.
 private struct PhoneRootView: View {
     @EnvironmentObject var permissions: PermissionChecker
+    @EnvironmentObject var roundTracker: RoundTracker
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -110,10 +111,12 @@ private struct PhoneRootView: View {
                 PhonePermissionsView()
             }
         }
-        // Permissions may have changed in Settings, or an "Allow Once" grant ran out
+        // Permissions may have changed in Settings, or an "Allow Once" grant ran out. A Live
+        // Activity that could not start in the background starts now.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 permissions.refresh()
+                roundTracker.appBecameActive()
             }
         }
     }

@@ -1,4 +1,3 @@
-import Combine
 import CoreMotion
 import Foundation
 import os
@@ -47,7 +46,6 @@ final class PuttCaptureRecorder: ObservableObject {
     private var captureStartUptime: Double?
     // The same detector a round runs, so the page shows what a round would record
     private let runner = ContactRunner(taps: TapGuard())
-    private var workoutObserver: AnyCancellable?
     // Readings written so far, counted on the main actor
     private var accelCount = 0
     private var motionCount = 0
@@ -58,6 +56,10 @@ final class PuttCaptureRecorder: ObservableObject {
         self.isRoundActive = isRoundActive
         runner.onContact = { [weak self] contact in
             Task { @MainActor in self?.found(contact) }
+        }
+        // Batched sensor data only arrives once the workout runs, which is some time after `start`
+        workouts.addRunningListener { [weak self] isRunning in
+            if isRunning { self?.beginRecording() }
         }
     }
 
@@ -90,10 +92,9 @@ final class PuttCaptureRecorder: ObservableObject {
         problems = []
         Log.puttLab.notice("Putt capture starting; waiting for the workout")
         workouts.start()
-        workoutObserver = workouts.$isRunning
-            .filter { $0 }
-            .first()
-            .sink { [weak self] _ in self?.beginRecording() }
+        if workouts.isRunning {
+            beginRecording()
+        }
     }
 
     private func beginRecording() {
@@ -346,7 +347,6 @@ final class PuttCaptureRecorder: ObservableObject {
 
     /// Leaves the file handles alone: a stopped recording closes them once the last contact is in.
     private func cleanUp(endWorkout: Bool) {
-        workoutObserver = nil
         audio = nil
         state = .idle
         if endWorkout {

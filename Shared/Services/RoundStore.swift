@@ -3,26 +3,34 @@ import os
 import CoreLocation
 import CourseDataSwift
 
-/// Holds and saves every round. Changes made on this device are reported through
-/// `onTimelineChanged`, `onDisplayHoleChanged`, `onPinsChanged` and `onStrokesChanged` so they can be sent to
-/// the other device; changes applied from the other device are not reported.
+/// A change to the rounds, passed to every listener while the change is made.
+enum RoundEvent {
+    /// Any change to `rounds`, from either device.
+    case roundsChanged
+    /// A timeline change made on this device: a hole's first stroke, or a start time set by hand.
+    case timelineChanged(Round)
+    /// A display hole change made on this device.
+    case displayHoleChanged(Round)
+    /// A pin set on this device.
+    case pinsChanged(Round)
+    /// A stroke change made on this device.
+    case strokesChanged(Round)
+}
+
+/// Holds and saves every round. Changes made on this device are reported to listeners as
+/// `RoundEvent`s so they can be sent to the other device; changes applied from the other
+/// device are only reported as `roundsChanged`.
 @MainActor
 class RoundStore: ObservableObject {
     @Published var rounds: [Round] = [] {
-        didSet { save() }
+        didSet {
+            save()
+            report(.roundsChanged)
+        }
     }
 
-    /// A timeline change made on this device: a hole's first stroke, or a start time set by hand.
-    var onTimelineChanged: ((Round) -> Void)?
-
-    /// A display hole change made on this device.
-    var onDisplayHoleChanged: ((Round) -> Void)?
-
-    /// A pin set on this device.
-    var onPinsChanged: ((Round) -> Void)?
-
-    /// A stroke change made on this device.
-    var onStrokesChanged: ((Round) -> Void)?
+    // Run in the order added, during the change, so messages to the other device keep its order
+    private var listeners: [(RoundEvent) -> Void] = []
 
     private let fileURL: URL
 
@@ -30,6 +38,17 @@ class RoundStore: ObservableObject {
         let directory = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         fileURL = directory.appendingPathComponent("rounds.json")
         load()
+    }
+
+    /// Adds a listener for every later change. Listeners stay for the store's life.
+    func addListener(_ listener: @escaping (RoundEvent) -> Void) {
+        listeners.append(listener)
+    }
+
+    private func report(_ event: RoundEvent) {
+        for listener in listeners {
+            listener(event)
+        }
     }
 
     /// The round being recorded.
@@ -82,7 +101,7 @@ class RoundStore: ObservableObject {
         var round = rounds[i]
         guard round.setDisplayHole(index, at: date) else { return }
         rounds[i] = round
-        onDisplayHoleChanged?(round)
+        report(.displayHoleChanged(round))
     }
 
     /// Takes the other device's display hole when it is newer. Returns true if it changed.
@@ -105,7 +124,7 @@ class RoundStore: ObservableObject {
         var round = rounds[i]
         guard round.setPin(coordinate, onHole: holeIndex, at: date) else { return }
         rounds[i] = round
-        onPinsChanged?(round)
+        report(.pinsChanged(round))
     }
 
     /// Gives every hole with a green and no pin a pin at the green's center, when a round starts
@@ -125,7 +144,7 @@ class RoundStore: ObservableObject {
         var round = rounds[i]
         guard change(&round) else { return }
         rounds[i] = round
-        onPinsChanged?(round)
+        report(.pinsChanged(round))
     }
 
     /// Takes the other device's pins that replace this one's. Returns true if any changed.
@@ -158,7 +177,7 @@ class RoundStore: ObservableObject {
         var round = rounds[i]
         round.holeTimeline = normalized
         rounds[i] = round
-        onTimelineChanged?(round)
+        report(.timelineChanged(round))
     }
 
     /// Sets a timeline entry's start time, as the user's own correction. The time is kept
@@ -198,7 +217,7 @@ class RoundStore: ObservableObject {
         var round = rounds[i]
         guard round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
         rounds[i] = round
-        onTimelineChanged?(round)
+        report(.timelineChanged(round))
     }
 
     func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
@@ -263,7 +282,7 @@ class RoundStore: ObservableObject {
         guard change(&round) else { return }
         round.strokesVersion += 1
         rounds[i] = round
-        onStrokesChanged?(round)
+        report(.strokesChanged(round))
     }
 
     // MARK: - Saving

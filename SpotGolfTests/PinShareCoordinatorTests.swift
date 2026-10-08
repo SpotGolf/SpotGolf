@@ -43,7 +43,9 @@ final class PinShareCoordinatorTests: XCTestCase {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         store = RoundStore(directory: directory)
-        store.onPinsChanged = { [weak self] _ in self?.pinChanges += 1 }
+        store.addListener { [weak self] event in
+            if case .pinsChanged = event { self?.pinChanges += 1 }
+        }
         sharing = FakePinSharing()
         sharesPins = true
         pinChanges = 0

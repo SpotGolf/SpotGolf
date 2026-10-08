@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 import os
 
 /// Shares pins with other golfers on the same course. When a round starts or resumes, whether it
@@ -14,7 +13,6 @@ final class PinShareCoordinator: ObservableObject {
     private let sharing: PinSharing
     private let sharesPins: () -> Bool
     private let now: () -> Date
-    private var cancellable: AnyCancellable?
     private var checkScheduled = false
 
     /// Per active round, the furthest hole shown.
@@ -31,10 +29,14 @@ final class PinShareCoordinator: ObservableObject {
         self.sharesPins = sharesPins
         self.now = now
         // Changes from both devices: a round started, the display hole moved, a pin set
-        cancellable = rounds.$rounds.sink { [weak self] _ in self?.scheduleCheck() }
+        rounds.addListener { [weak self] event in
+            if case .roundsChanged = event { self?.scheduleCheck() }
+        }
+        // Rounds already active at launch
+        scheduleCheck()
     }
 
-    /// `rounds` publishes before it changes, so the check runs once the change is in.
+    /// Several changes in a row are checked once, after the last of them.
     private func scheduleCheck() {
         guard !checkScheduled else { return }
         checkScheduled = true

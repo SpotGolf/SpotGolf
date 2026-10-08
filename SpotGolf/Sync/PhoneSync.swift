@@ -51,17 +51,23 @@ final class PhoneSync: ObservableObject {
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: true)
 
         sync.handler = { [weak self] message in self?.handle(message) }
-        rounds.onTimelineChanged = { [weak self] round in self?.snapshots.sendTimeline(round) }
-        rounds.onDisplayHoleChanged = { [weak self] round in self?.snapshots.sendDisplayHole(round) }
-        rounds.onPinsChanged = { [weak self] round in self?.snapshots.sendPins(round) }
-        rounds.onStrokesChanged = { [weak self] round in
-            self?.snapshots.sendStrokes(round)
-        }
+        rounds.addListener { [weak self] event in self?.roundChanged(event) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
 
         // A round left starting when the app quit is waiting for a confirmation no one tracks
         for round in rounds.rounds where round.status == .starting {
             startStates[round.id] = .timedOut
+        }
+    }
+
+    /// Sends changes made on the phone to the watch.
+    private func roundChanged(_ event: RoundEvent) {
+        switch event {
+        case .timelineChanged(let round): snapshots.sendTimeline(round)
+        case .displayHoleChanged(let round): snapshots.sendDisplayHole(round)
+        case .pinsChanged(let round): snapshots.sendPins(round)
+        case .strokesChanged(let round): snapshots.sendStrokes(round)
+        case .roundsChanged: break
         }
     }
 

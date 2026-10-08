@@ -4,11 +4,19 @@ import CoreLocation
 
 @MainActor
 class LocationManager: NSObject, ObservableObject {
-    @Published var lastLocation: CLLocation?
+    @Published var lastLocation: CLLocation? {
+        didSet {
+            for listener in locationListeners {
+                listener(lastLocation)
+            }
+        }
+    }
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
 
     /// Called with every valid fix, before accuracy filtering and smoothing.
     var onRawLocations: (@MainActor ([CLLocation]) -> Void)?
+
+    private var locationListeners: [(CLLocation?) -> Void] = []
 
     let manager = CLLocationManager()
     private var recentLocations: [CLLocation] = []
@@ -20,6 +28,11 @@ class LocationManager: NSObject, ObservableObject {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = kCLDistanceFilterNone
+    }
+
+    /// Adds a listener called with every new `lastLocation`. Listeners stay for the manager's life.
+    func addLocationListener(_ listener: @escaping (CLLocation?) -> Void) {
+        locationListeners.append(listener)
     }
 
     private(set) var isUpdating = false

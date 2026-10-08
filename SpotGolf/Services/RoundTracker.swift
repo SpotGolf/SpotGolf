@@ -1,7 +1,5 @@
 import ActivityKit
-import Combine
 import CoreLocation
-import UIKit
 import os
 
 /// Follows the active round on the phone, with the app open or in the background: keeps location
@@ -19,30 +17,31 @@ final class RoundTracker: ObservableObject {
     private var activity: Activity<HoleActivityAttributes>?
     // The content the activity shows, so a fix that changes nothing sends no update
     private var shownContent: HoleActivityAttributes.ContentState?
-    private var cancellables: Set<AnyCancellable> = []
 
     init(rounds: RoundStore, location: LocationManager, showsActivity: Bool = true) {
         self.rounds = rounds
         self.location = location
         self.showsActivity = showsActivity
 
-        // Both publish before the value changes, so the new value is passed along
-        rounds.$rounds
-            .sink { [weak self] in self?.roundsChanged($0) }
-            .store(in: &cancellables)
-        location.$lastLocation
-            .sink { [weak self] in self?.locationChanged($0) }
-            .store(in: &cancellables)
-        // An activity can only be started with the app open
-        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in self?.startActivityIfMissing() }
-            .store(in: &cancellables)
+        rounds.addListener { [weak self] event in
+            guard let self, case .roundsChanged = event else { return }
+            roundsChanged(self.rounds.rounds)
+        }
+        location.addLocationListener { [weak self] in self?.locationChanged($0) }
 
         // Activities left from a round that is no longer active, after the app was closed
         let activeID = rounds.activeRound?.id
         for old in Activity<HoleActivityAttributes>.activities where old.attributes.roundID != activeID {
             Task { await old.end(nil, dismissalPolicy: .immediate) }
         }
+        // A round already active at launch
+        roundsChanged(rounds.rounds)
+    }
+
+    /// An activity can only be started with the app open, so one that could not start is
+    /// tried again here.
+    func appBecameActive() {
+        startActivityIfMissing()
     }
 
     // MARK: - Round

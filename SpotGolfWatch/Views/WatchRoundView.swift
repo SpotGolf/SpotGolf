@@ -29,10 +29,10 @@ struct WatchRoundView: View {
                 .tabViewStyle(.page)
             }
         }
-        .onReceive(locationManager.$lastLocation) { location in
+        .onChange(of: locationManager.lastLocation, initial: true) { _, location in
             updateLiveDistance(location: location)
         }
-        .onReceive(roundStore.$rounds) { _ in
+        .onChange(of: roundStore.rounds) {
             updateLiveDistance(location: locationManager.lastLocation)
         }
     }

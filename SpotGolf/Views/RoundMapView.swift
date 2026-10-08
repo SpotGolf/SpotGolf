@@ -61,7 +61,7 @@ struct RoundMapView: View {
         .onDisappear {
             locationManager.stopUpdating()
         }
-        .onReceive(locationManager.$lastLocation) { location in
+        .onChange(of: locationManager.lastLocation, initial: true) { _, location in
             if !hasInitialPan, location != nil, round != nil {
                 hasInitialPan = true
                 panToHole()
@@ -87,7 +87,7 @@ struct RoundMapView: View {
             panToHole()
             filterTrack()
         }
-        .onReceive(suggestionStore.$hidden) { _ in
+        .onChange(of: suggestionStore.hidden, initial: true) {
             refreshSuggestions()
         }
         .onChange(of: streamStore.revision) {
