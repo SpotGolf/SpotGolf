@@ -156,30 +156,30 @@ Breaking change: rounds saved by earlier builds are not read. Old JSON files are
 
 ## 6. `feature/split-round-map`: smaller `RoundMapView`
 
-`RoundMapView.swift` (1,105 lines, 20 `@State`) is split into these files under `SpotGolf/Views/RoundMap/`:
+`RoundMapView.swift` (1,100 lines, 20 `@State`) is split into these files under `SpotGolf/Views/RoundMap/`:
 
-| File | Contents (functions now in `RoundMapView`) |
+| File | Contents |
 |---|---|
-| `RoundMapView.swift` | Screen layout, sheets, alert, `onChange` handlers |
-| `HoleHeaderView.swift` | `holeHeader`, `scoreBox`, `holeCircle`, `selectHole`, `holeSummary` |
-| `RoundMapLayer.swift` | `mapView`, `spotMarker`, `pinFlag`, `hazardBubbles`, `hazardBubble`, `suggestionPin`, `targetLines`, `lineEnd`, `strokeColor` |
-| `MapInfoOverlay.swift` | `overlayView`, `keyInformation`, `targetInformation`, `keyInformationBox` |
-| `MapButtonBar.swift` | `buttonBar`, `setPinButton`, `mapButtons` |
-| `SpotEditSheet.swift` | `spotEditSheet` |
-| `MapShapes.swift` | `BubbleArrow`, `FlagShape` |
+| `RoundMapView.swift` | Screen layout, sheets, alert, `onChange` handlers, the GPS track and suggestions |
+| `RoundMapState.swift` | `MapCameraState` (position, following, first pan, camera moves, map size, meters per point) and `SpotSelection` (the spot being edited, its new place, the delete confirmation) |
+| `HoleHeaderView.swift` | The hole circles, back button, score box and hole summary |
+| `RoundMapLayer.swift` | The map: spots and dragging them, the track, the target and its lines, hazard bubbles, suggestions, and the gestures |
+| `MapInfoOverlay.swift` | The hole's distances and the target's, with the button that clears the target |
+| `MapButtonBar.swift` | Edit, set pin, hole times and location buttons |
+| `SpotEditSheet.swift` | The spot sheet |
+| `MapMarkers.swift` | `PinFlag`, `TargetMarker`, `HazardBubble`, `SuggestionPin`, `BubbleArrow`, `FlagShape` |
 
 Logic moves out of views into code with unit tests:
 
 | Logic | New home |
 |---|---|
-| `bearing(from:to:)`, `shownHoleHeading` | `Shared/Utilities/HoleCamera.swift` |
-| Camera position from `panToHole` | `HoleCamera.position(for:holeIndex:mapSize:)` |
-| `updateMetersPerPoint` math | `HoleCamera.metersPerPoint(_:)` |
-| `reloadTrack`, `filterTrack` | `SpotGolf/Utilities/HoleTrack.swift` |
-| `yardsToPin`, `feetToGreenCenter`, `yardsFromTargetToPin`, `hazardsAhead` | `HoleOverview` |
-| `insertionIndex`, `convertSuggestion` | `RoundStore` |
+| Bearing, the hole's heading, the hole camera, the following camera, meters per point, where the target's lines stop, the flag's scale | `SpotGolf/Utilities/MapGeometry.swift` |
+| Picking out a hole's track | `SpotGolf/Utilities/HoleTrack.swift` |
+| Hole summary, feet to the green, hazards ahead | `HoleOverview` |
+| Turning a suggestion into a stroke in the right order | `RoundStore.addSuggestedStroke` in `SpotGolf/Services/RoundStore+Suggestions.swift`: it uses `StrokeFinder`, which only the phone has |
 
-- State that belongs together becomes one struct: the camera (`position`, `followsUserLocation`, `hasInitialPan`, `cameraChanges`, `mapSize`, `metersPerPoint`) and the spot drag (`draggingStroke`, `dragOffset`).
+- The drag state (`draggingStroke`, `dragOffset`) lives in `RoundMapLayer`, the only view that uses it.
+- The following camera, built the same way in two places, is now one function.
 - Accessibility identifiers do not change, so UI tests do not change.
 
 ## 7. `feature/swift6`: Swift 6 language mode

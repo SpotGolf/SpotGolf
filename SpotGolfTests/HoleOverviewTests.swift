@@ -96,4 +96,43 @@ final class HoleOverviewTests: XCTestCase {
         XCTAssertEqual(HoleOverview.previousYards(strokes: [], from: CLLocation(latitude: 40, longitude: -105)), 0)
         XCTAssertEqual(HoleOverview.previousYards(strokes: strokes(1), from: nil), 0)
     }
+
+    func testSummaryShowsParAndYardsDuringARound() {
+        let round = Round(courseSelection: PathCourse.selection)
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+
+        let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
+        let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: location)
+
+        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: location), "Par 4 - \(yards ?? 0) yds")
+        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: nil), "Par 4")
+        XCTAssertNil(HoleOverview.summary(round, holeIndex: 5, from: nil))
+    }
+
+    func testSummaryOfAPastRoundIsParOnly() {
+        let round = Round(courseSelection: PathCourse.selection)
+        round.end(at: round.date.addingTimeInterval(3600))
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+
+        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: CLLocation(latitude: tee.latitude, longitude: tee.longitude)),
+                       "Par 4")
+    }
+
+    func testFeetToGreenCenterNeedsAnElevation() {
+        let round = Round(courseSelection: PathCourse.selection)
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+
+        // The path course's greens have no elevation
+        XCTAssertNil(HoleOverview.feetToGreenCenter(round, holeIndex: 0, from: CLLocation(latitude: tee.latitude, longitude: tee.longitude)))
+    }
+
+    func testHazardsAheadOnlyDuringARoundWithALocation() {
+        let round = Round(courseSelection: PathCourse.selection)
+        let tee = PathCourse.coordinate(north: 0, east: 0)
+        let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
+
+        // The path course has no hazards
+        XCTAssertTrue(HoleOverview.hazardsAhead(round, holeIndex: 0, from: location).isEmpty)
+        XCTAssertTrue(HoleOverview.hazardsAhead(round, holeIndex: 0, from: nil).isEmpty)
+    }
 }

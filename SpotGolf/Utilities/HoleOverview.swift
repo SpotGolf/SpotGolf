@@ -1,7 +1,7 @@
 import CoreLocation
 import CourseDataSwift
 
-/// The numbers shown for a hole: its par, the yards to its green, and the round's score.
+/// The numbers shown for a hole: its par, the yards to its green, its hazards, and the round's score.
 /// Used by the phone's map header and its Live Activity.
 enum HoleOverview {
     /// Yards from `location` to the hole's pin, or to the center of its green without one. Nil
@@ -37,5 +37,34 @@ enum HoleOverview {
     /// "E", "+2", or "-1".
     static func toParText(_ diff: Int) -> String {
         diff == 0 ? "E" : diff > 0 ? "+\(diff)" : "\(diff)"
+    }
+
+    /// "Par 4 - 156 yds", or whichever part is known. Nil past the course's last hole. A past
+    /// round shows the par only, since the yards are from the player's location.
+    static func summary(_ round: Round, holeIndex: Int, from location: CLLocation?) -> String? {
+        guard let courseHole = round.courseHole(at: holeIndex) else { return nil }
+        let par = "Par \(courseHole.par)"
+        guard round.isActive, let yards = yardsToPin(round, holeIndex: holeIndex, from: location) else { return par }
+        return "\(par) - \(yards) yds"
+    }
+
+    /// Feet up (+) or down (-) from `location` to the center of the hole's green. Nil without a
+    /// green elevation or a location with altitude.
+    static func feetToGreenCenter(_ round: Round, holeIndex: Int, from location: CLLocation?) -> Int? {
+        guard let courseHole = round.courseHole(at: holeIndex),
+              let green = courseHole.green(from: round.course.features),
+              let greenElevation = green.center.elevation,
+              let location, location.verticalAccuracy >= 0 else { return nil }
+        return Int(((greenElevation - location.altitude) * 3.28084).rounded())
+    }
+
+    /// Bunkers and water between `location` and the hole's green, during a round only.
+    static func hazardsAhead(_ round: Round, holeIndex: Int, from location: CLLocation?) -> [FeatureDistance] {
+        guard round.isActive,
+              let courseHole = round.courseHole(at: holeIndex),
+              let green = courseHole.green(from: round.course.features),
+              let location else { return [] }
+        return DistanceCalculator.featuresAhead(from: location, features: round.course.features(for: courseHole),
+                                                green: green, limit: .max)
     }
 }
