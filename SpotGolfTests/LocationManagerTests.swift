@@ -12,14 +12,14 @@ final class LocationManagerTests: XCTestCase {
 
     private var locationManager: LocationManager!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         locationManager = LocationManager()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         locationManager = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     // MARK: - Initial state

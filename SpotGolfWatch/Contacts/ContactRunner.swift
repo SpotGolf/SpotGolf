@@ -5,6 +5,7 @@ import os
 /// Runs a `ContactDetector` on its own queue, fed from the sensor and audio threads, and hands
 /// each contact to `onContact` on that queue. Readings within `TapGuard.window` of a tap on the
 /// app's own buttons are dropped: a tap is a loud 2 to 3.6 g knock on the watch.
+/// Sendable because its state is only touched on `queue`.
 final class ContactRunner: @unchecked Sendable {
     private let queue = DispatchQueue(label: "golf.spot.SpotGolf.contacts", qos: .userInitiated)
     private var detector = ContactDetector()

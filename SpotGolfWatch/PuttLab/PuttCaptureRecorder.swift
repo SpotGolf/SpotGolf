@@ -181,9 +181,11 @@ final class PuttCaptureRecorder {
                 PuttCapture.AccelSample(t: reading.timestamp - startUptime, x: Float(a.x), y: Float(a.y), z: Float(a.z))
                     .append(to: &data)
             }
+            let count = batch.count
+            let bytes = data
             io.async {
-                Self.write(data, to: handle, name: "accelerometer")
-                Task { @MainActor in self?.accelCount += batch.count }
+                Self.write(bytes, to: handle, name: "accelerometer")
+                Task { @MainActor in self?.accelCount += count }
             }
         }
     }
@@ -218,9 +220,11 @@ final class PuttCaptureRecorder {
                     Float(q.x), Float(q.y), Float(q.z), Float(q.w)
                 ]).append(to: &data)
             }
+            let count = batch.count
+            let bytes = data
             io.async {
-                Self.write(data, to: handle, name: "device motion")
-                Task { @MainActor in self?.motionCount += batch.count }
+                Self.write(bytes, to: handle, name: "device motion")
+                Task { @MainActor in self?.motionCount += count }
             }
         }
     }
@@ -319,7 +323,6 @@ final class PuttCaptureRecorder {
     }
 
     private func closeFiles(meta: PuttCapture.Meta, directory: URL) {
-        var meta = meta
         let accelHandle = accelHandle, motionHandle = motionHandle, marksHandle = marksHandle, contactsHandle = contactsHandle
         self.accelHandle = nil
         self.motionHandle = nil
@@ -334,6 +337,7 @@ final class PuttCaptureRecorder {
             try? contactsHandle?.close()
             Task { @MainActor in
                 guard let self else { return }
+                var meta = meta
                 meta.accelCount = self.accelCount
                 meta.motionCount = self.motionCount
                 do {

@@ -55,7 +55,7 @@ targets:
       base:
         INFOPLIST_FILE: SpotGolf/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         DEVELOPMENT_TEAM: 5CRT56YETR
     dependencies:
       - target: SpotGolfWatch
@@ -109,7 +109,7 @@ targets:
       base:
         INFOPLIST_FILE: SpotGolfLiveActivity/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf.LiveActivity
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         DEVELOPMENT_TEAM: 5CRT56YETR
     dependencies:
       - sdk: WidgetKit.framework
@@ -134,7 +134,7 @@ targets:
       base:
         INFOPLIST_FILE: SpotGolfWatch/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf.watchkitapp
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         DEVELOPMENT_TEAM: 5CRT56YETR
     entitlements:
       path: SpotGolfWatch/SpotGolfWatch.entitlements
@@ -184,7 +184,7 @@ targets:
         buildPhase: resources
     settings:
       base:
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SpotGolf
@@ -202,7 +202,7 @@ targets:
         buildPhase: resources
     settings:
       base:
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: SpotGolf
     dependencies:
@@ -215,7 +215,7 @@ targets:
       - path: SpotGolfWatchTests
     settings:
       base:
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SpotGolfWatch
@@ -231,7 +231,7 @@ targets:
         buildPhase: resources
     settings:
       base:
-        SWIFT_VERSION: "5.9"
+        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: SpotGolfWatch
     dependencies:

@@ -34,7 +34,7 @@ final class RoundTracker {
         // Activities left from a round that is no longer active, after the app was closed
         let activeID = rounds.activeRound?.id
         for old in Activity<HoleActivityAttributes>.activities where old.attributes.roundID != activeID {
-            Task { await old.end(nil, dismissalPolicy: .immediate) }
+            Self.endActivity(id: old.id)
         }
         // A round already active at launch
         roundsChanged(rounds.rounds)
@@ -78,7 +78,7 @@ final class RoundTracker {
         location.stopUpdating(for: Self.locationOwner)
         // Every one, in case an earlier launch left one behind
         for old in Activity<HoleActivityAttributes>.activities {
-            Task { await old.end(nil, dismissalPolicy: .immediate) }
+            Self.endActivity(id: old.id)
         }
         activity = nil
         shownContent = nil
@@ -114,7 +114,7 @@ final class RoundTracker {
         Log.liveActivity.notice("Starting the Live Activity with \(existing.count, privacy: .public) already running")
         let kept = existing.first(where: { $0.attributes.roundID == round.id })
         for old in existing where old.id != kept?.id {
-            Task { await old.end(nil, dismissalPolicy: .immediate) }
+            Self.endActivity(id: old.id)
         }
         if let kept {
             activity = kept
@@ -149,6 +149,25 @@ final class RoundTracker {
         let content = Self.content(round, location: location)
         guard content != shownContent else { return }
         shownContent = content
-        Task { await activity.update(ActivityContent(state: content, staleDate: nil)) }
+        Self.updateActivity(id: activity.id, content: content)
+    }
+
+    // `Activity` is not Sendable, so the main actor can't call its async methods. Each change
+    // runs in a task of its own, which looks the activity up by ID.
+
+    private nonisolated static func activity(id: String) -> Activity<HoleActivityAttributes>? {
+        Activity<HoleActivityAttributes>.activities.first { $0.id == id }
+    }
+
+    private nonisolated static func updateActivity(id: String, content: HoleActivityAttributes.ContentState) {
+        Task.detached {
+            await activity(id: id)?.update(ActivityContent(state: content, staleDate: nil))
+        }
+    }
+
+    private nonisolated static func endActivity(id: String) {
+        Task.detached {
+            await activity(id: id)?.end(nil, dismissalPolicy: .immediate)
+        }
     }
 }

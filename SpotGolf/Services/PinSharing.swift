@@ -3,7 +3,7 @@ import CloudKit
 import CoreLocation
 
 /// Where shared pins are kept.
-protocol PinSharing {
+protocol PinSharing: Sendable {
     /// True when the device has an iCloud account, which uploads need.
     func isAccountAvailable() async -> Bool
     /// Every hole's pin on a course on one day.

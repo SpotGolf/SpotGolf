@@ -9,19 +9,19 @@ final class CourseServiceTests: XCTestCase {
     private var service: CourseService!
     private var tempDir: URL!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("CourseServiceTests-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         service = CourseService(cacheDirectory: tempDir)
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         service = nil
         try? FileManager.default.removeItem(at: tempDir)
         tempDir = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     // MARK: - testParseIndexVersion

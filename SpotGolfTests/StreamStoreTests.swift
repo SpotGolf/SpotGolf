@@ -9,16 +9,16 @@ final class StreamStoreTests: XCTestCase {
     private var store: StreamStore!
     private let roundID = UUID()
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         container = Storage.inMemoryContainer()
         store = StreamStore(context: ModelContext(container))
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         store = nil
         container = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testUnknownRoundHasNoRecords() {

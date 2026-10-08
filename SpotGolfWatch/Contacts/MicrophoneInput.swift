@@ -132,6 +132,8 @@ private final class FrameCounter: @unchecked Sendable {
     }
 }
 
+// The audio thread calls these; the handlers only hop to the main actor or to a queue of their own
+
 private struct FirstBuffer: @unchecked Sendable {
     let handler: (PuttCapture.Audio) -> Void
     init(_ handler: @escaping (PuttCapture.Audio) -> Void) { self.handler = handler }

@@ -48,7 +48,7 @@ enum PuttCapture {
         static let csvHeader = "t,label,date"
 
         var csvLine: String {
-            "\(t),\(label.rawValue),\(PuttCapture.dateFormatter.string(from: date))"
+            "\(t),\(label.rawValue),\(PuttCapture.dateFormat.format(date))"
         }
     }
 
@@ -190,9 +190,6 @@ enum PuttCapture {
         }
     }
 
-    static let dateFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
+    /// "2026-10-08T20:16:02.123Z"
+    static let dateFormat = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
 }

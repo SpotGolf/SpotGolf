@@ -193,11 +193,12 @@ extension WatchConnectivityTransport: WCSessionDelegate {
         } else {
             Log.sync.notice("WCSession activated, state \(activationState.rawValue, privacy: .public)")
         }
+        // A context that arrived before activation is not delivered again
+        let context = SendablePayload(session.receivedApplicationContext)
         Task { @MainActor in
             self.delegate?.transportReachabilityChanged()
-            // A context that arrived before activation is not delivered again
-            if !session.receivedApplicationContext.isEmpty {
-                self.delegate?.transport(didReceiveQueued: session.receivedApplicationContext)
+            if !context.value.isEmpty {
+                self.delegate?.transport(didReceiveQueued: context.value)
             }
         }
     }
@@ -279,6 +280,7 @@ private struct SendableFinish: @unchecked Sendable {
     init(_ handler: @escaping (Result<[String: Any], Error>) -> Void) { self.handler = handler }
 }
 
+// WatchConnectivity's reply handler, called once from the main actor; WatchConnectivity allows any thread
 private struct SendableReply: @unchecked Sendable {
     let handler: ([String: Any]) -> Void
     init(_ handler: @escaping ([String: Any]) -> Void) { self.handler = handler }

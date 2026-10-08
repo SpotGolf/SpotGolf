@@ -7,10 +7,9 @@ enum SettingsKey {
     /// Uploads the pins the player sets, for other golfers on the same course.
     static let sharePins = "sharePins"
 
-    static let defaults: [String: Any] = [
-        stationaryThreshold: 30.0,
-        sharePins: true,
-    ]
+    static var defaults: [String: Any] {
+        [stationaryThreshold: 30.0, sharePins: true]
+    }
 
     /// Gives code outside views the same defaults `@AppStorage` uses.
     static func registerDefaults(in store: UserDefaults = .standard) {

@@ -22,8 +22,8 @@ final class TrackRecordingTests: XCTestCase {
     private let roundID = UUID()
     private let start = Date(timeIntervalSince1970: 1_700_000_000)
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         container = Storage.inMemoryContainer()
         store = StreamStore(context: ModelContext(container))
         locationManager = LocationManager()
@@ -33,12 +33,12 @@ final class TrackRecordingTests: XCTestCase {
         course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: url).gzipDecompressed())
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         course = nil
         locationManager = nil
         store = nil
         container = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     /// The same round on every run: Front nine, Blue tees.

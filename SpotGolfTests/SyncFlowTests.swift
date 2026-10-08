@@ -10,15 +10,15 @@ final class SyncFlowTests: XCTestCase {
 
     private var pair: SyncPair!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         pair = SyncPair()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         pair.cleanUp()
         pair = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func phoneRound(_ id: UUID) -> Round? { pair.phoneRounds.round(id) }

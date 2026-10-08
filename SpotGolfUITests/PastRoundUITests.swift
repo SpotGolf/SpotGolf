@@ -2,11 +2,13 @@ import XCTest
 
 /// A past round opens on the same screen as a round in play: the holes along the top,
 /// one hole at a time on the map, and the same editing.
+@MainActor
 final class PastRoundUITests: XCTestCase {
 
     private var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]

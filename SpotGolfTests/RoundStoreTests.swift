@@ -15,8 +15,8 @@ final class RoundStoreTests: XCTestCase {
     /// The round's strokes version when each stroke change was reported.
     private var strokeVersions: [Int]!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         container = Storage.inMemoryContainer()
         store = RoundStore(context: ModelContext(container))
         timelineChanges = []
@@ -35,14 +35,14 @@ final class RoundStoreTests: XCTestCase {
         }
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         store = nil
         timelineChanges = nil
         displayHoleChanges = nil
         strokeChanges = nil
         strokeVersions = nil
         container = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func makeStroke(latitude: Double = 33.45, longitude: Double = -112.07) -> Stroke {

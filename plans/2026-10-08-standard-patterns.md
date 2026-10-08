@@ -185,17 +185,19 @@ Logic moves out of views into code with unit tests:
 ## 7. `feature/swift6`: Swift 6 language mode
 
 - `SWIFT_VERSION: "6.0"` for every target in `project.yml`.
-- Fix every error. Expected kinds:
+- Errors found and how each was fixed:
 
-  | Kind | Fix |
+  | Error | Fix |
   |---|---|
-  | Delegate callbacks from CoreLocation, CoreMotion, HealthKit and WatchConnectivity | `nonisolated` delegate methods that hop to the main actor with `Task { @MainActor in }` or `MainActor.assumeIsolated` where the API calls on the main thread |
-  | Values crossing actors | `Sendable` on value types; `sending` or copies where needed |
-  | `[String: Any]` payloads | Encode before crossing, as `SyncCodec` does |
-  | Static mutable state | `let`, or `@MainActor` |
-  | Test classes | `@MainActor` on test cases that touch stores |
+  | `static let` of a type that is not Sendable (`ISO8601DateFormatter`, `[String: Any]`, `CourseSelection`) | `Date.ISO8601FormatStyle`, which is Sendable; computed `static var`; `CourseSelection: Sendable` |
+  | `CourseDataSwift` types are not marked Sendable | `@preconcurrency import CourseDataSwift` in `CourseSelection.swift`, until the package marks them |
+  | WatchConnectivity's session passed into a main-actor task | Read the received context before the task |
+  | Sensor batches and capture details passed between threads | Pass the count and a copy instead |
+  | `Activity` is not Sendable, so the main actor can't call its async methods | `RoundTracker` updates and ends activities in detached tasks that look them up by ID |
+  | `PinSharing` passed into async calls | `PinSharing: Sendable`; the test fake is `@MainActor` |
+  | Main-actor test classes with synchronous `setUp`/`tearDown` | `setUp() async throws` and `tearDown() async throws`; UI test classes are `@MainActor` |
 
-- No `@unchecked Sendable` or `nonisolated(unsafe)` unless a comment says why it is safe.
+- Every `@unchecked Sendable` has a comment saying why it is safe. No `nonisolated(unsafe)`.
 
 ## 8. `feature/string-catalog`: String Catalog
 

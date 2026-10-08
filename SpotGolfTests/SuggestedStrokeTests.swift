@@ -8,14 +8,14 @@ final class SuggestedStrokeTests: XCTestCase {
 
     private var store: RoundStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         store = RoundStore(context: ModelContext(Storage.inMemoryContainer()))
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         store = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     /// The player walks north along hole 1, one meter a second.

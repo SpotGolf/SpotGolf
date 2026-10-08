@@ -5,6 +5,7 @@ import CourseDataSwift
 @testable import SpotGolf
 
 /// Shared pins in memory, as CloudKit keeps them: one per hole per day.
+@MainActor
 final class FakePinSharing: PinSharing {
     var stored: [String: SharedPin] = [:]
     var hasAccount = true
@@ -39,8 +40,8 @@ final class PinShareCoordinatorTests: XCTestCase {
     private var pinChanges = 0
     private let now = Date()
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         container = Storage.inMemoryContainer()
         store = RoundStore(context: ModelContext(container))
         store.addListener { [weak self] event in
@@ -54,12 +55,12 @@ final class PinShareCoordinatorTests: XCTestCase {
                                           now: { [now] in now })
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         coordinator = nil
         store = nil
         sharing = nil
         container = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func onGreen(_ hole: Int, east: Double = 0) -> CLLocationCoordinate2D {
