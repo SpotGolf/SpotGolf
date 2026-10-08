@@ -3,11 +3,7 @@ import os
 
 struct RoundListView: View {
     @Binding var navigationPath: NavigationPath
-    @Environment(RoundStore.self) private var roundStore
-    @Environment(SyncService.self) private var syncService
-    @Environment(PhoneSync.self) private var phoneSync
-    @Environment(StreamStore.self) private var streamStore
-    @Environment(SuggestionStore.self) private var suggestionStore
+    @Environment(PhoneServices.self) private var services
     @State private var showCourseSelection = false
     @State private var showSettings = false
     @State private var roundToDelete: Round?
@@ -15,7 +11,7 @@ struct RoundListView: View {
 
     var body: some View {
         List {
-            if let current = roundStore.currentRound {
+            if let current = services.roundStore.currentRound {
                 Section("Active Round") {
                     NavigationLink(value: current.id) {
                         RoundRow(round: current)
@@ -28,7 +24,7 @@ struct RoundListView: View {
             }
 
             Section("Past Rounds") {
-                ForEach(roundStore.rounds.filter { $0.status == .ended }) { round in
+                ForEach(services.roundStore.rounds.filter { $0.status == .ended }) { round in
                     NavigationLink(value: round.id) {
                         RoundRow(round: round)
                     }
@@ -42,9 +38,9 @@ struct RoundListView: View {
                         .tint(.red)
                     }
                     .swipeActions(edge: .leading) {
-                        if roundStore.currentRound == nil && canStartRound {
+                        if services.roundStore.currentRound == nil && canStartRound {
                             Button {
-                                phoneSync.resumeRound(round.id)
+                                services.phoneSync.resumeRound(round.id)
                                 navigationPath.append(round.id)
                             } label: {
                                 Label("Resume", systemImage: "play.fill")
@@ -79,10 +75,10 @@ struct RoundListView: View {
                 watchStatusItem
             }
             ToolbarItem(placement: .primaryAction) {
-                if let current = roundStore.currentRound {
+                if let current = services.roundStore.currentRound {
                     if current.isActive {
                         Button("End Round") {
-                            phoneSync.endRound(current.id)
+                            services.phoneSync.endRound(current.id)
                         }
                     }
                 } else {
@@ -98,21 +94,21 @@ struct RoundListView: View {
             set: { if !$0 { roundToDelete = nil } }
         ), presenting: roundToDelete) { round in
             Button("Delete", role: .destructive) {
-                roundStore.deleteRound(round.id)
-                streamStore.delete(round.id)
-                suggestionStore.deleteRound(round.id)
+                services.roundStore.deleteRound(round.id)
+                services.streamStore.delete(round.id)
+                services.suggestionStore.deleteRound(round.id)
             }
             Button("Cancel", role: .cancel) {}
         } message: { round in
             Text("Delete \"\(round.displayTitle)\"? This cannot be undone.")
         }
         .alert("Sync Error", isPresented: Binding(
-            get: { syncService.syncError != nil },
-            set: { if !$0 { syncService.syncError = nil } }
+            get: { services.syncService.syncError != nil },
+            set: { if !$0 { services.syncService.syncError = nil } }
         )) {
-            Button("OK") { syncService.syncError = nil }
+            Button("OK") { services.syncService.syncError = nil }
         } message: {
-            Text(syncService.syncError ?? "")
+            Text(services.syncService.syncError ?? "")
         }
         .sheet(isPresented: $showCourseSelection) {
             CourseSelectionView(onRoundStarted: { roundID in
@@ -135,21 +131,21 @@ struct RoundListView: View {
     /// Whether the watch is connected.
     private var watchStatusItem: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Image(systemName: syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
-                .foregroundStyle(syncService.isConnected ? .green : .secondary)
-                .accessibilityLabel(syncService.isConnected ? "Watch connected" : "Watch not connected")
+            Image(systemName: services.syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
+                .foregroundStyle(services.syncService.isConnected ? .green : .secondary)
+                .accessibilityLabel(services.syncService.isConnected ? "Watch connected" : "Watch not connected")
         }
     }
     private var canStartRound: Bool {
-        CommandLine.arguments.contains("--ui-testing") || syncService.hasCounterpart
+        CommandLine.arguments.contains("--ui-testing") || services.syncService.hasCounterpart
     }
 
     /// Writes the round's GPS track to a temporary CSV file and opens the share panel.
     private func exportRound(_ round: Round) {
         let csv = TrackExporter.csv(round: round,
-                                    points: streamStore.points(for: round.id, until: round.endedAt),
-                                    swings: streamStore.swings(for: round.id, until: round.endedAt),
-                                    contacts: streamStore.contacts(for: round.id, until: round.endedAt))
+                                    points: services.streamStore.points(for: round.id, until: round.endedAt),
+                                    swings: services.streamStore.swings(for: round.id, until: round.endedAt),
+                                    contacts: services.streamStore.contacts(for: round.id, until: round.endedAt))
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(TrackExporter.fileName(for: round))
         do {

@@ -5,13 +5,13 @@ import SwiftUI
 /// active or ended round.
 struct RoundSyncBanner: View {
     let round: Round
-    @Environment(PhoneSync.self) private var phoneSync
+    @Environment(PhoneServices.self) private var services
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         switch round.status {
         case .starting:
-            if case .needsPermissions(let missing) = phoneSync.startStates[round.id] {
+            if case .needsPermissions(let missing) = services.phoneSync.startStates[round.id] {
                 // The watch shares the phone's permissions, so they are changed in Settings here;
                 // the microphone is granted on the watch, where Settings here cannot reach
                 banner(missingText(missing)) {
@@ -23,27 +23,27 @@ struct RoundSyncBanner: View {
                         }
                         .accessibilityIdentifier("OpenSettings")
                     }
-                    Button("Retry") { phoneSync.retryStart(round.id) }
+                    Button("Retry") { services.phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
-                    Button("Cancel", role: .destructive) { phoneSync.cancelStart(round.id) }
+                    Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
                         .accessibilityIdentifier("CancelStart")
                 }
-            } else if phoneSync.startStates[round.id] == .timedOut {
+            } else if services.phoneSync.startStates[round.id] == .timedOut {
                 banner("The watch did not respond.") {
-                    Button("Retry") { phoneSync.retryStart(round.id) }
+                    Button("Retry") { services.phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
-                    Button("Cancel", role: .destructive) { phoneSync.cancelStart(round.id) }
+                    Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
                         .accessibilityIdentifier("CancelStart")
                 }
             } else {
                 banner("Starting on watch…", showsProgress: true) {
-                    Button("Cancel", role: .destructive) { phoneSync.cancelStart(round.id) }
+                    Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
                         .accessibilityIdentifier("CancelStart")
                 }
             }
         case .ending:
             banner("Syncing watch data…", showsProgress: true) {
-                Button("Force end") { phoneSync.forceEnd(round.id) }
+                Button("Force end") { services.phoneSync.forceEnd(round.id) }
                     .accessibilityIdentifier("ForceEnd")
             }
         case .active, .ended:

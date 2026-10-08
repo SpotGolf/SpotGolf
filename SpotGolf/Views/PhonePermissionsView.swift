@@ -3,16 +3,16 @@ import SwiftUI
 /// Shown in place of the app until every required permission is granted. Allow shows the
 /// prompt for each one not yet asked; a denied one can only be turned on in Settings.
 struct PhonePermissionsView: View {
-    @Environment(PermissionChecker.self) private var permissions
+    @Environment(PhoneServices.self) private var services
     @Environment(\.openURL) private var openURL
     @State private var isAsking = false
 
     private var hasNotAsked: Bool {
-        permissions.missing.contains { permissions.states[$0] == .notAsked }
+        services.permissions.missing.contains { services.permissions.states[$0] == .notAsked }
     }
 
     private var hasDenied: Bool {
-        permissions.missing.contains { permissions.states[$0] == .denied }
+        services.permissions.missing.contains { services.permissions.states[$0] == .denied }
     }
 
     var body: some View {
@@ -27,7 +27,7 @@ struct PhonePermissionsView: View {
                     .multilineTextAlignment(.center)
 
                 VStack(alignment: .leading, spacing: 16) {
-                    ForEach(permissions.required, id: \.self) { permission in
+                    ForEach(services.permissions.required, id: \.self) { permission in
                         row(permission)
                     }
                 }
@@ -49,7 +49,7 @@ struct PhonePermissionsView: View {
             Button {
                 isAsking = true
                 Task {
-                    await permissions.requestMissing()
+                    await services.permissions.requestMissing()
                     isAsking = false
                 }
             } label: {
@@ -76,7 +76,7 @@ struct PhonePermissionsView: View {
     }
 
     private func row(_ permission: AppPermission) -> some View {
-        let state = permissions.states[permission] ?? .notAsked
+        let state = services.permissions.states[permission] ?? .notAsked
         return HStack(alignment: .top, spacing: 12) {
             Image(systemName: state == .granted ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(state == .granted ? .green : .secondary)

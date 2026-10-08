@@ -6,15 +6,11 @@ struct RoundMapView: View {
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
 
     let roundID: UUID
-    @Environment(RoundStore.self) private var roundStore
-    @Environment(LocationManager.self) private var locationManager
-    @Environment(SuggestionStore.self) private var suggestionStore
-    @Environment(StreamStore.self) private var streamStore
-    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {
-        roundStore.rounds.first(where: { $0.id == roundID })
+        services.roundStore.rounds.first(where: { $0.id == roundID })
     }
 
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -50,7 +46,7 @@ struct RoundMapView: View {
             }
         }
         .onAppear {
-            locationManager.startUpdating()
+            services.locationManager.startUpdating()
             reloadTrack()
             // A past round shows its holes, not the player, so it does not wait for a location
             if let round, !round.isActive, !hasInitialPan {
@@ -59,9 +55,9 @@ struct RoundMapView: View {
             }
         }
         .onDisappear {
-            locationManager.stopUpdating()
+            services.locationManager.stopUpdating()
         }
-        .onChange(of: locationManager.lastLocation, initial: true) { _, location in
+        .onChange(of: services.locationManager.lastLocation, initial: true) { _, location in
             if !hasInitialPan, location != nil, round != nil {
                 hasInitialPan = true
                 panToHole()
@@ -73,7 +69,7 @@ struct RoundMapView: View {
                 }
             }
         }
-        .onChange(of: roundStore.rounds) {
+        .onChange(of: services.roundStore.rounds) {
             if round == nil {
                 dismiss()
             }
@@ -87,10 +83,10 @@ struct RoundMapView: View {
             panToHole()
             filterTrack()
         }
-        .onChange(of: suggestionStore.hidden, initial: true) {
+        .onChange(of: services.suggestionStore.hidden, initial: true) {
             refreshSuggestions()
         }
-        .onChange(of: streamStore.revision) {
+        .onChange(of: services.streamStore.revision) {
             // Records arrived from the watch
             reloadTrack()
         }
@@ -127,7 +123,7 @@ struct RoundMapView: View {
         .alert("Delete Spot", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
                 if let stroke = selectedStroke {
-                    roundStore.removeStroke(stroke, from: round.id)
+                    services.roundStore.removeStroke(stroke, from: round.id)
                 }
                 selectedStroke = nil
             }
@@ -194,7 +190,7 @@ struct RoundMapView: View {
             }
             .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
             .onMapCameraChange(frequency: .onEnd) { context in
-                guard followsUserLocation, let userLocation = locationManager.lastLocation else { return }
+                guard followsUserLocation, let userLocation = services.locationManager.lastLocation else { return }
                 let mapCenter = CLLocation(latitude: context.region.center.latitude,
                                            longitude: context.region.center.longitude)
                 if mapCenter.distance(from: userLocation) > 30 {
@@ -219,7 +215,7 @@ struct RoundMapView: View {
                             let holeIndex = shownHoleIndex(round)
                             newSpotIndex = round.hole(at: holeIndex).strokes.count // capture before append
                             // Hit when the player was nearest to it, going by the hole's GPS
-                            roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke,
+                            services.roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke,
                                                  hitAt: StrokeFinder.estimatedTime(of: stroke, in: holeTrack))
                             selectedStroke = stroke
                         default:
@@ -312,7 +308,7 @@ struct RoundMapView: View {
                     case .second(true, let drag):
                         if let drag,
                            let coordinate = proxy.convert(drag.location, from: .global) {
-                            roundStore.moveStroke(stroke, to: coordinate, in: round.id)
+                            services.roundStore.moveStroke(stroke, to: coordinate, in: round.id)
                         }
                     default:
                         break
@@ -467,7 +463,7 @@ struct RoundMapView: View {
         if index == shownHoleIndex(round) {
             panToHole()
         } else if round.isActive {
-            roundStore.setDisplayHole(index, roundID: round.id)
+            services.roundStore.setDisplayHole(index, roundID: round.id)
         } else {
             pastHoleIndex = index
         }
@@ -486,7 +482,7 @@ struct RoundMapView: View {
 
     /// To the pin, or the center of the green until the pin is known.
     private func yardsToPin(_ round: Round) -> Int? {
-        HoleOverview.yardsToPin(round, holeIndex: shownHoleIndex(round), from: locationManager.lastLocation)
+        HoleOverview.yardsToPin(round, holeIndex: shownHoleIndex(round), from: services.locationManager.lastLocation)
     }
 
     /// Feet up (+) or down (-) from the player to the center of the green.
@@ -494,7 +490,7 @@ struct RoundMapView: View {
         guard let courseHole = round.courseHole(at: shownHoleIndex(round)),
               let green = courseHole.green(from: round.course.features),
               let greenElevation = green.center.elevation,
-              let location = locationManager.lastLocation,
+              let location = services.locationManager.lastLocation,
               location.verticalAccuracy >= 0 else { return nil }
         return Int(((greenElevation - location.altitude) * 3.28084).rounded())
     }
@@ -535,7 +531,7 @@ struct RoundMapView: View {
 
     /// Yards from the player to the tapped point.
     private var yardsToTarget: Int? {
-        guard let targetLocation, let location = locationManager.lastLocation else { return nil }
+        guard let targetLocation, let location = services.locationManager.lastLocation else { return nil }
         return Int(DistanceCalculator.yards(from: location, to: targetLocation))
     }
 
@@ -576,7 +572,7 @@ struct RoundMapView: View {
         guard round.isActive,
               let courseHole = round.courseHole(at: shownHoleIndex(round)),
               let green = courseHole.green(from: round.course.features),
-              let location = locationManager.lastLocation else { return [] }
+              let location = services.locationManager.lastLocation else { return [] }
         return DistanceCalculator.featuresAhead(from: location, features: round.course.features(for: courseHole), green: green, limit: .max)
     }
 
@@ -610,7 +606,7 @@ struct RoundMapView: View {
     private func targetLines(_ round: Round) -> [[CLLocationCoordinate2D]] {
         guard let target else { return [] }
         var lines: [[CLLocationCoordinate2D]] = []
-        if let location = locationManager.lastLocation,
+        if let location = services.locationManager.lastLocation,
            let end = lineEnd(at: target, toward: location.coordinate) {
             lines.append([location.coordinate, end])
         }
@@ -765,10 +761,10 @@ struct RoundMapView: View {
     @ViewBuilder
     private func setPinButton(_ round: Round) -> some View {
         let holeIndex = shownHoleIndex(round)
-        if round.isActive, !isEditing, let location = locationManager.lastLocation,
+        if round.isActive, !isEditing, let location = services.locationManager.lastLocation,
            round.isOnGreen(location.coordinate, holeIndex: holeIndex) {
             Button {
-                roundStore.setPin(location.coordinate, holeIndex: holeIndex, roundID: round.id)
+                services.roundStore.setPin(location.coordinate, holeIndex: holeIndex, roundID: round.id)
             } label: {
                 Label("Set pin location", systemImage: "flag.fill")
                     .font(.headline)
@@ -822,7 +818,7 @@ struct RoundMapView: View {
     private var locationButton: some View {
         Button {
             followsUserLocation = true
-            if let location = locationManager.lastLocation {
+            if let location = services.locationManager.lastLocation {
                 if let heading = shownHoleHeading() {
                     position = .camera(MapCamera(centerCoordinate: location.coordinate, distance: 600, heading: heading, pitch: 0))
                 } else {
@@ -870,7 +866,7 @@ struct RoundMapView: View {
 
                     if stroke.type == .regular {
                         Button {
-                            roundStore.setStrokeType(strokeID: stroke.id, type: .penalty, in: round.id)
+                            services.roundStore.setStrokeType(strokeID: stroke.id, type: .penalty, in: round.id)
                             selectedStroke = nil
                         } label: {
                             Label("Penalty stroke", systemImage: "exclamationmark.triangle.fill")
@@ -879,7 +875,7 @@ struct RoundMapView: View {
                         .accessibilityIdentifier("StrokePenalty")
 
                         Button {
-                            roundStore.setStrokeType(strokeID: stroke.id, type: .outOfBounds, in: round.id)
+                            services.roundStore.setStrokeType(strokeID: stroke.id, type: .outOfBounds, in: round.id)
                             selectedStroke = nil
                         } label: {
                             Label("Out of bounds", systemImage: "xmark.circle.fill")
@@ -887,7 +883,7 @@ struct RoundMapView: View {
                         .accessibilityIdentifier("StrokeOutOfBounds")
                     } else {
                         Button {
-                            roundStore.setStrokeType(strokeID: stroke.id, type: .regular, in: round.id)
+                            services.roundStore.setStrokeType(strokeID: stroke.id, type: .regular, in: round.id)
                             selectedStroke = nil
                         } label: {
                             Label("Clear penalty", systemImage: "arrow.uturn.backward.circle")
@@ -914,7 +910,7 @@ struct RoundMapView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if let stroke = selectedStroke {
-                            roundStore.reorderStroke(stroke, to: newSpotIndex, in: round.id)
+                            services.roundStore.reorderStroke(stroke, to: newSpotIndex, in: round.id)
                         }
                         selectedStroke = nil
                     }
@@ -1000,7 +996,7 @@ struct RoundMapView: View {
             suggestions = []
             return
         }
-        roundTrack = streamStore.points(for: round.id, until: round.endedAt)
+        roundTrack = services.streamStore.points(for: round.id, until: round.endedAt)
         filterTrack()
     }
 
@@ -1023,10 +1019,10 @@ struct RoundMapView: View {
             in: round,
             holeIndex: shownHoleIndex(round),
             points: roundTrack,
-            swings: streamStore.swings(for: round.id, until: round.endedAt),
-            contacts: streamStore.contacts(for: round.id, until: round.endedAt),
-            minStop: settingsStore.settings.stationaryThreshold,
-            hidden: suggestionStore.hiddenIDs(for: round.id)
+            swings: services.streamStore.swings(for: round.id, until: round.endedAt),
+            contacts: services.streamStore.contacts(for: round.id, until: round.endedAt),
+            minStop: services.settingsStore.settings.stationaryThreshold,
+            hidden: services.suggestionStore.hiddenIDs(for: round.id)
         )
     }
 
@@ -1064,11 +1060,11 @@ struct RoundMapView: View {
         let strokes = round.hole(at: holeIndex).strokes
         let insertAt = insertionIndex(for: suggestion.timestamp, in: strokes)
         let appending = insertAt == strokes.count
-        roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke, hitAt: suggestion.timestamp)
+        services.roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke, hitAt: suggestion.timestamp)
         if !appending {
-            roundStore.reorderStroke(stroke, to: insertAt, in: round.id)
+            services.roundStore.reorderStroke(stroke, to: insertAt, in: round.id)
         }
-        suggestionStore.hide(suggestion.id, roundID: round.id)
+        services.suggestionStore.hide(suggestion.id, roundID: round.id)
     }
 
     /// Where a stroke hit at `timestamp` goes among a hole's strokes: before the first one that

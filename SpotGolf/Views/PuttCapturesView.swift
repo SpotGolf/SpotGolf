@@ -3,26 +3,26 @@ import os
 
 /// The putt captures the watch has sent, each shareable as a zip.
 struct PuttCapturesView: View {
-    @Environment(PuttCaptureStore.self) private var store
+    @Environment(PhoneServices.self) private var services
     @State private var export: CaptureExport?
     @State private var exportError: String?
 
     var body: some View {
         List {
-            if store.captures.isEmpty {
+            if services.puttCaptures.captures.isEmpty {
                 Text("No captures yet. Record one on the watch's Putt Lab page; it is sent here when it stops.")
                     .foregroundStyle(.secondary)
             }
-            ForEach(store.captures) { capture in
+            ForEach(services.puttCaptures.captures) { capture in
                 row(capture)
                     .swipeActions {
-                        Button("Delete", role: .destructive) { store.delete(capture) }
+                        Button("Delete", role: .destructive) { services.puttCaptures.delete(capture) }
                     }
             }
         }
         .navigationTitle("Putt Captures")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { store.reload() }
+        .refreshable { services.puttCaptures.reload() }
         .sheet(item: $export) { export in
             ShareSheet(items: [export.url])
                 .presentationDetents([.medium, .large])
@@ -78,7 +78,7 @@ struct PuttCapturesView: View {
 
     private func share(_ capture: PuttCaptureStore.Capture) {
         do {
-            export = CaptureExport(url: try store.zip(capture))
+            export = CaptureExport(url: try services.puttCaptures.zip(capture))
         } catch {
             Log.puttLab.error("Could not zip capture \(capture.id, privacy: .public): \(String(describing: error), privacy: .public)")
             exportError = error.localizedDescription

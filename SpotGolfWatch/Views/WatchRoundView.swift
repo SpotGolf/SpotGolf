@@ -4,18 +4,13 @@ import CoreLocation
 import CourseDataSwift
 
 struct WatchRoundView: View {
-    @Environment(RoundStore.self) private var roundStore
-    @Environment(LocationManager.self) private var locationManager
-    @Environment(SyncService.self) private var syncService
-    @Environment(WatchSync.self) private var watchSync
-    @Environment(WorkoutManager.self) private var workoutManager
-    @Environment(ContactMonitor.self) private var contactMonitor
+    @Environment(WatchServices.self) private var services
 
     @State private var liveDistance: String?
 
     var body: some View {
         Group {
-            if let round = roundStore.activeRound {
+            if let round = services.roundStore.activeRound {
                 TabView {
                     infoPage(round)
                     endRoundPage
@@ -29,11 +24,11 @@ struct WatchRoundView: View {
                 .tabViewStyle(.page)
             }
         }
-        .onChange(of: locationManager.lastLocation, initial: true) { _, location in
+        .onChange(of: services.locationManager.lastLocation, initial: true) { _, location in
             updateLiveDistance(location: location)
         }
-        .onChange(of: roundStore.rounds) {
-            updateLiveDistance(location: locationManager.lastLocation)
+        .onChange(of: services.roundStore.rounds) {
+            updateLiveDistance(location: services.locationManager.lastLocation)
         }
     }
 
@@ -43,7 +38,7 @@ struct WatchRoundView: View {
     @ViewBuilder
     private var workoutStatus: some View {
         if CommandLine.arguments.contains("--ui-testing") {
-            Text(workoutManager.status.rawValue)
+            Text(services.workoutManager.status.rawValue)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("workoutStatus")
@@ -53,9 +48,9 @@ struct WatchRoundView: View {
     private var noRoundPage: some View {
         VStack(spacing: 12) {
             HStack(spacing: 4) {
-                Image(systemName: syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                Image(systemName: services.syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
                     .font(.system(size: 10))
-                    .foregroundStyle(syncService.isConnected ? .green : .secondary)
+                    .foregroundStyle(services.syncService.isConnected ? .green : .secondary)
                 Text("No active round")
                     .font(.headline)
                     .foregroundStyle(.secondary)
@@ -80,7 +75,7 @@ struct WatchRoundView: View {
                 let course = round.courseSelection.course
                 if let courseHole = round.displayCourseHole,
                    let green = courseHole.green(from: course.features),
-                   let location = locationManager.lastLocation {
+                   let location = services.locationManager.lastLocation {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
                     // Mid is to the pin once it is known; the center pin is the green's center
                     let pin = round.targetCoordinate(holeIndex: round.displayHoleIndex)
@@ -127,8 +122,8 @@ struct WatchRoundView: View {
         let shown = round.displayHoleIndex
         return HStack(spacing: 4) {
             holeArrow("chevron.left", label: "Previous hole", disabled: shown == 0) {
-                contactMonitor.tapped()
-                roundStore.setDisplayHole(shown - 1)
+                services.contactMonitor.tapped()
+                services.roundStore.setDisplayHole(shown - 1)
             }
 
             Text(title)
@@ -137,8 +132,8 @@ struct WatchRoundView: View {
                 .frame(maxWidth: .infinity)
 
             holeArrow("chevron.right", label: "Next hole", disabled: shown >= round.lastHoleIndex) {
-                contactMonitor.tapped()
-                roundStore.setDisplayHole(shown + 1)
+                services.contactMonitor.tapped()
+                services.roundStore.setDisplayHole(shown + 1)
             }
         }
     }
@@ -160,7 +155,7 @@ struct WatchRoundView: View {
     /// Shown only on the green: saves where the player stands as the shown hole's pin.
     private func setPinButton(_ location: CLLocation, _ round: Round) -> some View {
         Button {
-            roundStore.setPin(location.coordinate, holeIndex: round.displayHoleIndex)
+            services.roundStore.setPin(location.coordinate, holeIndex: round.displayHoleIndex)
             WKInterfaceDevice.current().play(.success)
         } label: {
             Label("Set pin location", systemImage: "flag.fill")
@@ -176,7 +171,7 @@ struct WatchRoundView: View {
         VStack {
             Spacer()
             Button("End Round", role: .destructive) {
-                watchSync.endRound()
+                services.watchSync.endRound()
             }
             .font(.headline)
             Spacer()
@@ -263,7 +258,7 @@ struct WatchRoundView: View {
 
     private func updateLiveDistance(location: CLLocation?) {
         guard let location,
-              let lastStroke = roundStore.activeRound?.displayHoleStrokes.last else {
+              let lastStroke = services.roundStore.activeRound?.displayHoleStrokes.last else {
             liveDistance = nil
             return
         }

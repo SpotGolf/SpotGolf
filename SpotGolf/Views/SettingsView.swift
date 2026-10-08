@@ -3,7 +3,7 @@ import os
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
 
     #if DEBUG
@@ -14,7 +14,7 @@ struct SettingsView: View {
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
     var body: some View {
-        @Bindable var settingsStore = settingsStore
+        @Bindable var settingsStore = services.settingsStore
         NavigationStack {
             Form {
                 Section {
@@ -73,12 +73,12 @@ private struct ImportRoundSection: View {
     @Binding var showCoursePicker: Bool
     let message: String?
 
-    @Environment(RoundStore.self) private var roundStore
+    @Environment(PhoneServices.self) private var services
 
     var body: some View {
         Section {
             Button("Import Round…") { showCoursePicker = true }
-                .disabled(roundStore.currentRound != nil)
+                .disabled(services.roundStore.currentRound != nil)
             if let message {
                 Text(message)
                     .font(.footnote)
@@ -99,7 +99,7 @@ private struct ImportRoundPickers: ViewModifier {
     @Binding var showCoursePicker: Bool
     @Binding var message: String?
 
-    @Environment(PhoneSync.self) private var phoneSync
+    @Environment(PhoneServices.self) private var services
     @State private var courseSelection: CourseSelection?
     @State private var showFilePicker = false
 
@@ -119,7 +119,7 @@ private struct ImportRoundPickers: ViewModifier {
                     defer { if accessing { url.stopAccessingSecurityScopedResource() } }
                     let export = try TrackImporter.read(String(contentsOf: url, encoding: .utf8))
                     let (round, records) = try TrackImporter.round(from: export, courseSelection: courseSelection)
-                    guard phoneSync.importRound(round, records: records) else {
+                    guard services.phoneSync.importRound(round, records: records) else {
                         Log.export.error("Import failed: another round is in progress")
                         message = "Import failed: another round is in progress."
                         return

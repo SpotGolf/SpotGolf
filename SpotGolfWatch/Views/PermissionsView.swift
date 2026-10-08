@@ -4,16 +4,16 @@ import SwiftUI
 /// and health are shared with the iPhone app and can only be granted there; the microphone
 /// is the watch's own, with its prompt here.
 struct PermissionsView: View {
-    @Environment(PermissionChecker.self) private var permissions
+    @Environment(WatchServices.self) private var services
     @State private var isAsking = false
 
-    private var phonePermissions: [AppPermission] { permissions.required.filter { !$0.isAskedOnWatch } }
-    private var watchPermissions: [AppPermission] { permissions.required.filter(\.isAskedOnWatch) }
+    private var phonePermissions: [AppPermission] { services.permissions.required.filter { !$0.isAskedOnWatch } }
+    private var watchPermissions: [AppPermission] { services.permissions.required.filter(\.isAskedOnWatch) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                if phonePermissions.contains(where: { permissions.states[$0] != .granted }) {
+                if phonePermissions.contains(where: { services.permissions.states[$0] != .granted }) {
                     Text("Open SpotGolf on your iPhone to allow:")
                         .font(.headline)
                         .accessibilityIdentifier("OpenOnIPhone")
@@ -36,7 +36,7 @@ struct PermissionsView: View {
     }
 
     private func row(_ permission: AppPermission) -> some View {
-        let granted = permissions.states[permission] == .granted
+        let granted = services.permissions.states[permission] == .granted
         return HStack {
             Image(systemName: granted ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(granted ? .green : .secondary)
@@ -49,12 +49,12 @@ struct PermissionsView: View {
     /// The prompt, or where to turn it on once it has been refused.
     @ViewBuilder
     private func watchAction(_ permission: AppPermission) -> some View {
-        switch permissions.states[permission] {
+        switch services.permissions.states[permission] {
         case .notAsked:
             Button("Allow \(permission.title)") {
                 isAsking = true
                 Task {
-                    await permissions.requestMissing()
+                    await services.permissions.requestMissing()
                     isAsking = false
                 }
             }

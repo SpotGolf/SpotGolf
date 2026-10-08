@@ -2,9 +2,7 @@ import SwiftUI
 
 /// Records raw sensor data for putting detection work. Shown when no round is active.
 struct PuttLabView: View {
-    @Environment(PuttCaptureRecorder.self) private var recorder
-    @Environment(PuttCaptureUploader.self) private var uploader
-    @Environment(WorkoutManager.self) private var workoutManager
+    @Environment(WatchServices.self) private var services
 
     /// The mark just made, shown with Undo until it is accepted or `confirmationTime` passes.
     @State private var lastMark: PuttCapture.MarkLabel?
@@ -18,7 +16,7 @@ struct PuttLabView: View {
                 Text("Putt Lab")
                     .font(.headline)
 
-                switch recorder.state {
+                switch services.puttCapture.state {
                 case .idle:
                     idle
                 case .starting:
@@ -26,10 +24,10 @@ struct PuttLabView: View {
                     Text("Starting workout…")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text(workoutManager.stateText)
+                    Text(services.workoutManager.stateText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Button("Cancel") { recorder.stop() }
+                    Button("Cancel") { services.puttCapture.stop() }
                 case .recording:
                     if let lastMark {
                         confirmation(lastMark)
@@ -38,7 +36,7 @@ struct PuttLabView: View {
                     }
                 }
 
-                ForEach(recorder.problems, id: \.self) { problem in
+                ForEach(services.puttCapture.problems, id: \.self) { problem in
                     Text(problem)
                         .font(.caption2)
                         .foregroundStyle(.red)
@@ -50,33 +48,33 @@ struct PuttLabView: View {
 
     @ViewBuilder
     private var idle: some View {
-        @Bindable var recorder = recorder
+        @Bindable var recorder = services.puttCapture
         VStack(spacing: 8) {
             Text("Records wrist motion and sound while you putt. Tap a button after each stroke.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Start Capture") {
-                Task { await recorder.start() }
+                Task { await services.puttCapture.start() }
             }
             .tint(.green)
             Toggle("Microphone", isOn: $recorder.microphone)
                 .font(.caption2)
             Toggle("Save data", isOn: $recorder.savesData)
                 .font(.caption2)
-            if !recorder.savesData {
+            if !services.puttCapture.savesData {
                 Text("Battery test: the sensors run and nothing is saved. Leave the watch alone for 20 minutes or more, then stop.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            if recorder.micPermission == .denied {
+            if services.puttCapture.micPermission == .denied {
                 Text("Microphone off: allow it in Settings")
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
-            if uploader.pendingFiles > 0 {
-                Text("Sending \(uploader.pendingFiles) file(s) to iPhone")
+            if services.captureUploader.pendingFiles > 0 {
+                Text("Sending \(services.captureUploader.pendingFiles) file(s) to iPhone")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -92,9 +90,9 @@ struct PuttLabView: View {
                 .tint(.orange)
             Button(PuttCapture.MarkLabel.ground.title) { mark(.ground) }
                 .tint(.brown)
-            Button("Stop", role: .destructive) { recorder.stop() }
+            Button("Stop", role: .destructive) { services.puttCapture.stop() }
             // Changes only when a contact is found, with a haptic
-            Text("\(recorder.contactCount) contacts")
+            Text("\(services.puttCapture.contactCount) contacts")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -109,7 +107,7 @@ struct PuttLabView: View {
                 .font(.headline)
                 .multilineTextAlignment(.center)
             Button("Undo") {
-                recorder.undoLastMark()
+                services.puttCapture.undoLastMark()
                 dismissConfirmation()
             }
             .tint(.red)
@@ -118,7 +116,7 @@ struct PuttLabView: View {
     }
 
     private func mark(_ label: PuttCapture.MarkLabel) {
-        recorder.mark(label)
+        services.puttCapture.mark(label)
         lastMark = label
         confirmationTask?.cancel()
         confirmationTask = Task {

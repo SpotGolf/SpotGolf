@@ -8,10 +8,7 @@ struct CourseSelectionView: View {
     /// When set, picking a course calls this instead of starting a round.
     var onCourseSelected: ((CourseSelection) -> Void)?
 
-    @Environment(CourseService.self) private var courseService
-    @Environment(LocationManager.self) private var locationManager
-    @Environment(RoundStore.self) private var roundStore
-    @Environment(PhoneSync.self) private var phoneSync
+    @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
@@ -73,7 +70,7 @@ struct CourseSelectionView: View {
             }
 
             if !searchText.isEmpty {
-                let results = courseService.searchCourses(query: searchText)
+                let results = services.courseService.searchCourses(query: searchText)
                 if results.isEmpty {
                     Section {
                         Text("No courses found")
@@ -86,8 +83,8 @@ struct CourseSelectionView: View {
                         }
                     }
                 }
-            } else if let location = locationManager.lastLocation {
-                let nearby = courseService.nearbyCourses(from: location)
+            } else if let location = services.locationManager.lastLocation {
+                let nearby = services.courseService.nearbyCourses(from: location)
                 if nearby.isEmpty {
                     Section {
                         Text("No courses nearby")
@@ -109,12 +106,12 @@ struct CourseSelectionView: View {
         }
         .searchable(text: $searchText, prompt: "Search courses")
         .task {
-            locationManager.startUpdating()
-            await courseService.refreshIndex()
+            services.locationManager.startUpdating()
+            await services.courseService.refreshIndex()
         }
         .onDisappear {
-            if roundStore.currentRound == nil {
-                locationManager.stopUpdating()
+            if services.roundStore.currentRound == nil {
+                services.locationManager.stopUpdating()
             }
         }
     }
@@ -149,7 +146,7 @@ struct CourseSelectionView: View {
         isLoading = true
         errorMessage = nil
         do {
-            let course = try await courseService.fetchCourse(path: entry.path)
+            let course = try await services.courseService.fetchCourse(path: entry.path)
             if course.subCourses.count <= 1 {
                 // Single sub-course — start round immediately
                 let indices = course.subCourses.isEmpty ? [] : [0]
@@ -217,7 +214,7 @@ struct CourseSelectionView: View {
             onCourseSelected(selection)
             return
         }
-        let roundID = phoneSync.startRound(courseSelection: selection)
+        let roundID = services.phoneSync.startRound(courseSelection: selection)
         dismiss()
         onRoundStarted?(roundID)
     }

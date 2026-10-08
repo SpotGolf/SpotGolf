@@ -3,11 +3,11 @@ import SwiftUI
 /// When each hole started. Estimated times can be wrong, so any start time can be set by hand.
 struct HoleTimelineView: View {
     let roundID: UUID
-    @Environment(RoundStore.self) private var roundStore
+    @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
 
     private var round: Round? {
-        roundStore.round(roundID)
+        services.roundStore.round(roundID)
     }
 
     var body: some View {
@@ -48,7 +48,7 @@ struct HoleTimelineView: View {
             } else {
                 DatePicker("Start time", selection: Binding(
                     get: { entry.startedAt },
-                    set: { roundStore.setStartTime($0, entryID: entry.id, roundID: round.id) }
+                    set: { services.roundStore.setStartTime($0, entryID: entry.id, roundID: round.id) }
                 ), in: RoundStore.startTimeRange(for: entry.id, in: round.holeTimeline) ?? entry.startedAt...entry.startedAt,
                    displayedComponents: .hourAndMinute)
                 .labelsHidden()

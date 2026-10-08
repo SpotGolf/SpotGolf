@@ -62,13 +62,13 @@ State changes are observed through SwiftUI (`onChange`). Events between services
 
 | App | Container | Holds |
 |---|---|---|
-| Phone | `@Observable @MainActor final class PhoneServices` | `rounds`, `location`, `roundTracker`, `sync`, `phoneSync`, `courses`, `suggestions`, `settings`, `streams`, `permissions`, `pinShare`, `puttCaptures` |
-| Watch | `@Observable @MainActor final class WatchServices` | `rounds`, `location`, `sync`, `watchSync`, `workouts`, `permissions`, `puttCapture`, `captureUploader`, `contactMonitor`, `streams`, `swingDetector`, `holeAdvancer` |
+| Phone | `@Observable @MainActor final class PhoneServices` | `roundStore`, `locationManager`, `roundTracker`, `syncService`, `phoneSync`, `courseService`, `suggestionStore`, `settingsStore`, `streamStore`, `permissions`, `pinShare`, `puttCaptures` |
+| Watch | `@Observable @MainActor final class WatchServices` | `roundStore`, `locationManager`, `syncService`, `watchSync`, `workoutManager`, `permissions`, `puttCapture`, `captureUploader`, `contactMonitor`, `streamStore`, and privately the swing detector and hole advancer |
 
 - The container builds and wires every service in its `init`. Wiring now in `SpotGolfApp.init` and `WatchAppDelegate.applicationDidFinishLaunching` moves there.
-- The root view gets `.environment(services)`. Views read `@Environment(PhoneServices.self) private var services` and use `services.rounds`. Observation tracks each property a view reads, so a view still redraws only for what it uses.
-- `WatchAppDelegate` holds the `WatchServices` and starts it in `applicationDidFinishLaunching`, so recording still resumes on a background launch.
-- Previews build a container with fake parts (see branch 4).
+- The root view gets `.environment(services)`. Views read `@Environment(PhoneServices.self) private var services` and use `services.roundStore`. Property names match the names views used before. Observation tracks each property a view reads, so a view still redraws only for what it uses.
+- `WatchAppDelegate` holds the `WatchServices`, calls `start()` in `applicationDidFinishLaunching`, and passes workout launches and recovery to it, so recording still resumes on a background launch.
+- The apps have no SwiftUI previews, so none need a container.
 
 ## 4. `feature/launch-options`: test switches in one place
 
