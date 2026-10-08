@@ -38,7 +38,7 @@ struct WatchRoundView: View {
     @ViewBuilder
     private var workoutStatus: some View {
         if services.showsWorkoutStatus {
-            Text(services.workoutManager.status.rawValue)
+            Text(verbatim: services.workoutManager.status.rawValue)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("workoutStatus")
@@ -118,7 +118,7 @@ struct WatchRoundView: View {
 
     /// The hole's name between two small arrows that show the previous and next hole. They
     /// change the display hole, which the phone shows too; the timeline is set by strokes.
-    private func holeTitle(_ title: String, _ round: Round) -> some View {
+    private func holeTitle(_ title: LocalizedStringKey, _ round: Round) -> some View {
         let shown = round.displayHoleIndex
         return HStack(spacing: 4) {
             holeArrow("chevron.left", label: "Previous hole", disabled: shown == 0) {
@@ -138,7 +138,7 @@ struct WatchRoundView: View {
         }
     }
 
-    private func holeArrow(_ systemName: String, label: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+    private func holeArrow(_ systemName: String, label: LocalizedStringKey, disabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.caption2)
@@ -269,6 +269,6 @@ struct WatchRoundView: View {
         if strokes.count >= 2 {
             return DistanceCalculator.formattedYards(from: strokes[strokes.count - 2], to: strokes[strokes.count - 1])
         }
-        return "0 yds"
+        return String(localized: "\(0) yds")
     }
 }

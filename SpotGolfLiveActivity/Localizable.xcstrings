@@ -1,0 +1,43 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld" : {
+
+    },
+    "E" : {
+      "comment" : "Even par"
+    },
+    "H%lld" : {
+
+    },
+    "Hole %lld" : {
+
+    },
+    "Par %lld" : {
+
+    },
+    "Previous %lld yds" : {
+
+    },
+    "This hole %lld · Total %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This hole %1$lld · Total %2$lld"
+          }
+        }
+      }
+    },
+    "to center" : {
+
+    },
+    "yds to center" : {
+
+    },
+    "yds to pin" : {
+
+    }
+  },
+  "version" : "1.0"
+}

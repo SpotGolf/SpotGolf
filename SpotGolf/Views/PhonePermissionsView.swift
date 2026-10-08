@@ -95,7 +95,7 @@ struct PhonePermissionsView: View {
     }
 
     /// What to set on SpotGolf's page in Settings.
-    private static func howToTurnOn(_ permission: AppPermission) -> String {
+    private static func howToTurnOn(_ permission: AppPermission) -> LocalizedStringKey {
         switch permission {
         case .location:
             "In Settings, set Location to While Using the App and turn on Precise Location."

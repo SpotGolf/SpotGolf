@@ -28,7 +28,7 @@ enum DistanceCalculator {
     }
 
     static func formattedYards(from a: CLLocation, to b: CLLocation) -> String {
-        "\(Int(yards(from: a, to: b))) yds"
+        String(localized: "\(Int(yards(from: a, to: b))) yds")
     }
 
     static func formattedYards(from a: Stroke, to b: Stroke) -> String {

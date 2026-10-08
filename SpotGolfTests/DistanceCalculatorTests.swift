@@ -64,9 +64,9 @@ final class DistanceCalculatorTests: XCTestCase {
         let strokeB = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.46, longitude: -112.07))
 
         let formatted = DistanceCalculator.formattedYards(from: strokeA, to: strokeB)
-        // Should be like "1214 yds" — no decimal point
+        // Should be like "1,214 yds", grouped for the region, with no decimal point
         let numberPart = formatted.replacingOccurrences(of: " yds", with: "")
-        XCTAssertNotNil(Int(numberPart), "Expected whole number, got: \(numberPart)")
+        XCTAssertNotNil(try? Int(numberPart, format: .number), "Expected whole number, got: \(numberPart)")
     }
 
     // MARK: - CLLocation overloads

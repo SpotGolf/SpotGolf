@@ -169,7 +169,7 @@ private struct RoundRow: View {
 
     private var title: String { round.displayTitle }
 
-    private var statusText: String? {
+    private var statusText: LocalizedStringKey? {
         switch round.status {
         case .starting: "Starting"
         case .active: "Active"
@@ -185,7 +185,7 @@ private struct RoundRow: View {
                     .font(.headline)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
-                Text("\(round.holes.count) hole\(round.holes.count == 1 ? "" : "s") · \(round.allStrokes.count) stroke\(round.allStrokes.count == 1 ? "" : "s")")
+                Text(verbatim: String(localized: "\(round.holes.count) holes") + " · " + String(localized: "\(round.allStrokes.count) strokes"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

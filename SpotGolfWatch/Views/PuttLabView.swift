@@ -24,7 +24,7 @@ struct PuttLabView: View {
                     Text("Starting workout…")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Text(services.workoutManager.stateText)
+                    Text(verbatim: services.workoutManager.stateText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Button("Cancel") { services.puttCapture.stop() }

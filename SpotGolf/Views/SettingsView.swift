@@ -123,13 +123,13 @@ private struct ImportRoundPickers: ViewModifier {
                     let (round, records) = try TrackImporter.round(from: export, courseSelection: courseSelection)
                     guard services.phoneSync.importRound(round, records: records) else {
                         Log.export.error("Import failed: another round is in progress")
-                        message = "Import failed: another round is in progress."
+                        message = String(localized: "Import failed: another round is in progress.")
                         return
                     }
-                    message = "Imported \(round.displayTitle): \(export.points.count) fixes, \(export.swings.count) swings, \(export.strokes.count) strokes."
+                    message = String(localized: "Imported \(round.displayTitle): \(export.points.count) fixes, \(export.swings.count) swings, \(export.strokes.count) strokes.")
                 } catch {
                     Log.export.error("Import failed: \(String(describing: error), privacy: .public)")
-                    message = "Import failed: \(error.localizedDescription)"
+                    message = String(localized: "Import failed: \(error.localizedDescription)")
                 }
             }
             .onChange(of: showCoursePicker) { _, showing in

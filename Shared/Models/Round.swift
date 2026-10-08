@@ -144,7 +144,8 @@ final class Round {
 
     var displayTitle: String {
         let dateStr = date.formatted(date: .long, time: .omitted)
-        return "\(Self.shortenCourseName(courseSelection.course.name)) on \(dateStr)"
+        let course = Self.shortenCourseName(courseSelection.course.name)
+        return String(localized: "\(course) on \(dateStr)", comment: "A round's title: the course and the day it was played")
     }
 
     static func shortenCourseName(_ name: String) -> String {

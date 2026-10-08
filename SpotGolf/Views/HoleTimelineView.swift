@@ -57,7 +57,7 @@ struct HoleTimelineView: View {
         .accessibilityIdentifier("HoleTime_\(entry.holeIndex + 1)")
     }
 
-    private func label(for source: HoleStartSource) -> String? {
+    private func label(for source: HoleStartSource) -> LocalizedStringKey? {
         switch source {
         case .roundStart: "Round start"
         case .stroke: nil

@@ -16,10 +16,10 @@ enum AppPermission: String, Codable, CaseIterable {
     /// The name the system uses for it.
     var title: String {
         switch self {
-        case .location: "Location"
-        case .motion: "Motion & Fitness"
-        case .health: "Health"
-        case .microphone: "Microphone"
+        case .location: String(localized: "Location")
+        case .motion: String(localized: "Motion & Fitness")
+        case .health: String(localized: "Health")
+        case .microphone: String(localized: "Microphone")
         }
     }
 

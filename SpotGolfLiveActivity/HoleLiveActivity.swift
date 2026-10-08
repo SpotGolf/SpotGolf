@@ -116,11 +116,13 @@ private func yardsText(_ state: HoleActivityAttributes.ContentState) -> String {
 
 /// "Previous 152 yds"
 private func previousText(_ state: HoleActivityAttributes.ContentState) -> String {
-    "Previous \(state.previousYards) yds"
+    String(localized: "Previous \(state.previousYards) yds")
 }
 
 /// "This hole 2 · Total 37 (+3)"
 private func scoreText(_ state: HoleActivityAttributes.ContentState) -> String {
-    let toPar = state.toPar.map { $0 == 0 ? " (E)" : $0 > 0 ? " (+\($0))" : " (\($0))" } ?? ""
-    return "This hole \(state.holeStrokes) · Total \(state.totalStrokes)\(toPar)"
+    let total = String(localized: "This hole \(state.holeStrokes) · Total \(state.totalStrokes)")
+    guard let toPar = state.toPar else { return total }
+    let toParText = toPar == 0 ? String(localized: "E", comment: "Even par") : toPar > 0 ? "+\(toPar)" : "\(toPar)"
+    return "\(total) (\(toParText))"
 }

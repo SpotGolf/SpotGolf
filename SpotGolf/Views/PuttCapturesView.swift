@@ -57,22 +57,25 @@ struct PuttCapturesView: View {
         var parts: [String] = []
         if let meta = capture.meta {
             if !meta.savesData {
-                parts.append(meta.microphone ? "battery test, mic on" : "battery test, mic off")
+                parts.append(meta.microphone ? String(localized: "battery test, mic on") : String(localized: "battery test, mic off"))
             }
             if let duration = meta.duration {
                 parts.append(Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
             }
             if let start = meta.startBattery, let end = meta.endBattery, let duration = meta.duration, duration > 0 {
                 let drop = (start - end) * 100
-                parts.append(String(format: "%.0f%% to %.0f%%, %.1f pts/h", start * 100, end * 100, drop * 3600 / duration))
+                let percent = FloatingPointFormatStyle<Double>.Percent().precision(.fractionLength(0))
+                let rate = (drop * 3600 / duration).formatted(.number.precision(.fractionLength(1)))
+                parts.append(String(localized: "\(start.formatted(percent)) to \(end.formatted(percent)), \(rate) pts/h"))
             }
             let count = { (label: PuttCapture.MarkLabel) in meta.marks.filter { $0.label == label }.count }
-            parts.append("\(count(.putt)) putts, \(count(.practice)) practice, \(count(.ground)) ground")
-            if meta.audio == nil { parts.append("no audio") }
+            parts.append(String(localized: "\(count(.putt)) putts, \(count(.practice)) practice, \(count(.ground)) ground"))
+            if meta.audio == nil { parts.append(String(localized: "no audio")) }
         } else {
-            parts.append("details not received yet")
+            parts.append(String(localized: "details not received yet"))
         }
-        parts.append("\(capture.files.count) of \(PuttCapture.files.count) files, \(ByteCountFormatter.string(fromByteCount: Int64(capture.totalBytes), countStyle: .file))")
+        let size = ByteCountFormatter.string(fromByteCount: Int64(capture.totalBytes), countStyle: .file)
+        parts.append(String(localized: "\(capture.files.count) of \(PuttCapture.files.count) files, \(size)"))
         return parts.joined(separator: " · ")
     }
 

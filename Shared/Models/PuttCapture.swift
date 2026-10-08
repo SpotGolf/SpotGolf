@@ -32,9 +32,9 @@ enum PuttCapture {
         /// The name on the watch's button.
         var title: String {
             switch self {
-            case .putt: "Putt"
-            case .practice: "Practice"
-            case .ground: "Practice ground"
+            case .putt: String(localized: "Putt")
+            case .practice: String(localized: "Practice")
+            case .ground: String(localized: "Practice ground")
             }
         }
     }

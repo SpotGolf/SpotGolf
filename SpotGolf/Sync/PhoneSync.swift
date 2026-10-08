@@ -156,7 +156,7 @@ final class PhoneSync {
             course = try JSONEncoder().encode(round.courseSelection.trimmed).gzipCompressed()
         } catch {
             Log.sync.error("Could not encode the course for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
-            sync.syncError = "Could not send the round to the watch."
+            sync.syncError = String(localized: "Could not send the round to the watch.")
             return
         }
         let start = StartRound(roundID: round.id, date: round.date, course: course,

@@ -82,7 +82,7 @@ final class PhoneServices {
             Task { @MainActor in
                 // Nothing to report when the watch app is already running
                 guard !sync.isConnected else { return }
-                sync.syncError = "Could not open SpotGolf on the watch (\(reason)). Open it on the watch, then tap Retry."
+                sync.syncError = String(localized: "Could not open SpotGolf on the watch (\(reason)). Open it on the watch, then tap Retry.")
             }
         }
     }

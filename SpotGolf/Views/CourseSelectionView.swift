@@ -157,7 +157,7 @@ struct CourseSelectionView: View {
             }
         } catch {
             Log.courses.error("Could not load course \(entry.path, privacy: .public): \(String(describing: error), privacy: .public)")
-            errorMessage = "Failed to load course: \(error.localizedDescription)"
+            errorMessage = String(localized: "Failed to load course: \(error.localizedDescription)")
         }
         isLoading = false
     }

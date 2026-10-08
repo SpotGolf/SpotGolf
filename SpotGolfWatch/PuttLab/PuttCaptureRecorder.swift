@@ -121,7 +121,7 @@ final class PuttCaptureRecorder {
             try meta.json().write(to: directory.appendingPathComponent(PuttCapture.metaFile))
         } catch {
             Log.puttLab.error("Could not create the capture files: \(String(describing: error), privacy: .public)")
-            problems.append("Could not create files")
+            problems.append(String(localized: "Could not create files"))
             cleanUp(endWorkout: !isRoundActive())
             return
         }
@@ -157,7 +157,7 @@ final class PuttCaptureRecorder {
 
     private func startAccelerometer(startUptime: Double) {
         guard CMBatchedSensorManager.isAccelerometerSupported else {
-            problems.append("No accelerometer")
+            problems.append(String(localized: "No accelerometer"))
             return
         }
         let io = io
@@ -167,7 +167,7 @@ final class PuttCaptureRecorder {
         manager.startAccelerometerUpdates { [weak self] batch, error in
             if let error {
                 Log.puttLab.error("Accelerometer error: \(String(describing: error), privacy: .public)")
-                Task { @MainActor in self?.problems.append("Accelerometer stopped") }
+                Task { @MainActor in self?.problems.append(String(localized: "Accelerometer stopped")) }
             }
             guard let batch else { return }
             runner.addAccelerometer(batch)
@@ -192,7 +192,7 @@ final class PuttCaptureRecorder {
 
     private func startDeviceMotion(startUptime: Double) {
         guard CMBatchedSensorManager.isDeviceMotionSupported else {
-            problems.append("No device motion")
+            problems.append(String(localized: "No device motion"))
             return
         }
         let io = io
@@ -202,7 +202,7 @@ final class PuttCaptureRecorder {
         manager.startDeviceMotionUpdates { [weak self] batch, error in
             if let error {
                 Log.puttLab.error("Device motion error: \(String(describing: error), privacy: .public)")
-                Task { @MainActor in self?.problems.append("Device motion stopped") }
+                Task { @MainActor in self?.problems.append(String(localized: "Device motion stopped")) }
             }
             guard let batch else { return }
             runner.addMotion(batch)
@@ -231,7 +231,7 @@ final class PuttCaptureRecorder {
 
     private func startAudio(in directory: URL?, startUptime: Double) {
         guard micPermission == .granted else {
-            problems.append("No microphone")
+            problems.append(String(localized: "No microphone"))
             return
         }
         let runner = runner
@@ -243,7 +243,7 @@ final class PuttCaptureRecorder {
             self.audio = audio
         } catch {
             Log.puttLab.error("Could not start audio: \(String(describing: error), privacy: .public)")
-            problems.append("Microphone failed")
+            problems.append(String(localized: "Microphone failed"))
         }
     }
 

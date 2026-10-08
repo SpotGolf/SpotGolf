@@ -201,10 +201,12 @@ Logic moves out of views into code with unit tests:
 
 ## 8. `feature/string-catalog`: String Catalog
 
-- `Localizable.xcstrings` for the phone app, the watch app and the Live Activity, in English.
-- SwiftUI `Text("...")` literals are found by the compiler. Strings built in code (for example `syncError` in `SpotGolfApp`) use `String(localized:)`.
-- Log messages and accessibility identifiers are not localized.
-- `project.yml` adds the catalogs to each target; `SWIFT_EMIT_LOC_STRINGS: YES`.
+- `Localizable.xcstrings` in `SpotGolf/`, `SpotGolfWatch/` and `SpotGolfLiveActivity/`, in English. Shared code's text goes into both apps' catalogs.
+- `project.yml` sets `SWIFT_EMIT_LOC_STRINGS` and `LOCALIZATION_PREFERS_STRING_CATALOGS` for every target.
+- SwiftUI text from string literals is found by the compiler. Text made in code uses `String(localized:)` (round titles, permission names, hole summaries, sync errors, Putt Lab problems, Live Activity lines), and view helpers that took text as `String` take `LocalizedStringKey`.
+- "1 hole" and "1 stroke" are plural forms in the phone's catalog.
+- Not localized: log messages, accessibility identifiers, course and hole names from the course data, and the watch's workout status lines, which are for tests and debugging (`Text(verbatim:)`).
+- Building in Xcode keeps the catalogs up to date. `xcodebuild` does not: after adding text from the command line, run `xcrun xcstringstool sync <target>/Localizable.xcstrings --stringsdata …` with the target's `.stringsdata` files from the build folder.
 
 ## Each branch
 

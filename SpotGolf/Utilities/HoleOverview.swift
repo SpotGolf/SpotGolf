@@ -36,16 +36,17 @@ enum HoleOverview {
 
     /// "E", "+2", or "-1".
     static func toParText(_ diff: Int) -> String {
-        diff == 0 ? "E" : diff > 0 ? "+\(diff)" : "\(diff)"
+        diff == 0 ? String(localized: "E", comment: "Even par") : diff > 0 ? "+\(diff)" : "\(diff)"
     }
 
     /// "Par 4 - 156 yds", or whichever part is known. Nil past the course's last hole. A past
     /// round shows the par only, since the yards are from the player's location.
     static func summary(_ round: Round, holeIndex: Int, from location: CLLocation?) -> String? {
         guard let courseHole = round.courseHole(at: holeIndex) else { return nil }
-        let par = "Par \(courseHole.par)"
-        guard round.isActive, let yards = yardsToPin(round, holeIndex: holeIndex, from: location) else { return par }
-        return "\(par) - \(yards) yds"
+        guard round.isActive, let yards = yardsToPin(round, holeIndex: holeIndex, from: location) else {
+            return String(localized: "Par \(courseHole.par)")
+        }
+        return String(localized: "Par \(courseHole.par) - \(yards) yds")
     }
 
     /// Feet up (+) or down (-) from `location` to the center of the hole's green. Nil without a

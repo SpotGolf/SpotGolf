@@ -14,7 +14,7 @@ struct RoundSyncBanner: View {
             if case .needsPermissions(let missing) = services.phoneSync.startStates[round.id] {
                 // The watch shares the phone's permissions, so they are changed in Settings here;
                 // the microphone is granted on the watch, where Settings here cannot reach
-                banner(missingText(missing)) {
+                banner(Text(missingText(missing))) {
                     if missing.contains(where: { !$0.isAskedOnWatch }) {
                         Button("Settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -29,20 +29,20 @@ struct RoundSyncBanner: View {
                         .accessibilityIdentifier("CancelStart")
                 }
             } else if services.phoneSync.startStates[round.id] == .timedOut {
-                banner("The watch did not respond.") {
+                banner(Text("The watch did not respond.")) {
                     Button("Retry") { services.phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
                     Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
                         .accessibilityIdentifier("CancelStart")
                 }
             } else {
-                banner("Starting on watch…", showsProgress: true) {
+                banner(Text("Starting on watch…"), showsProgress: true) {
                     Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
                         .accessibilityIdentifier("CancelStart")
                 }
             }
         case .ending:
-            banner("Syncing watch data…", showsProgress: true) {
+            banner(Text("Syncing watch data…"), showsProgress: true) {
                 Button("Force end") { services.phoneSync.forceEnd(round.id) }
                     .accessibilityIdentifier("ForceEnd")
             }
@@ -51,13 +51,13 @@ struct RoundSyncBanner: View {
         }
     }
 
-    private func banner(_ text: String, showsProgress: Bool = false,
+    private func banner(_ text: Text, showsProgress: Bool = false,
                         @ViewBuilder buttons: () -> some View) -> some View {
         HStack(spacing: 12) {
             if showsProgress {
                 ProgressView()
             }
-            Text(text)
+            text
                 .font(.subheadline)
             Spacer()
             buttons()
@@ -75,10 +75,12 @@ struct RoundSyncBanner: View {
         let onPhone = missing.filter { !$0.isAskedOnWatch }
         var parts: [String] = []
         if !onPhone.isEmpty {
-            parts.append("The watch is missing \(onPhone.map(\.title).formatted(.list(type: .and))) permission.")
+            let names = onPhone.map(\.title).formatted(.list(type: .and))
+            parts.append(String(localized: "The watch is missing \(names) permission."))
         }
         if !onWatch.isEmpty {
-            parts.append("Open SpotGolf on the watch and allow the \(onWatch.map(\.title).formatted(.list(type: .and))).")
+            let names = onWatch.map(\.title).formatted(.list(type: .and))
+            parts.append(String(localized: "Open SpotGolf on the watch and allow the \(names)."))
         }
         return parts.joined(separator: " ")
     }

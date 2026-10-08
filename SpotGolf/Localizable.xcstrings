@@ -1,0 +1,239 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ on %@" : {
+      "comment" : "A round's title: the course and the day it was played",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ on %2$@"
+          }
+        }
+      }
+    },
+    "%@ to %@, %@ pts/h" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ to %2$@, %3$@ pts/h"
+          }
+        }
+      }
+    },
+    "%lld" : {},
+    "%lld holes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld hole"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld holes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of %lld files, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld files, %3$@"
+          }
+        }
+      }
+    },
+    "%lld putts, %lld practice, %lld ground" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld putts, %2$lld practice, %3$lld ground"
+          }
+        }
+      }
+    },
+    "%lld strokes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld stroke"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld strokes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld yds" : {},
+    "%lld, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld, %2$@"
+          }
+        }
+      }
+    },
+    "%llds" : {},
+    "About" : {},
+    "Active" : {},
+    "Active Round" : {},
+    "Add suggested putt" : {},
+    "Add suggested stroke" : {},
+    "Adds a round from a CSV export as the current round and works out its hole starts. Pick the course the round was played on, then the file. Only works when no round is in progress." : {},
+    "Allow" : {},
+    "Are you sure you want to delete this spot?" : {},
+    "Back" : {},
+    "Cancel" : {},
+    "Clear penalty" : {},
+    "Clear target" : {},
+    "Corrected" : {},
+    "Could not open SpotGolf on the watch (%@). Open it on the watch, then tap Retry." : {},
+    "Could not send the round to the watch." : {},
+    "Debug" : {},
+    "Delete" : {},
+    "Delete \"%@\"? This cannot be undone." : {},
+    "Delete Round" : {},
+    "Delete Spot" : {},
+    "Determining location..." : {},
+    "Done" : {},
+    "E" : {
+      "comment" : "Even par"
+    },
+    "Edit" : {},
+    "Edit Spot" : {},
+    "End Round" : {},
+    "Ending" : {},
+    "Estimated" : {},
+    "Export" : {},
+    "Export Failed" : {},
+    "Failed to load course: %@" : {},
+    "Force end" : {},
+    "Green center" : {},
+    "Hazard in %lld yards" : {},
+    "Health" : {},
+    "Hole %lld" : {},
+    "Hole Times" : {},
+    "Hole times" : {},
+    "How long you must stand still on or near the green, with no swing, before a chip or putt is suggested." : {},
+    "Import Round…" : {},
+    "Import failed: %@" : {},
+    "Import failed: another round is in progress." : {},
+    "Imported %@: %lld fixes, %lld swings, %lld strokes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Imported %1$@: %2$lld fixes, %3$lld swings, %4$lld strokes."
+          }
+        }
+      }
+    },
+    "In Settings → Privacy & Security → Health → SpotGolf, turn on Workouts." : {},
+    "In Settings, set Location to While Using the App and turn on Precise Location." : {},
+    "In Settings, turn on Motion & Fitness. If it is greyed out, turn on Fitness Tracking in Settings → Privacy & Security → Motion & Fitness." : {},
+    "Loading course..." : {},
+    "Location" : {},
+    "Microphone" : {},
+    "Motion & Fitness" : {},
+    "Nearby Courses" : {},
+    "New Round" : {},
+    "No captures yet. Record one on the watch's Putt Lab page; it is sent here when it stops." : {},
+    "No courses found" : {},
+    "No courses nearby" : {},
+    "OK" : {},
+    "On the watch, in Settings → Privacy & Security → Microphone, turn on SpotGolf." : {},
+    "Open Settings" : {},
+    "Open SpotGolf on the watch and allow the %@." : {},
+    "Out of bounds" : {},
+    "Par %lld" : {},
+    "Par %lld - %lld yds" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Par %1$lld - %2$lld yds"
+          }
+        }
+      }
+    },
+    "Past Rounds" : {},
+    "Penalty stroke" : {},
+    "Pin" : {},
+    "Pins" : {},
+    "Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts." : {},
+    "Practice" : {},
+    "Practice ground" : {},
+    "Putt" : {},
+    "Putt Captures" : {},
+    "Putt Lab" : {},
+    "Resume" : {},
+    "Retry" : {},
+    "Round start" : {},
+    "Save" : {},
+    "Score" : {},
+    "Search Results" : {},
+    "Search courses" : {},
+    "Select" : {},
+    "Select Course" : {},
+    "Select Nines" : {},
+    "Sensor recordings from the watch's Putt Lab page, for working out how to detect putts." : {},
+    "Set by you" : {},
+    "Set pin location" : {},
+    "Settings" : {},
+    "Share Pin Locations" : {},
+    "Share capture" : {},
+    "Spot: %lld" : {},
+    "SpotGolf" : {},
+    "SpotGolf needs these to record your round" : {},
+    "Start Round" : {},
+    "Start time" : {},
+    "Starting" : {},
+    "Starting on watch…" : {},
+    "Stationary Threshold" : {},
+    "Stroke Suggestions" : {},
+    "Sync Error" : {},
+    "Syncing watch data…" : {},
+    "Target" : {},
+    "The watch did not respond." : {},
+    "The watch is missing %@ permission." : {},
+    "To green" : {},
+    "To pin" : {},
+    "To point" : {},
+    "Version" : {},
+    "Watch connected" : {},
+    "Watch not connected" : {},
+    "battery test, mic off" : {},
+    "battery test, mic on" : {},
+    "details not received yet" : {},
+    "ft elevation" : {},
+    "no audio" : {},
+    "yds to center" : {},
+    "yds to pin" : {}
+  },
+  "version" : "1.0"
+}

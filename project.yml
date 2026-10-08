@@ -10,6 +10,9 @@ settings:
     # The app's version, shared by the phone app, the watch app, and the Live Activity.
     # SemVer; see Versioning in CLAUDE.md before changing it.
     MARKETING_VERSION: 0.4.0
+    # User-facing text is in each target's Localizable.xcstrings, filled in from the code at build time
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
 fileGroups:
   - CLAUDE.md
   - README.md

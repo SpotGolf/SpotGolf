@@ -1,0 +1,174 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ on %@" : {
+      "comment" : "A round's title: the course and the day it was played",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ on %2$@"
+          }
+        }
+      }
+    },
+    "%@ recorded" : {
+
+    },
+    "%lld" : {
+
+    },
+    "%lld contacts" : {
+
+    },
+    "%lld yds" : {
+
+    },
+    "Accelerometer stopped" : {
+
+    },
+    "Allow %@" : {
+
+    },
+    "Allow on this watch:" : {
+
+    },
+    "Back" : {
+
+    },
+    "Battery test: the sensors run and nothing is saved. Leave the watch alone for 20 minutes or more, then stop." : {
+
+    },
+    "Bunker" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Could not create files" : {
+
+    },
+    "Device motion stopped" : {
+
+    },
+    "End Round" : {
+
+    },
+    "Front" : {
+
+    },
+    "Health" : {
+
+    },
+    "Hole %lld" : {
+
+    },
+    "Hole %lld · Par %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Hole %1$lld · Par %2$lld"
+          }
+        }
+      }
+    },
+    "Location" : {
+
+    },
+    "Microphone" : {
+
+    },
+    "Microphone failed" : {
+
+    },
+    "Microphone off: allow it in Settings" : {
+
+    },
+    "Mid" : {
+
+    },
+    "Motion & Fitness" : {
+
+    },
+    "Next hole" : {
+
+    },
+    "No accelerometer" : {
+
+    },
+    "No active round" : {
+
+    },
+    "No device motion" : {
+
+    },
+    "No microphone" : {
+
+    },
+    "OK" : {
+
+    },
+    "Open SpotGolf on your iPhone to allow:" : {
+
+    },
+    "Pin" : {
+
+    },
+    "Practice" : {
+
+    },
+    "Practice ground" : {
+
+    },
+    "Previous" : {
+
+    },
+    "Previous hole" : {
+
+    },
+    "Putt" : {
+
+    },
+    "Putt Lab" : {
+
+    },
+    "Records wrist motion and sound while you putt. Tap a button after each stroke." : {
+
+    },
+    "Save data" : {
+
+    },
+    "Sending %lld file(s) to iPhone" : {
+
+    },
+    "Set pin location" : {
+
+    },
+    "Start Capture" : {
+
+    },
+    "Start a round on your iPhone" : {
+
+    },
+    "Starting workout…" : {
+
+    },
+    "Stop" : {
+
+    },
+    "Strokes" : {
+
+    },
+    "Turn on %@ for SpotGolf in the watch's Settings." : {
+
+    },
+    "Undo" : {
+
+    },
+    "Water" : {
+
+    }
+  },
+  "version" : "1.0"
+}
