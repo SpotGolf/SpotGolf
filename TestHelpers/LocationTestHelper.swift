@@ -41,6 +41,7 @@ enum LocationTestHelper {
     }
 
     /// Sets the simulator's GPS location using XCUIDevice.
+    @MainActor
     static func setSimulatorLocation(latitude: Double, longitude: Double) {
         let location = CLLocation(latitude: latitude, longitude: longitude)
         XCUIDevice.shared.location = XCUILocation(location: location)

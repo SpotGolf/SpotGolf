@@ -189,8 +189,8 @@ Logic moves out of views into code with unit tests:
 
   | Error | Fix |
   |---|---|
-  | `static let` of a type that is not Sendable (`ISO8601DateFormatter`, `[String: Any]`, `CourseSelection`) | `Date.ISO8601FormatStyle`, which is Sendable; computed `static var`; `CourseSelection: Sendable` |
-  | `CourseDataSwift` types are not marked Sendable | `@preconcurrency import CourseDataSwift` in `CourseSelection.swift`, until the package marks them |
+  | `static let` of a type that is not Sendable (`ISO8601DateFormatter`, `[String: Any]`, `CourseSelection`) | `Date.ISO8601FormatStyle`, which is Sendable; a computed `static var` for the settings defaults; `CourseSelection: Sendable` |
+  | `CourseDataSwift` types are not marked Sendable | `@preconcurrency import` at first. CourseDataSwift 0.2.0 marks its types Sendable, so the app uses it and imports it normally |
   | WatchConnectivity's session passed into a main-actor task | Read the received context before the task |
   | Sensor batches and capture details passed between threads | Pass the count and a copy instead |
   | `Activity` is not Sendable, so the main actor can't call its async methods | `RoundTracker` updates and ends activities in detached tasks that look them up by ID |

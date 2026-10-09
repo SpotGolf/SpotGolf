@@ -1,6 +1,5 @@
 import Foundation
-// CourseDataSwift's types are plain values but are not marked Sendable yet
-@preconcurrency import CourseDataSwift
+import CourseDataSwift
 
 struct CourseSelection: Codable, Equatable, Sendable {
     let course: Course
