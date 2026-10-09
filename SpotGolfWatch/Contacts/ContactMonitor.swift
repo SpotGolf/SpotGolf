@@ -119,7 +119,9 @@ final class ContactMonitor {
         startedAt = Date()
         runner.start()
         if CMBatchedSensorManager.isDeviceMotionSupported {
-            motionManager.startDeviceMotionUpdates { batch, error in
+            // CoreMotion calls this on its own queue, so @Sendable: a plain closure made here
+            // would count as main-actor code, and Swift 6 traps when it runs anywhere else
+            motionManager.startDeviceMotionUpdates { @Sendable batch, error in
                 if let error {
                     Log.contacts.error("Device motion error: \(String(describing: error), privacy: .public)")
                 }

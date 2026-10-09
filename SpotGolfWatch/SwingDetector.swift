@@ -58,7 +58,9 @@ final class SwingDetector {
         hasReceivedBatch = false
         let onBatch = BatchCallback(onBatch)
         let taps = taps
-        manager.startAccelerometerUpdates { [weak self] batch, error in
+        // CoreMotion calls this on its own queue, so @Sendable: a plain closure made here would
+        // count as main-actor code, and Swift 6 traps when it runs anywhere else
+        manager.startAccelerometerUpdates { @Sendable [weak self] batch, error in
             if let error {
                 Log.swings.error("Accelerometer error: \(String(describing: error), privacy: .public)")
                 Task { @MainActor in self?.updatesFailed() }

@@ -198,6 +198,7 @@ Logic moves out of views into code with unit tests:
   | Main-actor test classes with synchronous `setUp`/`tearDown` | `setUp() async throws` and `tearDown() async throws`; UI test classes are `@MainActor` |
 
 - Every `@unchecked Sendable` has a comment saying why it is safe. No `nonisolated(unsafe)`.
+- Found on the phone after the merge, not by the tests: a closure made in a main-actor method and handed to a framework that calls it on its own queue counts as main-actor code, and Swift 6 traps at its entry (`EXC_BREAKPOINT` in `dispatch_assert_queue_fail`). The compiler does not warn, because the framework's parameter is not marked `@Sendable`. Every such closure is `@Sendable`, which stops it inheriting the isolation: `WCSession.sendMessage` reply and error handlers, `CMBatchedSensorManager` handlers, and the `AVAudioEngine` tap. The simulator never hit the WatchConnectivity one because UI tests run without a watch. When adding a callback to a framework, check its header for `NS_SWIFT_SENDABLE`; without it, write `{ @Sendable ... in }`.
 
 ## 8. `feature/string-catalog`: String Catalog
 

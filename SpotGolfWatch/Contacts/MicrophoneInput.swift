@@ -71,24 +71,29 @@ final class MicrophoneInput {
         let onFirstBuffer = FirstBuffer { [weak self] audio in
             Task { @MainActor in self?.audio = audio }
         }
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, when in
+        let writer = file.map(AudioFileWriter.init)
+        let sampleRate = format.sampleRate
+        let channels = Int(format.channelCount)
+        // The audio thread calls this, so @Sendable: a plain closure made here would count as
+        // main-actor code, and Swift 6 traps when it runs anywhere else
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { @Sendable buffer, when in
             let hostSeconds = AVAudioTime.seconds(forHostTime: when.hostTime)
             if frames.count == 0 {
-                onFirstBuffer.handler(PuttCapture.Audio(sampleRate: format.sampleRate,
-                                                        channels: Int(format.channelCount),
+                onFirstBuffer.handler(PuttCapture.Audio(sampleRate: sampleRate,
+                                                        channels: channels,
                                                         startTime: hostSeconds - captureStartUptime,
                                                         startHostTime: hostSeconds,
                                                         startUptime: ProcessInfo.processInfo.systemUptime))
             }
-            if let file {
+            if let writer {
                 do {
-                    try file.write(from: buffer)
+                    try writer.file.write(from: buffer)
                 } catch {
                     Log.contacts.error("Audio write failed: \(String(describing: error), privacy: .public)")
                 }
             }
             if let onBuffer, let channel = buffer.floatChannelData?[0] {
-                onBuffer.handler(Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))), hostSeconds, format.sampleRate)
+                onBuffer.handler(Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))), hostSeconds, sampleRate)
             }
             frames.add(Int(buffer.frameLength))
         }
@@ -112,6 +117,12 @@ final class MicrophoneInput {
 
 enum MicrophoneError: Error {
     case noInput
+}
+
+// The capture's WAV file, written only on the audio thread
+private struct AudioFileWriter: @unchecked Sendable {
+    let file: AVAudioFile
+    init(_ file: AVAudioFile) { self.file = file }
 }
 
 /// Frames received, counted on the audio thread and read on the main actor.

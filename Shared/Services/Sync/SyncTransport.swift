@@ -124,10 +124,13 @@ final class WatchConnectivityTransport: NSObject, SyncTransport {
             timer = Timer.scheduledTimer(withTimeInterval: Self.sendTimeout, repeats: false) { _ in
                 Task { @MainActor in sendableFinish.handler(.failure(SyncTransportError.timedOut)) }
             }
-            session.sendMessage(next.payload, replyHandler: { response in
+            // WatchConnectivity calls these on its own queue. They must be @Sendable: a plain
+            // closure made here would count as main-actor code, and Swift 6 traps when it runs
+            // anywhere else.
+            session.sendMessage(next.payload, replyHandler: { @Sendable response in
                 let payload = SendablePayload(response)
                 Task { @MainActor in sendableFinish.handler(.success(payload.value)) }
-            }, errorHandler: { error in
+            }, errorHandler: { @Sendable error in
                 Task { @MainActor in sendableFinish.handler(.failure(error)) }
             })
         }

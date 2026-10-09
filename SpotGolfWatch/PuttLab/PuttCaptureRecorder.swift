@@ -164,7 +164,9 @@ final class PuttCaptureRecorder {
         let handle = accelHandle
         let saves = savesData
         let runner = runner
-        manager.startAccelerometerUpdates { [weak self] batch, error in
+        // CoreMotion calls these on its own queue, so @Sendable: a plain closure made here would
+        // count as main-actor code, and Swift 6 traps when it runs anywhere else
+        manager.startAccelerometerUpdates { @Sendable [weak self] batch, error in
             if let error {
                 Log.puttLab.error("Accelerometer error: \(String(describing: error), privacy: .public)")
                 Task { @MainActor in self?.problems.append(String(localized: "Accelerometer stopped")) }
@@ -172,7 +174,8 @@ final class PuttCaptureRecorder {
             guard let batch else { return }
             runner.addAccelerometer(batch)
             guard saves else {
-                Task { @MainActor in self?.accelCount += batch.count }
+                let count = batch.count
+                Task { @MainActor in self?.accelCount += count }
                 return
             }
             var data = Data(capacity: batch.count * PuttCapture.AccelSample.size)
@@ -199,7 +202,7 @@ final class PuttCaptureRecorder {
         let handle = motionHandle
         let saves = savesData
         let runner = runner
-        manager.startDeviceMotionUpdates { [weak self] batch, error in
+        manager.startDeviceMotionUpdates { @Sendable [weak self] batch, error in
             if let error {
                 Log.puttLab.error("Device motion error: \(String(describing: error), privacy: .public)")
                 Task { @MainActor in self?.problems.append(String(localized: "Device motion stopped")) }
@@ -207,7 +210,8 @@ final class PuttCaptureRecorder {
             guard let batch else { return }
             runner.addMotion(batch)
             guard saves else {
-                Task { @MainActor in self?.motionCount += batch.count }
+                let count = batch.count
+                Task { @MainActor in self?.motionCount += count }
                 return
             }
             var data = Data(capacity: batch.count * PuttCapture.MotionSample.size)
