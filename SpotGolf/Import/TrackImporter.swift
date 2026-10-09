@@ -82,6 +82,7 @@ enum TrackImporter {
         for (stroke, hole) in export.strokes {
             round.addStroke(stroke, toHoleIndex: hole - 1)
         }
+        round.updateStats()
 
         let records = (export.points.map(StreamRecord.fix) + export.swings.map(StreamRecord.swing)
                        + export.contacts.map(StreamRecord.contact))

@@ -63,10 +63,15 @@ final class CourseFlowUITests: XCTestCase {
         XCTAssertTrue(frontText.waitForExistence(timeout: 5), "Front nine should be listed")
         XCTAssertTrue(backText.waitForExistence(timeout: 5), "Back nine should be listed")
 
-        // Tap Start Round
-        let startButton = app.buttons["Start Round"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
-        startButton.tap()
+        let nextButton = app.buttons["Next"]
+        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
+        nextButton.tap()
+
+        // Then the tee, which starts the round
+        XCTAssertTrue(app.navigationBars["Select Tee"].waitForExistence(timeout: 5), "Tee selection should appear")
+        let tee = app.buttons["Tee-Gold"]
+        XCTAssertTrue(tee.waitForExistence(timeout: 5), "The Gold tee should be listed")
+        tee.tap()
 
         // Should navigate directly to the map view
         XCTAssertTrue(app.waitForShownHole(1), "Should navigate to map showing Hole 1")

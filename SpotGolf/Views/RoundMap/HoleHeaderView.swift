@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Every hole as a circle, with a back button and the score box on top at each end.
+/// Every hole as a circle, with a back button and the score box on top at each end. The score
+/// box opens the scorecard.
 /// The shown hole's par and distance sit underneath.
 struct HoleHeaderView: View {
     let round: Round
     let shownHoleIndex: Int
     /// A tap on a hole's circle.
     let selectHole: (Int) -> Void
+    let openScorecard: () -> Void
 
     @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
@@ -90,21 +92,23 @@ struct HoleHeaderView: View {
     private var scoreBox: some View {
         let total = round.allStrokes.count
         let toPar = HoleOverview.toPar(round).map(HoleOverview.toParText)
-        return VStack(spacing: 0) {
-            Text("\(total)")
-                .font(.headline)
-                .monospacedDigit()
-            if let toPar {
-                Text(toPar)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+        return Button(action: openScorecard) {
+            VStack(spacing: 0) {
+                Text("\(total)")
+                    .font(.headline)
+                    .monospacedDigit()
+                if let toPar {
+                    Text(toPar)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .frame(width: 52, height: 40)
         }
-        .frame(width: 52, height: 40)
+        .buttonStyle(.plain)
         .background(RoundedRectangle(cornerRadius: 8).fill(.bar))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.5), lineWidth: 1))
-        .accessibilityElement(children: .combine)
         .accessibilityLabel("Score")
         .accessibilityValue(toPar.map { "\(total), \($0)" } ?? "\(total)")
         .accessibilityIdentifier("ScoreBox")

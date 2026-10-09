@@ -14,22 +14,37 @@ struct CourseSelectionView: View {
     @State private var searchText = ""
     @State private var selectedCourse: Course?
     @State private var selectedIndices: [Int] = []
+    /// The nines are picked and the tee is next.
+    @State private var nines: CourseSelection?
     @State private var isLoading = false
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             Group {
-                if let course = selectedCourse {
+                if let nines {
+                    teeSelectionView(nines)
+                } else if let course = selectedCourse {
                     subCourseSelectionView(course: course)
                 } else {
                     courseListView
                 }
             }
-            .navigationTitle(selectedCourse != nil ? "Select Nines" : "Select Course")
+            .navigationTitle(nines != nil ? "Select Tee" : selectedCourse != nil ? "Select Nines" : "Select Course")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if selectedCourse != nil {
+                if nines != nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Back") {
+                            nines = nil
+                            // A course with one nine had no nines step
+                            if (selectedCourse?.subCourses.count ?? 0) <= 1 {
+                                selectedCourse = nil
+                                selectedIndices = []
+                            }
+                        }
+                    }
+                } else if selectedCourse != nil {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Back") {
                             selectedCourse = nil
@@ -148,9 +163,10 @@ struct CourseSelectionView: View {
         do {
             let course = try await services.courseService.fetchCourse(path: entry.path)
             if course.subCourses.count <= 1 {
-                // Single sub-course — start round immediately
-                let indices = course.subCourses.isEmpty ? [] : [0]
-                select(CourseSelection(course: course, selectedSubCourseIndices: indices))
+                // Single sub-course: no nines to pick
+                selectedCourse = course
+                selectedIndices = course.subCourses.isEmpty ? [] : [0]
+                selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices))
             } else {
                 selectedCourse = course
                 selectedIndices = defaultIndices(for: course)
@@ -194,17 +210,63 @@ struct CourseSelectionView: View {
 
             Section {
                 Button {
-                    select(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices))
+                    selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices))
                 } label: {
                     HStack {
                         Spacer()
-                        Text(onCourseSelected == nil ? "Start Round" : "Select")
+                        Text(!course.tees.isEmpty ? "Next" : onCourseSelected == nil ? "Start Round" : "Select")
                             .fontWeight(.semibold)
                         Spacer()
                     }
                 }
                 .disabled(selectedIndices.isEmpty)
             }
+        }
+    }
+
+    // MARK: - Tee Selection (Phase 3)
+
+    private func teeSelectionView(_ nines: CourseSelection) -> some View {
+        List {
+            ForEach(nines.teeNames, id: \.self) { tee in
+                Button {
+                    select(CourseSelection(course: nines.course, selectedSubCourseIndices: nines.selectedSubCourseIndices,
+                                           teeName: tee))
+                } label: {
+                    HStack {
+                        Circle()
+                            .fill(Color(hex: nines.teeColor(tee)))
+                            .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 1))
+                            .frame(width: 20, height: 20)
+                        Text(tee)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if let yards = totalYards(nines, tee: tee) {
+                            Text("\(yards) yds")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("Tee-\(tee)")
+            }
+        }
+    }
+
+    /// The yards of the picked holes from `tee`, or nil when a hole has none from it.
+    private func totalYards(_ nines: CourseSelection, tee: String) -> Int? {
+        let yards = nines.orderedHoles.map { CourseSelection.yards(of: $0, tee: tee) }
+        guard !yards.isEmpty, !yards.contains(nil) else { return nil }
+        return yards.compactMap { $0 }.reduce(0, +)
+    }
+
+    /// Goes on to the tee, or picks the course when it has no tees.
+    private func selectNines(_ selection: CourseSelection) {
+        if selection.teeNames.isEmpty {
+            select(selection)
+        } else {
+            nines = selection
         }
     }
 

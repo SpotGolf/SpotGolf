@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ Tees · %@" : {
+      "comment" : "The scorecard's tee and the day the round was played",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ Tees · %2$@"
+          }
+        }
+      }
+    },
     "%@ on %@" : {
       "comment" : "A round's title: the course and the day it was played",
       "localizations" : {
@@ -111,6 +122,7 @@
     "Cancel" : {},
     "Clear penalty" : {},
     "Clear target" : {},
+    "Close" : {},
     "Corrected" : {},
     "Could not open SpotGolf on the watch (%@). Open it on the watch, then tap Retry." : {},
     "Could not send the round to the watch." : {},
@@ -126,16 +138,21 @@
     },
     "Edit" : {},
     "Edit Spot" : {},
+    "Edit hole %lld" : {},
     "End Round" : {},
     "Ending" : {},
     "Estimated" : {},
     "Export" : {},
     "Export Failed" : {},
     "Failed to load course: %@" : {},
+    "Fairway" : {},
     "Force end" : {},
+    "Green" : {},
     "Green center" : {},
     "Hazard in %lld yards" : {},
     "Health" : {},
+    "Hit" : {},
+    "Hole" : {},
     "Hole %lld" : {},
     "Hole Times" : {},
     "Hole times" : {},
@@ -153,15 +170,18 @@
         }
       }
     },
+    "In" : {},
     "In Settings → Privacy & Security → Health → SpotGolf, turn on Workouts." : {},
     "In Settings, set Location to While Using the App and turn on Precise Location." : {},
     "In Settings, turn on Motion & Fitness. If it is greyed out, turn on Fitness Tracking in Settings → Privacy & Security → Motion & Fitness." : {},
     "Loading course..." : {},
     "Location" : {},
     "Microphone" : {},
+    "Missed" : {},
     "Motion & Fitness" : {},
     "Nearby Courses" : {},
     "New Round" : {},
+    "Next" : {},
     "No captures yet. Record one on the watch's Putt Lab page; it is sent here when it stops." : {},
     "No courses found" : {},
     "No courses nearby" : {},
@@ -169,7 +189,9 @@
     "On the watch, in Settings → Privacy & Security → Microphone, turn on SpotGolf." : {},
     "Open Settings" : {},
     "Open SpotGolf on the watch and allow the %@." : {},
+    "Out" : {},
     "Out of bounds" : {},
+    "Par" : {},
     "Par %lld" : {},
     "Par %lld - %lld yds" : {
       "localizations" : {
@@ -191,6 +213,7 @@
     "Putt" : {},
     "Putt Captures" : {},
     "Putt Lab" : {},
+    "Putts" : {},
     "Resume" : {},
     "Retry" : {},
     "Round start" : {},
@@ -201,6 +224,7 @@
     "Select" : {},
     "Select Course" : {},
     "Select Nines" : {},
+    "Select Tee" : {},
     "Sensor recordings from the watch's Putt Lab page, for working out how to detect putts." : {},
     "Set by you" : {},
     "Set pin location" : {},
@@ -224,9 +248,12 @@
     "To green" : {},
     "To pin" : {},
     "To point" : {},
+    "Tot" : {},
+    "Total score" : {},
     "Version" : {},
     "Watch connected" : {},
     "Watch not connected" : {},
+    "Yards" : {},
     "battery test, mic off" : {},
     "battery test, mic on" : {},
     "details not received yet" : {},

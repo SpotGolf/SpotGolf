@@ -27,6 +27,9 @@ struct RoundMapView: View {
     @State private var trackLine: [CLLocationCoordinate2D] = []
     @State private var suggestions: [StrokeSuggestion] = []
     @State private var showHoleTimes = false
+    @State private var showScorecard = false
+    /// The scorecard's edit button picked another hole: edit mode starts once the map shows it.
+    @State private var editsAfterHoleChange = false
     /// A point the player tapped on the map, to see how far it is.
     @State private var target: CLLocationCoordinate2D?
 
@@ -65,7 +68,8 @@ struct RoundMapView: View {
         }
         .onChange(of: round.map(shownHoleIndex)) {
             // Also covers a hole change from the watch
-            isEditing = false
+            isEditing = editsAfterHoleChange
+            editsAfterHoleChange = false
             target = nil
             panToHole()
             filterTrack()
@@ -96,7 +100,8 @@ struct RoundMapView: View {
     private func roundContent(_ round: Round) -> some View {
         let holeIndex = shownHoleIndex(round)
         VStack(spacing: 0) {
-            HoleHeaderView(round: round, shownHoleIndex: holeIndex) { selectHole($0, round) }
+            HoleHeaderView(round: round, shownHoleIndex: holeIndex, selectHole: { selectHole($0, round) },
+                           openScorecard: { showScorecard = true })
             RoundSyncBanner(round: round)
             ZStack(alignment: .top) {
                 RoundMapLayer(round: round, shownHoleIndex: holeIndex, isEditing: isEditing,
@@ -114,6 +119,9 @@ struct RoundMapView: View {
         }
         .sheet(isPresented: $showHoleTimes) {
             HoleTimelineView(roundID: round.id)
+        }
+        .fullScreenCover(isPresented: $showScorecard) {
+            ScorecardView(roundID: round.id) { editHole($0, round) }
         }
         // The header has its own back button, so the bar is hidden
         .toolbar(.hidden, for: .navigationBar)
@@ -147,6 +155,17 @@ struct RoundMapView: View {
             services.roundStore.setDisplayHole(index, roundID: round.id)
         } else {
             pastHoleIndex = index
+        }
+    }
+
+    /// Shows hole `index` in edit mode, from the scorecard.
+    private func editHole(_ index: Int, _ round: Round) {
+        showScorecard = false
+        if index == shownHoleIndex(round) {
+            isEditing = true
+        } else {
+            editsAfterHoleChange = true
+            selectHole(index, round)
         }
     }
 

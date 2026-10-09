@@ -13,9 +13,13 @@ extension XCUIApplication {
         XCTAssertTrue(broadlands.waitForExistence(timeout: 10), "Broadlands should be in the course list", file: file, line: line)
         broadlands.tap()
 
-        let startButton = buttons["Start Round"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5), "Start Round button should exist", file: file, line: line)
-        startButton.tap()
+        let nextButton = buttons["Next"]
+        XCTAssertTrue(nextButton.waitForExistence(timeout: 5), "Next button should exist", file: file, line: line)
+        nextButton.tap()
+
+        let tee = buttons["Tee-Gold"]
+        XCTAssertTrue(tee.waitForExistence(timeout: 5), "The Gold tee should be listed", file: file, line: line)
+        tee.tap()
 
         XCTAssertTrue(waitForShownHole(1), "The round should start on Hole 1", file: file, line: line)
     }

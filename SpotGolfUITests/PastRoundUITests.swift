@@ -127,6 +127,51 @@ final class PastRoundUITests: XCTestCase {
         XCTAssertEqual(scoreTotal, "6", "Score box should count 6 strokes")
     }
 
+    // MARK: - Scorecard
+
+    func testScoreBoxOpensTheScorecard() throws {
+        createPastRound()
+        openPastRound()
+
+        scoreBox.tap()
+        let total = element("ScorecardTotal")
+        XCTAssertTrue(total.waitForExistence(timeout: 5), "The score box should open the scorecard")
+        let totalValue = total.value as? String ?? ""
+        XCTAssertTrue(totalValue.hasPrefix("5"), "The scorecard total was '\(totalValue)'")
+        XCTAssertTrue(app.staticTexts["Gold Tees · \(Date().formatted(date: .abbreviated, time: .omitted))"].exists,
+                      "The scorecard should show the tee and the day")
+        XCTAssertTrue(element("ScorecardOut").exists, "The front nine should have an Out column")
+        XCTAssertTrue(element("ScorecardIn").exists, "The back nine should have an In column")
+        XCTAssertTrue(element("ScorecardTot").exists, "The scorecard should have a total column")
+        attachScreenshot("Scorecard portrait")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(element("ScorecardEdit-12").waitForExistence(timeout: 5))
+        attachScreenshot("Scorecard landscape")
+        XCUIDevice.shared.orientation = .portrait
+
+        // Edit on hole 2 shows hole 2 in edit mode
+        let editHole2 = app.buttons["ScorecardEdit-2"]
+        XCTAssertTrue(editHole2.waitForExistence(timeout: 5))
+        editHole2.tap()
+        XCTAssertTrue(total.waitForNonExistence(timeout: 5), "Edit should close the scorecard")
+        XCTAssertTrue(app.waitForShownHole(2), "Edit should show hole 2")
+        XCTAssertEqual(app.buttons["EditHole"].label, "Done", "Hole 2 should be in edit mode")
+
+        // Close goes back to the map
+        scoreBox.tap()
+        XCTAssertTrue(total.waitForExistence(timeout: 5))
+        app.buttons["CloseScorecard"].tap()
+        XCTAssertTrue(total.waitForNonExistence(timeout: 5), "Close should close the scorecard")
+    }
+
+    private func attachScreenshot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     // MARK: - Helpers
 
     private var scoreBox: XCUIElement {

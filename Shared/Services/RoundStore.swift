@@ -263,6 +263,7 @@ class RoundStore {
             holes = [RoundHole()]
         }
         round.holes = holes
+        round.updateStats()
         round.strokesVersion = snapshot.version
         changed()
         return true
@@ -277,9 +278,11 @@ class RoundStore {
         }
     }
 
-    /// Every stroke change adds 1 to the round's strokes version, so the watch can tell newer from older.
+    /// Every stroke change adds 1 to the round's strokes version, so the watch can tell newer from
+    /// older, and saves the holes' stats again.
     private func changeStrokes(_ roundID: UUID, _ change: (Round) -> Bool) {
         guard let round = round(roundID), change(round) else { return }
+        round.updateStats()
         round.strokesVersion += 1
         changed()
         report(.strokesChanged(round))
@@ -291,6 +294,12 @@ class RoundStore {
         let newestFirst = FetchDescriptor<Round>(sortBy: [SortDescriptor(\.date, order: .reverse)])
         do {
             rounds = try context.fetch(newestFirst)
+            // Rounds saved before stats were get them once
+            let missing = rounds.filter(\.needsStats)
+            missing.forEach { $0.updateStats() }
+            if !missing.isEmpty {
+                try context.save()
+            }
         } catch {
             Log.storage.error("Could not load rounds: \(String(describing: error), privacy: .public)")
         }
