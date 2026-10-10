@@ -20,6 +20,15 @@ struct RoundListView: View {
                     NavigationLink(value: current.id) {
                         RoundRow(round: current)
                     }
+                    .swipeActions(edge: .leading) {
+                        // The log reloads as lines arrive, so a problem can be read mid-round
+                        Button {
+                            logRound = current
+                        } label: {
+                            Label("Log", systemImage: "doc.text")
+                        }
+                        .tint(.gray)
+                    }
                     if current.status != .active {
                         RoundSyncBanner(round: current)
                             .listRowInsets(EdgeInsets())
@@ -133,14 +142,7 @@ struct RoundListView: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(item: $logRound) { round in
-            NavigationStack {
-                LogView(scope: .round(round))
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { logRound = nil }
-                        }
-                    }
-            }
+            LogSheet(scope: .round(round))
         }
     }
 

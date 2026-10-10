@@ -125,6 +125,23 @@ struct LogView: View {
     }
 }
 
+/// `LogView` in its own navigation stack with a Done button, for a sheet.
+struct LogSheet: View {
+    let scope: LogView.Scope
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            LogView(scope: scope)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
 private struct LogExport: Identifiable {
     let id = UUID()
     let url: URL

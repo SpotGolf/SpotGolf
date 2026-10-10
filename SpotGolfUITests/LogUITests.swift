@@ -1,7 +1,7 @@
 import XCTest
 
-/// The app log on the phone: the lines outside a round from Settings, a past round's lines
-/// from its row, and the export.
+/// The app log on the phone: the lines outside a round from Settings, a round's lines from
+/// its row or from the map while it is active, and the export.
 @MainActor
 final class LogUITests: XCTestCase {
 
@@ -32,6 +32,49 @@ final class LogUITests: XCTestCase {
         XCTAssertTrue(fileName.waitForExistence(timeout: 10), "The share sheet should show the log file")
         shareSheet.buttons["Close"].tap()
         XCTAssertTrue(shareSheet.waitForNonExistence(timeout: 5), "The share sheet should close")
+    }
+
+    func testActiveRoundHasItsOwnLogFromTheList() throws {
+        LocationTestHelper.setSimulatorLocation(latitude: 39.95545, longitude: -105.04220)
+        app.launch()
+        dismissLocationAlert()
+        app.startRoundWithCourse()
+        app.buttons["Back"].tap()
+        XCTAssertTrue(app.buttons["End Round"].waitForExistence(timeout: 5), "The round should be active")
+
+        let row = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Broadlands'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "The active round should be listed")
+        row.swipeRight()
+        let log = app.buttons["Log"]
+        XCTAssertTrue(log.waitForExistence(timeout: 5), "The active round's row should offer its log")
+        log.tap()
+
+        XCTAssertTrue(app.navigationBars["Round Log"].waitForExistence(timeout: 5), "The round's log should open")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'starting'")).firstMatch.waitForExistence(timeout: 5),
+                      "The round's start should be in its log")
+        app.navigationBars["Round Log"].buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["Round Log"].waitForNonExistence(timeout: 5), "The log sheet should close")
+        XCTAssertTrue(app.buttons["End Round"].exists, "The round should still be active")
+    }
+
+    func testActiveRoundHasItsOwnLogFromTheMap() throws {
+        LocationTestHelper.setSimulatorLocation(latitude: 39.95545, longitude: -105.04220)
+        app.launch()
+        dismissLocationAlert()
+        app.startRoundWithCourse()
+
+        let edit = app.buttons["EditHole"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "The map should have an Edit button")
+        edit.tap()
+        let log = app.buttons["RoundLog"]
+        XCTAssertTrue(log.waitForExistence(timeout: 5), "Editing should offer the round's log")
+        log.tap()
+
+        XCTAssertTrue(app.navigationBars["Round Log"].waitForExistence(timeout: 5), "The round's log should open")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'starting'")).firstMatch.waitForExistence(timeout: 5),
+                      "The round's start should be in its log")
+        app.navigationBars["Round Log"].buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["Round Log"].waitForNonExistence(timeout: 5), "The log sheet should close")
     }
 
     func testPastRoundHasItsOwnLog() throws {

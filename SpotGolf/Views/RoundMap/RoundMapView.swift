@@ -27,6 +27,7 @@ struct RoundMapView: View {
     @State private var trackLine: [CLLocationCoordinate2D] = []
     @State private var suggestions: [StrokeSuggestion] = []
     @State private var showHoleTimes = false
+    @State private var showLog = false
     @State private var showScorecard = false
     /// The scorecard's edit button picked another hole: edit mode starts once the map shows it.
     @State private var editsAfterHoleChange = false
@@ -111,7 +112,8 @@ struct RoundMapView: View {
                     MapInfoOverlay(round: round, shownHoleIndex: holeIndex, target: $target)
                     Spacer()
                     MapButtonBar(round: round, shownHoleIndex: holeIndex, isEditing: $isEditing,
-                                 showHoleTimes: $showHoleTimes, followsUserLocation: camera.followsUserLocation,
+                                 showHoleTimes: $showHoleTimes, showLog: $showLog,
+                                 followsUserLocation: camera.followsUserLocation,
                                  followUserLocation: followUserLocation)
                 }
             }
@@ -119,6 +121,9 @@ struct RoundMapView: View {
         }
         .sheet(isPresented: $showHoleTimes) {
             HoleTimelineView(roundID: round.id)
+        }
+        .sheet(isPresented: $showLog) {
+            LogSheet(scope: .round(round))
         }
         .fullScreenCover(isPresented: $showScorecard) {
             ScorecardView(roundID: round.id) { editHole($0, round) }
