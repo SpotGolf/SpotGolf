@@ -57,9 +57,9 @@ final class PermissionChecker {
         self.states = states
         let summary = required.map { "\($0.rawValue)=\(states[$0] ?? .notAsked)" }.joined(separator: " ")
         if allGranted {
-            Log.permissions.notice("Permissions: \(summary, privacy: .public)")
+            Log.permissions.notice("Permissions: \(summary)")
         } else {
-            Log.permissions.error("Permissions missing: \(summary, privacy: .public)")
+            Log.permissions.error("Permissions missing: \(summary)")
         }
     }
 
@@ -67,7 +67,7 @@ final class PermissionChecker {
     /// ones can only be turned on in Settings.
     func requestMissing() async {
         for permission in required where source.state(of: permission) == .notAsked {
-            Log.permissions.notice("Asking for \(permission.rawValue, privacy: .public)")
+            Log.permissions.notice("Asking for \(permission.rawValue)")
             await source.request(permission)
         }
         refresh()

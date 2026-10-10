@@ -36,7 +36,7 @@ struct PuttLabView: View {
                     }
                 }
 
-                ForEach(services.puttCapture.problems, id: \.self) { problem in
+                ForEach(services.puttCapture.problems + services.sensors.problems.values.sorted(), id: \.self) { problem in
                     Text(problem)
                         .font(.caption2)
                         .foregroundStyle(.red)

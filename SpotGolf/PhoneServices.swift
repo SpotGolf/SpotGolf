@@ -16,6 +16,7 @@ final class PhoneServices {
     let phoneSync: PhoneSync
     let courseService: CourseService
     let streamStore: StreamStore
+    let logStore: LogStore
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
     let puttCaptures: PuttCaptureStore
@@ -36,17 +37,23 @@ final class PhoneServices {
         let location = LocationManager()
         let sync = SyncService()
         let streams = StreamStore(context: container.mainContext)
+        let logs = LogStore(context: container.mainContext)
+        logs.roundIDForNewLines = { rounds.currentRound?.id }
+        Log.isDebugEnabled = UserDefaults.standard.bool(forKey: SettingsKey.debugLogging)
+        Log.setSink { logs.receive($0) }
         roundStore = rounds
         locationManager = location
         syncService = sync
         streamStore = streams
+        logStore = logs
         courseService = CourseService()
 
         // Without a watch, rounds start and end on the phone alone
-        phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams,
+        phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams, logs: logs,
                               requiresWatch: !isUITesting) {
             Self.launchWatchApp(sync: sync)
         }
+        phoneSync.debugLogging = { UserDefaults.standard.bool(forKey: SettingsKey.debugLogging) }
 
         let puttCaptures = PuttCaptureStore()
         (sync.transport as? WatchConnectivityTransport)?.onFileReceived = { url, metadata in
@@ -78,7 +85,7 @@ final class PhoneServices {
         healthStore.startWatchApp(with: configuration) { success, error in
             guard !success else { return }
             let reason = error?.localizedDescription ?? "unknown error"
-            Log.workout.error("Could not launch the watch app: \(reason, privacy: .public)")
+            Log.workout.error("Could not launch the watch app: \(reason)")
             Task { @MainActor in
                 // Nothing to report when the watch app is already running
                 guard !sync.isConnected else { return }

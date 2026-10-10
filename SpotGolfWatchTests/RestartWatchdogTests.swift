@@ -69,4 +69,47 @@ final class RestartWatchdogTests: XCTestCase {
         watchdog.started(at: at(30))
         XCTAssertFalse(watchdog.shouldRestart(at: at(35), isActive: false))
     }
+
+    // MARK: - Stalls
+
+    func testFirstStartIsNotARestart() {
+        var watchdog = RestartWatchdog(startedAt: start, checksData: true)
+        watchdog.started(at: at(1))
+        XCTAssertEqual(watchdog.restartsWithoutData, 0)
+        XCTAssertFalse(watchdog.isStalled)
+    }
+
+    func testRestartsWithNoDataBetweenThemStall() {
+        var watchdog = RestartWatchdog(startedAt: start, checksData: true)
+        watchdog.started(at: at(1))
+        watchdog.started(at: at(11))
+        watchdog.started(at: at(21))
+        XCTAssertEqual(watchdog.restartsWithoutData, 2)
+        XCTAssertFalse(watchdog.isStalled)
+        watchdog.started(at: at(31))
+        XCTAssertEqual(watchdog.restartsWithoutData, RestartWatchdog.stallRestarts)
+        XCTAssertTrue(watchdog.isStalled)
+    }
+
+    func testDataBetweenRestartsResetsTheCount() {
+        var watchdog = RestartWatchdog(startedAt: start, checksData: true)
+        watchdog.started(at: at(1))
+        watchdog.started(at: at(11))
+        watchdog.started(at: at(21))
+        watchdog.dataReceived(at: at(22))
+        watchdog.started(at: at(40))
+        XCTAssertEqual(watchdog.restartsWithoutData, 0)
+    }
+
+    func testReportedStallCountsAgainFromZero() {
+        var watchdog = RestartWatchdog(startedAt: start, checksData: true)
+        for second in stride(from: 1, through: 31, by: 10) {
+            watchdog.started(at: at(TimeInterval(second)))
+        }
+        XCTAssertTrue(watchdog.isStalled)
+        watchdog.stallReported()
+        XCTAssertFalse(watchdog.isStalled)
+        watchdog.started(at: at(41))
+        XCTAssertEqual(watchdog.restartsWithoutData, 1)
+    }
 }

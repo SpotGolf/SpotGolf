@@ -48,7 +48,7 @@ final class SyncService {
         do {
             payloads = try SyncCodec.payloads(for: message)
         } catch {
-            Log.sync.error("Could not encode \(message.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not encode \(message.name): \(String(describing: error))")
             failure?(error)
             return
         }
@@ -71,9 +71,9 @@ final class SyncService {
             }, failure: { error in
                 // Out of range is normal, so it is not an error
                 if case SyncTransportError.unreachable = error {
-                    Log.sync.notice("Send \(message.name, privacy: .public) failed: unreachable")
+                    Log.sync.notice("Send \(message.name) failed: unreachable")
                 } else {
-                    Log.sync.error("Send \(message.name, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                    Log.sync.error("Send \(message.name) failed: \(String(describing: error))")
                 }
                 guard !answered else { return }
                 answered = true
@@ -87,7 +87,7 @@ final class SyncService {
         do {
             transport.queue(try SyncCodec.payload(message))
         } catch {
-            Log.sync.error("Could not encode queued \(message.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not encode queued \(message.name): \(String(describing: error))")
         }
     }
 
@@ -96,7 +96,7 @@ final class SyncService {
         do {
             transport.updateContext(try SyncCodec.payload(.context(context)))
         } catch {
-            Log.sync.error("Could not encode context: \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not encode context: \(String(describing: error))")
         }
     }
 
@@ -126,7 +126,7 @@ extension SyncService: SyncTransportDelegate {
         do {
             return try SyncCodec.payload(reply)
         } catch {
-            Log.sync.error("Could not encode reply \(reply.name, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not encode reply \(reply.name): \(String(describing: error))")
             return [:]
         }
     }

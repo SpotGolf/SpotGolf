@@ -15,7 +15,10 @@ final class WatchServices {
     let locationManager = LocationManager()
     let syncService = SyncService()
     let workoutManager = WorkoutManager()
+    /// The sensors and the microphone, shared by swing detection, contact detection and Putt Lab.
+    let sensors = SensorInputs()
     let streamStore: StreamStore
+    let logStore: LogStore
     /// Where rounds and streams are saved. UI tests start each run empty, unless a test
     /// relaunches mid-round with --keep-rounds and needs the round it saved.
     let container: ModelContainer
@@ -26,7 +29,7 @@ final class WatchServices {
     let permissions: PermissionChecker
     /// Shows the workout's status, which UI tests read to check recovery after a relaunch.
     let showsWorkoutStatus: Bool
-    @ObservationIgnored private let swingDetector = SwingDetector()
+    @ObservationIgnored private let swingDetector: SwingDetector
     @ObservationIgnored private var holeAdvancer = HoleAdvancer()
 
     // The last values acted on, so only changes are acted on. Swing detection starts off.
@@ -38,6 +41,11 @@ final class WatchServices {
         container = Storage.container(for: options)
         let rounds = RoundStore(context: container.mainContext)
         streamStore = StreamStore(context: container.mainContext)
+        let logs = LogStore(context: container.mainContext)
+        logs.roundIDForNewLines = { rounds.activeRound?.id }
+        logStore = logs
+        Log.isDebugEnabled = UserDefaults.standard.bool(forKey: WatchSync.debugLoggingKey)
+        Log.setSink { logs.receive($0) }
         // Rounds start on the phone, so UI tests pass --start-round to begin one on the watch alone
         if options.isUITesting, options.startsRound {
             rounds.startRound(courseSelection: .uiTestCourse)
@@ -49,11 +57,13 @@ final class WatchServices {
         roundStore = rounds
 
         let workouts = workoutManager
-        contactMonitor = ContactMonitor { workouts.isRunning }
-        watchSync = WatchSync(sync: syncService, rounds: rounds, streams: streamStore)
+        let inputs = sensors
+        swingDetector = SwingDetector(sensors: inputs)
+        contactMonitor = ContactMonitor(sensors: inputs) { workouts.isRunning }
+        watchSync = WatchSync(sync: syncService, rounds: rounds, streams: streamStore, logs: logs)
         captureUploader = PuttCaptureUploader(transport: syncService.transport as? WatchConnectivityTransport,
                                               directory: PuttCaptureRecorder.directory)
-        puttCapture = PuttCaptureRecorder(workouts: workouts, uploader: captureUploader) {
+        puttCapture = PuttCaptureRecorder(sensors: inputs, workouts: workouts, uploader: captureUploader) {
             rounds.activeRound != nil
         }
     }
@@ -79,9 +89,17 @@ final class WatchServices {
             }
         }
         swingDetector.onSwing = { sync.record($0) }
-        swingDetector.taps = contactMonitor.taps
-        swingDetector.onBatch = { [runner = contactMonitor.runner] batch in runner.addAccelerometer(batch) }
         contactMonitor.onContact = { sync.record($0) }
+        // The watch's own account of its workout and sensors goes into the round's stream
+        workoutManager.onEvent = { sync.record($0) }
+        sensors.onEvent = { sync.record($0) }
+        swingDetector.onEvent = { sync.record($0) }
+        contactMonitor.onEvent = { sync.record($0) }
+        // A batched sensor that stays dead through its own restarts needs a new workout session
+        sensors.onStalled = { [weak self] input in
+            guard input != .microphone else { return }
+            self?.workoutManager.restart(reason: "\(input.rawValue) stalled")
+        }
         sync.sender.minBatchInterval = 5
         sync.sender.startRetryTimer()
         sync.sender.pump()
@@ -132,7 +150,7 @@ final class WatchServices {
         let detect = isActive && workoutManager.isRunning
         if detect != detectsSwings {
             detectsSwings = detect
-            Log.swings.notice("Swing detection wanted: \(detect, privacy: .public)")
+            Log.swings.notice("Swing detection wanted: \(detect)")
             if detect {
                 swingDetector.start()
             } else {
@@ -143,7 +161,7 @@ final class WatchServices {
 
     /// Records while a round is active, and stops everything once it is not.
     private func activeRoundChanged(_ isActive: Bool) {
-        Log.rounds.notice("Active round: \(isActive, privacy: .public)")
+        Log.rounds.notice("Active round: \(isActive)")
         if isActive {
             // A round's swing detection and a capture can't share the sensors
             puttCapture.stop()

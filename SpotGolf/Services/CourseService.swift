@@ -44,7 +44,7 @@ class CourseService {
         do {
             try fileManager.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
         } catch {
-            Log.courses.error("Could not create the course cache: \(String(describing: error), privacy: .public)")
+            Log.courses.error("Could not create the course cache: \(String(describing: error))")
         }
     }
 
@@ -78,13 +78,13 @@ class CourseService {
                 }
             }
         } catch {
-            Log.courses.error("Could not refresh the course index: \(String(describing: error), privacy: .public)")
+            Log.courses.error("Could not refresh the course index: \(String(describing: error))")
             do {
                 if let cached = try loadCachedIndex() {
                     index = cached
                 }
             } catch {
-                Log.courses.error("Could not load the cached course index: \(String(describing: error), privacy: .public)")
+                Log.courses.error("Could not load the cached course index: \(String(describing: error))")
             }
         }
     }
@@ -136,7 +136,7 @@ class CourseService {
             let decompressed = try data.gzipDecompressed()
             return try JSONDecoder().decode(Course.self, from: decompressed)
         } catch {
-            Log.courses.error("Could not download course \(path, privacy: .public), trying the cache: \(String(describing: error), privacy: .public)")
+            Log.courses.error("Could not download course \(path), trying the cache: \(String(describing: error))")
             if let cached = try loadCachedCourse(path: path) {
                 return cached
             }
@@ -242,7 +242,7 @@ class CourseService {
             do {
                 try fileManager.removeItem(at: file.url)
             } catch {
-                Log.courses.error("Could not remove cached course \(file.url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+                Log.courses.error("Could not remove cached course \(file.url.lastPathComponent): \(String(describing: error))")
             }
             currentSize -= file.size
         }

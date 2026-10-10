@@ -93,33 +93,7 @@ final class ContactRunner: @unchecked Sendable {
 
     /// A contact as the stream records it.
     static func event(_ contact: ContactDetector.Contact) -> ContactEvent {
-        let bootDate = Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime)
-        return ContactEvent(timestamp: bootDate.addingTimeInterval(contact.time), score: Float(contact.score),
-                            burst: Float(contact.burst), click: Float(contact.click), turning: Float(contact.turning))
-    }
-}
-
-/// The times of taps on the app's own buttons, which the detectors ignore. Kept on the uptime
-/// clock the sensor readings use, so no clock conversion sits between a tap and its readings.
-/// Written on the main actor, read on the sensor threads.
-final class TapGuard: @unchecked Sendable {
-    /// Readings this close to a tap, either side, are ignored.
-    static let window: TimeInterval = 1
-
-    private let lock = NSLock()
-    private var taps: [Double] = []
-
-    func tapped(atUptime uptime: Double = ProcessInfo.processInfo.systemUptime) {
-        lock.lock()
-        taps.append(uptime)
-        taps.removeAll { uptime - $0 > 10 }
-        lock.unlock()
-    }
-
-    /// Whether a reading at this uptime falls within `window` of a tap.
-    func covers(uptime: Double) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return taps.contains { abs(uptime - $0) <= Self.window }
+        ContactEvent(timestamp: Uptime.date(at: contact.time), score: Float(contact.score),
+                     burst: Float(contact.burst), click: Float(contact.click), turning: Float(contact.turning))
     }
 }

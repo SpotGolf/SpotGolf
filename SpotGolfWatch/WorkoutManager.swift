@@ -30,6 +30,9 @@ class WorkoutManager: NSObject {
 
     @ObservationIgnored private var runningListeners: [(Bool) -> Void] = []
 
+    /// Called on the main actor with each event worth keeping in the round's stream.
+    @ObservationIgnored var onEvent: ((StreamEvent) -> Void)?
+
     /// Adds a listener called each time `isRunning` changes. Listeners stay for the manager's life.
     func addRunningListener(_ listener: @escaping (Bool) -> Void) {
         runningListeners.append(listener)
@@ -62,6 +65,12 @@ class WorkoutManager: NSObject {
     private var refusedRetryDelay: TimeInterval = RestartWatchdog.interval
     private var refusedRetryAt: Date?
     private static let maxRefusedRetryDelay: TimeInterval = 5 * 60
+    // A forced restart ends the session, and starts a new one once it has ended
+    private var restartAfterEnd = false
+    private var lastForcedRestartAt: Date?
+    /// Forced restarts, for sensors that stay dead on a session that says it is running, come
+    /// at most this often.
+    static let forcedRestartInterval: TimeInterval = 2 * 60
 
     /// Starts a golf workout, or takes over the one left running if the app quit
     /// mid-round. Safe to call repeatedly; also answers the system's recovery request.
@@ -79,13 +88,14 @@ class WorkoutManager: NSObject {
 
         healthStore.recoverActiveWorkoutSession { [weak self] recovered, error in
             if let error {
-                Log.workout.error("Could not recover a running workout; starting a new one: \(String(describing: error), privacy: .public)")
+                Log.workout.error("Could not recover a running workout; starting a new one: \(String(describing: error))")
             }
             Task { @MainActor in
                 guard let self else { return }
                 // A session that already ended, such as the last capture's, is no use
                 if let recovered, recovered.state != .ended, recovered.state != .stopped {
-                    Log.workout.notice("Recovered running workout, state \(recovered.state.rawValue, privacy: .public)")
+                    Log.workout.notice("Recovered running workout, state \(recovered.state.rawValue)")
+                    self.report(.workoutRecovered, value: Float(recovered.state.rawValue))
                     self.attach(recovered)
                     self.status = .recovered
                     self.isStarting = false
@@ -114,15 +124,17 @@ class WorkoutManager: NSObject {
             attach(session)
             status = .started
             Log.workout.notice("Workout session started")
+            report(.workoutStarted)
 
             session.startActivity(with: .now)
             builder?.beginCollection(withStart: .now) { _, error in
                 if let error {
-                    Log.workout.error("Begin collection error: \(String(describing: error), privacy: .public)")
+                    Log.workout.error("Begin collection error: \(String(describing: error))")
                 }
             }
         } catch {
-            Log.workout.error("Could not create workout session: \(String(describing: error), privacy: .public)")
+            Log.workout.error("Could not create workout session: \(String(describing: error))")
+            report(.workoutError, value: Self.errorCode(error))
             if Self.needsForeground(error) {
                 waitForForeground()
             }
@@ -143,9 +155,28 @@ class WorkoutManager: NSObject {
 
     func stop() {
         wantsWorkout = false
+        restartAfterEnd = false
         watchdogTimer?.invalidate()
         watchdogTimer = nil
         endIfUnwanted()
+    }
+
+    /// Ends the running session and starts a new one once it has ended, for sensors that stay
+    /// dead on a session that says it is running. At most once per `forcedRestartInterval`.
+    func restart(reason: String) {
+        guard wantsWorkout, let session, session.state == .running || session.state == .paused else {
+            Log.workout.notice("No running workout to restart for \(reason)")
+            return
+        }
+        guard Date().timeIntervalSince(lastForcedRestartAt ?? .distantPast) >= Self.forcedRestartInterval else {
+            Log.workout.notice("Workout restart for \(reason) skipped: one was forced within \(Int(Self.forcedRestartInterval)) s")
+            return
+        }
+        lastForcedRestartAt = Date()
+        restartAfterEnd = true
+        Log.workout.error("Ending the workout to start a new one: \(reason)")
+        report(.workoutRestart, value: 2)
+        session.end()
     }
 
     /// watchOS allows a new workout once the app is on screen.
@@ -178,8 +209,18 @@ class WorkoutManager: NSObject {
             restart()
             return
         }
+        // The flag follows the delegate's callbacks; if one was missed, the session's own state wins
+        if let session {
+            let running = session.state == .running
+            if running != isRunning {
+                Log.workout.error("Workout state \(session.state.rawValue) but running flag \(self.isRunning); correcting")
+                report(.workoutRestart, value: 3)
+                isRunning = running
+            }
+        }
         guard watchdog.shouldRestart(at: Date(), isActive: isRunning) else { return }
-        Log.workout.error("Workout not running while a round needs it (state \(self.session.map { String($0.state.rawValue) } ?? "none", privacy: .public)); restarting")
+        Log.workout.error("Workout not running while a round needs it (state \(self.session.map { String($0.state.rawValue) } ?? "none")); restarting")
+        report(.workoutRestart, value: 1)
         restart()
     }
 
@@ -187,7 +228,7 @@ class WorkoutManager: NSObject {
     /// clears a session that ends while attached; this is for one that was already over.
     private func dropFinishedSession() {
         guard let session, session.state == .ended || session.state == .stopped else { return }
-        Log.workout.notice("Dropping a workout already in state \(session.state.rawValue, privacy: .public)")
+        Log.workout.notice("Dropping a workout already in state \(session.state.rawValue)")
         self.session = nil
         builder = nil
         isRunning = false
@@ -210,7 +251,7 @@ class WorkoutManager: NSObject {
             session.resume()
         default:
             // Running, or ending; the delegate clears an ended session
-            Log.workout.error("Cannot restart a workout in state \(session.state.rawValue, privacy: .public); waiting for it to end")
+            Log.workout.error("Cannot restart a workout in state \(session.state.rawValue); waiting for it to end")
         }
     }
 
@@ -218,13 +259,22 @@ class WorkoutManager: NSObject {
         guard !waitsForForeground else { return }
         waitsForForeground = true
         refusedRetryAt = Date().addingTimeInterval(refusedRetryDelay)
-        Log.workout.error("watchOS refuses a new workout for now; retrying when the app is on screen, in \(Int(self.refusedRetryDelay), privacy: .public) s at the soonest")
+        Log.workout.error("watchOS refuses a new workout for now; retrying when the app is on screen, in \(Int(self.refusedRetryDelay)) s at the soonest")
+        report(.workoutRefused, value: Float(refusedRetryDelay))
     }
 
     /// The errors for which watchOS refuses a new workout until the app is on screen.
     private static func needsForeground(_ error: Error) -> Bool {
         guard let code = (error as? HKError)?.code else { return false }
         return code == .errorAnotherWorkoutSessionStarted || code == .errorBackgroundWorkoutSessionNotAllowed
+    }
+
+    private static func errorCode(_ error: Error) -> Float {
+        Float((error as? HKError)?.code.rawValue ?? (error as NSError).code)
+    }
+
+    private func report(_ code: StreamEvent.Code, value: Float = 0) {
+        onEvent?(StreamEvent(code: code, value: value))
     }
 
     private func endIfUnwanted() {
@@ -246,11 +296,19 @@ class WorkoutManager: NSObject {
                 try await builder.endCollection(at: .now)
                 try await builder.finishWorkout()
             } catch {
-                Log.workout.error("Could not save workout: \(String(describing: error), privacy: .public)")
+                Log.workout.error("Could not save workout: \(String(describing: error))")
             }
         }
         status = .ended
-        Log.workout.notice("Workout session finished, wanted \(self.wantsWorkout, privacy: .public)")
+        Log.workout.notice("Workout session finished, wanted \(self.wantsWorkout)")
+        report(.workoutEnded)
+        if restartAfterEnd {
+            restartAfterEnd = false
+            if wantsWorkout {
+                Log.workout.notice("Starting the new workout after the forced end")
+                start()
+            }
+        }
     }
 }
 
@@ -259,8 +317,9 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                                      didChangeTo toState: HKWorkoutSessionState,
                                      from fromState: HKWorkoutSessionState,
                                      date: Date) {
-        Log.workout.notice("Workout state \(fromState.rawValue, privacy: .public) -> \(toState.rawValue, privacy: .public)")
+        Log.workout.notice("Workout state \(fromState.rawValue) -> \(toState.rawValue)")
         Task { @MainActor in
+            self.report(.workoutState, value: Float(toState.rawValue))
             if workoutSession === self.session {
                 self.isRunning = toState == .running
                 if toState == .running {
@@ -275,9 +334,10 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession,
                                      didFailWithError error: Error) {
-        Log.workout.error("Workout session error: \(String(describing: error), privacy: .public)")
+        Log.workout.error("Workout session error: \(String(describing: error))")
         // A failed session does not keep the app running, so let start() make a new one
         Task { @MainActor in
+            self.report(.workoutError, value: Self.errorCode(error))
             if Self.needsForeground(error) {
                 self.waitForForeground()
             }

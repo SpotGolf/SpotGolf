@@ -78,7 +78,7 @@ final class PinShareCoordinator {
         let switchedOn = sharesPins()
         let startedAt = now()
         let shares = switchedOn ? await sharing.isAccountAvailable() : false
-        Log.pins.notice("Round \(roundID, privacy: .public) \(shares ? "shares" : "does not share", privacy: .public) pins")
+        Log.pins.notice("Round \(roundID) \(shares ? "shares" : "does not share") pins")
         guard shares else { return }
         sharingSince[roundID] = startedAt
         await fetch(roundID)
@@ -94,7 +94,7 @@ final class PinShareCoordinator {
                 rounds.addSharedPins(round.pins(from: shared), roundID: roundID)
             }
         } catch {
-            Log.pins.error("Could not fetch shared pins: \(String(describing: error), privacy: .public)")
+            Log.pins.error("Could not fetch shared pins: \(String(describing: error))")
         }
     }
 
@@ -110,7 +110,7 @@ final class PinShareCoordinator {
                 try await sharing.upload(shared)
             } catch {
                 // The pin stays on this phone and its watch
-                Log.pins.error("Could not upload a pin: \(String(describing: error), privacy: .public)")
+                Log.pins.error("Could not upload a pin: \(String(describing: error))")
             }
         }
     }

@@ -33,7 +33,7 @@ enum SyncCodec {
         do {
             return try decode(data)
         } catch {
-            Log.sync.error("Could not decode message: \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not decode message: \(String(describing: error))")
             return nil
         }
     }
@@ -92,7 +92,7 @@ struct ChunkAssembler {
         do {
             return try SyncCodec.decode(data)
         } catch {
-            Log.sync.error("Could not decode chunked message: \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not decode chunked message: \(String(describing: error))")
             return nil
         }
     }

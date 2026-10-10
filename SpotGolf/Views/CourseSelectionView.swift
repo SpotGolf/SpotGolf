@@ -172,7 +172,7 @@ struct CourseSelectionView: View {
                 selectedIndices = defaultIndices(for: course)
             }
         } catch {
-            Log.courses.error("Could not load course \(entry.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.courses.error("Could not load course \(entry.path): \(String(describing: error))")
             errorMessage = String(localized: "Failed to load course: \(error.localizedDescription)")
         }
         isLoading = false

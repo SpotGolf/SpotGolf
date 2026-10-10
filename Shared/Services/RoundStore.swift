@@ -301,7 +301,7 @@ class RoundStore {
                 try context.save()
             }
         } catch {
-            Log.storage.error("Could not load rounds: \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not load rounds: \(String(describing: error))")
         }
     }
 
@@ -310,7 +310,7 @@ class RoundStore {
         do {
             try context.save()
         } catch {
-            Log.storage.error("Could not save rounds: \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not save rounds: \(String(describing: error))")
         }
         revision += 1
         report(.roundsChanged)

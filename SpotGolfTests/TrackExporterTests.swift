@@ -70,6 +70,22 @@ final class TrackExporterTests: XCTestCase {
         XCTAssertEqual(fields[10], "11.0")
     }
 
+    func testEventRowCarriesNameAndValue() {
+        let round = Round(date: start, courseSelection: .test)
+        let event = StreamEvent(timestamp: start.addingTimeInterval(5), code: .accelerometerRestart, value: 2)
+
+        let csv = TrackExporter.csv(round: round, points: [point(offset: 0)], swings: [], events: [event])
+        let fields = csv.split(separator: "\n")[2].split(separator: ",", omittingEmptySubsequences: false)
+
+        XCTAssertEqual(fields.count, 14)
+        XCTAssertEqual(fields[0], "event")
+        XCTAssertEqual(fields[1], "2023-11-14T22:13:25.000Z")
+        XCTAssertEqual(fields[6], "watch")
+        XCTAssertEqual(fields[7], "1")
+        XCTAssertEqual(fields[9], "accelerometerRestart")
+        XCTAssertEqual(fields[10], "2.0")
+    }
+
     func testTimedRowsInterleaveAndStrokesComeLast() {
         var round = Round(date: start, courseSelection: .test)
         round.addStroke(stroke(), toHoleIndex: 0)

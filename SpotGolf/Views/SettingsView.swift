@@ -13,6 +13,7 @@ struct SettingsView: View {
 
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
+    @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
@@ -45,6 +46,16 @@ struct SettingsView: View {
                 } footer: {
                     Text("Sensor recordings from the watch's Putt Lab page, for working out how to detect putts.")
                 }
+                Section {
+                    NavigationLink("Log") { LogView(scope: .outsideRounds) }
+                        .accessibilityIdentifier("OpenLog")
+                    Toggle("Debug Logging", isOn: $debugLogging)
+                        .accessibilityIdentifier("DebugLogging")
+                } header: {
+                    Text("Log")
+                } footer: {
+                    Text("What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; it takes effect on the watch when the next round starts.")
+                }
                 #if DEBUG
                 ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
                 #endif
@@ -57,6 +68,9 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: debugLogging) { _, enabled in
+                Log.isDebugEnabled = enabled
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -128,7 +142,7 @@ private struct ImportRoundPickers: ViewModifier {
                     }
                     message = String(localized: "Imported \(round.displayTitle): \(export.points.count) fixes, \(export.swings.count) swings, \(export.strokes.count) strokes.")
                 } catch {
-                    Log.export.error("Import failed: \(String(describing: error), privacy: .public)")
+                    Log.export.error("Import failed: \(String(describing: error))")
                     message = String(localized: "Import failed: \(error.localizedDescription)")
                 }
             }

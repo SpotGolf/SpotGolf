@@ -4,9 +4,10 @@ import Observation
 import os
 import WatchKit
 
-/// Records a putt capture: raw accelerometer, device motion and microphone data, with the
-/// player's marks, into one folder per capture. Needs a workout for the batched sensors, so
-/// it starts one and ends it when the capture stops, unless a round is using it.
+/// Records a putt capture: raw accelerometer, device motion and microphone data from
+/// `SensorInputs`, with the player's marks and the contacts the detector finds live, into one
+/// folder per capture. Needs a workout for the batched sensors, so it starts one and ends it
+/// when the capture stops, unless a round is using it.
 @MainActor
 @Observable
 final class PuttCaptureRecorder {
@@ -18,7 +19,7 @@ final class PuttCaptureRecorder {
     }
 
     private(set) var state = State.idle
-    /// What is not being recorded, for the screen.
+    /// What went wrong with the files, for the screen. The sensors report their own problems.
     private(set) var problems: [String] = []
     private(set) var micPermission = MicrophoneInput.permission
     /// Record sound. Off to measure the sensors' battery cost alone.
@@ -31,31 +32,34 @@ final class PuttCaptureRecorder {
 
     let uploader: PuttCaptureUploader
 
-    private let workouts: WorkoutManager
+    @ObservationIgnored private let sensors: SensorInputs
+    @ObservationIgnored private let workouts: WorkoutManager
     /// A round is recording: its workout must be left running.
-    private let isRoundActive: () -> Bool
-    private let manager = CMBatchedSensorManager()
-    private var audio: MicrophoneInput?
-    private var meta: PuttCapture.Meta?
-    private var directory: URL?
+    @ObservationIgnored private let isRoundActive: () -> Bool
+    @ObservationIgnored private var meta: PuttCapture.Meta?
+    @ObservationIgnored private var directory: URL?
     // Every file write happens here, off the sensor and audio threads' own queues
-    private let io = DispatchQueue(label: "golf.spot.SpotGolf.puttCapture", qos: .utility)
-    private var accelHandle: FileHandle?
-    private var motionHandle: FileHandle?
-    private var marksHandle: FileHandle?
-    private var contactsHandle: FileHandle?
+    @ObservationIgnored private let io = DispatchQueue(label: "golf.spot.SpotGolf.puttCapture", qos: .utility)
+    @ObservationIgnored private var accelHandle: FileHandle?
+    @ObservationIgnored private var motionHandle: FileHandle?
+    @ObservationIgnored private var marksHandle: FileHandle?
+    @ObservationIgnored private var contactsHandle: FileHandle?
+    @ObservationIgnored private var audioWriter: CaptureAudioWriter?
     // The capture's zero on the uptime clock, until its files are closed
-    private var captureStartUptime: Double?
+    @ObservationIgnored private var captureStartUptime: Double?
+    @ObservationIgnored private var subscriptions: [SensorInputs.Subscription] = []
     // The same detector a round runs, so the page shows what a round would record
-    private let runner = ContactRunner(taps: TapGuard())
+    @ObservationIgnored private let runner: ContactRunner
     // Readings written so far, counted on the main actor
-    private var accelCount = 0
-    private var motionCount = 0
+    @ObservationIgnored private var accelCount = 0
+    @ObservationIgnored private var motionCount = 0
 
-    init(workouts: WorkoutManager, uploader: PuttCaptureUploader, isRoundActive: @escaping () -> Bool) {
+    init(sensors: SensorInputs, workouts: WorkoutManager, uploader: PuttCaptureUploader, isRoundActive: @escaping () -> Bool) {
+        self.sensors = sensors
         self.workouts = workouts
         self.uploader = uploader
         self.isRoundActive = isRoundActive
+        runner = ContactRunner(taps: sensors.taps)
         runner.onContact = { [weak self] contact in
             Task { @MainActor in self?.found(contact) }
         }
@@ -72,7 +76,7 @@ final class PuttCaptureRecorder {
         let line = "\(contact.time - startUptime),\(contact.score),\(contact.burst),\(contact.click),\(contact.turning)\n"
         let handle = contactsHandle
         io.async { Self.write(Data(line.utf8), to: handle, name: "contacts") }
-        Log.puttLab.notice("Contact at \(contact.time - startUptime, privacy: .public) s: score \(contact.score, privacy: .public)")
+        Log.puttLab.notice("Contact at \(contact.time - startUptime) s: score \(contact.score)")
         WKInterfaceDevice.current().play(.directionUp)
     }
 
@@ -102,7 +106,7 @@ final class PuttCaptureRecorder {
     private func beginRecording() {
         guard state == .starting else { return }
         let startDate = Date()
-        let startUptime = ProcessInfo.processInfo.systemUptime
+        let startUptime = Uptime.now
         var meta = PuttCapture.Meta(startDate: startDate, startUptime: startUptime)
         meta.startBattery = Self.batteryLevel
         meta.microphone = microphone
@@ -120,7 +124,7 @@ final class PuttCaptureRecorder {
                                                  header: PuttCapture.contactsHeader + "\n")
             try meta.json().write(to: directory.appendingPathComponent(PuttCapture.metaFile))
         } catch {
-            Log.puttLab.error("Could not create the capture files: \(String(describing: error), privacy: .public)")
+            Log.puttLab.error("Could not create the capture files: \(String(describing: error))")
             problems.append(String(localized: "Could not create files"))
             cleanUp(endWorkout: !isRoundActive())
             return
@@ -133,12 +137,11 @@ final class PuttCaptureRecorder {
         motionCount = 0
         contactCount = 0
         runner.start()
-        Log.puttLab.notice("Putt capture \(meta.id, privacy: .public) recording; microphone \(self.microphone, privacy: .public), saving \(self.savesData, privacy: .public)")
+        Log.puttLab.notice("Putt capture \(meta.id) recording; microphone \(self.microphone), saving \(self.savesData)")
 
-        startAccelerometer(startUptime: startUptime)
-        startDeviceMotion(startUptime: startUptime)
+        subscriptions = [subscribeAccelerometer(startUptime: startUptime), subscribeDeviceMotion(startUptime: startUptime)]
         if microphone {
-            startAudio(in: savesData ? directory : nil, startUptime: startUptime)
+            subscriptions.append(subscribeMicrophone(in: savesData ? directory : nil, startUptime: startUptime))
         }
     }
 
@@ -155,26 +158,12 @@ final class PuttCaptureRecorder {
         return try FileHandle(forWritingTo: url)
     }
 
-    private func startAccelerometer(startUptime: Double) {
-        guard CMBatchedSensorManager.isAccelerometerSupported else {
-            problems.append(String(localized: "No accelerometer"))
-            return
-        }
-        let io = io
-        let handle = accelHandle
-        let saves = savesData
-        let runner = runner
-        // CoreMotion calls these on its own queue, so @Sendable: a plain closure made here would
-        // count as main-actor code, and Swift 6 traps when it runs anywhere else
-        manager.startAccelerometerUpdates { @Sendable [weak self] batch, error in
-            if let error {
-                Log.puttLab.error("Accelerometer error: \(String(describing: error), privacy: .public)")
-                Task { @MainActor in self?.problems.append(String(localized: "Accelerometer stopped")) }
-            }
-            guard let batch else { return }
+    private func subscribeAccelerometer(startUptime: Double) -> SensorInputs.Subscription {
+        let io = io, handle = accelHandle, saves = savesData, runner = runner
+        return sensors.subscribeAccelerometer { [weak self] batch in
             runner.addAccelerometer(batch)
+            let count = batch.count
             guard saves else {
-                let count = batch.count
                 Task { @MainActor in self?.accelCount += count }
                 return
             }
@@ -184,7 +173,6 @@ final class PuttCaptureRecorder {
                 PuttCapture.AccelSample(t: reading.timestamp - startUptime, x: Float(a.x), y: Float(a.y), z: Float(a.z))
                     .append(to: &data)
             }
-            let count = batch.count
             let bytes = data
             io.async {
                 Self.write(bytes, to: handle, name: "accelerometer")
@@ -193,24 +181,12 @@ final class PuttCaptureRecorder {
         }
     }
 
-    private func startDeviceMotion(startUptime: Double) {
-        guard CMBatchedSensorManager.isDeviceMotionSupported else {
-            problems.append(String(localized: "No device motion"))
-            return
-        }
-        let io = io
-        let handle = motionHandle
-        let saves = savesData
-        let runner = runner
-        manager.startDeviceMotionUpdates { @Sendable [weak self] batch, error in
-            if let error {
-                Log.puttLab.error("Device motion error: \(String(describing: error), privacy: .public)")
-                Task { @MainActor in self?.problems.append(String(localized: "Device motion stopped")) }
-            }
-            guard let batch else { return }
+    private func subscribeDeviceMotion(startUptime: Double) -> SensorInputs.Subscription {
+        let io = io, handle = motionHandle, saves = savesData, runner = runner
+        return sensors.subscribeDeviceMotion { [weak self] batch in
             runner.addMotion(batch)
+            let count = batch.count
             guard saves else {
-                let count = batch.count
                 Task { @MainActor in self?.motionCount += count }
                 return
             }
@@ -224,7 +200,6 @@ final class PuttCaptureRecorder {
                     Float(q.x), Float(q.y), Float(q.z), Float(q.w)
                 ]).append(to: &data)
             }
-            let count = batch.count
             let bytes = data
             io.async {
                 Self.write(bytes, to: handle, name: "device motion")
@@ -233,21 +208,13 @@ final class PuttCaptureRecorder {
         }
     }
 
-    private func startAudio(in directory: URL?, startUptime: Double) {
-        guard micPermission == .granted else {
-            problems.append(String(localized: "No microphone"))
-            return
-        }
+    private func subscribeMicrophone(in directory: URL?, startUptime: Double) -> SensorInputs.Subscription {
+        let writer = CaptureAudioWriter(url: directory?.appendingPathComponent(PuttCapture.audioFile), captureStartUptime: startUptime)
+        audioWriter = writer
         let runner = runner
-        let audio = MicrophoneInput { samples, hostSeconds, sampleRate in
-            runner.addAudio(samples, hostSeconds: hostSeconds, sampleRate: sampleRate)
-        }
-        do {
-            try audio.start(to: directory?.appendingPathComponent(PuttCapture.audioFile), captureStartUptime: startUptime)
-            self.audio = audio
-        } catch {
-            Log.puttLab.error("Could not start audio: \(String(describing: error), privacy: .public)")
-            problems.append(String(localized: "Microphone failed"))
+        return sensors.subscribeMicrophone { buffer, hostSeconds in
+            runner.addAudio(MicrophoneInput.samples(buffer), hostSeconds: hostSeconds, sampleRate: buffer.format.sampleRate)
+            writer.write(buffer, hostSeconds: hostSeconds)
         }
     }
 
@@ -255,28 +222,30 @@ final class PuttCaptureRecorder {
         do {
             try handle?.write(contentsOf: data)
         } catch {
-            Log.puttLab.error("Could not write \(name, privacy: .public) data: \(String(describing: error), privacy: .public)")
+            Log.puttLab.error("Could not write \(name) data: \(String(describing: error))")
         }
     }
 
     // MARK: - Marks
 
-    /// Records that a stroke with this label just happened.
+    /// Records that a stroke with this label just happened. The tap itself is not a stroke.
     func mark(_ label: PuttCapture.MarkLabel) {
         guard state == .recording, let startUptime = meta?.startUptime else { return }
-        let mark = PuttCapture.Mark(t: ProcessInfo.processInfo.systemUptime - startUptime, label: label, date: Date())
+        sensors.tapped()
+        let mark = PuttCapture.Mark(t: Uptime.now - startUptime, label: label, date: Date())
         meta?.marks.append(mark)
         let handle = marksHandle
         io.async {
             Self.write(Data((mark.csvLine + "\n").utf8), to: handle, name: "marks")
         }
-        Log.puttLab.notice("Mark \(label.rawValue, privacy: .public) at \(mark.t, privacy: .public) s")
+        Log.puttLab.notice("Mark \(label.rawValue) at \(mark.t) s")
         WKInterfaceDevice.current().play(.success)
     }
 
     /// Takes back the last mark, tapped by mistake. The marks file is written again without it.
     func undoLastMark() {
         guard state == .recording, let removed = meta?.marks.popLast() else { return }
+        sensors.tapped()
         let lines = [PuttCapture.Mark.csvHeader] + (meta?.marks.map(\.csvLine) ?? [])
         let handle = marksHandle
         io.async {
@@ -284,10 +253,10 @@ final class PuttCaptureRecorder {
                 try handle?.truncate(atOffset: 0)
                 try handle?.write(contentsOf: Data((lines.joined(separator: "\n") + "\n").utf8))
             } catch {
-                Log.puttLab.error("Could not rewrite the marks: \(String(describing: error), privacy: .public)")
+                Log.puttLab.error("Could not rewrite the marks: \(String(describing: error))")
             }
         }
-        Log.puttLab.notice("Undid mark \(removed.label.rawValue, privacy: .public) at \(removed.t, privacy: .public) s")
+        Log.puttLab.notice("Undid mark \(removed.label.rawValue) at \(removed.t) s")
         WKInterfaceDevice.current().play(.click)
     }
 
@@ -308,14 +277,18 @@ final class PuttCaptureRecorder {
 
     private func finishRecording() {
         guard var meta, let directory else { return }
-        manager.stopAccelerometerUpdates()
-        manager.stopDeviceMotionUpdates()
-        audio?.stop()
+        sensors.tapped()
+        for subscription in subscriptions {
+            subscription.cancel()
+        }
+        subscriptions = []
+        audioWriter?.close()
         meta.endDate = Date()
-        meta.duration = ProcessInfo.processInfo.systemUptime - meta.startUptime
-        meta.audio = audio?.audio
-        meta.audioFrames = audio?.frameCount ?? 0
+        meta.duration = Uptime.now - meta.startUptime
+        meta.audio = audioWriter?.audio
+        meta.audioFrames = audioWriter?.frameCount ?? 0
         meta.endBattery = Self.batteryLevel
+        audioWriter = nil
         let finalMeta = meta
         self.meta = nil
         self.directory = nil
@@ -347,9 +320,9 @@ final class PuttCaptureRecorder {
                 do {
                     try meta.json().write(to: directory.appendingPathComponent(PuttCapture.metaFile))
                 } catch {
-                    Log.puttLab.error("Could not write the capture's details: \(String(describing: error), privacy: .public)")
+                    Log.puttLab.error("Could not write the capture's details: \(String(describing: error))")
                 }
-                Log.puttLab.notice("Putt capture \(meta.id, privacy: .public) stopped after \(meta.duration ?? 0, privacy: .public) s: \(meta.accelCount, privacy: .public) accelerometer, \(meta.motionCount, privacy: .public) motion, \(meta.audioFrames, privacy: .public) audio frames, \(meta.marks.count, privacy: .public) marks, \(self.contactCount, privacy: .public) contacts")
+                Log.puttLab.notice("Putt capture \(meta.id) stopped after \(meta.duration ?? 0) s: \(meta.accelCount) accelerometer, \(meta.motionCount) motion, \(meta.audioFrames) audio frames, \(meta.marks.count) marks, \(self.contactCount) contacts")
                 self.uploader.enqueue(directory)
             }
         }
@@ -357,7 +330,6 @@ final class PuttCaptureRecorder {
 
     /// Leaves the file handles alone: a stopped recording closes them once the last contact is in.
     private func cleanUp(endWorkout: Bool) {
-        audio = nil
         state = .idle
         if endWorkout {
             workouts.stop()

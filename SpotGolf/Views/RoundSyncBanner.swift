@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Shows a round that is waiting on the watch: starting (with Retry and Cancel after a timeout
-/// or a refusal for missing permissions) or ending (with Force end). Shows nothing for an
-/// active or ended round.
+/// or a refusal for missing permissions or a watch app on another version) or ending (with
+/// Force end). Shows nothing for an active or ended round.
 struct RoundSyncBanner: View {
     let round: Round
     @Environment(PhoneServices.self) private var services
@@ -23,6 +23,14 @@ struct RoundSyncBanner: View {
                         }
                         .accessibilityIdentifier("OpenSettings")
                     }
+                    Button("Retry") { services.phoneSync.retryStart(round.id) }
+                        .accessibilityIdentifier("RetryStart")
+                    Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
+                        .accessibilityIdentifier("CancelStart")
+                }
+            } else if case .needsWatchUpdate(let watchVersion) = services.phoneSync.startStates[round.id] {
+                let phoneVersion = services.phoneSync.version
+                banner(Text("Install SpotGolf \(phoneVersion) on your Apple Watch. The watch has \(watchVersion).")) {
                     Button("Retry") { services.phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
                     Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }

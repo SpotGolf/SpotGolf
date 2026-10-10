@@ -161,7 +161,7 @@ final class WatchConnectivityTransport: NSObject, SyncTransport {
         do {
             try session.updateApplicationContext(payload)
         } catch {
-            Log.sync.error("Could not update application context: \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not update application context: \(String(describing: error))")
         }
     }
 
@@ -192,9 +192,9 @@ enum SyncTransportError: Error {
 extension WatchConnectivityTransport: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error {
-            Log.sync.error("WCSession activation failed: \(String(describing: error), privacy: .public)")
+            Log.sync.error("WCSession activation failed: \(String(describing: error))")
         } else {
-            Log.sync.notice("WCSession activated, state \(activationState.rawValue, privacy: .public)")
+            Log.sync.notice("WCSession activated, state \(activationState.rawValue)")
         }
         // A context that arrived before activation is not delivered again
         let context = SendablePayload(session.receivedApplicationContext)
@@ -211,7 +211,7 @@ extension WatchConnectivityTransport: WCSessionDelegate {
     }
 
     func reachabilityChanged() {
-        Log.sync.notice("Reachable: \(self.isReachable, privacy: .public)")
+        Log.sync.notice("Reachable: \(self.isReachable)")
         if !isReachable {
             failWaiting()
         }
@@ -251,7 +251,7 @@ extension WatchConnectivityTransport: WCSessionDelegate {
             try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
             try FileManager.default.moveItem(at: file.fileURL, to: destination)
         } catch {
-            Log.sync.error("Could not keep received file \(file.fileURL.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not keep received file \(file.fileURL.lastPathComponent): \(String(describing: error))")
             return
         }
         let received = SendableFile(url: destination, metadata: file.metadata, error: nil)

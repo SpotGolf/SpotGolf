@@ -110,12 +110,12 @@ extension LocationManager: @preconcurrency CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Log.location.error("Location error: \(String(describing: error), privacy: .public)")
+        Log.location.error("Location error: \(String(describing: error))")
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
-        Log.location.notice("Location authorization: \(manager.authorizationStatus.rawValue, privacy: .public)")
+        Log.location.notice("Location authorization: \(manager.authorizationStatus.rawValue)")
         // A one-off fix is only needed when continuous updates are not already running
         if !isUpdating,
            manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {

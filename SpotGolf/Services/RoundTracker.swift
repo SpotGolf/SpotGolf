@@ -64,7 +64,7 @@ final class RoundTracker {
     }
 
     private func startTracking(_ round: Round) {
-        Log.rounds.notice("Tracking round \(round.id, privacy: .public) on the phone")
+        Log.rounds.notice("Tracking round \(round.id) on the phone")
         trackedRoundID = round.id
         location.setUpdatesInBackground(true)
         location.startUpdating(for: Self.locationOwner)
@@ -111,7 +111,7 @@ final class RoundTracker {
         // The activity outlives the app, so a relaunch during the round picks it up again.
         // Only one is kept: any other is from an earlier round or launch.
         let existing = Activity<HoleActivityAttributes>.activities
-        Log.liveActivity.notice("Starting the Live Activity with \(existing.count, privacy: .public) already running")
+        Log.liveActivity.notice("Starting the Live Activity with \(existing.count) already running")
         let kept = existing.first(where: { $0.attributes.roundID == round.id })
         for old in existing where old.id != kept?.id {
             Self.endActivity(id: old.id)
@@ -135,7 +135,7 @@ final class RoundTracker {
             Log.liveActivity.notice("Live Activity started")
         } catch {
             // Tried again when the app next becomes active
-            Log.liveActivity.error("Could not start the Live Activity: \(String(describing: error), privacy: .public)")
+            Log.liveActivity.error("Could not start the Live Activity: \(String(describing: error))")
         }
     }
 

@@ -42,6 +42,15 @@ final class StreamStoreTests: XCTestCase {
         XCTAssertEqual(store.swings(for: roundID).map(\.timestamp), [StreamFixtures.start.addingTimeInterval(1)])
     }
 
+    func testEventsAreReadApart() {
+        let event = StreamEvent(timestamp: StreamFixtures.start.addingTimeInterval(1), code: .workoutStarted)
+        store.append([StreamFixtures.fix(0), .event(event), StreamFixtures.fix(2)], roundID: roundID)
+
+        XCTAssertEqual(store.events(for: roundID), [event])
+        XCTAssertEqual(store.points(for: roundID).count, 2)
+        XCTAssertTrue(store.events(for: roundID, until: StreamFixtures.start).isEmpty)
+    }
+
     func testReadingUntilEndTimeLeavesOutLaterRecords() {
         store.append(StreamFixtures.fixes(0..<5) + [StreamFixtures.swing(5)], roundID: roundID)
 

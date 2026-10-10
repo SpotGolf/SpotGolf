@@ -30,7 +30,7 @@ final class StreamStore {
                 counts[entry.roundID, default: 0] += 1
             }
         } catch {
-            Log.storage.error("Could not load streams: \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not load streams: \(String(describing: error))")
         }
     }
 
@@ -82,7 +82,7 @@ final class StreamStore {
         do {
             try context.delete(model: StreamEntry.self, where: #Predicate { $0.roundID == roundID && $0.index >= kept })
         } catch {
-            Log.storage.error("Could not truncate stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not truncate stream for round \(roundID): \(String(describing: error))")
             return
         }
         guard save("truncate stream for round \(roundID)") else { return }
@@ -106,11 +106,11 @@ final class StreamStore {
         do {
             try context.delete(model: StreamEntry.self, where: #Predicate { $0.roundID == roundID })
         } catch {
-            Log.storage.error("Could not delete stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not delete stream for round \(roundID): \(String(describing: error))")
             return
         }
         guard save("delete stream for round \(roundID)") else { return }
-        Log.storage.notice("Deleted stream for round \(roundID, privacy: .public)")
+        Log.storage.notice("Deleted stream for round \(roundID)")
         counts.removeValue(forKey: roundID)
         cache.removeValue(forKey: roundID)
         revision += 1
@@ -121,7 +121,7 @@ final class StreamStore {
             try context.save()
             return true
         } catch {
-            Log.storage.error("Could not \(action, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not \(action): \(String(describing: error))")
             context.rollback()
             return false
         }
@@ -153,32 +153,48 @@ final class StreamStore {
         do {
             return try context.fetch(range)
         } catch {
-            Log.storage.error("Could not read stream for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.storage.error("Could not read stream for round \(roundID): \(String(describing: error))")
             return []
         }
     }
 
     /// GPS fixes up to `endedAt`, when given.
     func points(for roundID: UUID, until endedAt: Date? = nil) -> [TrackPoint] {
-        records(for: roundID).compactMap { record in
-            guard case .fix(let point) = record, endedAt.map({ point.timestamp <= $0 }) ?? true else { return nil }
-            return point
+        records(for: roundID, until: endedAt) { record in
+            if case .fix(let point) = record { return point }
+            return nil
         }
     }
 
     /// Swings up to `endedAt`, when given.
     func swings(for roundID: UUID, until endedAt: Date? = nil) -> [StrokeSuggestion] {
-        records(for: roundID).compactMap { record in
-            guard case .swing(let swing) = record, endedAt.map({ swing.timestamp <= $0 }) ?? true else { return nil }
-            return swing
+        records(for: roundID, until: endedAt) { record in
+            if case .swing(let swing) = record { return swing }
+            return nil
         }
     }
 
     /// Contacts up to `endedAt`, when given.
     func contacts(for roundID: UUID, until endedAt: Date? = nil) -> [ContactEvent] {
+        records(for: roundID, until: endedAt) { record in
+            if case .contact(let contact) = record { return contact }
+            return nil
+        }
+    }
+
+    /// The watch's workout and sensor events up to `endedAt`, when given.
+    func events(for roundID: UUID, until endedAt: Date? = nil) -> [StreamEvent] {
+        records(for: roundID, until: endedAt) { record in
+            if case .event(let event) = record { return event }
+            return nil
+        }
+    }
+
+    /// The records of one kind up to `endedAt`, when given.
+    private func records<T>(for roundID: UUID, until endedAt: Date?, _ pick: (StreamRecord) -> T?) -> [T] {
         records(for: roundID).compactMap { record in
-            guard case .contact(let contact) = record, endedAt.map({ contact.timestamp <= $0 }) ?? true else { return nil }
-            return contact
+            guard endedAt.map({ record.timestamp <= $0 }) ?? true else { return nil }
+            return pick(record)
         }
     }
 }

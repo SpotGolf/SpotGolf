@@ -122,7 +122,7 @@ struct WatchRoundView: View {
         let shown = round.displayHoleIndex
         return HStack(spacing: 4) {
             holeArrow("chevron.left", label: "Previous hole", disabled: shown == 0) {
-                services.contactMonitor.tapped()
+                services.sensors.tapped()
                 services.roundStore.setDisplayHole(shown - 1)
             }
 
@@ -132,7 +132,7 @@ struct WatchRoundView: View {
                 .frame(maxWidth: .infinity)
 
             holeArrow("chevron.right", label: "Next hole", disabled: shown >= round.lastHoleIndex) {
-                services.contactMonitor.tapped()
+                services.sensors.tapped()
                 services.roundStore.setDisplayHole(shown + 1)
             }
         }

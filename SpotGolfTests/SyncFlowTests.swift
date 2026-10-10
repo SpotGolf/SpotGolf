@@ -87,6 +87,38 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(pair.watchAppLaunches, 2)
     }
 
+    func testWatchOnAnotherVersionRefusesTheRound() {
+        pair.watch.version = "0.4.0"
+
+        let id = pair.startRound()
+
+        XCTAssertEqual(phoneRound(id)?.status, .starting)
+        XCTAssertEqual(pair.phone.startStates[id], .needsWatchUpdate(watchVersion: "0.4.0"))
+        XCTAssertNil(watchRound(id))
+    }
+
+    func testRetryAfterUpdatingTheWatchStartsTheRound() {
+        pair.watch.version = "0.4.0"
+        let id = pair.startRound()
+        XCTAssertEqual(pair.phone.startStates[id], .needsWatchUpdate(watchVersion: "0.4.0"))
+
+        pair.watch.version = pair.phone.version
+        pair.phone.retryStart(id)
+
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertNil(pair.phone.startStates[id])
+    }
+
+    func testVersionIsCheckedBeforePermissions() {
+        pair.watch.version = "0.4.0"
+        pair.watch.missingPermissions = { [.motion] }
+
+        let id = pair.startRound()
+
+        XCTAssertEqual(pair.phone.startStates[id], .needsWatchUpdate(watchVersion: "0.4.0"))
+    }
+
     func testWatchMissingPermissionsRefusesTheRound() {
         pair.watch.missingPermissions = { [.motion, .health] }
 
@@ -347,7 +379,7 @@ final class SyncFlowTests: XCTestCase {
 
         let ack = pair.phone.receiver.receive(batch)
 
-        XCTAssertEqual(ack, StreamAck(roundID: id, have: 0))
+        XCTAssertEqual(ack, StreamAck(roundID: id, have: 0, haveLogs: 0))
         XCTAssertEqual(pair.phoneStreams.count(for: id), 0)
     }
 
@@ -356,7 +388,7 @@ final class SyncFlowTests: XCTestCase {
         pair.watch.record(locations(0..<5))
 
         // A relaunch loses the cursor; the empty batch asks the phone for it
-        let relaunched = WatchSync(sync: pair.watchSync, rounds: pair.watchRounds, streams: pair.watchStreams)
+        let relaunched = WatchSync(sync: pair.watchSync, rounds: pair.watchRounds, streams: pair.watchStreams, logs: pair.watchLogs)
         XCTAssertNil(relaunched.sender.cursors[id])
         relaunched.sender.pump()
 
@@ -384,6 +416,188 @@ final class SyncFlowTests: XCTestCase {
         pair.watch.record(locations(0..<3))
 
         XCTAssertFalse(pair.watchStreams.hasStream(for: id))
+    }
+
+    // MARK: - Log lines
+
+    private func logLine(_ second: TimeInterval, _ message: String, device: LogDevice = .watch) -> LogLine {
+        LogLine(timestamp: StreamFixtures.start.addingTimeInterval(second), device: device, level: .notice,
+                category: "sensors", message: message)
+    }
+
+    private func logBatches() -> [StreamBatch] {
+        pair.watchTransport.sentMessages { message -> StreamBatch? in
+            if case .streamBatch(let batch) = message, batch.logs?.isEmpty == false { return batch }
+            return nil
+        }
+    }
+
+    func testWatchLogLinesReachThePhoneInOrder() {
+        let id = pair.startRound()
+
+        pair.watchLogs.append([logLine(0, "accelerometer on"), logLine(1, "first batch")], roundID: id)
+        pair.watch.sender.pump()
+        pair.watchLogs.append([logLine(2, "swing")], roundID: id)
+        pair.watch.sender.pump()
+
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["accelerometer on", "first batch", "swing"])
+        XCTAssertEqual(pair.phoneLogs.lines(for: id), pair.watchLogs.lines(for: id))
+        XCTAssertEqual(pair.watch.sender.logCursors[id], 3)
+    }
+
+    func testLinesGoWithTheNextBatchAfterAFlush() {
+        let id = pair.startRound()
+
+        pair.watchLogs.enqueue(logLine(0, "queued"))
+        XCTAssertTrue(pair.phoneLogs.lines(for: id).isEmpty)
+        pair.watchLogs.flush()
+
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), [])
+        // The flush assigns the round in progress, which the pair's store does not know; a line
+        // for the round goes at once
+        pair.watchLogs.roundIDForNewLines = { id }
+        pair.watchLogs.enqueue(logLine(1, "in the round"))
+        pair.watchLogs.flush()
+
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["in the round"])
+    }
+
+    func testLinesSentWhileUnreachableCatchUpOnReconnect() {
+        let id = pair.startRound()
+        pair.setReachable(false)
+        pair.watchLogs.append((0..<500).map { logLine(TimeInterval($0), "line \($0)") }, roundID: id)
+        pair.watch.sender.pump()
+        XCTAssertTrue(pair.phoneLogs.lines(for: id).isEmpty)
+
+        pair.setReachable(true)
+
+        XCTAssertEqual(pair.phoneLogs.count(for: id, device: .watch), 500)
+        XCTAssertEqual(pair.phoneLogs.lines(for: id), pair.watchLogs.lines(for: id))
+        XCTAssertTrue(logBatches().allSatisfy { ($0.logs?.count ?? 0) <= StreamSender.maxBatchLines })
+        XCTAssertGreaterThanOrEqual(logBatches().count, 3)
+    }
+
+    func testLostLogReplyIsSentAgainWithoutDuplicates() {
+        let id = pair.startRound()
+        pair.watchLogs.append([logLine(0, "a"), logLine(1, "b")], roundID: id)
+        pair.watch.sender.pump()
+        pair.watchTransport.dropsReplies = true
+        pair.watchLogs.append([logLine(2, "c")], roundID: id)
+        pair.watch.sender.pump()
+        XCTAssertEqual(pair.phoneLogs.count(for: id, device: .watch), 3)
+        XCTAssertEqual(pair.watch.sender.logCursors[id], 2)
+
+        pair.watchTransport.dropsReplies = false
+        pair.watchLogs.append([logLine(3, "d")], roundID: id)
+        pair.watch.sender.pump()
+
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["a", "b", "c", "d"])
+    }
+
+    func testLogGapIsDiscardedAndFixedInOneRoundTrip() {
+        let id = pair.startRound()
+        pair.watchLogs.append((0..<5).map { logLine(TimeInterval($0), "line \($0)") }, roundID: id)
+        pair.watch.sender.pump()
+        // The phone loses lines it had already acknowledged
+        pair.phoneLogs.delete(id)
+
+        pair.watchLogs.append([logLine(5, "line 5")], roundID: id)
+        pair.watch.sender.pump()
+
+        XCTAssertEqual(logBatches().suffix(2).map(\.logsFrom), [5, 0])
+        XCTAssertEqual(pair.phoneLogs.lines(for: id), pair.watchLogs.lines(for: id))
+    }
+
+    func testLinesAfterTheLastRecordStillArriveAndTheWatchThenDeletesBoth() {
+        let id = pair.startRound()
+        pair.watch.record(locations(0..<3))
+        pair.watchTransport.dropsSends = true
+        pair.watchLogs.append([logLine(3, "workout ended")], roundID: id)
+        pair.watch.sender.pump()
+
+        pair.phone.endRound(id)
+        XCTAssertEqual(phoneRound(id)?.status, .ended)
+        // Every record is there, but not the line: the watch keeps both until the phone has all
+        XCTAssertTrue(pair.watchLogs.hasLines(for: id))
+        XCTAssertTrue(pair.watchStreams.hasStream(for: id))
+
+        pair.watchTransport.dropsSends = false
+        pair.watch.sender.pump()
+
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["workout ended"])
+        XCTAssertFalse(pair.watchLogs.hasLines(for: id))
+        XCTAssertFalse(pair.watchStreams.hasStream(for: id))
+    }
+
+    func testAckWithoutHaveLogsCountsTheLinesAsComplete() {
+        let id = pair.startRound()
+        pair.watchTransport.dropsSends = true
+        pair.watchLogs.append([logLine(0, "a"), logLine(1, "b")], roundID: id)
+        pair.watch.sender.pump()
+        XCTAssertNil(pair.watch.sender.logCursors[id])
+
+        // A phone from before the app log
+        pair.watch.sender.handle(StreamAck(roundID: id, have: 0))
+
+        XCTAssertEqual(pair.watch.sender.logCursors[id], 2)
+    }
+
+    func testResumedRoundContinuesLogNumbering() {
+        let id = pair.startRound()
+        pair.watchLogs.append([logLine(0, "a"), logLine(1, "b")], roundID: id)
+        pair.watch.sender.pump()
+        pair.phone.endRound(id)
+        XCTAssertFalse(pair.watchLogs.hasLines(for: id))
+
+        pair.phone.resumeRound(id)
+        pair.watchLogs.append([logLine(10, "c")], roundID: id)
+        pair.watch.sender.pump()
+
+        XCTAssertEqual(watchRound(id)?.logBase, 2)
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["a", "b", "c"])
+        XCTAssertEqual(pair.phoneLogs.count(for: id, device: .watch), 3)
+    }
+
+    func testWatchLinesFromJustBeforeTheRoundGoWithIt() {
+        pair.watchLogs.append([LogLine(timestamp: Date().addingTimeInterval(-10 * 60), device: .watch, level: .notice,
+                                       category: "workout", message: "old"),
+                               LogLine(timestamp: Date().addingTimeInterval(-30), device: .watch, level: .notice,
+                                       category: "workout", message: "launched by the phone")], roundID: nil)
+
+        let id = pair.startRound()
+
+        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["launched by the phone"])
+        XCTAssertEqual(pair.watchLogs.lines(for: nil).map(\.message), ["old"])
+    }
+
+    func testDebugLoggingSettingReachesTheWatch() {
+        let was = Log.isDebugEnabled
+        defer {
+            Log.isDebugEnabled = was
+            UserDefaults.standard.removeObject(forKey: WatchSync.debugLoggingKey)
+        }
+        pair.phone.debugLogging = { true }
+
+        pair.startRound()
+
+        XCTAssertTrue(Log.isDebugEnabled)
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: WatchSync.debugLoggingKey))
+    }
+
+    func testCancelledRoundsLinesAreDeletedOnBothDevices() {
+        let pair = SyncPair(startTimeout: 0.05)
+        pair.phoneTransport.isReachable = false
+        let id = pair.startRound()
+        pair.phoneLogs.append([logLine(0, "starting", device: .phone)], roundID: id)
+        // The watch did get a start from an earlier try that the phone never heard back from
+        pair.watchLogs.append([logLine(0, "started")], roundID: id)
+
+        pair.phone.cancelStart(id)
+        pair.phoneTransport.isReachable = true
+        pair.phoneTransport.deliverQueued()
+
+        XCTAssertFalse(pair.phoneLogs.hasLines(for: id))
+        XCTAssertFalse(pair.watchLogs.hasLines(for: id))
     }
 
     // MARK: - Swings

@@ -41,7 +41,7 @@ final class PuttCaptureStore {
     func receive(file url: URL, metadata: [String: Any]?) {
         guard let id = metadata?[PuttCapture.captureKey] as? String, UUID(uuidString: id) != nil,
               let name = metadata?[PuttCapture.fileKey] as? String, PuttCapture.files.contains(name) else {
-            Log.puttLab.error("Received a file that is not part of a capture: \(url.lastPathComponent, privacy: .public)")
+            Log.puttLab.error("Received a file that is not part of a capture: \(url.lastPathComponent)")
             try? FileManager.default.removeItem(at: url)
             return
         }
@@ -53,9 +53,9 @@ final class PuttCaptureStore {
                 try FileManager.default.removeItem(at: destination)
             }
             try FileManager.default.moveItem(at: url, to: destination)
-            Log.puttLab.notice("Received \(name, privacy: .public) of capture \(id, privacy: .public)")
+            Log.puttLab.notice("Received \(name) of capture \(id)")
         } catch {
-            Log.puttLab.error("Could not keep \(name, privacy: .public) of capture \(id, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.puttLab.error("Could not keep \(name) of capture \(id): \(String(describing: error))")
         }
         reload()
     }
@@ -63,8 +63,7 @@ final class PuttCaptureStore {
     func reload() {
         let folders = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey, .isDirectoryKey])) ?? []
         captures = folders.compactMap { folder -> Capture? in
-            guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
-                  UUID(uuidString: folder.lastPathComponent) != nil else { return nil }
+            guard folder.isDirectory, UUID(uuidString: folder.lastPathComponent) != nil else { return nil }
             let files = PuttCapture.files.compactMap { name -> File? in
                 let size = try? FileManager.default.attributesOfItem(atPath: folder.appendingPathComponent(name).path)[.size] as? Int
                 return size.map { File(name: name, bytes: $0) }
@@ -101,7 +100,7 @@ final class PuttCaptureStore {
         do {
             try FileManager.default.removeItem(at: capture.directory)
         } catch {
-            Log.puttLab.error("Could not delete capture \(capture.id, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.puttLab.error("Could not delete capture \(capture.id): \(String(describing: error))")
         }
         reload()
     }

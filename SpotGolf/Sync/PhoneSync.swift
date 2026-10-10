@@ -16,14 +16,21 @@ final class PhoneSync {
         case timedOut
         /// The watch refused until these are granted on it: the user can retry or cancel.
         case needsPermissions([AppPermission])
+        /// The watch app is on another version: the user installs this version on the watch,
+        /// then retries, or cancels.
+        case needsWatchUpdate(watchVersion: String)
     }
 
     /// Rounds that are starting, and whether they are still waiting.
     private(set) var startStates: [UUID: StartState] = [:]
 
+    /// This app's version, sent with each start; the watch refuses any other. Tests set it.
+    @ObservationIgnored var version = AppVersion.text()
+
     let sync: SyncService
     let rounds: RoundStore
     let streams: StreamStore
+    let logs: LogStore
     let receiver: StreamReceiver
     let snapshots: SnapshotSync
 
@@ -33,21 +40,24 @@ final class PhoneSync {
     private let retryDelay: TimeInterval
     /// Launches the watch app so it can take the round. `HKHealthStore.startWatchApp` in the app.
     private let launchWatchApp: () -> Void
+    /// The Debug Logging setting, sent to the watch with each start. Tests set it.
+    @ObservationIgnored var debugLogging: () -> Bool = { false }
     private var startTimers: [UUID: Timer] = [:]
     private var retryTimers: [UUID: Timer] = [:]
 
-    init(sync: SyncService, rounds: RoundStore, streams: StreamStore,
+    init(sync: SyncService, rounds: RoundStore, streams: StreamStore, logs: LogStore,
          requiresWatch: Bool = true, startTimeout: TimeInterval = SyncService.startTimeout,
          retryDelay: TimeInterval = PhoneSync.defaultRetryDelay,
          launchWatchApp: @escaping () -> Void = {}) {
         self.sync = sync
         self.rounds = rounds
         self.streams = streams
+        self.logs = logs
         self.requiresWatch = requiresWatch
         self.startTimeout = startTimeout
         self.retryDelay = retryDelay
         self.launchWatchApp = launchWatchApp
-        receiver = StreamReceiver(rounds: rounds, streams: streams)
+        receiver = StreamReceiver(rounds: rounds, streams: streams, logs: logs)
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: true)
 
         sync.handler = { [weak self] message in self?.handle(message) }
@@ -77,7 +87,7 @@ final class PhoneSync {
     @discardableResult
     func startRound(courseSelection: CourseSelection) -> UUID {
         let round = rounds.startRound(courseSelection: courseSelection, status: .starting)
-        Log.rounds.notice("Round \(round.id, privacy: .public) starting")
+        Log.rounds.notice("Round \(round.id) starting")
         beginStart(round.id)
         return round.id
     }
@@ -104,7 +114,7 @@ final class PhoneSync {
     /// A resumed round goes back to ended instead, and keeps its data.
     func cancelStart(_ roundID: UUID) {
         guard let round = rounds.round(roundID), round.status == .starting else { return }
-        Log.rounds.notice("Round \(roundID, privacy: .public) start cancelled")
+        Log.rounds.notice("Round \(roundID) start cancelled")
         stopWaiting(roundID)
         if let endedAt = round.resumedFromEnd {
             rounds.update(roundID) { round in
@@ -125,6 +135,7 @@ final class PhoneSync {
         }
         rounds.deleteRound(roundID)
         streams.delete(roundID)
+        logs.delete(roundID)
         let message = SyncMessage.cancelRound(CancelRound(roundID: roundID))
         sync.send(message)
         sync.queue(message)
@@ -141,7 +152,7 @@ final class PhoneSync {
         startTimers[roundID] = Timer.scheduledTimer(withTimeInterval: startTimeout, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.startStates[roundID] == .waiting else { return }
-                Log.rounds.error("Round \(roundID, privacy: .public): watch did not confirm the start in time")
+                Log.rounds.error("Round \(roundID): watch did not confirm the start in time")
                 self.startStates[roundID] = .timedOut
             }
         }
@@ -155,7 +166,7 @@ final class PhoneSync {
         do {
             course = try JSONEncoder().encode(round.courseSelection.trimmed).gzipCompressed()
         } catch {
-            Log.sync.error("Could not encode the course for round \(roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not encode the course for round \(roundID): \(String(describing: error))")
             sync.syncError = String(localized: "Could not send the round to the watch.")
             return
         }
@@ -163,7 +174,10 @@ final class PhoneSync {
                                holeTimeline: round.holeTimeline, displayHole: round.displayHole,
                                pins: round.pins,
                                strokes: round.strokesSnapshot,
-                               streamBase: receiver.have(for: round.id))
+                               streamBase: receiver.have(for: round.id),
+                               version: version,
+                               logBase: receiver.haveLogs(for: round.id),
+                               debugLogging: debugLogging())
         sync.send(.startRound(start), reply: { [weak self] reply in
             switch reply {
             case .startRoundAck(let ack): self?.started(ack.roundID)
@@ -200,7 +214,7 @@ final class PhoneSync {
     private func started(_ roundID: UUID) {
         guard rounds.round(roundID)?.status == .starting else { return }
         stopWaiting(roundID)
-        Log.rounds.notice("Round \(roundID, privacy: .public) active: watch confirmed")
+        Log.rounds.notice("Round \(roundID) active: watch confirmed")
         rounds.update(roundID) { round in
             round.status = .active
             round.resumedFromEnd = nil
@@ -212,12 +226,18 @@ final class PhoneSync {
         }
     }
 
-    /// The watch is missing permissions. The round waits for the user to retry or cancel.
+    /// The watch refused the round. It waits for the user to retry or cancel.
     private func refused(_ refused: StartRoundRefused) {
         guard rounds.round(refused.roundID)?.status == .starting else { return }
-        Log.rounds.error("Round \(refused.roundID, privacy: .public): watch is missing \(refused.missing.map(\.rawValue).joined(separator: ", "), privacy: .public)")
         startTimers.removeValue(forKey: refused.roundID)?.invalidate()
-        startStates[refused.roundID] = .needsPermissions(refused.missing)
+        switch refused.reason {
+        case .missingPermissions(let missing):
+            Log.rounds.error("Round \(refused.roundID): watch is missing \(missing.map(\.rawValue).joined(separator: ", "))")
+            startStates[refused.roundID] = .needsPermissions(missing)
+        case .versionMismatch(let watchVersion):
+            Log.rounds.error("Round \(refused.roundID): watch app is version \(watchVersion), this app \(self.version)")
+            startStates[refused.roundID] = .needsWatchUpdate(watchVersion: watchVersion)
+        }
     }
 
     private func stopWaiting(_ roundID: UUID) {
@@ -234,7 +254,7 @@ final class PhoneSync {
         case .starting:
             cancelStart(roundID)
         case .active:
-            Log.rounds.notice("Round \(roundID, privacy: .public) ending on the phone")
+            Log.rounds.notice("Round \(roundID) ending on the phone")
             rounds.update(roundID) { round in
                 round.status = .ending
                 round.endedAt = Date()
@@ -256,7 +276,7 @@ final class PhoneSync {
     /// Ends the round now, without waiting for the watch. Late records up to the end time are still kept.
     func forceEnd(_ roundID: UUID) {
         guard rounds.round(roundID)?.status == .ending else { return }
-        Log.rounds.notice("Round \(roundID, privacy: .public) force ended before the watch sent everything")
+        Log.rounds.notice("Round \(roundID) force ended before the watch sent everything")
         finish(roundID)
     }
 
@@ -297,7 +317,7 @@ final class PhoneSync {
     }
 
     private func finish(_ roundID: UUID) {
-        Log.rounds.notice("Round \(roundID, privacy: .public) ended, \(self.receiver.have(for: roundID), privacy: .public) records")
+        Log.rounds.notice("Round \(roundID) ended, \(self.receiver.have(for: roundID)) records")
         rounds.update(roundID) { $0.end(at: Date()) }
     }
 
@@ -353,10 +373,10 @@ final class PhoneSync {
 
     private func receiveEndRound(_ end: EndRound) {
         guard let round = rounds.round(end.roundID) else {
-            Log.rounds.error("Watch ended unknown round \(end.roundID, privacy: .public)")
+            Log.rounds.error("Watch ended unknown round \(end.roundID)")
             return
         }
-        Log.rounds.notice("Round \(end.roundID, privacy: .public) ended on the watch")
+        Log.rounds.notice("Round \(end.roundID) ended on the watch")
         rounds.update(end.roundID) { round in
             if round.status == .starting || round.status == .active {
                 round.status = .ending
@@ -381,10 +401,10 @@ final class PhoneSync {
                 sendStart(round.id)
             case .active:
                 // Tells the watch where to continue, without waiting for its next fix
-                sync.send(.streamAck(StreamAck(roundID: round.id, have: receiver.have(for: round.id))))
+                sync.send(.streamAck(receiver.ack(for: round.id)))
             case .ending:
                 sendEndRequest(round.id)
-                sync.send(.streamAck(StreamAck(roundID: round.id, have: receiver.have(for: round.id))))
+                sync.send(.streamAck(receiver.ack(for: round.id)))
             default:
                 break
             }

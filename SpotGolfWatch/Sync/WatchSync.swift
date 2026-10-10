@@ -11,23 +11,40 @@ final class WatchSync {
     let sync: SyncService
     let rounds: RoundStore
     let streams: StreamStore
+    let logs: LogStore
     let sender: StreamSender
     let snapshots: SnapshotSync
 
     /// Permissions the watch needs and does not have. A new round is refused until there are none.
     @ObservationIgnored var missingPermissions: () -> [AppPermission] = { [] }
 
-    init(sync: SyncService, rounds: RoundStore, streams: StreamStore) {
+    /// This app's version. A round from a phone app on any other version is refused, so the two
+    /// never record with different code. Tests set it.
+    @ObservationIgnored var version = AppVersion.text()
+
+    /// Events from before a round is active, kept for the round that comes: the workout the
+    /// phone launches starts before the round arrives.
+    @ObservationIgnored private var pendingEvents: [StreamEvent] = []
+    static let pendingEventLimit = 50
+    static let pendingEventAge: TimeInterval = 5 * 60
+
+    /// Where the phone's Debug Logging setting is kept, for lines outside a round.
+    static let debugLoggingKey = "debugLogging"
+
+    init(sync: SyncService, rounds: RoundStore, streams: StreamStore, logs: LogStore) {
         self.sync = sync
         self.rounds = rounds
         self.streams = streams
-        sender = StreamSender(sync: sync, rounds: rounds, streams: streams)
+        self.logs = logs
+        sender = StreamSender(sync: sync, rounds: rounds, streams: streams, logs: logs)
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: false)
 
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.addListener { [weak self] event in self?.roundChanged(event) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
         sender.onStreamDeleted = { [weak self] in self?.pruneFinishedRounds() }
+        // New lines go with the next batch
+        logs.onFlush = { [weak self] in self?.sender.pump() }
         pruneFinishedRounds()
     }
 
@@ -46,7 +63,7 @@ final class WatchSync {
     /// Stores GPS fixes for the active round and sends them.
     func record(_ locations: [CLLocation]) {
         guard let round = rounds.activeRound else {
-            Log.location.error("Dropped \(locations.count, privacy: .public) fixes: no active round")
+            Log.location.error("Dropped \(locations.count) fixes: no active round")
             return
         }
         streams.append(locations.map { .fix(TrackPoint(location: $0)) }, roundID: round.id)
@@ -71,13 +88,26 @@ final class WatchSync {
         sender.pump()
     }
 
+    /// Stores a workout or sensor event for the active round, or keeps it for the next round.
+    func record(_ event: StreamEvent) {
+        guard let round = rounds.activeRound else {
+            pendingEvents.append(event)
+            if pendingEvents.count > Self.pendingEventLimit {
+                pendingEvents.removeFirst(pendingEvents.count - Self.pendingEventLimit)
+            }
+            return
+        }
+        streams.append([.event(event)], roundID: round.id)
+        sender.pump()
+    }
+
     // MARK: - End
 
     /// The user ended the round on the watch. The watch is done right away; the phone is told
     /// the last record so it knows when the stream is complete.
     func endRound() {
         guard let round = rounds.activeRound else { return }
-        Log.rounds.notice("Round \(round.id, privacy: .public) ended on the watch")
+        Log.rounds.notice("Round \(round.id) ended on the watch")
         end(round.id, at: Date())
         sendEndRound(round.id)
         if let end = endRoundMessage(round.id) {
@@ -117,9 +147,10 @@ final class WatchSync {
         case .startRound(let start):
             return startRound(start)
         case .cancelRound(let cancel):
-            Log.rounds.notice("Round \(cancel.roundID, privacy: .public) cancelled by the phone")
+            Log.rounds.notice("Round \(cancel.roundID) cancelled by the phone")
             rounds.deleteRound(cancel.roundID)
             streams.delete(cancel.roundID)
+            logs.delete(cancel.roundID)
             return nil
         case .endRequest(let request):
             return .endAck(endRequested(request))
@@ -150,14 +181,19 @@ final class WatchSync {
         }
     }
 
-    /// Takes the round the phone started, or refuses it while permissions are missing. A
-    /// repeat of the same start for a round already recording just confirms again.
+    /// Takes the round the phone started, or refuses it while the phone app is another version
+    /// or permissions are missing. A repeat of the same start for a round already recording
+    /// just confirms again.
     private func startRound(_ start: StartRound) -> SyncMessage? {
+        guard start.version == version else {
+            Log.rounds.error("Round \(start.roundID) refused: the phone app is version \(start.version), this watch app \(self.version)")
+            return .startRoundRefused(StartRoundRefused(roundID: start.roundID, reason: .versionMismatch(watchVersion: version)))
+        }
         if rounds.round(start.roundID)?.isActive != true {
             let missing = missingPermissions()
             guard missing.isEmpty else {
-                Log.rounds.error("Round \(start.roundID, privacy: .public) refused: missing \(missing.map(\.rawValue).joined(separator: ", "), privacy: .public)")
-                return .startRoundRefused(StartRoundRefused(roundID: start.roundID, missing: missing))
+                Log.rounds.error("Round \(start.roundID) refused: missing \(missing.map(\.rawValue).joined(separator: ", "))")
+                return .startRoundRefused(StartRoundRefused(roundID: start.roundID, reason: .missingPermissions(missing)))
             }
         }
 
@@ -165,11 +201,13 @@ final class WatchSync {
         do {
             selection = try JSONDecoder().decode(CourseSelection.self, from: start.course.gzipDecompressed())
         } catch {
-            Log.sync.error("Could not decode the course for round \(start.roundID, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.sync.error("Could not decode the course for round \(start.roundID): \(String(describing: error))")
             return nil
         }
 
-        Log.rounds.notice("Round \(start.roundID, privacy: .public) started by the phone")
+        Log.rounds.notice("Round \(start.roundID) started by the phone")
+        Log.isDebugEnabled = start.debugLogging
+        UserDefaults.standard.set(start.debugLogging, forKey: Self.debugLoggingKey)
 
         // Another round still recording ends the usual way first
         if let other = rounds.activeRound, other.id != start.roundID {
@@ -202,6 +240,18 @@ final class WatchSync {
         if !streams.hasStream(for: start.roundID) {
             rounds.update(start.roundID) { $0.streamBase = start.streamBase }
         }
+        if logs.count(for: start.roundID, device: .watch) == 0 {
+            rounds.update(start.roundID) { $0.logBase = start.logBase }
+        }
+        // The lines from just before the round, such as the workout launch, are read with it
+        logs.flush()
+        logs.moveRecentLines(into: start.roundID, device: .watch)
+        // The workout start that came before the round, and anything else recent
+        let recent = pendingEvents.filter { Date().timeIntervalSince($0.timestamp) <= Self.pendingEventAge }
+        pendingEvents = []
+        if !recent.isEmpty {
+            streams.append(recent.map { .event($0) }, roundID: start.roundID)
+        }
         rounds.applyStrokes(start.strokes)
         sender.pump()
         return .startRoundAck(StartRoundAck(roundID: start.roundID))
@@ -211,11 +261,11 @@ final class WatchSync {
     /// gives the last record so the phone knows when it has everything.
     private func endRequested(_ request: EndRequest) -> EndAck {
         guard let round = rounds.round(request.roundID) else {
-            Log.rounds.notice("End request for unknown round \(request.roundID, privacy: .public)")
+            Log.rounds.notice("End request for unknown round \(request.roundID)")
             return EndAck(roundID: request.roundID, lastSeq: nil)
         }
         if round.isActive {
-            Log.rounds.notice("Round \(round.id, privacy: .public) ended by the phone")
+            Log.rounds.notice("Round \(round.id) ended by the phone")
             streams.truncate(round.id, after: request.endedAt)
             end(round.id, at: request.endedAt)
             // The request may have come through the queue, which has no reply. The queued
@@ -242,6 +292,7 @@ final class WatchSync {
             && (round.endedAt.map { now.timeIntervalSince($0) > Self.finishedRoundKeepTime } ?? true)
             && !streams.hasStream(for: round.id) {
             rounds.deleteRound(round.id)
+            logs.delete(round.id)
         }
     }
 

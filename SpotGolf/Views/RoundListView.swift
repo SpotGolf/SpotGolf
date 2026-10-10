@@ -11,6 +11,7 @@ struct RoundListView: View {
     /// Its ID and title, since the alert can still show while the deleted round goes away.
     @State private var roundToDelete: (id: UUID, title: String)?
     @State private var export: RoundExport?
+    @State private var logRound: Round?
 
     var body: some View {
         List {
@@ -56,6 +57,12 @@ struct RoundListView: View {
                             Label("Export", systemImage: "square.and.arrow.up")
                         }
                         .tint(.blue)
+                        Button {
+                            logRound = round
+                        } label: {
+                            Label("Log", systemImage: "doc.text")
+                        }
+                        .tint(.gray)
                     }
                 }
             }
@@ -99,6 +106,7 @@ struct RoundListView: View {
             Button("Delete", role: .destructive) {
                 services.roundStore.deleteRound(round.id)
                 services.streamStore.delete(round.id)
+                services.logStore.delete(round.id)
             }
             Button("Cancel", role: .cancel) {}
         } message: { round in
@@ -124,6 +132,16 @@ struct RoundListView: View {
             ShareSheet(items: [export.url])
                 .presentationDetents([.medium, .large])
         }
+        .sheet(item: $logRound) { round in
+            NavigationStack {
+                LogView(scope: .round(round))
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { logRound = nil }
+                        }
+                    }
+            }
+        }
     }
 
     /// The watch records all GPS, so a round needs a paired watch with the app installed.
@@ -147,14 +165,15 @@ struct RoundListView: View {
         let csv = TrackExporter.csv(round: round,
                                     points: services.streamStore.points(for: round.id, until: round.endedAt),
                                     swings: services.streamStore.swings(for: round.id, until: round.endedAt),
-                                    contacts: services.streamStore.contacts(for: round.id, until: round.endedAt))
+                                    contacts: services.streamStore.contacts(for: round.id, until: round.endedAt),
+                                    events: services.streamStore.events(for: round.id, until: round.endedAt))
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(TrackExporter.fileName(for: round))
         do {
             try csv.write(to: url, atomically: true, encoding: .utf8)
             export = RoundExport(url: url)
         } catch {
-            Log.export.error("Could not write track export: \(String(describing: error), privacy: .public)")
+            Log.export.error("Could not write track export: \(String(describing: error))")
         }
     }
 }

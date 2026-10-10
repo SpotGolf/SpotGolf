@@ -52,6 +52,27 @@ final class StreamRecordTests: XCTestCase {
         XCTAssertEqual(data, expected)
     }
 
+    func testEventRecordHoldsTimeCodeAndValue() throws {
+        let event = StreamEvent(timestamp: StreamFixtures.start.addingTimeInterval(12.345), code: .accelerometerRestart, value: 3)
+        let record = StreamRecord.event(event)
+
+        let data = record.record
+
+        XCTAssertEqual(data.count, 25)
+        XCTAssertEqual(data.first, 3)
+        XCTAssertEqual(Data(data.suffix(10)), Data(count: 10))
+        XCTAssertEqual(StreamRecord(record: data), record)
+        XCTAssertEqual(record.timestamp, event.timestamp)
+    }
+
+    func testEventWithUnknownCodeIsSkipped() {
+        var data = StreamRecord.event(StreamEvent(code: .workoutStarted)).record
+        // The code sits after the kind byte and the 8-byte timestamp
+        data[data.startIndex + 9] = 0xFF
+        data[data.startIndex + 10] = 0xFF
+        XCTAssertNil(StreamRecord(record: data))
+    }
+
     func testUnknownKindOrWrongSizeIsNotARecord() {
         var data = StreamFixtures.fix(0).record
         data[data.startIndex] = 7

@@ -1,15 +1,14 @@
 import CoreLocation
-import CoreMotion
 import CourseDataSwift
 import Foundation
 import Observation
 import os
 
 /// Detects ball contact during a round while the watch is within `zoneMargin` of the display
-/// hole's green: there it starts the mic and device motion, takes the accelerometer batches
-/// `SwingDetector` already receives, and reports each contact. It stops 10 s after the watch
-/// leaves the zone, when the display hole changes, and when the round ends. See
-/// `plans/2026-10-06-putt-detection.md`.
+/// hole's green: there it subscribes to the accelerometer, device motion and the microphone
+/// from `SensorInputs` and feeds them to a `ContactRunner`. It stops 10 s after the watch
+/// leaves the zone, when the display hole changes, when the workout stops, and when the round
+/// ends. See `plans/2026-10-06-putt-detection.md`.
 @MainActor
 @Observable
 final class ContactMonitor {
@@ -17,41 +16,34 @@ final class ContactMonitor {
     static let zoneMargin = HoleShape.chipZoneMargin
     /// Fixes beyond the zone for this long stop the detector.
     static let exitDelay: TimeInterval = 10
-    /// After the mic refuses to start, or its permission is missing, the next try waits this long.
-    static let retryDelay: TimeInterval = 60
 
     private(set) var isRunning = false
 
     /// Called on the main actor with each contact.
     @ObservationIgnored var onContact: ((ContactEvent) -> Void)?
 
-    let runner: ContactRunner
-    let taps: TapGuard
+    /// Called with each start and stop, for the round's stream.
+    @ObservationIgnored var onEvent: ((StreamEvent) -> Void)?
 
-    private let motionManager = CMBatchedSensorManager()
-    private var microphone: MicrophoneInput?
-    private var holeIndex: Int?
-    private var green = HoleShape()
-    private var outsideSince: Date?
-    private var startedAt: Date?
-    private var retryAfter: Date?
+    @ObservationIgnored private let sensors: SensorInputs
+    @ObservationIgnored private let runner: ContactRunner
+    @ObservationIgnored private var subscriptions: [SensorInputs.Subscription] = []
+    @ObservationIgnored private var holeIndex: Int?
+    @ObservationIgnored private var green = HoleShape()
+    @ObservationIgnored private var outsideSince: Date?
+    @ObservationIgnored private var startedAt: Date?
     /// The accelerometer only runs with the workout, and nothing is scored without it.
-    private let isWorkoutRunning: () -> Bool
+    @ObservationIgnored private let isWorkoutRunning: () -> Bool
 
-    init(taps: TapGuard = TapGuard(), isWorkoutRunning: @escaping () -> Bool = { true }) {
-        self.taps = taps
+    init(sensors: SensorInputs, isWorkoutRunning: @escaping () -> Bool = { true }) {
+        self.sensors = sensors
         self.isWorkoutRunning = isWorkoutRunning
-        runner = ContactRunner(taps: taps)
+        runner = ContactRunner(taps: sensors.taps)
         runner.onContact = { [weak self] contact in
             let event = ContactRunner.event(contact)
-            Log.contacts.notice("Contact at \(event.timestamp, privacy: .public): score \(event.score, privacy: .public), burst \(event.burst, privacy: .public) g, click \(event.click, privacy: .public), turning \(event.turning, privacy: .public) rad/s")
+            Log.contacts.notice("Contact at \(event.timestamp): score \(event.score), burst \(event.burst) g, click \(event.click), turning \(event.turning) rad/s")
             Task { @MainActor in self?.onContact?(event) }
         }
-    }
-
-    /// A tap on one of the app's buttons: readings around it are ignored.
-    func tapped() {
-        taps.tapped()
     }
 
     /// Every GPS fix of the active round.
@@ -74,7 +66,7 @@ final class ContactMonitor {
         }
         if toGreen <= Self.zoneMargin {
             outsideSince = nil
-            if !isRunning, retryAfter.map({ Date() >= $0 }) ?? true {
+            if !isRunning {
                 start()
             }
         } else if isRunning {
@@ -96,53 +88,32 @@ final class ContactMonitor {
     }
 
     private func start() {
-        retryAfter = nil
-        guard MicrophoneInput.permission == .granted else {
-            Log.contacts.error("Contact detection off: microphone permission \(String(describing: MicrophoneInput.permission), privacy: .public); trying again in \(Int(Self.retryDelay), privacy: .public) s")
-            retryAfter = Date().addingTimeInterval(Self.retryDelay)
-            return
-        }
-        let runner = runner
-        let microphone = MicrophoneInput { samples, hostSeconds, sampleRate in
-            runner.addAudio(samples, hostSeconds: hostSeconds, sampleRate: sampleRate)
-        }
-        do {
-            try microphone.start(to: nil, captureStartUptime: 0)
-        } catch {
-            // Nothing can be scored without the click, so nothing else starts either
-            Log.contacts.error("Could not start the microphone: \(String(describing: error), privacy: .public); trying again in \(Int(Self.retryDelay), privacy: .public) s")
-            retryAfter = Date().addingTimeInterval(Self.retryDelay)
-            return
-        }
-        self.microphone = microphone
         isRunning = true
         startedAt = Date()
         runner.start()
-        if CMBatchedSensorManager.isDeviceMotionSupported {
-            // CoreMotion calls this on its own queue, so @Sendable: a plain closure made here
-            // would count as main-actor code, and Swift 6 traps when it runs anywhere else
-            motionManager.startDeviceMotionUpdates { @Sendable batch, error in
-                if let error {
-                    Log.contacts.error("Device motion error: \(String(describing: error), privacy: .public)")
-                }
-                if let batch {
-                    runner.addMotion(batch)
-                }
+        let runner = runner
+        subscriptions = [
+            sensors.subscribeAccelerometer { runner.addAccelerometer($0) },
+            sensors.subscribeDeviceMotion { runner.addMotion($0) },
+            sensors.subscribeMicrophone { buffer, hostSeconds in
+                runner.addAudio(MicrophoneInput.samples(buffer), hostSeconds: hostSeconds, sampleRate: buffer.format.sampleRate)
             }
-        } else {
-            Log.contacts.error("Batched device motion not supported; contacts will not pass the turning gate")
-        }
-        Log.contacts.notice("Contact detection on at hole \(self.holeIndex.map { $0 + 1 } ?? 0, privacy: .public)")
+        ]
+        let hole = holeIndex.map { $0 + 1 } ?? 0
+        Log.contacts.notice("Contact detection on at hole \(hole)")
+        onEvent?(StreamEvent(code: .contactsOn, value: Float(hole)))
     }
 
     private func stop(reason: String) {
         isRunning = false
+        for subscription in subscriptions {
+            subscription.cancel()
+        }
+        subscriptions = []
         runner.stop()
-        motionManager.stopDeviceMotionUpdates()
-        microphone?.stop()
-        microphone = nil
         let seconds = startedAt.map { Date().timeIntervalSince($0) } ?? 0
         startedAt = nil
-        Log.contacts.notice("Contact detection off after \(Int(seconds), privacy: .public) s: \(reason, privacy: .public)")
+        Log.contacts.notice("Contact detection off after \(Int(seconds)) s: \(reason)")
+        onEvent?(StreamEvent(code: .contactsOff, value: Float(seconds)))
     }
 }

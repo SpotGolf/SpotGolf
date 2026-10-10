@@ -4,7 +4,7 @@ import SwiftData
 
 enum Storage {
     /// The models each app saves.
-    static let models: [any PersistentModel.Type] = [Round.self, StreamEntry.self]
+    static let models: [any PersistentModel.Type] = [Round.self, StreamEntry.self, LogEntry.self]
 
     /// The app's saved data, on this device only: the phone's CloudKit container is for shared
     /// pins, and SwiftData would otherwise sync the store to it.
@@ -34,7 +34,7 @@ enum Storage {
             return try ModelContainer(for: Schema(models), configurations: configuration)
         } catch {
             // Nothing works without the store, so there is nothing better to do than stop
-            Log.storage.fault("Could not open the saved data: \(String(describing: error), privacy: .public)")
+            Log.storage.fault("Could not open the saved data: \(String(describing: error))")
             fatalError("Could not open the saved data: \(error)")
         }
     }

@@ -11,9 +11,11 @@ enum TrackExporter {
     /// altitude/accuracy/source and leave the rest blank. Swing rows fill the location of the
     /// nearest fix (blank if none is close enough), source, hole (1-based, from the hole
     /// timeline), and peak force in g; contact rows the same with score, burst and click instead.
-    /// Stroke rows fill hole (1-based), stroke (1-based) and stroke type. Altitude and accuracy
-    /// are blank when the fix had no valid reading.
-    static func csv(round: Round, points: [TrackPoint], swings: [StrokeSuggestion], contacts: [ContactEvent] = []) -> String {
+    /// Stroke rows fill hole (1-based), stroke (1-based) and stroke type. Event rows fill
+    /// source, hole, the event's name in strokeType and its value in peakG. Altitude and
+    /// accuracy are blank when the fix had no valid reading.
+    static func csv(round: Round, points: [TrackPoint], swings: [StrokeSuggestion], contacts: [ContactEvent] = [],
+                    events: [StreamEvent] = []) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -42,6 +44,13 @@ enum TrackExporter {
             let hole = round.holeIndex(at: contact.timestamp) + 1
             rows.append((contact.timestamp,
                          "contact,\(formatter.string(from: contact.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,,\(contact.score),\(contact.burst),\(contact.click)"))
+        }
+
+        // The watch's workout and sensor events: the code's name where a stroke's type goes, its value where a swing's peak goes
+        for event in events {
+            let hole = round.holeIndex(at: event.timestamp) + 1
+            rows.append((event.timestamp,
+                         "event,\(formatter.string(from: event.timestamp)),,,,,watch,\(hole),,\(event.name),\(event.value),,,"))
         }
 
         var lines = rows.sorted { $0.timestamp < $1.timestamp }.map(\.line)

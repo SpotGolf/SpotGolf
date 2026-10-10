@@ -2,119 +2,59 @@ import CoreMotion
 import Foundation
 import os
 
-/// Detects swings from batches of wrist accelerometer readings. `CMBatchedSensorManager`
-/// delivers them about once a second, and only during a workout, which a round always has.
+/// Detects swings from the wrist accelerometer batches `SensorInputs` delivers, about once a
+/// second and only during a workout, which a round always has.
 @MainActor
 final class SwingDetector {
-    private let manager = CMBatchedSensorManager()
+    private let sensors: SensorInputs
     private var finder = SwingPeakFinder()
-    private var isRunning = false
-    // Logged once per start and restart, to show that accelerometer data arrives at all
-    private var hasReceivedBatch = false
-    // Updates can end on an error or stop with no error, so they are restarted
-    private var watchdog = RestartWatchdog(startedAt: Date(), checksData: true)
-    private var watchdogTimer: Timer?
+    private var subscription: SensorInputs.Subscription?
 
     /// Called with each swing once its peak force is known.
     var onSwing: ((StrokeSuggestion) -> Void)?
 
-    /// Called on the sensor thread with every accelerometer batch, for `ContactMonitor`.
-    var onBatch: (([CMAccelerometerData]) -> Void)?
+    /// Called with each start and stop, for the round's stream.
+    var onEvent: ((StreamEvent) -> Void)?
 
-    /// Taps on the app's buttons, whose readings are not swings.
-    var taps: TapGuard?
+    init(sensors: SensorInputs) {
+        self.sensors = sensors
+    }
+
+    var isRunning: Bool { subscription != nil }
 
     func start() {
-        guard !isRunning else { return }
-        guard CMBatchedSensorManager.isAccelerometerSupported else {
-            Log.swings.error("Swing detection off: batched accelerometer not supported on this watch")
-            return
-        }
-        isRunning = true
+        guard subscription == nil else { return }
         Log.swings.notice("Swing detection started")
+        onEvent?(StreamEvent(code: .swingDetectionStarted))
         finder = SwingPeakFinder()
-        startUpdates()
-        watchdogTimer = Timer.scheduledTimer(withTimeInterval: RestartWatchdog.interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.checkUpdates() }
-        }
-    }
-
-    func stop() {
-        guard isRunning else { return }
-        watchdogTimer?.invalidate()
-        watchdogTimer = nil
-        manager.stopAccelerometerUpdates()
-        isRunning = false
-        Log.swings.notice("Swing detection stopped")
-        // A swing still waiting for its peak window to close
-        if let swing = finder.flush() {
-            Log.swings.notice("Swing at \(swing.timestamp, privacy: .public), peak \(swing.peakG ?? 0, privacy: .public) g (on stop)")
-            onSwing?(swing)
-        }
-    }
-
-    private func startUpdates() {
-        watchdog.started(at: Date())
-        hasReceivedBatch = false
-        let onBatch = BatchCallback(onBatch)
-        let taps = taps
-        // CoreMotion calls this on its own queue, so @Sendable: a plain closure made here would
-        // count as main-actor code, and Swift 6 traps when it runs anywhere else
-        manager.startAccelerometerUpdates { @Sendable [weak self] batch, error in
-            if let error {
-                Log.swings.error("Accelerometer error: \(String(describing: error), privacy: .public)")
-                Task { @MainActor in self?.updatesFailed() }
-            }
-            guard let batch else { return }
-            onBatch.handler?(batch)
-            // Reading timestamps count from boot
-            let bootDate = Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime)
+        let taps = sensors.taps
+        subscription = sensors.subscribeAccelerometer { [weak self] batch in
             let readings = batch.compactMap { data -> SwingPeakFinder.Reading? in
-                guard taps?.covers(uptime: data.timestamp) != true else { return nil }
+                guard !taps.covers(uptime: data.timestamp) else { return nil }
                 let a = data.acceleration
-                return SwingPeakFinder.Reading(timestamp: bootDate.addingTimeInterval(data.timestamp),
+                return SwingPeakFinder.Reading(timestamp: Uptime.date(at: data.timestamp),
                                                magnitude: (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot())
             }
             Task { @MainActor in
-                guard let self else { return }
-                self.watchdog.dataReceived(at: Date())
-                if !self.hasReceivedBatch {
-                    self.hasReceivedBatch = true
-                    Log.swings.notice("First accelerometer batch received: \(readings.count, privacy: .public) readings")
-                }
+                guard let self, self.subscription != nil else { return }
                 for swing in self.finder.add(readings) {
-                    Log.swings.notice("Swing at \(swing.timestamp, privacy: .public), peak \(swing.peakG ?? 0, privacy: .public) g")
+                    Log.swings.notice("Swing at \(swing.timestamp), peak \(swing.peakG ?? 0) g")
                     self.onSwing?(swing)
                 }
             }
         }
     }
 
-    /// An error may have ended updates. A start that keeps failing is left to the watchdog.
-    private func updatesFailed() {
-        guard isRunning else { return }
-        guard watchdog.shouldRestartAfterError(at: Date()) else {
-            Log.swings.error("Accelerometer error within \(RestartWatchdog.interval, privacy: .public) s of a start; leaving the restart to the watchdog")
-            return
+    func stop() {
+        guard let subscription else { return }
+        subscription.cancel()
+        self.subscription = nil
+        Log.swings.notice("Swing detection stopped")
+        onEvent?(StreamEvent(code: .swingDetectionStopped))
+        // A swing still waiting for its peak window to close
+        if let swing = finder.flush() {
+            Log.swings.notice("Swing at \(swing.timestamp), peak \(swing.peakG ?? 0) g (on stop)")
+            onSwing?(swing)
         }
-        Log.swings.notice("Restarting the accelerometer after an error")
-        restartUpdates()
     }
-
-    private func checkUpdates() {
-        guard isRunning, watchdog.shouldRestart(at: Date(), isActive: manager.isAccelerometerActive) else { return }
-        Log.swings.error("Accelerometer stopped sending data (active \(self.manager.isAccelerometerActive, privacy: .public)); restarting")
-        restartUpdates()
-    }
-
-    private func restartUpdates() {
-        manager.stopAccelerometerUpdates()
-        startUpdates()
-    }
-}
-
-// The batch hook, captured when updates start so the sensor thread never touches the main actor
-private struct BatchCallback: @unchecked Sendable {
-    let handler: (([CMAccelerometerData]) -> Void)?
-    init(_ handler: (([CMAccelerometerData]) -> Void)?) { self.handler = handler }
 }

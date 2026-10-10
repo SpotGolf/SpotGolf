@@ -1,13 +1,15 @@
 import Foundation
 
-/// One record in a round's stream from the watch: a GPS fix, a swing or a contact, in the
-/// order the watch recorded them. A record's position in the stream is its index.
+/// One record in a round's stream from the watch: a GPS fix, a swing, a contact or an event,
+/// in the order the watch recorded them. A record's position in the stream is its index.
 enum StreamRecord: Equatable {
     case fix(TrackPoint)
     /// A swing the watch detected: a `StrokeSuggestion` with a time and peak force only.
     case swing(StrokeSuggestion)
     /// Ball contact the watch heard and felt.
     case contact(ContactEvent)
+    /// The workout or a sensor starting, stopping, failing or restarting.
+    case event(StreamEvent)
 
     /// Bytes per record: a kind byte, then 24 bytes of data.
     static let size = 1 + TrackPoint.recordSize
@@ -15,18 +17,22 @@ enum StreamRecord: Equatable {
     private static let fixKind: UInt8 = 0
     private static let swingKind: UInt8 = 1
     private static let contactKind: UInt8 = 2
+    private static let eventKind: UInt8 = 3
 
     var timestamp: Date {
         switch self {
         case .fix(let point): point.timestamp
         case .swing(let swing): swing.timestamp
         case .contact(let contact): contact.timestamp
+        case .event(let event): event.timestamp
         }
     }
 
     /// Fix: kind 0, then the `TrackPoint` record. Swing: kind 1, milliseconds since 1970
     /// (Int64), peak force in g (Float32), then 12 zero bytes. Contact: kind 2, milliseconds
-    /// since 1970 (Int64), then score, burst, click and turning (Float32 each). Little-endian.
+    /// since 1970 (Int64), then score, burst, click and turning (Float32 each). Event: kind 3,
+    /// milliseconds since 1970 (Int64), code (UInt16), value (Float32), then 10 zero bytes.
+    /// Little-endian.
     var record: Data {
         var data = Data(capacity: Self.size)
         switch self {
@@ -45,6 +51,12 @@ enum StreamRecord: Equatable {
             data.append(littleEndian: contact.burst.bitPattern)
             data.append(littleEndian: contact.click.bitPattern)
             data.append(littleEndian: contact.turning.bitPattern)
+        case .event(let event):
+            data.append(Self.eventKind)
+            data.append(littleEndian: Int64((event.timestamp.timeIntervalSince1970 * 1000).rounded()))
+            data.append(littleEndian: event.code.rawValue)
+            data.append(littleEndian: event.value.bitPattern)
+            data.append(Data(count: Self.size - data.count))
         }
         return data
     }
@@ -69,6 +81,15 @@ enum StreamRecord: Equatable {
             func float(_ offset: Int) -> Float { Float(bitPattern: body.littleEndianInteger(at: offset) as UInt32) }
             self = .contact(ContactEvent(timestamp: Date(timeIntervalSince1970: Double(milliseconds) / 1000),
                                          score: float(8), burst: float(12), click: float(16), turning: float(20)))
+        case Self.eventKind:
+            let body = Data(body)
+            let milliseconds: Int64 = body.littleEndianInteger(at: 0)
+            let codeValue: UInt16 = body.littleEndianInteger(at: 8)
+            let valueBits: UInt32 = body.littleEndianInteger(at: 10)
+            // A code this build does not know, from a newer watch, is skipped like an unknown kind
+            guard let code = StreamEvent.Code(rawValue: codeValue) else { return nil }
+            self = .event(StreamEvent(timestamp: Date(timeIntervalSince1970: Double(milliseconds) / 1000),
+                                      code: code, value: Float(bitPattern: valueBits)))
         default:
             return nil
         }

@@ -34,7 +34,7 @@ final class HealthPermission {
         do {
             try await store.requestAuthorization(toShare: Self.share, read: Self.read)
         } catch {
-            Log.permissions.error("HealthKit authorization error: \(String(describing: error), privacy: .public)")
+            Log.permissions.error("HealthKit authorization error: \(String(describing: error))")
         }
     }
 }

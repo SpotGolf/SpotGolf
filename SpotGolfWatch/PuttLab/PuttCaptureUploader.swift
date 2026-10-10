@@ -31,7 +31,7 @@ final class PuttCaptureUploader {
             guard FileManager.default.fileExists(atPath: url.path),
                   !outstanding.contains(url.standardizedFileURL.path) else { continue }
             if transport?.transferFile(url, metadata: [PuttCapture.captureKey: id, PuttCapture.fileKey: name]) == true {
-                Log.puttLab.notice("Queued \(name, privacy: .public) of capture \(id, privacy: .public) for the phone")
+                Log.puttLab.notice("Queued \(name) of capture \(id) for the phone")
             }
         }
         refresh()
@@ -49,9 +49,9 @@ final class PuttCaptureUploader {
     private func finished(_ url: URL, metadata: [String: Any]?, error: Error?) {
         let name = url.lastPathComponent
         if let error {
-            Log.puttLab.error("Transfer of \(name, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            Log.puttLab.error("Transfer of \(name) failed: \(String(describing: error))")
         } else {
-            Log.puttLab.notice("Transfer of \(name, privacy: .public) done")
+            Log.puttLab.notice("Transfer of \(name) done")
             try? FileManager.default.removeItem(at: url)
             let folder = url.deletingLastPathComponent()
             if let left = try? FileManager.default.contentsOfDirectory(atPath: folder.path), left.isEmpty {
@@ -63,11 +63,5 @@ final class PuttCaptureUploader {
 
     private func refresh() {
         pendingFiles = transport?.outstandingFileTransferURLs.count ?? 0
-    }
-}
-
-extension URL {
-    var isDirectory: Bool {
-        (try? resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 }

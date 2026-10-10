@@ -83,7 +83,7 @@ struct PuttCapturesView: View {
         do {
             export = CaptureExport(url: try services.puttCaptures.zip(capture))
         } catch {
-            Log.puttLab.error("Could not zip capture \(capture.id, privacy: .public): \(String(describing: error), privacy: .public)")
+            Log.puttLab.error("Could not zip capture \(capture.id): \(String(describing: error))")
             exportError = error.localizedDescription
         }
     }
