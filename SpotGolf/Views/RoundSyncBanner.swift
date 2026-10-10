@@ -37,7 +37,7 @@ struct RoundSyncBanner: View {
                         .accessibilityIdentifier("CancelStart")
                 }
             } else if services.phoneSync.startStates[round.id] == .timedOut {
-                banner(Text("The watch did not respond.")) {
+                banner(Text("The watch has not responded yet. Still trying."), showsProgress: true) {
                     Button("Retry") { services.phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
                     Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }

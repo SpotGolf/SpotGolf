@@ -254,7 +254,11 @@ final class WatchSync {
         }
         rounds.applyStrokes(start.strokes)
         sender.pump()
-        return .startRoundAck(StartRoundAck(roundID: start.roundID))
+        // The reply can be lost, and the watch can't send a reply again. The confirmation
+        // also goes as its own message, so the phone hears either way.
+        let ack = StartRoundAck(roundID: start.roundID)
+        sync.send(.startRoundAck(ack))
+        return .startRoundAck(ack)
     }
 
     /// The phone ended the round. Records after its end time are dropped, and the reply

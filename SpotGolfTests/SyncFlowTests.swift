@@ -76,15 +76,107 @@ final class SyncFlowTests: XCTestCase {
             timedOut.fulfill()
         }
         wait(for: [timedOut], timeout: 2)
-
-        // Once timed out, the phone waits for the user
-        pair.setReachable(true)
         XCTAssertEqual(phoneRound(id)?.status, .starting)
 
-        pair.phone.retryStart(id)
+        // Timed out, the phone still sends the start when the watch becomes reachable
+        pair.setReachable(true)
 
         XCTAssertEqual(phoneRound(id)?.status, .active)
+        XCTAssertNil(pair.phone.startStates[id])
+        XCTAssertEqual(pair.watchAppLaunches, 1)
+    }
+
+    func testStartKeepsBeingSentAfterTimeout() {
+        pair.cleanUp()
+        pair = SyncPair(startTimeout: 0.05, retryDelay: 0.02)
+        // Sends fail without a reachability change, so only the retry timer can send again
+        pair.phoneTransport.dropsSends = true
+        let id = pair.startRound()
+
+        let timedOut = expectation(description: "start timed out")
+        Task { @MainActor in
+            while pair.phone.startStates[id] != .timedOut {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            timedOut.fulfill()
+        }
+        wait(for: [timedOut], timeout: 2)
+        let sentBeforeFix = pair.phoneTransport.sentMessages { if case .startRound = $0 { return true } else { return nil } }.count
+        XCTAssertGreaterThan(sentBeforeFix, 1)
+
+        pair.phoneTransport.dropsSends = false
+
+        let active = expectation(description: "round active")
+        Task { @MainActor in
+            while phoneRound(id)?.status != .active {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            active.fulfill()
+        }
+        wait(for: [active], timeout: 2)
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertEqual(pair.watchAppLaunches, 1)
+    }
+
+    func testRetryAfterTimeoutRelaunchesTheWatchApp() {
+        pair.cleanUp()
+        pair = SyncPair(startTimeout: 0.05)
+        pair.setReachable(false)
+        let id = pair.startRound()
+
+        let timedOut = expectation(description: "start timed out")
+        Task { @MainActor in
+            while pair.phone.startStates[id] != .timedOut {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            timedOut.fulfill()
+        }
+        wait(for: [timedOut], timeout: 2)
+
+        pair.phone.retryStart(id)
         XCTAssertEqual(pair.watchAppLaunches, 2)
+        XCTAssertEqual(pair.phone.startStates[id], .waiting)
+
+        pair.setReachable(true)
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+    }
+
+    func testCancelAfterTimeoutStopsTheResends() {
+        pair.cleanUp()
+        pair = SyncPair(startTimeout: 0.05, retryDelay: 0.02)
+        pair.phoneTransport.dropsSends = true
+        let id = pair.startRound()
+
+        let timedOut = expectation(description: "start timed out")
+        Task { @MainActor in
+            while pair.phone.startStates[id] != .timedOut {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            timedOut.fulfill()
+        }
+        wait(for: [timedOut], timeout: 2)
+
+        pair.phone.cancelStart(id)
+        let sentAtCancel = pair.phoneTransport.sent.count
+
+        let waited = expectation(description: "past several retry delays")
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            waited.fulfill()
+        }
+        wait(for: [waited], timeout: 2)
+        XCTAssertNil(phoneRound(id))
+        XCTAssertEqual(pair.phoneTransport.sent.count, sentAtCancel)
+    }
+
+    func testLostReplyToStartIsCoveredByTheWatchsOwnConfirmation() {
+        pair.phoneTransport.dropsReplies = true
+
+        let id = pair.startRound()
+
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+        XCTAssertNil(pair.phone.startStates[id])
     }
 
     func testWatchOnAnotherVersionRefusesTheRound() {
@@ -181,14 +273,21 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(phoneRound(id)?.status, .active)
     }
 
-    func testRepeatedStartIsSafe() {
-        // The watch starts the round, but its confirmation is lost
+    /// The watch starts the round, but both its reply and its own confirmation are lost.
+    private func startRoundLosingConfirmation() -> UUID {
         pair.phoneTransport.dropsReplies = true
+        pair.watchTransport.dropsSends = true
         let id = pair.startRound()
+        pair.phoneTransport.dropsReplies = false
+        pair.watchTransport.dropsSends = false
+        return id
+    }
+
+    func testRepeatedStartIsSafe() {
+        let id = startRoundLosingConfirmation()
         XCTAssertEqual(watchRound(id)?.status, .active)
         XCTAssertEqual(phoneRound(id)?.status, .starting)
 
-        pair.phoneTransport.dropsReplies = false
         pair.phone.retryStart(id)
 
         XCTAssertEqual(phoneRound(id)?.status, .active)
@@ -196,11 +295,9 @@ final class SyncFlowTests: XCTestCase {
     }
 
     func testCancelDeletesRoundTheWatchDidStart() {
-        pair.phoneTransport.dropsReplies = true
-        let id = pair.startRound()
+        let id = startRoundLosingConfirmation()
         XCTAssertNotNil(watchRound(id))
 
-        pair.phoneTransport.dropsReplies = false
         pair.phone.cancelStart(id)
 
         XCTAssertNil(phoneRound(id))
@@ -209,8 +306,7 @@ final class SyncFlowTests: XCTestCase {
     }
 
     func testCancelReachesWatchThroughQueueWhenUnreachable() {
-        pair.phoneTransport.dropsReplies = true
-        let id = pair.startRound()
+        let id = startRoundLosingConfirmation()
         pair.setReachable(false)
 
         pair.phone.cancelStart(id)

@@ -12,7 +12,8 @@ final class PhoneSync {
 
     enum StartState: Equatable {
         case waiting
-        /// No confirmation in time: the user can retry or cancel.
+        /// No confirmation in time. The phone keeps sending the start; the user can also
+        /// retry, which relaunches the watch app, or cancel.
         case timedOut
         /// The watch refused until these are granted on it: the user can retry or cancel.
         case needsPermissions([AppPermission])
@@ -23,6 +24,15 @@ final class PhoneSync {
 
     /// Rounds that are starting, and whether they are still waiting.
     private(set) var startStates: [UUID: StartState] = [:]
+
+    /// The start is still being sent: waiting, or timed out but not refused. A refusal waits
+    /// for the user instead.
+    private func isSendingStart(_ roundID: UUID) -> Bool {
+        switch startStates[roundID] {
+        case .waiting, .timedOut: true
+        case .needsPermissions, .needsWatchUpdate, nil: false
+        }
+    }
 
     /// This app's version, sent with each start; the watch refuses any other. Tests set it.
     @ObservationIgnored var version = AppVersion.text()
@@ -64,7 +74,7 @@ final class PhoneSync {
         rounds.addListener { [weak self] event in self?.roundChanged(event) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
 
-        // A round left starting when the app quit is waiting for a confirmation no one tracks
+        // A round left starting when the app quit is sent again when the watch is reachable
         for round in rounds.rounds where round.status == .starting {
             startStates[round.id] = .timedOut
         }
@@ -152,6 +162,8 @@ final class PhoneSync {
         startTimers[roundID] = Timer.scheduledTimer(withTimeInterval: startTimeout, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.startStates[roundID] == .waiting else { return }
+                // The start is still sent again after this, until the user cancels. The
+                // phone can take a while to see a watch app it launched as reachable.
                 Log.rounds.error("Round \(roundID): watch did not confirm the start in time")
                 self.startStates[roundID] = .timedOut
             }
@@ -186,7 +198,7 @@ final class PhoneSync {
             }
         }, failure: { [weak self] _ in
             // SyncService logs the failure. Sent again after a short wait, and when the watch
-            // becomes reachable, until the timeout
+            // becomes reachable, until the watch confirms or the user cancels
             self?.retryLater(roundID)
         })
     }
@@ -200,7 +212,7 @@ final class PhoneSync {
                 self.retryTimers[roundID] = nil
                 guard let round = self.rounds.round(roundID) else { return }
                 switch round.status {
-                case .starting where self.startStates[roundID] == .waiting:
+                case .starting where self.isSendingStart(roundID):
                     self.sendStart(roundID)
                 case .ending:
                     self.sendEndRequest(roundID)
@@ -242,6 +254,7 @@ final class PhoneSync {
 
     private func stopWaiting(_ roundID: UUID) {
         startTimers.removeValue(forKey: roundID)?.invalidate()
+        retryTimers.removeValue(forKey: roundID)?.invalidate()
         startStates.removeValue(forKey: roundID)
     }
 
@@ -397,7 +410,7 @@ final class PhoneSync {
         guard sync.transport.isReachable else { return }
         for round in rounds.rounds {
             switch round.status {
-            case .starting where startStates[round.id] == .waiting:
+            case .starting where isSendingStart(round.id):
                 sendStart(round.id)
             case .active:
                 // Tells the watch where to continue, without waiting for its next fix

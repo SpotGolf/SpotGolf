@@ -124,12 +124,22 @@ final class WatchServices {
         roundStore.setDisplayHole(next)
     }
 
-    /// The workout keeps the app running for the round; if no round is active soon, it is not needed.
+    /// How long a workout launched by the phone waits for its round. The phone keeps sending
+    /// the start while the user leaves it, and the workout keeps the watch reachable for it.
+    static let roundWaitTime: TimeInterval = 3 * 60
+
+    /// When the workout launched by the phone gives up waiting for a round. Each launch moves it.
+    @ObservationIgnored private var roundWaitDeadline: Date?
+
+    /// The workout keeps the app running for the round; if no round is active in time, it is not needed.
     func startWorkoutWaitingForRound() {
         workoutManager.start()
+        let deadline = Date().addingTimeInterval(Self.roundWaitTime)
+        roundWaitDeadline = deadline
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(SyncService.startTimeout * 4))
-            guard let self, self.roundStore.activeRound == nil else { return }
+            try? await Task.sleep(for: .seconds(Self.roundWaitTime))
+            // A later launch moved the deadline; its own wait stops the workout
+            guard let self, self.roundWaitDeadline == deadline, self.roundStore.activeRound == nil else { return }
             Log.workout.notice("No round arrived after the workout launch; stopping the workout")
             self.workoutManager.stop()
         }
