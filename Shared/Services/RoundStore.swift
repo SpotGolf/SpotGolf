@@ -226,12 +226,16 @@ class RoundStore {
 
     func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
         changeStroke(stroke.id, in: roundID) { existing in
-            existing = Stroke(id: existing.id, coordinate: coordinate, type: existing.type)
+            existing = Stroke(id: existing.id, coordinate: coordinate, type: existing.type, club: existing.club)
         }
     }
 
     func setStrokeType(strokeID: UUID, type: StrokeType, in roundID: UUID) {
         changeStroke(strokeID, in: roundID) { $0.type = type }
+    }
+
+    func setStrokeClub(strokeID: UUID, club: Club?, in roundID: UUID) {
+        changeStroke(strokeID, in: roundID) { $0.clubID = club?.id }
     }
 
     func reorderStroke(_ stroke: Stroke, to newIndex: Int, in roundID: UUID) {

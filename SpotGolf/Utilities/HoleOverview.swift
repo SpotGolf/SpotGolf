@@ -11,6 +11,17 @@ enum HoleOverview {
         return Int(DistanceCalculator.yards(from: location, to: CLLocation(latitude: target.latitude, longitude: target.longitude)))
     }
 
+    /// The club guessed for a stroke at `coordinate`, as stroke `strokeIndex` of the hole: the
+    /// putter on the green, otherwise by the yards to the pin or the green's center.
+    static func guessedClub(_ round: Round, holeIndex: Int, strokeIndex: Int, at coordinate: CLLocationCoordinate2D,
+                            bag: GolfBag) -> Club? {
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        return ClubGuess.club(in: bag,
+                              yardsToTarget: yardsToPin(round, holeIndex: holeIndex, from: location),
+                              isOnGreen: round.isOnGreen(coordinate, holeIndex: holeIndex),
+                              isTeeShot: strokeIndex == 0)
+    }
+
     /// The watch's "Previous": yards from `location` to the hole's last stroke, so it shows how
     /// far the last shot went while walking to the ball. Without a location, the yards between the
     /// last two strokes, and 0 with fewer.

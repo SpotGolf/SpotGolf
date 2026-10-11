@@ -12,7 +12,7 @@ New project, not yet scaffolded.
 
 ## Workflow
 
-- All new features must be developed on a new branch (e.g., `feature/<name>`). Never commit feature work directly to `main`.
+- All new features must be developed on a new branch (e.g., `feat/<name>`). Never commit feature work directly to `main`.
 - All design specs and implementation plans go in the `plans/` directory (not `docs/`).
 
 ## Simulators

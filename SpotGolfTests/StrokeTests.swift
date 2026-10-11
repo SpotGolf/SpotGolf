@@ -52,6 +52,21 @@ final class StrokeTests: XCTestCase {
         XCTAssertEqual(decoded.longitude, stroke.longitude)
     }
 
+    func testClubRoundTripsAndOldStrokesDecodeWithoutOne() throws {
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07), club: Club.named("7i"))
+
+        let decoded = try JSONDecoder().decode(Stroke.self, from: JSONEncoder().encode(stroke))
+        XCTAssertEqual(decoded.club?.id, "7i")
+        XCTAssertEqual(decoded, stroke)
+
+        let old = """
+        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"type":"regular"}
+        """
+        let oldStroke = try JSONDecoder().decode(Stroke.self, from: Data(old.utf8))
+        XCTAssertNil(oldStroke.club)
+        XCTAssertNil(oldStroke.clubID)
+    }
+
     func testEquatable() {
         let id = UUID()
         let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)

@@ -63,21 +63,22 @@ final class PenaltyFlowUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars["Edit Spot"].waitForExistence(timeout: 5),
                           "Edit sheet should open for the new stroke at location \(index)")
 
-            // The edit sheet closes itself once a type is picked
+            // Picking a type keeps the sheet open; Save applies it
             switch location.type {
             case .outOfBounds:
-                let obButton = app.buttons["Out of bounds"]
+                let obButton = app.buttons["StrokeOutOfBounds"]
                 XCTAssertTrue(obButton.waitForExistence(timeout: 5),
                               "Out of bounds button should exist in edit sheet")
                 obButton.tap()
             case .penalty:
-                let penaltyButton = app.buttons["Penalty stroke"]
+                let penaltyButton = app.buttons["StrokePenalty"]
                 XCTAssertTrue(penaltyButton.waitForExistence(timeout: 5),
                               "Penalty stroke button should exist in edit sheet")
                 penaltyButton.tap()
             default:
-                app.buttons["Save"].tap()
+                break
             }
+            app.buttons["Save"].tap()
             sleep(1)
         }
 

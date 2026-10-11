@@ -7,17 +7,15 @@ struct GolfBagView: View {
 
     private var bag: GolfBag { services.golfBag.bag }
 
-    private let columns = [GridItem(.adaptive(minimum: 56), spacing: 8)]
-
     var body: some View {
         Form {
             Section {
                 ForEach(ClubKind.allCases, id: \.self) { kind in
                     Section {
-                        LazyVGrid(columns: columns, spacing: 8) {
-                            ForEach(Club.all.filter { $0.kind == kind }) { club in
-                                clubButton(club)
-                            }
+                        ClubGrid(clubs: Club.all.filter { $0.kind == kind },
+                                 isSelected: { bag.contains($0) },
+                                 isEnabled: { bag.contains($0) || !bag.isFull }) { club in
+                            services.golfBag.toggle(club)
                         }
                         .padding(.top, 4)
                         .padding(.bottom, 16)
@@ -35,26 +33,5 @@ struct GolfBagView: View {
         }
         .navigationTitle("Golf Bag")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    @ViewBuilder
-    private func clubButton(_ club: Club) -> some View {
-        let carried = bag.contains(club)
-        let button = Button {
-            services.golfBag.toggle(club)
-        } label: {
-            Text(club.shortName)
-                .font(.body.monospacedDigit())
-                .frame(maxWidth: .infinity, minHeight: 36)
-        }
-        .disabled(!carried && bag.isFull)
-        .accessibilityLabel(club.name)
-        .accessibilityIdentifier("Club-\(club.id)")
-        .accessibilityAddTraits(carried ? .isSelected : [])
-        if carried {
-            button.buttonStyle(.borderedProminent)
-        } else {
-            button.buttonStyle(.bordered).tint(.gray)
-        }
     }
 }

@@ -60,8 +60,11 @@ struct RoundMapLayer: View {
                         if let coordinate = suggestion.coordinate {
                             Annotation("", coordinate: coordinate, anchor: .bottom) {
                                 SuggestionPin(isContact: suggestion.isContact) {
-                                    services.roundStore.addSuggestedStroke(suggestion, holeIndex: shownHoleIndex,
-                                                                           roundID: round.id, holeTrack: holeTrack)
+                                    guard let stroke = services.roundStore.addSuggestedStroke(
+                                        suggestion, holeIndex: shownHoleIndex, roundID: round.id, holeTrack: holeTrack,
+                                        bag: services.golfBag.bag) else { return }
+                                    spot.newIndex = round.hole(at: shownHoleIndex).strokes.firstIndex { $0.id == stroke.id } ?? 0
+                                    spot.stroke = stroke
                                 }
                             }
                         }
@@ -103,8 +106,10 @@ struct RoundMapLayer: View {
                         case .second(true, let drag):
                             guard isEditing, let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
-                            let stroke = Stroke(coordinate: coordinate)
                             spot.newIndex = round.hole(at: shownHoleIndex).strokes.count // capture before append
+                            let stroke = Stroke(coordinate: coordinate,
+                                                club: HoleOverview.guessedClub(round, holeIndex: shownHoleIndex, strokeIndex: spot.newIndex,
+                                                                               at: coordinate, bag: services.golfBag.bag))
                             // Hit when the player was nearest to it, going by the hole's GPS
                             services.roundStore.addStroke(to: round.id, holeIndex: shownHoleIndex, stroke: stroke,
                                                           hitAt: StrokeFinder.estimatedTime(of: stroke, in: holeTrack))

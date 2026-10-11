@@ -45,12 +45,14 @@ final class SuggestedStrokeTests: XCTestCase {
         store.addStroke(to: id, holeIndex: 0, stroke: last)
         let middle = suggestion(north: 100, second: 100)
 
-        store.addSuggestedStroke(middle, holeIndex: 0, roundID: id, holeTrack: track)
+        let added = store.addSuggestedStroke(middle, holeIndex: 0, roundID: id, holeTrack: track, bag: .standard)
 
         let strokes = store.round(id)?.hole(at: 0).strokes ?? []
         XCTAssertEqual(strokes.count, 3)
         XCTAssertEqual(strokes.first?.id, first.id)
         XCTAssertEqual(strokes.last?.id, last.id)
+        XCTAssertEqual(strokes[1].id, added?.id)
+        XCTAssertEqual(strokes[1].club?.id, "3w", "200 m to the green as the second stroke: the 3 wood, not the driver")
         XCTAssertEqual(store.round(id)?.hiddenSuggestionIDs, [middle.id])
     }
 
@@ -59,9 +61,10 @@ final class SuggestedStrokeTests: XCTestCase {
         let first = stroke(north: 0)
         store.addStroke(to: id, holeIndex: 0, stroke: first)
 
-        store.addSuggestedStroke(suggestion(north: 250, second: 250), holeIndex: 0, roundID: id, holeTrack: track)
+        store.addSuggestedStroke(suggestion(north: 250, second: 250), holeIndex: 0, roundID: id, holeTrack: track, bag: .standard)
 
         XCTAssertEqual(store.round(id)?.hole(at: 0).strokes.first?.id, first.id)
         XCTAssertEqual(store.round(id)?.hole(at: 0).strokes.count, 2)
+        XCTAssertEqual(store.round(id)?.hole(at: 0).strokes.last?.club?.id, "lw", "50 m from the green is a chip")
     }
 }

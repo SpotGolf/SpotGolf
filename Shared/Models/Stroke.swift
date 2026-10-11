@@ -14,12 +14,20 @@ struct Stroke: Identifiable, Codable, Equatable {
     let latitude: Double
     let longitude: Double
     var type: StrokeType
+    /// `Club.id` of the club it was hit with. Nil for strokes from before clubs were recorded,
+    /// and when the bag had nothing to offer. See plans/2026-10-11-club-selection.md.
+    var clubID: String?
 
-    init(id: UUID = UUID(), coordinate: CLLocationCoordinate2D, type: StrokeType = .regular) {
+    init(id: UUID = UUID(), coordinate: CLLocationCoordinate2D, type: StrokeType = .regular, club: Club? = nil) {
         self.id = id
         self.latitude = coordinate.latitude
         self.longitude = coordinate.longitude
         self.type = type
+        self.clubID = club?.id
+    }
+
+    var club: Club? {
+        clubID.flatMap { Club.named($0) }
     }
 
     var coordinate: CLLocationCoordinate2D {

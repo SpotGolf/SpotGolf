@@ -56,6 +56,10 @@ struct SpotSelection {
     var stroke: Stroke?
     /// Where the spot goes in its hole's order.
     var newIndex = 0
+    /// The club picked in the sheet: the stroke's, or the guess for a stroke without one.
+    var club: Club?
+    /// The type picked in the sheet.
+    var type: StrokeType = .regular
     /// The delete confirmation is showing.
     var confirmsDelete = false
 }

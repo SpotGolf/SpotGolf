@@ -38,11 +38,13 @@ enum TrackImporter {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let lines = csv.split(whereSeparator: \.isNewline)
         let header = lines.first?.trimmingCharacters(in: .whitespaces)
-        guard header == TrackExporter.header || header == TrackExporter.headerWithoutContacts else { throw ImportError.wrongHeader }
+        guard [TrackExporter.header, TrackExporter.headerWithoutClubs, TrackExporter.headerWithoutContacts].contains(header) else {
+            throw ImportError.wrongHeader
+        }
 
         var export = Export()
         var strokes: [(stroke: Stroke, hole: Int, number: Int)] = []
-        // type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click
+        // type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club
         for line in lines.dropFirst() {
             let fields = line.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
             guard fields.count >= 11 else { continue }
@@ -63,7 +65,8 @@ enum TrackImporter {
                 guard let lat = Double(fields[2]), let lon = Double(fields[3]),
                       let hole = Int(fields[7]), let number = Int(fields[8]) else { continue }
                 let type = StrokeType(rawValue: fields[9]) ?? .regular
-                strokes.append((Stroke(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), type: type), hole, number))
+                let club = fields.count >= 15 ? Club.named(fields[14]) : nil
+                strokes.append((Stroke(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), type: type, club: club), hole, number))
             default:
                 continue
             }

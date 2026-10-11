@@ -66,6 +66,26 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.round(id)?.allStrokes, store.round(id)?.allStrokes)
     }
 
+    // MARK: - Clubs
+
+    func testSetStrokeClubChangesTheClubAndMoveStrokeKeepsIt() {
+        let id = startRound()
+        let stroke = makeStroke()
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
+        XCTAssertNil(store.round(id)?.holes[0].strokes[0].club)
+
+        store.setStrokeClub(strokeID: stroke.id, club: Club.named("7i"), in: id)
+        XCTAssertEqual(store.round(id)?.holes[0].strokes[0].club?.id, "7i")
+
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 33.46, longitude: -112.08), in: id)
+        let moved = store.round(id)?.holes[0].strokes[0]
+        XCTAssertEqual(moved?.latitude, 33.46)
+        XCTAssertEqual(moved?.club?.id, "7i", "Moving a stroke keeps its club")
+
+        store.setStrokeClub(strokeID: stroke.id, club: nil, in: id)
+        XCTAssertNil(store.round(id)?.holes[0].strokes[0].club)
+    }
+
     // MARK: - startRound
 
     func testStartRoundCreatesActiveRound() {
