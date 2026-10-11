@@ -55,22 +55,39 @@ final class ClubSelectionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Club-7i"].isSelected, "Save should keep the club")
 
         app.buttons["Club-pw"].tap()
-        let penalty = app.buttons["StrokePenalty"]
-        let outOfBounds = app.buttons["StrokeOutOfBounds"]
-        penalty.tap()
-        XCTAssertTrue(penalty.isSelected, "Tapping Penalty stroke should select it")
-        XCTAssertTrue(app.navigationBars["Edit Spot"].exists, "Picking a type should not close the sheet")
-        outOfBounds.tap()
-        XCTAssertTrue(outOfBounds.isSelected && !penalty.isSelected, "Only one type can be selected")
-        outOfBounds.tap()
-        XCTAssertFalse(outOfBounds.isSelected, "Tapping the selected type clears it")
-        penalty.tap()
+        let plus = app.buttons["PenaltyPlus"]
+        let minus = app.buttons["PenaltyMinus"]
+        let count = app.staticTexts["PenaltyStrokes"]
+        XCTAssertEqual(count.value as? String, "0", "A new spot has no penalty strokes")
+        XCTAssertFalse(minus.isEnabled, "Minus is disabled at 0")
+        plus.tap()
+        XCTAssertEqual(count.value as? String, "1", "Plus adds a penalty stroke")
+        XCTAssertTrue(app.navigationBars["Edit Spot"].exists, "Counting a penalty stroke should not close the sheet")
+        plus.tap()
+        plus.tap()
+        plus.tap()
+        XCTAssertEqual(count.value as? String, "4", "Plus counts up to 4")
+        XCTAssertFalse(plus.isEnabled, "Plus is disabled at 4")
+        minus.tap()
+        minus.tap()
+        minus.tap()
+        XCTAssertEqual(count.value as? String, "1", "Minus removes a penalty stroke")
+
+        let good = app.buttons["Quality-good"]
+        let okay = app.buttons["Quality-okay"]
+        XCTAssertTrue(good.isSelected, "A new spot is a good shot")
+        okay.tap()
+        XCTAssertTrue(okay.isSelected && !good.isSelected, "One quality is selected at a time")
+        okay.tap()
+        XCTAssertTrue(okay.isSelected, "Tapping the selected quality keeps it; a rating cannot be cleared")
+        good.tap()
         app.buttons["Save"].tap()
         XCTAssertTrue(app.navigationBars["Edit Spot"].waitForNonExistence(timeout: 5))
         spot.tap()
         XCTAssertTrue(app.navigationBars["Edit Spot"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Club-pw"].isSelected, "A penalty stroke keeps the club picked with it")
-        XCTAssertTrue(app.buttons["StrokePenalty"].isSelected, "Save should keep the type")
+        XCTAssertEqual(app.staticTexts["PenaltyStrokes"].value as? String, "1", "Save should keep the penalty strokes")
+        XCTAssertTrue(app.buttons["Quality-good"].isSelected, "Save should keep the shot quality")
         app.buttons["Cancel"].tap()
     }
 

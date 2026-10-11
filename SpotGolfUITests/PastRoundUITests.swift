@@ -93,14 +93,14 @@ final class PastRoundUITests: XCTestCase {
         assertStrokeCount(2, onHole: 1)
         let hole1Layout = strokeOffset()
 
-        // Add two strokes on hole 3: a penalty, then one that is marked and cleared
+        // Add two strokes on hole 3: one with a penalty stroke, then one whose penalty stroke is taken back
         app.goToHole(3)
         app.addStroke(at: XCUIApplication.strokePressPoints[0])
-        saveInSheet(type: "StrokePenalty")
+        saveInSheet(tapping: ["PenaltyPlus"])
         app.addStroke(at: XCUIApplication.strokePressPoints[1])
-        saveInSheet(type: "StrokeOutOfBounds")
+        saveInSheet(tapping: ["PenaltyPlus"])
         openStroke(2)
-        saveInSheet(type: "StrokeOutOfBounds", "Tapping the selected type clears it")
+        saveInSheet(tapping: ["PenaltyMinus"], "Minus takes the penalty stroke back")
         assertStrokeCount(2, onHole: 3)
 
         // Changes survive leaving and reopening the round
@@ -117,13 +117,13 @@ final class PastRoundUITests: XCTestCase {
         assertStrokeCount(2, onHole: 3)
         app.startEditing()
         openStroke(1)
-        XCTAssertTrue(app.buttons["StrokePenalty"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["StrokePenalty"].isSelected, "Stroke 1 on hole 3 should still be a penalty")
+        let penaltyStrokes = app.staticTexts["PenaltyStrokes"]
+        XCTAssertTrue(penaltyStrokes.waitForExistence(timeout: 5))
+        XCTAssertEqual(penaltyStrokes.value as? String, "1", "Stroke 1 on hole 3 should still have a penalty stroke")
         app.buttons["Cancel"].tap()
         openStroke(2)
-        XCTAssertTrue(app.buttons["StrokePenalty"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["StrokePenalty"].isSelected || app.buttons["StrokeOutOfBounds"].isSelected,
-                       "Stroke 2 on hole 3 should be a regular stroke")
+        XCTAssertTrue(penaltyStrokes.waitForExistence(timeout: 5))
+        XCTAssertEqual(penaltyStrokes.value as? String, "0", "Stroke 2 on hole 3 should have no penalty strokes")
         app.buttons["Cancel"].tap()
 
         // Hole 1: 2, hole 2: 2, hole 3: 2 plus the penalty stroke
@@ -245,10 +245,9 @@ final class PastRoundUITests: XCTestCase {
                       "Edit sheet should open for stroke \(number)", file: file, line: line)
     }
 
-    /// Taps a button in the open edit sheet, which closes it.
-    /// Taps a type button, when given, in the open edit sheet and saves.
-    private func saveInSheet(type identifier: String? = nil, _ note: String = "", file: StaticString = #filePath, line: UInt = #line) {
-        if let identifier {
+    /// Taps the given buttons in the open edit sheet, in order, and saves.
+    private func saveInSheet(tapping identifiers: [String] = [], _ note: String = "", file: StaticString = #filePath, line: UInt = #line) {
+        for identifier in identifiers {
             let button = app.buttons[identifier]
             XCTAssertTrue(button.waitForExistence(timeout: 5), "\(identifier) should be in the edit sheet", file: file, line: line)
             button.tap()

@@ -1,5 +1,7 @@
 # Penalties Feature
 
+Superseded by plans/2026-10-11-penalty-strokes.md: out of bounds is gone, and a stroke counts its penalty strokes.
+
 ## Overview
 
 Allow players to mark where bad shots went (penalty areas, out of bounds) by placing pins on the map. This follows the app's ethos of marking ball locations on the course.

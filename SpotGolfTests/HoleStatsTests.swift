@@ -17,10 +17,10 @@ final class HoleStatsTests: XCTestCase {
         return CourseSelection(course: course, selectedSubCourseIndices: [0])
     }
 
-    private func stroke(north: Double, east: Double = 0, type: StrokeType = .regular) -> Stroke {
+    private func stroke(north: Double, east: Double = 0, penaltyStrokes: Int = 0) -> Stroke {
         let coordinate = PathCourse.coordinate(north: north, east: east)
         return Stroke(coordinate: CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude),
-                      type: type)
+                      penaltyStrokes: penaltyStrokes)
     }
 
     private let tee: (Double, Double) = (0, 0)
@@ -59,7 +59,7 @@ final class HoleStatsTests: XCTestCase {
 
     func testAPenaltyMarkAfterTheTeeShotMissesTheFairway() {
         // The tee shot went in the water, marked on the fairway, and the drop is stroke 3
-        let result = stats([stroke(north: 0), stroke(north: 200, type: .penalty), stroke(north: 200), stroke(north: 300)])
+        let result = stats([stroke(north: 0), stroke(north: 200, penaltyStrokes: 1), stroke(north: 200), stroke(north: 300)])
 
         XCTAssertEqual(result?.fairway, false)
         // Reaching the green took four strokes on a par 4, the penalty stroke included
@@ -69,10 +69,10 @@ final class HoleStatsTests: XCTestCase {
 
     func testAPenaltyStrokeCountsAgainstReachingTheGreenInRegulation() {
         // The tee shot went in the water and the drop reached the green: three strokes on a par 4
-        let result = stats([stroke(north: 0, type: .penalty), stroke(north: 150), stroke(north: 300)])
+        let result = stats([stroke(north: 0, penaltyStrokes: 1), stroke(north: 150), stroke(north: 300)])
 
         XCTAssertEqual(result?.green, false)
-        XCTAssertEqual(stats([stroke(north: 0, type: .penalty), stroke(north: 150), stroke(north: 300)], par: 5)?.green, true)
+        XCTAssertEqual(stats([stroke(north: 0, penaltyStrokes: 1), stroke(north: 150), stroke(north: 300)], par: 5)?.green, true)
     }
 
     func testAParThreeHasNoFairway() {
@@ -104,7 +104,7 @@ final class HoleStatsTests: XCTestCase {
                                                               longitude: fairwayCoordinate.longitude), in: round.id)
         XCTAssertEqual(round.holes[0].stats?.fairway, true)
 
-        store.setStrokeType(strokeID: approach.id, type: .penalty, in: round.id)
+        store.setPenaltyStrokes(1, strokeID: approach.id, in: round.id)
         XCTAssertEqual(round.holes[0].stats?.fairway, false)
 
         store.removeStroke(approach, from: round.id)

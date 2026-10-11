@@ -92,44 +92,68 @@ final class StrokeTests: XCTestCase {
         XCTAssertNotEqual(stroke1, stroke2)
     }
 
-    // MARK: - StrokeType
+    // MARK: - Penalty strokes
 
-    func testDefaultTypeIsRegular() {
+    func testDefaultHasNoPenaltyStrokesAndScoresOne() {
         let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
         let stroke = Stroke(coordinate: coord)
 
-        XCTAssertEqual(stroke.type, .regular)
+        XCTAssertEqual(stroke.penaltyStrokes, 0)
+        XCTAssertEqual(stroke.score, 1)
     }
 
-    func testInitWithPenaltyType() {
+    func testPenaltyStrokesAddToTheScoreAndStopAtTheMost() {
         let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
-        let stroke = Stroke(coordinate: coord, type: .penalty)
 
-        XCTAssertEqual(stroke.type, .penalty)
+        XCTAssertEqual(Stroke(coordinate: coord, penaltyStrokes: 2).score, 3)
+        XCTAssertEqual(Stroke(coordinate: coord, penaltyStrokes: 9).penaltyStrokes, Stroke.maxPenaltyStrokes)
+        XCTAssertEqual(Stroke(coordinate: coord, penaltyStrokes: -1).penaltyStrokes, 0)
     }
 
-    func testInitWithOutOfBoundsType() {
+    func testCodableRoundTripWithPenaltyStrokes() throws {
         let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
-        let stroke = Stroke(coordinate: coord, type: .outOfBounds)
-
-        XCTAssertEqual(stroke.type, .outOfBounds)
-    }
-
-    func testCodableRoundTripWithType() throws {
-        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
-        let stroke = Stroke(coordinate: coord, type: .penalty)
+        let stroke = Stroke(coordinate: coord, penaltyStrokes: 2)
 
         let data = try JSONEncoder().encode(stroke)
         let decoded = try JSONDecoder().decode(Stroke.self, from: data)
 
-        XCTAssertEqual(decoded.type, .penalty)
+        XCTAssertEqual(decoded.penaltyStrokes, 2)
+        XCTAssertEqual(decoded, stroke)
     }
 
-    func testNotEqualWithDifferentTypes() {
+    func testOldStrokesDecodeTheirTypeAsPenaltyStrokes() throws {
+        func decode(type: String) throws -> Stroke {
+            let json = """
+            {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"type":"\(type)"}
+            """
+            return try JSONDecoder().decode(Stroke.self, from: Data(json.utf8))
+        }
+
+        XCTAssertEqual(try decode(type: "regular").penaltyStrokes, 0)
+        XCTAssertEqual(try decode(type: "penalty").penaltyStrokes, 1)
+        XCTAssertEqual(try decode(type: "outOfBounds").penaltyStrokes, 1)
+    }
+
+    func testQualityRoundTripsAndOldStrokesAreUnrated() throws {
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        XCTAssertEqual(Stroke(coordinate: coord).quality, .good)
+
+        let stroke = Stroke(coordinate: coord, quality: .okay)
+        let decoded = try JSONDecoder().decode(Stroke.self, from: JSONEncoder().encode(stroke))
+        XCTAssertEqual(decoded.quality, .okay)
+        XCTAssertEqual(decoded, stroke)
+
+        let old = """
+        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"penaltyStrokes":1}
+        """
+        XCTAssertEqual(try JSONDecoder().decode(Stroke.self, from: Data(old.utf8)).quality, .unrated)
+    }
+
+    func testNotEqualWithDifferentPenaltyStrokes() {
         let id = UUID()
         let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
-        let stroke1 = Stroke(id: id, coordinate: coord, type: .regular)
-        let stroke2 = Stroke(id: id, coordinate: coord, type: .penalty)
+        let stroke1 = Stroke(id: id, coordinate: coord)
+        let stroke2 = Stroke(id: id, coordinate: coord, penaltyStrokes: 1)
 
         XCTAssertNotEqual(stroke1, stroke2)
     }

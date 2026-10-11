@@ -167,7 +167,7 @@ struct SuggestionPin: View {
     }
 }
 
-/// A spot's pin in the stroke's color, blue for a regular stroke, with the club it was hit
+/// A spot's pin, red for a stroke with penalty strokes and blue otherwise, with the club it was hit
 /// with in the head, or its number before clubs were recorded, and its dot on the GPS
 /// location. Tapping the head opens the spot. While the spot is dragged, the pin turns orange
 /// and lifts off the dot, which shows where it would land.
@@ -182,7 +182,7 @@ struct SpotPin: View {
 
     var body: some View {
         Button(action: action) {
-            MapPin(color: isDragging ? .orange : color, dotColor: color, outline: isDragging ? nil : outline,
+            MapPin(color: isDragging ? .orange : color, dotColor: color,
                    lift: isDragging ? Self.lift : 0, headScale: isDragging ? 1.5 : 1,
                    shadow: isDragging ? .orange.opacity(0.4) : .black.opacity(0.25)) {
                 Text(stroke.club?.shortName ?? "\(number)")
@@ -192,7 +192,7 @@ struct SpotPin: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .padding(.horizontal, 2)
-                    .foregroundStyle(isDragging ? .white : textColor)
+                    .foregroundStyle(.white)
             }
         }
         .buttonStyle(.plain)
@@ -201,20 +201,7 @@ struct SpotPin: View {
     }
 
     private var color: Color {
-        switch stroke.type {
-        case .regular: .blue
-        case .penalty: .red
-        case .outOfBounds: .white
-        }
-    }
-
-    private var textColor: Color {
-        stroke.type == .outOfBounds ? .black : .white
-    }
-
-    /// Out-of-bounds pins are white, so they get a gray edge to show on light ground.
-    private var outline: Color? {
-        stroke.type == .outOfBounds ? .gray : nil
+        stroke.penaltyStrokes > 0 ? .red : .blue
     }
 
     private var accessibilityLabel: String {

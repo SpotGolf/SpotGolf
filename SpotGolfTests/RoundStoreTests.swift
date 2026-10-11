@@ -545,49 +545,53 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertTrue(strokeChanges.isEmpty)
     }
 
-    // MARK: - setStrokeType
+    // MARK: - setPenaltyStrokes
 
-    func testSetStrokeType() {
+    func testSetPenaltyStrokes() {
         let id = startRound()
         let stroke = makeStroke()
         store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.setStrokeType(strokeID: stroke.id, type: .penalty, in: id)
+        store.setPenaltyStrokes(2, strokeID: stroke.id, in: id)
 
-        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].type, .penalty)
-        XCTAssertEqual(strokeChanges.last?.displayHoleStrokes[0].type, .penalty)
+        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].penaltyStrokes, 2)
+        XCTAssertEqual(strokeChanges.last?.displayHoleStrokes[0].penaltyStrokes, 2)
     }
 
-    func testSetStrokeTypeToOutOfBounds() {
+    func testSetPenaltyStrokesStaysBetweenZeroAndTheMost() {
         let id = startRound()
         let stroke = makeStroke()
         store.addStroke(to: id, holeIndex: 0, stroke: stroke)
 
-        store.setStrokeType(strokeID: stroke.id, type: .outOfBounds, in: id)
+        store.setPenaltyStrokes(7, strokeID: stroke.id, in: id)
+        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].penaltyStrokes, Stroke.maxPenaltyStrokes)
 
-        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].type, .outOfBounds)
+        store.setPenaltyStrokes(-1, strokeID: stroke.id, in: id)
+        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].penaltyStrokes, 0)
     }
 
-    func testSetStrokeTypeBackToRegular() {
+    func testSetShotQuality() {
         let id = startRound()
         let stroke = makeStroke()
         store.addStroke(to: id, holeIndex: 0, stroke: stroke)
-        store.setStrokeType(strokeID: stroke.id, type: .penalty, in: id)
 
-        store.setStrokeType(strokeID: stroke.id, type: .regular, in: id)
+        store.setShotQuality(.bad, strokeID: stroke.id, in: id)
 
-        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].type, .regular)
+        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].quality, .bad)
+        XCTAssertEqual(strokeChanges.last?.displayHoleStrokes[0].quality, .bad)
     }
 
-    func testMoveStrokePreservesType() {
+    func testMoveStrokePreservesPenaltyStrokesAndQuality() {
         let id = startRound()
         let stroke = makeStroke()
         store.addStroke(to: id, holeIndex: 0, stroke: stroke)
-        store.setStrokeType(strokeID: stroke.id, type: .penalty, in: id)
+        store.setPenaltyStrokes(1, strokeID: stroke.id, in: id)
+        store.setShotQuality(.okay, strokeID: stroke.id, in: id)
 
         store.moveStroke(store.rounds[0].displayHoleStrokes[0], to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
 
-        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].type, .penalty)
+        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].penaltyStrokes, 1)
+        XCTAssertEqual(store.rounds[0].displayHoleStrokes[0].quality, .okay)
     }
 
     // MARK: - Editing a past round
@@ -635,12 +639,12 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.round(id)?.holes[0].strokes.map(\.id), [added.id, first.id])
     }
 
-    func testSetStrokeTypeInEndedRound() {
+    func testSetPenaltyStrokesInEndedRound() {
         let (id, _, second) = endedRound()
 
-        store.setStrokeType(strokeID: second.id, type: .outOfBounds, in: id)
+        store.setPenaltyStrokes(1, strokeID: second.id, in: id)
 
-        XCTAssertEqual(store.round(id)?.holes[1].strokes[0].type, .outOfBounds)
+        XCTAssertEqual(store.round(id)?.holes[1].strokes[0].penaltyStrokes, 1)
         XCTAssertEqual(strokeChanges.count, 1)
     }
 
@@ -656,11 +660,11 @@ final class RoundStoreTests: XCTestCase {
 
     func testEndedRoundEditsSurviveNewStoreInstance() {
         let (id, first, _) = endedRound()
-        store.setStrokeType(strokeID: first.id, type: .penalty, in: id)
+        store.setPenaltyStrokes(1, strokeID: first.id, in: id)
 
         let reloaded = RoundStore(context: ModelContext(container))
 
-        XCTAssertEqual(reloaded.round(id)?.holes[0].strokes[0].type, .penalty)
+        XCTAssertEqual(reloaded.round(id)?.holes[0].strokes[0].penaltyStrokes, 1)
         XCTAssertEqual(reloaded.round(id)?.status, .ended)
     }
 

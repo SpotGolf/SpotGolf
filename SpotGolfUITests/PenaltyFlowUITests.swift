@@ -63,26 +63,17 @@ final class PenaltyFlowUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars["Edit Spot"].waitForExistence(timeout: 5),
                           "Edit sheet should open for the new stroke at location \(index)")
 
-            // Picking a type keeps the sheet open; Save applies it
-            switch location.type {
-            case .outOfBounds:
-                let obButton = app.buttons["StrokeOutOfBounds"]
-                XCTAssertTrue(obButton.waitForExistence(timeout: 5),
-                              "Out of bounds button should exist in edit sheet")
-                obButton.tap()
-            case .penalty:
-                let penaltyButton = app.buttons["StrokePenalty"]
-                XCTAssertTrue(penaltyButton.waitForExistence(timeout: 5),
-                              "Penalty stroke button should exist in edit sheet")
-                penaltyButton.tap()
-            default:
-                break
+            // Counting a penalty stroke keeps the sheet open; Save applies it
+            if location.type == .penalty {
+                let plus = app.buttons["PenaltyPlus"]
+                XCTAssertTrue(plus.waitForExistence(timeout: 5), "Add a penalty stroke button should exist in edit sheet")
+                plus.tap()
             }
             app.buttons["Save"].tap()
             sleep(1)
         }
 
-        // Hole 1: 8 strokes (tee, OB, re-tee, 5 more)
+        // Hole 1: 8 strokes (tee, out of bounds, re-tee, 5 more)
         app.goToHole(1)
         XCTAssertTrue(app.buttons["Stroke_8"].waitForExistence(timeout: 5), "Hole 1 should have 8 strokes")
         XCTAssertFalse(app.buttons["Stroke_9"].exists, "Hole 1 should have no more than 8 strokes")

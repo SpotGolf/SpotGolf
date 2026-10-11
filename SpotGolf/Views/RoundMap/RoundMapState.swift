@@ -58,8 +58,10 @@ struct SpotSelection {
     var newIndex = 0
     /// The club picked in the sheet: the stroke's, or the guess for a stroke without one.
     var club: Club?
-    /// The type picked in the sheet.
-    var type: StrokeType = .regular
+    /// The penalty strokes counted in the sheet.
+    var penaltyStrokes = 0
+    /// The shot quality picked in the sheet.
+    var quality: ShotQuality = .good
     /// The delete confirmation is showing.
     var confirmsDelete = false
 }

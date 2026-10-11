@@ -6,7 +6,6 @@ enum TestLocationType: String {
     case stroke
     case move
     case penalty
-    case outOfBounds
 }
 
 struct TestLocation {
@@ -19,7 +18,7 @@ struct TestLocation {
 enum LocationTestHelper {
 
     /// Loads test GPS coordinates from a CSV bundled in the test target.
-    /// Each row is `latitude,longitude,hole,type` where type is stroke/move/penalty/outOfBounds.
+    /// Each row is `latitude,longitude,hole,type` where type is stroke/move/penalty.
     static func loadTestLocations(from filename: String = "test-locations",
                                    for bundle: Bundle = .init(for: BundleToken.self)) -> [TestLocation] {
         guard let url = bundle.url(forResource: filename, withExtension: "csv"),

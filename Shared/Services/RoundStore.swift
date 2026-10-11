@@ -226,12 +226,18 @@ class RoundStore {
 
     func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
         changeStroke(stroke.id, in: roundID) { existing in
-            existing = Stroke(id: existing.id, coordinate: coordinate, type: existing.type, club: existing.club)
+            existing = Stroke(id: existing.id, coordinate: coordinate, penaltyStrokes: existing.penaltyStrokes,
+                              quality: existing.quality, club: existing.club)
         }
     }
 
-    func setStrokeType(strokeID: UUID, type: StrokeType, in roundID: UUID) {
-        changeStroke(strokeID, in: roundID) { $0.type = type }
+    /// Sets the stroke's penalty strokes, kept between 0 and `Stroke.maxPenaltyStrokes`.
+    func setPenaltyStrokes(_ count: Int, strokeID: UUID, in roundID: UUID) {
+        changeStroke(strokeID, in: roundID) { $0.penaltyStrokes = Stroke.clamped(penaltyStrokes: count) }
+    }
+
+    func setShotQuality(_ quality: ShotQuality, strokeID: UUID, in roundID: UUID) {
+        changeStroke(strokeID, in: roundID) { $0.quality = quality }
     }
 
     func setStrokeClub(strokeID: UUID, club: Club?, in roundID: UUID) {

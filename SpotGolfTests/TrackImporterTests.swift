@@ -20,7 +20,7 @@ final class TrackImporterTests: XCTestCase {
         var round = Round(date: start, courseSelection: .test)
         round.startHole(1, at: start.addingTimeInterval(100), source: .stroke)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9, longitude: -105.0), club: Club.named("dr")), toHoleIndex: 0)
-        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.8, longitude: -105.1), type: .penalty),
+        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.8, longitude: -105.1), penaltyStrokes: 1, quality: .bad),
                         toHoleIndex: 1)
         let points = stride(from: 0.0, through: 200, by: 10).map(point)
         return TrackExporter.csv(round: round, points: points, swings: swings, contacts: contacts)
@@ -36,9 +36,20 @@ final class TrackImporterTests: XCTestCase {
         XCTAssertEqual(export.swings, swings)
         XCTAssertEqual(export.contacts, contacts)
         XCTAssertEqual(export.strokes.map(\.hole), [1, 2])
-        XCTAssertEqual(export.strokes.map(\.stroke.type), [.regular, .penalty])
+        XCTAssertEqual(export.strokes.map(\.stroke.penaltyStrokes), [0, 1])
+        XCTAssertEqual(export.strokes.map(\.stroke.quality), [.good, .bad])
         XCTAssertEqual(export.strokes.map(\.stroke.latitude), [39.9, 39.8])
         XCTAssertEqual(export.strokes.map(\.stroke.clubID), ["dr", nil])
+    }
+
+    func testReadsTheStrokeTypesOfOldExports() throws {
+        let csv = TrackExporter.headerWithoutQuality + "\ntrack,2023-11-14T22:13:20.000Z,39.9555,-105.0422,1609.5,4.2,watch,,,,,,,,\n"
+            + "stroke,,39.9,-105.0,,,,1,1,regular,,,,,\nstroke,,39.9,-105.0,,,,1,2,penalty,,,,,\nstroke,,39.9,-105.0,,,,1,3,outOfBounds,,,,,\n"
+
+        let export = try TrackImporter.read(csv)
+
+        XCTAssertEqual(export.strokes.map(\.stroke.penaltyStrokes), [0, 1, 1])
+        XCTAssertEqual(export.strokes.map(\.stroke.quality), [.unrated, .unrated, .unrated])
     }
 
     func testReadsAnExportFromBeforeClubs() throws {

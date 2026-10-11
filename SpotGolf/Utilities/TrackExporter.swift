@@ -2,7 +2,9 @@ import Foundation
 
 /// Builds CSV exports of a round's GPS track, swings, contacts, and strokes.
 enum TrackExporter {
-    static let header = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club"
+    static let header = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club,quality"
+    /// Exports from before strokes recorded their shot quality, which the importer still reads.
+    static let headerWithoutQuality = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club"
     /// Exports from before strokes recorded their club, which the importer still reads.
     static let headerWithoutClubs = "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click"
     /// Exports from before the watch recorded contacts, which the importer still reads.
@@ -13,7 +15,8 @@ enum TrackExporter {
     /// altitude/accuracy/source and leave the rest blank. Swing rows fill the location of the
     /// nearest fix (blank if none is close enough), source, hole (1-based, from the hole
     /// timeline), and peak force in g; contact rows the same with score, burst and click instead.
-    /// Stroke rows fill hole (1-based), stroke (1-based) and stroke type. Event rows fill
+    /// Stroke rows fill hole (1-based), stroke (1-based), the penalty strokes in strokeType, the
+    /// club and the shot quality. Event rows fill
     /// source, hole, the event's name in strokeType and its value in peakG. Altitude and
     /// accuracy are blank when the fix had no valid reading.
     static func csv(round: Round, points: [TrackPoint], swings: [StrokeSuggestion], contacts: [ContactEvent] = [],
@@ -27,7 +30,7 @@ enum TrackExporter {
             let altitude = point.altitude.map { String($0) } ?? ""
             let accuracy = point.horizontalAccuracy.map { String($0) } ?? ""
             rows.append((point.timestamp,
-                         "track,\(formatter.string(from: point.timestamp)),\(point.latitude),\(point.longitude),\(altitude),\(accuracy),watch,,,,,,,,"))
+                         "track,\(formatter.string(from: point.timestamp)),\(point.latitude),\(point.longitude),\(altitude),\(accuracy),watch,,,,,,,,,"))
         }
 
         for swing in swings {
@@ -36,7 +39,7 @@ enum TrackExporter {
             let longitude = fix.map { String($0.longitude) } ?? ""
             let hole = round.holeIndex(at: swing.timestamp) + 1
             rows.append((swing.timestamp,
-                         "swing,\(formatter.string(from: swing.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,\(swing.peakG ?? 0),,,,"))
+                         "swing,\(formatter.string(from: swing.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,\(swing.peakG ?? 0),,,,,"))
         }
 
         for contact in contacts {
@@ -45,20 +48,20 @@ enum TrackExporter {
             let longitude = fix.map { String($0.longitude) } ?? ""
             let hole = round.holeIndex(at: contact.timestamp) + 1
             rows.append((contact.timestamp,
-                         "contact,\(formatter.string(from: contact.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,,\(contact.score),\(contact.burst),\(contact.click),"))
+                         "contact,\(formatter.string(from: contact.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,,\(contact.score),\(contact.burst),\(contact.click),,"))
         }
 
         // The watch's workout and sensor events: the code's name where a stroke's type goes, its value where a swing's peak goes
         for event in events {
             let hole = round.holeIndex(at: event.timestamp) + 1
             rows.append((event.timestamp,
-                         "event,\(formatter.string(from: event.timestamp)),,,,,watch,\(hole),,\(event.name),\(event.value),,,,"))
+                         "event,\(formatter.string(from: event.timestamp)),,,,,watch,\(hole),,\(event.name),\(event.value),,,,,"))
         }
 
         var lines = rows.sorted { $0.timestamp < $1.timestamp }.map(\.line)
         for (holeIndex, hole) in round.holes.enumerated() {
             for (strokeIndex, stroke) in hole.strokes.enumerated() {
-                lines.append("stroke,,\(stroke.coordinate.latitude),\(stroke.coordinate.longitude),,,,\(holeIndex + 1),\(strokeIndex + 1),\(stroke.type.rawValue),,,,,\(stroke.clubID ?? "")")
+                lines.append("stroke,,\(stroke.coordinate.latitude),\(stroke.coordinate.longitude),,,,\(holeIndex + 1),\(strokeIndex + 1),\(stroke.penaltyStrokes),,,,,\(stroke.clubID ?? ""),\(stroke.quality.rawValue)")
             }
         }
         return ([header] + lines).joined(separator: "\n") + "\n"

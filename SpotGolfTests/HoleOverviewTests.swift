@@ -36,7 +36,7 @@ final class HoleOverviewTests: XCTestCase {
 
     func testToParCountsPenaltyStrokes() {
         var penalty = strokes(5)
-        penalty[1].type = .penalty
+        penalty[1].penaltyStrokes = 1
         var round = Round(holes: [RoundHole(strokes: penalty), RoundHole(strokes: strokes(4))],
                           status: .ended, courseSelection: .test)
         round.setDisplayHole(1, at: Date())
@@ -132,7 +132,7 @@ final class HoleOverviewTests: XCTestCase {
 
     func testStrokeSummaryCountsPenaltyStrokes() {
         var penalty = strokes(3)
-        penalty[1].type = .outOfBounds
+        penalty[1].penaltyStrokes = 1
         var round = Round(courseSelection: .test)
         round.holes = [RoundHole(strokes: penalty, stats: HoleStats(putts: 1, fairway: false, green: false))]
 

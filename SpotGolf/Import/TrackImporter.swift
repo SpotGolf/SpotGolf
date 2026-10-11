@@ -38,13 +38,14 @@ enum TrackImporter {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let lines = csv.split(whereSeparator: \.isNewline)
         let header = lines.first?.trimmingCharacters(in: .whitespaces)
-        guard [TrackExporter.header, TrackExporter.headerWithoutClubs, TrackExporter.headerWithoutContacts].contains(header) else {
+        guard [TrackExporter.header, TrackExporter.headerWithoutQuality, TrackExporter.headerWithoutClubs,
+               TrackExporter.headerWithoutContacts].contains(header) else {
             throw ImportError.wrongHeader
         }
 
         var export = Export()
         var strokes: [(stroke: Stroke, hole: Int, number: Int)] = []
-        // type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club
+        // type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club,quality
         for line in lines.dropFirst() {
             let fields = line.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
             guard fields.count >= 11 else { continue }
@@ -64,9 +65,12 @@ enum TrackImporter {
             case "stroke":
                 guard let lat = Double(fields[2]), let lon = Double(fields[3]),
                       let hole = Int(fields[7]), let number = Int(fields[8]) else { continue }
-                let type = StrokeType(rawValue: fields[9]) ?? .regular
+                // Exports from before penalty strokes were counted wrote regular, penalty or outOfBounds
+                let penaltyStrokes = Int(fields[9]) ?? (fields[9] == "penalty" || fields[9] == "outOfBounds" ? 1 : 0)
                 let club = fields.count >= 15 ? Club.named(fields[14]) : nil
-                strokes.append((Stroke(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), type: type, club: club), hole, number))
+                let quality = fields.count >= 16 ? ShotQuality(rawValue: fields[15]) ?? .unrated : .unrated
+                strokes.append((Stroke(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), penaltyStrokes: penaltyStrokes,
+                                      quality: quality, club: club), hole, number))
             default:
                 continue
             }

@@ -12,8 +12,9 @@ final class TrackExporterTests: XCTestCase {
                    altitude: altitude, horizontalAccuracy: accuracy)
     }
 
-    private func stroke(type: StrokeType = .regular, club: Club? = nil) -> Stroke {
-        Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9555, longitude: -105.0422), type: type, club: club)
+    private func stroke(penaltyStrokes: Int = 0, quality: ShotQuality = .good, club: Club? = nil) -> Stroke {
+        Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.9555, longitude: -105.0422), penaltyStrokes: penaltyStrokes,
+               quality: quality, club: club)
     }
 
     func testHeaderAndTrackRowFormat() {
@@ -23,23 +24,23 @@ final class TrackExporterTests: XCTestCase {
         let lines = csv.split(separator: "\n")
 
         XCTAssertEqual(lines.count, 2)
-        XCTAssertEqual(lines[0], "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club")
-        XCTAssertEqual(lines[1], "track,2023-11-14T22:13:20.000Z,39.9555,-105.0422,1609.5,4.2,watch,,,,,,,,")
+        XCTAssertEqual(lines[0], "type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG,score,burst,click,club,quality")
+        XCTAssertEqual(lines[1], "track,2023-11-14T22:13:20.000Z,39.9555,-105.0422,1609.5,4.2,watch,,,,,,,,,")
     }
 
-    func testStrokeRowsCarryHoleStrokeTypeAndClub() {
+    func testStrokeRowsCarryHoleStrokePenaltyStrokesClubAndQuality() {
         var round = Round(date: start, courseSelection: .test)
         round.addStroke(stroke(club: Club.named("dr")), toHoleIndex: 0)
         round.addStroke(stroke(), toHoleIndex: 0)
-        round.addStroke(stroke(type: .penalty, club: Club.named("7i")), toHoleIndex: 1)
+        round.addStroke(stroke(penaltyStrokes: 1, quality: .bad, club: Club.named("7i")), toHoleIndex: 1)
 
         let csv = TrackExporter.csv(round: round, points: [], swings: [])
         let lines = csv.split(separator: "\n")
 
         XCTAssertEqual(lines.count, 4)
-        XCTAssertEqual(lines[1], "stroke,,39.9555,-105.0422,,,,1,1,regular,,,,,dr")
-        XCTAssertEqual(lines[2], "stroke,,39.9555,-105.0422,,,,1,2,regular,,,,,")
-        XCTAssertEqual(lines[3], "stroke,,39.9555,-105.0422,,,,2,1,penalty,,,,,7i")
+        XCTAssertEqual(lines[1], "stroke,,39.9555,-105.0422,,,,1,1,0,,,,,dr,good")
+        XCTAssertEqual(lines[2], "stroke,,39.9555,-105.0422,,,,1,2,0,,,,,,good")
+        XCTAssertEqual(lines[3], "stroke,,39.9555,-105.0422,,,,2,1,1,,,,,7i,bad")
     }
 
     func testSwingRowCarriesNearestFixHoleAndPeak() {
@@ -53,7 +54,7 @@ final class TrackExporterTests: XCTestCase {
         let lines = csv.split(separator: "\n")
 
         XCTAssertEqual(lines.count, 4)
-        XCTAssertEqual(lines[2], "swing,2023-11-14T22:13:52.000Z,39.1,-105.1,,,watch,2,,,12.5,,,,")
+        XCTAssertEqual(lines[2], "swing,2023-11-14T22:13:52.000Z,39.1,-105.1,,,watch,2,,,12.5,,,,,")
     }
 
     func testSwingRowWithoutNearbyFixHasBlankLocation() {
@@ -77,7 +78,7 @@ final class TrackExporterTests: XCTestCase {
         let csv = TrackExporter.csv(round: round, points: [point(offset: 0)], swings: [], events: [event])
         let fields = csv.split(separator: "\n")[2].split(separator: ",", omittingEmptySubsequences: false)
 
-        XCTAssertEqual(fields.count, 15)
+        XCTAssertEqual(fields.count, 16)
         XCTAssertEqual(fields[0], "event")
         XCTAssertEqual(fields[1], "2023-11-14T22:13:25.000Z")
         XCTAssertEqual(fields[6], "watch")
@@ -102,7 +103,7 @@ final class TrackExporterTests: XCTestCase {
         let csv = TrackExporter.csv(round: Round(date: start, courseSelection: .test), points: [point(offset: 0)], swings: [])
         let fields = csv.split(separator: "\n")[1].split(separator: ",", omittingEmptySubsequences: false)
 
-        XCTAssertEqual(fields.count, 15)
+        XCTAssertEqual(fields.count, 16)
         XCTAssertEqual(fields[4], "")
         XCTAssertEqual(fields[5], "")
         XCTAssertEqual(fields[6], "watch")
@@ -129,6 +130,6 @@ final class TrackExporterTests: XCTestCase {
         let lines = csv.split(separator: "\n")
 
         XCTAssertEqual(lines.count, 4)
-        XCTAssertEqual(lines[2], "contact,2023-11-14T22:13:52.000Z,39.1,-105.1,,,watch,2,,,,6.5,0.25,40.0,")
+        XCTAssertEqual(lines[2], "contact,2023-11-14T22:13:52.000Z,39.1,-105.1,,,watch,2,,,,6.5,0.25,40.0,,")
     }
 }

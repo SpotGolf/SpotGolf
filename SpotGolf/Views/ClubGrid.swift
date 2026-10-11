@@ -6,6 +6,8 @@ struct ClubGrid: View {
     let clubs: [Club]
     let isSelected: (Club) -> Bool
     var isEnabled: (Club) -> Bool = { _ in true }
+    /// Slightly smaller buttons, for the spot sheet.
+    var compact = false
     let tap: (Club) -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 56), spacing: 8)]
@@ -19,11 +21,11 @@ struct ClubGrid: View {
     }
 
     private func clubButton(_ club: Club) -> some View {
-        ChoiceButton(isSelected: isSelected(club), isEnabled: isEnabled(club)) {
+        ChoiceButton(isSelected: isSelected(club), isEnabled: isEnabled(club), minHeight: compact ? 30 : 36) {
             tap(club)
         } label: {
             Text(club.shortName)
-                .font(.body.monospacedDigit())
+                .font((compact ? Font.callout : .body).monospacedDigit())
         }
         .accessibilityLabel(club.name)
         .accessibilityIdentifier("Club-\(club.id)")

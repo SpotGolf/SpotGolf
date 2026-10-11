@@ -6,7 +6,7 @@ import Foundation
 /// shapes. `RoundStore` saves them on the hole each time its strokes change. See
 /// plans/2026-10-09-scorecard.md.
 struct HoleStats: Codable, Equatable {
-    /// Regular strokes on the green.
+    /// Strokes on the green with no penalty strokes.
     var putts: Int
     /// The tee shot stopped on the fairway or the green. Nil on a par 3, or before the second
     /// stroke.
@@ -21,12 +21,12 @@ extension Round {
         let strokes = hole(at: index).strokes
         guard !strokes.isEmpty else { return nil }
         let par = courseHole(at: index)?.par
-        let onGreen = strokes.map { $0.type == .regular && isOnGreen($0.coordinate, holeIndex: index) }
+        let onGreen = strokes.map { $0.penaltyStrokes == 0 && isOnGreen($0.coordinate, holeIndex: index) }
 
         var fairway: Bool?
         if let par, par >= 4, strokes.count >= 2 {
             let second = strokes[1]
-            fairway = second.type == .regular
+            fairway = second.penaltyStrokes == 0
                 && (onGreen[1] || isOnFairway(second.coordinate, holeIndex: index))
         }
 
