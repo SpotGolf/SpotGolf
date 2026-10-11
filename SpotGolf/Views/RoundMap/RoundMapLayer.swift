@@ -2,8 +2,9 @@ import MapKit
 import SwiftUI
 
 /// The map of the shown hole: the player, the pin, the spots, the GPS track, the tapped target
-/// and its lines, hazard distances, and stroke suggestions while editing. A long press adds a
-/// spot while editing, and a spot can be lifted and dragged to move it.
+/// and its lines, hazard distances, and stroke suggestions while editing. Tapping a spot shows
+/// or hides the lines between the hole's strokes, with the yards along each. A long press adds
+/// a spot while editing, and a spot can be lifted and dragged to move it.
 struct RoundMapLayer: View {
     let round: Round
     let shownHoleIndex: Int
@@ -19,11 +20,14 @@ struct RoundMapLayer: View {
     @Environment(PhoneServices.self) private var services
     @State private var draggingStroke: Stroke?
     @State private var dragOffset: CGSize = .zero
+    /// The lines between the strokes are shown. Tapping a spot outside editing turns them on and off.
+    @State private var showsStrokeLines = false
 
     var body: some View {
         let strokesToShow = round.hole(at: shownHoleIndex).strokes
         MapReader { proxy in
             let targetLines = targetLines
+            let strokeLines = showsStrokeLines ? MapGeometry.strokeLines(strokesToShow) : []
             Map(position: $camera.position) {
                 if round.isActive {
                     UserAnnotation()
@@ -47,6 +51,10 @@ struct RoundMapLayer: View {
                 }
                 ForEach(targetLines.indices, id: \.self) { index in
                     MapPolyline(coordinates: targetLines[index])
+                        .stroke(.white, style: StrokeStyle(lineWidth: 1, lineCap: .butt))
+                }
+                ForEach(strokeLines.indices, id: \.self) { index in
+                    MapPolyline(coordinates: strokeLines[index].coordinates)
                         .stroke(.white, style: StrokeStyle(lineWidth: 1, lineCap: .butt))
                 }
                 if let target {
@@ -75,6 +83,9 @@ struct RoundMapLayer: View {
             }
             .overlay {
                 hazardBubbles(proxy: proxy)
+            }
+            .overlay {
+                distanceLabels(strokeLines, proxy: proxy)
             }
             .onMapCameraChange(frequency: .continuous) { context in
                 camera.changes &+= 1
@@ -123,7 +134,10 @@ struct RoundMapLayer: View {
 
     private func spotMarker(index: Int, stroke: Stroke, proxy: MapProxy) -> some View {
         SpotPin(number: index + 1, stroke: stroke, isDragging: draggingStroke?.id == stroke.id) {
-            guard isEditing else { return }
+            guard isEditing else {
+                showsStrokeLines.toggle()
+                return
+            }
             if let holeIdx = round.holeIndex(containing: stroke.id),
                let strokeIdx = round.holes[holeIdx].strokes.firstIndex(where: { $0.id == stroke.id }) {
                 spot.newIndex = strokeIdx
@@ -183,6 +197,25 @@ struct RoundMapLayer: View {
                     HazardBubble(yards: hazard.distanceYards)
                         .fixedSize()
                         .frame(width: 0, height: 0, alignment: .bottom)
+                        .position(point)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    /// The yards along each stroke line, on its middle. Drawn over the map like the hazard
+    /// bubbles, so they do not block touches on the map under them.
+    private func distanceLabels(_ lines: [StrokeLine], proxy: MapProxy) -> some View {
+        // Reading the counter redraws the labels as the camera moves
+        _ = camera.changes
+        return ZStack {
+            ForEach(lines.indices, id: \.self) { index in
+                if let point = proxy.convert(lines[index].midpoint, to: .local) {
+                    DistanceLabel(yards: lines[index].yards, number: index + 1)
+                        .fixedSize()
                         .position(point)
                 }
             }

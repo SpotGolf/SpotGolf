@@ -49,6 +49,30 @@ final class PastRoundUITests: XCTestCase {
         XCTAssertTrue(app.buttons["New Round"].waitForExistence(timeout: 5), "Back should return to the round list")
     }
 
+    // MARK: - Stroke lines
+
+    func testTappingAStrokeTogglesTheLinesBetweenStrokes() throws {
+        createPastRound()
+        openPastRound()
+
+        let first = app.buttons["Stroke_1"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "Stroke 1 should be on the map")
+        let firstDistance = element("StrokeDistance_1")
+        XCTAssertFalse(firstDistance.exists, "No distances before a stroke is tapped")
+
+        // Hole 1 has three strokes, so two lines
+        first.tap()
+        XCTAssertTrue(firstDistance.waitForExistence(timeout: 5), "Tapping a stroke should show the yards between strokes")
+        XCTAssertTrue(element("StrokeDistance_2").exists, "There should be a line from stroke 2 to stroke 3")
+        XCTAssertFalse(element("StrokeDistance_3").exists, "There should be no line past the last stroke")
+        XCTAssertNotNil(Int(firstDistance.label.split(separator: " ").first ?? ""), "The label should be yards")
+        XCTAssertFalse(app.navigationBars["Edit Spot"].exists, "Tapping outside editing should not open the spot")
+
+        // Tapping a stroke again hides them
+        app.buttons["Stroke_2"].tap()
+        XCTAssertTrue(firstDistance.waitForNonExistence(timeout: 5), "Tapping a stroke again should hide the lines")
+    }
+
     // MARK: - Editing
 
     func testPastRoundCanBeEdited() throws {

@@ -90,6 +90,29 @@ final class MapGeometryTests: XCTestCase {
         XCTAssertNil(MapGeometry.lineEnd(at: target, toward: other, gap: 150))
     }
 
+    func testStrokeLinesJoinEachStrokeToTheNextWithTheirYards() {
+        let tee = Stroke(coordinate: PathCourse.coordinate(north: 0, east: 0).clLocation.coordinate)
+        let fairway = Stroke(coordinate: PathCourse.coordinate(north: 200, east: 0).clLocation.coordinate)
+        let green = Stroke(coordinate: PathCourse.coordinate(north: 200, east: 100).clLocation.coordinate)
+
+        let lines = MapGeometry.strokeLines([tee, fairway, green])
+
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(lines[0].start.latitude, tee.latitude)
+        XCTAssertEqual(lines[0].end.latitude, fairway.latitude)
+        XCTAssertEqual(lines[1].start.longitude, fairway.longitude)
+        XCTAssertEqual(lines[1].end.longitude, green.longitude)
+        // 200 m is 219 yards, 100 m is 109
+        XCTAssertEqual(lines[0].yards, 219, accuracy: 1)
+        XCTAssertEqual(lines[1].yards, 109, accuracy: 1)
+        // The yards sit halfway along the line
+        XCTAssertEqual(lines[0].midpoint.latitude, (tee.latitude + fairway.latitude) / 2, accuracy: 1e-9)
+        XCTAssertEqual(lines[1].midpoint.longitude, (fairway.longitude + green.longitude) / 2, accuracy: 1e-9)
+
+        XCTAssertEqual(MapGeometry.strokeLines([tee]), [])
+        XCTAssertEqual(MapGeometry.strokeLines([]), [])
+    }
+
     func testFlagGrowsWithZoomBetweenItsLimits() {
         XCTAssertEqual(MapGeometry.flagScale(metersPerPoint: 2), 1)
         XCTAssertEqual(MapGeometry.flagScale(metersPerPoint: MapGeometry.normalFlagMetersPerPoint), 1, accuracy: 1e-9)

@@ -87,6 +87,27 @@ struct HazardBubble: View {
     }
 }
 
+/// A small white label with the yards between two strokes, centered on their line.
+struct DistanceLabel: View {
+    let yards: Int
+    /// The line's number in the hole, from 1, for its accessibility identifier.
+    let number: Int
+
+    var body: some View {
+        Text("\(yards)")
+            .font(.system(size: 10, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(.black)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 5).fill(.white))
+            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(yards) yards")
+            .accessibilityIdentifier("StrokeDistance_\(number)")
+    }
+}
+
 /// A pin on a point of the map: a round head on a short arrow, and a small dot on the point
 /// under the arrow's tip. Suggestion pins and spot pins are both drawn with it. Anchor the
 /// annotation at `.bottom`: the view's bottom edge runs through the dot's center. A lifted pin

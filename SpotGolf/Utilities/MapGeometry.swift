@@ -127,6 +127,15 @@ enum MapGeometry {
                                       longitude: target.longitude + (other.longitude - target.longitude) * fraction)
     }
 
+    /// The lines between a hole's strokes in order, one from each stroke to the next, with the
+    /// yards along each. None with fewer than two strokes.
+    static func strokeLines(_ strokes: [Stroke]) -> [StrokeLine] {
+        zip(strokes, strokes.dropFirst()).map { start, end in
+            StrokeLine(start: start.coordinate, end: end.coordinate,
+                       yards: Int(DistanceCalculator.yards(from: start, to: end).rounded()))
+        }
+    }
+
     /// The flag grows with the zoom level: its normal size at the whole-hole view and below,
     /// growing evenly per zoom level up to `largestFlagScale` when zoomed in close, and no larger.
     static let normalFlagMetersPerPoint = 0.6
@@ -140,5 +149,26 @@ enum MapGeometry {
         let fullZoom = log2(normalFlagMetersPerPoint / largestFlagMetersPerPoint)
         let progress = min(max(zoom / fullZoom, 0), 1)
         return 1 + (largestFlagScale - 1) * progress
+    }
+}
+
+/// A thin line from one stroke to the next, with the yards between them shown at its middle.
+struct StrokeLine: Equatable {
+    let start: CLLocationCoordinate2D
+    let end: CLLocationCoordinate2D
+    let yards: Int
+
+    var coordinates: [CLLocationCoordinate2D] { [start, end] }
+
+    /// Halfway along the line, where its yards are shown.
+    var midpoint: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: (start.latitude + end.latitude) / 2,
+                               longitude: (start.longitude + end.longitude) / 2)
+    }
+
+    static func == (lhs: StrokeLine, rhs: StrokeLine) -> Bool {
+        lhs.start.latitude == rhs.start.latitude && lhs.start.longitude == rhs.start.longitude
+            && lhs.end.latitude == rhs.end.latitude && lhs.end.longitude == rhs.end.longitude
+            && lhs.yards == rhs.yards
     }
 }
