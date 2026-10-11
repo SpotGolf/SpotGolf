@@ -118,6 +118,13 @@ struct CourseSelectionView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            Section {
+                EmptyView()
+            } footer: {
+                Text("WARNING: SpotGolf uses open source data built using [CourseBuilder](https://github.com/SpotGolf/CourseBuilder) and stored in [CourseData](https://github.com/SpotGolf/CourseData). If you don't see the course you want, feel free to submit a PR with your course JSON file.")
+                    .accessibilityIdentifier("CourseDataNote")
+            }
         }
         .searchable(text: $searchText, prompt: "Search courses")
         .task {
