@@ -18,10 +18,22 @@
     "%lld" : {
 
     },
+    "%lld Hybrid" : {
+
+    },
+    "%lld Iron" : {
+
+    },
+    "%lld Wood" : {
+
+    },
     "%lld contacts" : {
 
     },
     "%lld yds" : {
+
+    },
+    "%lld° Wedge" : {
 
     },
     "Accelerometer stopped" : {
@@ -31,6 +43,9 @@
 
     },
     "Allow on this watch:" : {
+
+    },
+    "Approach Wedge" : {
 
     },
     "Back" : {
@@ -49,6 +64,9 @@
 
     },
     "Device motion stopped" : {
+
+    },
+    "Driver" : {
 
     },
     "End Round" : {
@@ -72,6 +90,15 @@
           }
         }
       }
+    },
+    "Hybrids" : {
+
+    },
+    "Irons" : {
+
+    },
+    "Lob Wedge" : {
+
     },
     "Location" : {
 
@@ -106,6 +133,9 @@
     "No microphone" : {
 
     },
+    "No microphone permission" : {
+
+    },
     "OK" : {
 
     },
@@ -113,6 +143,9 @@
 
     },
     "Pin" : {
+
+    },
+    "Pitching Wedge" : {
 
     },
     "Practice" : {
@@ -133,7 +166,13 @@
     "Putt Lab" : {
 
     },
+    "Putter" : {
+
+    },
     "Records wrist motion and sound while you putt. Tap a button after each stroke." : {
+
+    },
+    "Sand Wedge" : {
 
     },
     "Save data" : {
@@ -167,6 +206,12 @@
 
     },
     "Water" : {
+
+    },
+    "Wedges" : {
+
+    },
+    "Woods" : {
 
     }
   },

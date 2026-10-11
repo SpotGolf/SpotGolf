@@ -8,9 +8,11 @@ enum SettingsKey {
     static let sharePins = "sharePins"
     /// Saves `debug` log lines, on the phone and the watch.
     static let debugLogging = "debugLogging"
+    /// The clubs the player carries, as `GolfBag`'s raw value.
+    static let bag = "bag"
 
     static var defaults: [String: Any] {
-        [stationaryThreshold: 30.0, sharePins: true, debugLogging: false]
+        [stationaryThreshold: 30.0, sharePins: true, debugLogging: false, bag: GolfBag.standard.rawValue]
     }
 
     /// Gives code outside views the same defaults `@AppStorage` uses.

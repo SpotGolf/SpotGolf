@@ -34,6 +34,9 @@
       }
     },
     "%lld" : {},
+    "%lld Hybrid" : {},
+    "%lld Iron" : {},
+    "%lld Wood" : {},
     "%lld holes" : {
       "localizations" : {
         "en" : {
@@ -52,6 +55,16 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "%lld of %lld clubs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld clubs"
           }
         }
       }
@@ -109,7 +122,18 @@
         }
       }
     },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "%llds" : {},
+    "%lld° Wedge" : {},
     "About" : {},
     "Active" : {},
     "Active Round" : {},
@@ -117,22 +141,27 @@
     "Add suggested stroke" : {},
     "Adds a round from a CSV export as the current round and works out its hole starts. Pick the course the round was played on, then the file. Only works when no round is in progress." : {},
     "Allow" : {},
+    "Approach Wedge" : {},
     "Are you sure you want to delete this spot?" : {},
     "Back" : {},
     "Cancel" : {},
     "Clear penalty" : {},
     "Clear target" : {},
     "Close" : {},
+    "Clubs" : {},
     "Corrected" : {},
     "Could not open SpotGolf on the watch (%@). Open it on the watch, then tap Retry." : {},
     "Could not send the round to the watch." : {},
     "Debug" : {},
+    "Debug Logging" : {},
     "Delete" : {},
     "Delete \"%@\"? This cannot be undone." : {},
     "Delete Round" : {},
     "Delete Spot" : {},
     "Determining location..." : {},
+    "Device" : {},
     "Done" : {},
+    "Driver" : {},
     "E" : {
       "comment" : "Even par"
     },
@@ -141,12 +170,15 @@
     "Edit hole %lld" : {},
     "End Round" : {},
     "Ending" : {},
+    "Errors Only" : {},
     "Estimated" : {},
     "Export" : {},
     "Export Failed" : {},
     "Failed to load course: %@" : {},
     "Fairway" : {},
+    "Filter" : {},
     "Force end" : {},
+    "Golf Bag" : {},
     "Green" : {},
     "Green center" : {},
     "Hazard in %lld yards" : {},
@@ -157,6 +189,7 @@
     "Hole Times" : {},
     "Hole times" : {},
     "How long you must stand still on or near the green, with no swing, before a chip or putt is suggested." : {},
+    "Hybrids" : {},
     "Import Round…" : {},
     "Import failed: %@" : {},
     "Import failed: another round is in progress." : {},
@@ -174,17 +207,33 @@
     "In Settings → Privacy & Security → Health → SpotGolf, turn on Workouts." : {},
     "In Settings, set Location to While Using the App and turn on Precise Location." : {},
     "In Settings, turn on Motion & Fitness. If it is greyed out, turn on Fitness Tracking in Settings → Privacy & Security → Motion & Fitness." : {},
+    "Install SpotGolf %@ on your Apple Watch. The watch has %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Install SpotGolf %1$@ on your Apple Watch. The watch has %2$@."
+          }
+        }
+      }
+    },
+    "Irons" : {},
     "Loading course..." : {},
+    "Lob Wedge" : {},
     "Location" : {},
+    "Log" : {},
     "Microphone" : {},
     "Missed" : {},
     "Motion & Fitness" : {},
     "Nearby Courses" : {},
     "New Round" : {},
     "Next" : {},
+    "No Log Lines" : {},
     "No captures yet. Record one on the watch's Putt Lab page; it is sent here when it stops." : {},
     "No courses found" : {},
     "No courses nearby" : {},
+    "Nothing has been recorded yet." : {},
+    "Nothing matches the filter." : {},
     "OK" : {},
     "On the watch, in Settings → Privacy & Security → Microphone, turn on SpotGolf." : {},
     "Open Settings" : {},
@@ -205,22 +254,29 @@
     },
     "Past Rounds" : {},
     "Penalty stroke" : {},
+    "Phone" : {},
+    "Phone and Watch" : {},
     "Pin" : {},
     "Pins" : {},
     "Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts." : {},
+    "Pitching Wedge" : {},
     "Practice" : {},
     "Practice ground" : {},
     "Putt" : {},
     "Putt Captures" : {},
     "Putt Lab" : {},
+    "Putter" : {},
     "Putts" : {},
     "Resume" : {},
     "Retry" : {},
+    "Round Log" : {},
     "Round start" : {},
+    "Sand Wedge" : {},
     "Save" : {},
     "Score" : {},
     "Search Results" : {},
     "Search courses" : {},
+    "Search messages" : {},
     "Select" : {},
     "Select Course" : {},
     "Select Nines" : {},
@@ -242,8 +298,11 @@
     "Stroke Suggestions" : {},
     "Sync Error" : {},
     "Syncing watch data…" : {},
+    "Tap a club to add it to your bag or take it out. A bag holds at most %lld clubs." : {},
     "Target" : {},
+    "The clubs you carry, up to %lld." : {},
     "The watch did not respond." : {},
+    "The watch has not responded yet. Still trying." : {},
     "The watch is missing %@ permission." : {},
     "To green" : {},
     "To pin" : {},
@@ -251,8 +310,12 @@
     "Tot" : {},
     "Total score" : {},
     "Version" : {},
+    "Watch" : {},
     "Watch connected" : {},
     "Watch not connected" : {},
+    "Wedges" : {},
+    "What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; it takes effect on the watch when the next round starts." : {},
+    "Woods" : {},
     "Yards" : {},
     "battery test, mic off" : {},
     "battery test, mic on" : {},

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
     @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
+    @AppStorage(SettingsKey.bag) private var bag = GolfBag.standard
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
@@ -30,6 +31,18 @@ struct SettingsView: View {
                     Text("Stroke Suggestions")
                 } footer: {
                     Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested.")
+                }
+                Section {
+                    NavigationLink {
+                        GolfBagView()
+                    } label: {
+                        LabeledContent("Golf Bag", value: "\(bag.clubs.count) clubs")
+                    }
+                    .accessibilityIdentifier("OpenGolfBag")
+                } header: {
+                    Text("Clubs")
+                } footer: {
+                    Text("The clubs you carry, up to \(GolfBag.capacity).")
                 }
                 Section {
                     Toggle("Share Pin Locations", isOn: $sharePins)
