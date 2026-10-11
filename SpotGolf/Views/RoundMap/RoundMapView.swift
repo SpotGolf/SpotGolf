@@ -20,6 +20,9 @@ struct RoundMapView: View {
     /// GPS and the user move.
     @State private var pastHoleIndex = 0
     @State private var isEditing = false
+    /// The hole held on screen while editing. The watch's GPS can move the display hole on when
+    /// the player reaches the next tee, but an edit in progress stays on its hole until Done.
+    @State private var editingHoleIndex: Int?
     /// The whole round's GPS, and the part of it on the hole shown.
     @State private var roundTrack: [TrackPoint] = []
     @State private var holeTrack: [TrackPoint] = []
@@ -67,15 +70,18 @@ struct RoundMapView: View {
             // A new stroke can start its hole in the timeline, which changes the hole's track
             filterTrack()
         }
-        .onChange(of: round.map(shownHoleIndex)) {
-            // Also covers a hole change from the watch
+        .onChange(of: round.map(shownHoleIndex)) { _, shown in
+            // A hole the user picked, or the display hole catching up after Done. The watch's
+            // hole changes are held off while editing, so they do not land here until then.
             isEditing = editsAfterHoleChange
             editsAfterHoleChange = false
+            editingHoleIndex = isEditing ? shown : nil
             target = nil
             panToHole()
             filterTrack()
         }
         .onChange(of: isEditing) {
+            editingHoleIndex = isEditing ? round.map(shownHoleIndex) : nil
             refreshSuggestions()
         }
         .onChange(of: round?.hiddenSuggestionIDs, initial: true) {
@@ -88,9 +94,13 @@ struct RoundMapView: View {
     }
 
     /// The hole the map, header, and distances describe: an active round's display hole, which
-    /// the watch shows too. A past round opens on its first hole.
+    /// the watch shows too, or the hole being edited while an edit holds it. A past round opens
+    /// on its first hole.
     private func shownHoleIndex(_ round: Round) -> Int {
-        round.isActive ? round.displayHoleIndex : pastHoleIndex
+        if let editingHoleIndex, editingHoleIndex <= round.lastHoleIndex {
+            return editingHoleIndex
+        }
+        return round.isActive ? round.displayHoleIndex : pastHoleIndex
     }
 
     private var shownHoleHeading: Double? {
@@ -156,7 +166,11 @@ struct RoundMapView: View {
     private func selectHole(_ index: Int, _ round: Round) {
         if index == shownHoleIndex(round) {
             panToHole()
-        } else if round.isActive {
+            return
+        }
+        // The user's own choice of hole ends any hold
+        editingHoleIndex = nil
+        if round.isActive {
             services.roundStore.setDisplayHole(index, roundID: round.id)
         } else {
             pastHoleIndex = index
