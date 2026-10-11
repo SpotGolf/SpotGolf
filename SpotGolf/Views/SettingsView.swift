@@ -14,7 +14,6 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
     @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
-    @AppStorage(SettingsKey.bag) private var bag = GolfBag.standard
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
@@ -36,7 +35,7 @@ struct SettingsView: View {
                     NavigationLink {
                         GolfBagView()
                     } label: {
-                        LabeledContent("Golf Bag", value: "\(bag.clubs.count) clubs")
+                        LabeledContent("Golf Bag", value: "\(services.golfBag.bag.clubs.count) clubs")
                     }
                     .accessibilityIdentifier("OpenGolfBag")
                 } header: {

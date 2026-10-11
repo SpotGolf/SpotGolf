@@ -24,6 +24,19 @@ struct Club: Hashable, Identifiable, Sendable {
     let shortName: String
     let name: String
 
+    /// The average distance an amateur hits the club, in yards. Nil for the putter only.
+    var defaultDistance: Int? {
+        Self.defaultDistances[id]
+    }
+
+    private static let defaultDistances: [String: Int] = [
+        "dr": 230, "2w": 220, "3w": 215, "4w": 205, "5w": 200, "6w": 190, "7w": 185, "8w": 175, "9w": 170,
+        "2h": 200, "3h": 190, "4h": 180, "5h": 170, "6h": 160, "7h": 150,
+        "1i": 205, "2i": 195, "3i": 185, "4i": 175, "5i": 165, "6i": 155, "7i": 145, "8i": 135, "9i": 125,
+        "pw": 115, "aw": 105, "sw": 90, "lw": 75,
+        "46": 115, "48": 110, "50": 105, "52": 100, "54": 95, "56": 90, "58": 85, "60": 75, "62": 65, "64": 55,
+    ]
+
     /// Every club a player can carry, in bag order.
     static let all: [Club] = {
         var clubs = [Club(id: "dr", kind: .wood, shortName: "Dr", name: String(localized: "Driver"))]
@@ -50,32 +63,34 @@ struct Club: Hashable, Identifiable, Sendable {
     }
 }
 
-/// The clubs the player carries, at most `capacity`, always in `Club.all` order. Saved in
-/// settings as the club IDs joined by commas.
-struct GolfBag: Equatable, RawRepresentable, Sendable {
+/// The clubs the player carries, at most `capacity`, always in `Club.all` order, each with the
+/// distance the player hits it. `GolfBagStore` saves the bag and changes it; see
+/// plans/2026-10-10-club-distances.md.
+struct GolfBag: Equatable, Sendable {
     /// The most clubs the rules allow.
     static let capacity = 14
 
+    /// The standard 14, each at its default distance.
     static let standard = GolfBag(ids: ["dr", "3w", "5w", "3i", "4i", "5i", "6i", "7i", "8i", "9i", "pw", "sw", "lw", "pu"])
 
     private(set) var clubs: [Club]
+    private var yards: [Club: Int]
 
-    init(clubs: [Club]) {
+    /// One of each club, in bag order. A club missing from `distances` is at its default.
+    init(clubs: [Club], distances: [Club: Int] = [:]) {
         let carried = Set(clubs)
         self.clubs = Club.all.filter { carried.contains($0) }
+        yards = [:]
+        for club in self.clubs {
+            if let distance = distances[club] ?? club.defaultDistance {
+                yards[club] = distance
+            }
+        }
     }
 
     /// IDs that are not clubs are dropped.
     init(ids: [String]) {
         self.init(clubs: ids.compactMap { Club.named($0) })
-    }
-
-    init?(rawValue: String) {
-        self.init(ids: rawValue.split(separator: ",").map(String.init))
-    }
-
-    var rawValue: String {
-        clubs.map(\.id).joined(separator: ",")
     }
 
     var isFull: Bool {
@@ -86,12 +101,8 @@ struct GolfBag: Equatable, RawRepresentable, Sendable {
         clubs.contains(club)
     }
 
-    /// Removes the club when it is in the bag, and adds it otherwise. A full bag stays as it is.
-    mutating func toggle(_ club: Club) {
-        if contains(club) {
-            clubs.removeAll { $0 == club }
-        } else if !isFull {
-            self = GolfBag(clubs: clubs + [club])
-        }
+    /// How far the player hits the club, in yards. Nil for the putter and for clubs not in the bag.
+    func distance(of club: Club) -> Int? {
+        yards[club]
     }
 }

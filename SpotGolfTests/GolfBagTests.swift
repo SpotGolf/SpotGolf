@@ -11,46 +11,43 @@ final class GolfBagTests: XCTestCase {
         XCTAssertNil(Club.named("10i"))
     }
 
-    func testStandardBagIsTheFourteenStandardClubs() {
+    func testEveryClubButThePutterHasADefaultDistance() {
+        for club in Club.all {
+            if club.kind == .putter {
+                XCTAssertNil(club.defaultDistance, "The putter has no distance")
+            } else {
+                XCTAssertNotNil(club.defaultDistance, "\(club.name) should have a default distance")
+            }
+        }
+        XCTAssertEqual(Club.named("dr")?.defaultDistance, 230)
+        XCTAssertEqual(Club.named("7i")?.defaultDistance, 145)
+        XCTAssertEqual(Club.named("64")?.defaultDistance, 55)
+    }
+
+    func testStandardBagIsTheFourteenStandardClubsAtTheirDefaults() {
         let bag = GolfBag.standard
 
         XCTAssertEqual(bag.clubs.map(\.shortName), ["Dr", "3w", "5w", "3i", "4i", "5i", "6i", "7i", "8i", "9i", "PW", "SW", "LW", "Pu"])
         XCTAssertTrue(bag.isFull)
+        XCTAssertEqual(bag.distance(of: Club.named("3w")!), 215)
+        XCTAssertNil(bag.distance(of: Club.named("pu")!))
+        XCTAssertNil(bag.distance(of: Club.named("2w")!), "A club not in the bag has no distance")
     }
 
-    func testRawValueRoundTripsAndDropsUnknownClubs() {
-        XCTAssertEqual(GolfBag(rawValue: GolfBag.standard.rawValue), GolfBag.standard)
-        XCTAssertEqual(GolfBag.standard.rawValue, "dr,3w,5w,3i,4i,5i,6i,7i,8i,9i,pw,sw,lw,pu")
+    func testBagKeepsBagOrderOneOfEachClubAndGivenDistances() {
+        let driver = Club.named("dr")!
+        let putter = Club.named("pu")!
 
-        let bag = GolfBag(rawValue: "pu,bogus,dr,dr")
+        let bag = GolfBag(clubs: [putter, driver, driver], distances: [driver: 250])
 
-        XCTAssertEqual(bag?.clubs.map(\.id), ["dr", "pu"], "The bag keeps bag order and one of each club")
+        XCTAssertEqual(bag.clubs, [driver, putter])
+        XCTAssertEqual(bag.distance(of: driver), 250)
+        XCTAssertFalse(bag.isFull)
     }
 
-    func testEmptyRawValueIsAnEmptyBag() {
-        XCTAssertEqual(GolfBag(rawValue: "")?.clubs, [])
-    }
-
-    func testTogglingRemovesAndAddsAClubInBagOrder() {
-        var bag = GolfBag.standard
-        let fiveWood = Club.named("5w")!
-        let fourHybrid = Club.named("4h")!
-
-        bag.toggle(fiveWood)
-        XCTAssertFalse(bag.contains(fiveWood))
-        XCTAssertEqual(bag.clubs.count, 13)
-
-        bag.toggle(fourHybrid)
-        XCTAssertEqual(bag.clubs.map(\.id).prefix(3), ["dr", "3w", "4h"])
-        XCTAssertTrue(bag.isFull)
-    }
-
-    func testAFullBagTakesNoMoreClubs() {
-        var bag = GolfBag.standard
-
-        bag.toggle(Club.named("2w")!)
-
-        XCTAssertEqual(bag, GolfBag.standard)
+    func testUnknownIDsAreDropped() {
+        XCTAssertEqual(GolfBag(ids: ["pu", "bogus", "dr"]).clubs.map(\.id), ["dr", "pu"])
+        XCTAssertEqual(GolfBag(ids: []).clubs, [])
     }
 
 }

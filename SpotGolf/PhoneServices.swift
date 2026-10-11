@@ -17,6 +17,7 @@ final class PhoneServices {
     let courseService: CourseService
     let streamStore: StreamStore
     let logStore: LogStore
+    let golfBag: GolfBagStore
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
     let puttCaptures: PuttCaptureStore
@@ -46,6 +47,7 @@ final class PhoneServices {
         syncService = sync
         streamStore = streams
         logStore = logs
+        golfBag = GolfBagStore(context: container.mainContext)
         courseService = CourseService()
 
         // Without a watch, rounds start and end on the phone alone

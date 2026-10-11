@@ -3,7 +3,9 @@ import SwiftUI
 /// The clubs the player carries: a button per club, filled when it is in the bag. See
 /// plans/2026-10-10-golf-bag.md.
 struct GolfBagView: View {
-    @AppStorage(SettingsKey.bag) private var bag = GolfBag.standard
+    @Environment(PhoneServices.self) private var services
+
+    private var bag: GolfBag { services.golfBag.bag }
 
     private let columns = [GridItem(.adaptive(minimum: 56), spacing: 8)]
 
@@ -17,7 +19,9 @@ struct GolfBagView: View {
                                 clubButton(club)
                             }
                         }
-                        .padding(.vertical, 4)
+                        .padding(.top, 4)
+                        .padding(.bottom, 16)
+                        .listRowSeparator(.hidden, edges: .bottom)
                     } header: {
                         Text(kind.title)
                     }
@@ -37,7 +41,7 @@ struct GolfBagView: View {
     private func clubButton(_ club: Club) -> some View {
         let carried = bag.contains(club)
         let button = Button {
-            bag.toggle(club)
+            services.golfBag.toggle(club)
         } label: {
             Text(club.shortName)
                 .font(.body.monospacedDigit())
