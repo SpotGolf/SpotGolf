@@ -30,13 +30,29 @@ enum MapGeometry {
         return bearing(from: teeFeature.center, to: green.center)
     }
 
-    /// The camera that follows the player: turned so the green is at the top when `heading` is known.
-    static func following(_ location: CLLocation, heading: Double?) -> MapCameraPosition {
-        if let heading {
-            return .camera(MapCamera(centerCoordinate: location.coordinate, distance: followDistance,
-                                     heading: heading, pitch: 0))
-        }
-        return .region(MKCoordinateRegion(center: location.coordinate, span: defaultSpan))
+    /// The camera that follows the player: turned so the green is at the top when `heading` is
+    /// known, and north up otherwise.
+    static func following(_ location: CLLocation, heading: Double?) -> MapCamera {
+        MapCamera(centerCoordinate: location.coordinate, distance: followDistance, heading: heading ?? 0, pitch: 0)
+    }
+
+    /// How far the map can be from the camera that follows the player and still count as on it:
+    /// the few meters a GPS fix moves between updates, and the small differences MapKit makes to a
+    /// camera it is given. Anything more is the user panning, zooming or turning the map.
+    static let followCenterTolerance: CLLocationDistance = 5
+    static let followDistanceTolerance = 0.05
+    static let followHeadingTolerance = 1.0
+
+    /// Whether `camera` is off `followCamera` by more than the tolerances above: panned, zoomed
+    /// or turned away from the player.
+    static func isMovedAway(_ camera: MapCamera, from followCamera: MapCamera) -> Bool {
+        let center = CLLocation(latitude: camera.centerCoordinate.latitude, longitude: camera.centerCoordinate.longitude)
+        let followCenter = CLLocation(latitude: followCamera.centerCoordinate.latitude,
+                                      longitude: followCamera.centerCoordinate.longitude)
+        if center.distance(from: followCenter) > followCenterTolerance { return true }
+        if abs(camera.distance - followCamera.distance) > followCamera.distance * followDistanceTolerance { return true }
+        let turn = abs(camera.heading - followCamera.heading).truncatingRemainder(dividingBy: 360)
+        return min(turn, 360 - turn) > followHeadingTolerance
     }
 
     /// A camera showing all of hole `index`, with the green at the top. Nil without a green or

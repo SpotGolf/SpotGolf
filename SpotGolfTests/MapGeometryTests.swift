@@ -1,6 +1,7 @@
 import CoreLocation
 import CourseDataSwift
 import MapKit
+import SwiftUI
 import XCTest
 @testable import SpotGolf
 
@@ -41,12 +42,32 @@ final class MapGeometryTests: XCTestCase {
     func testFollowingTurnsToTheHeadingWhenKnown() {
         let location = CLLocation(latitude: 40, longitude: -105)
 
-        guard case .some(let camera) = MapGeometry.following(location, heading: 45).camera else {
-            return XCTFail("Expected a camera")
-        }
+        let camera = MapGeometry.following(location, heading: 45)
         XCTAssertEqual(camera.heading, 45)
         XCTAssertEqual(camera.distance, MapGeometry.followDistance)
-        XCTAssertNotNil(MapGeometry.following(location, heading: nil).region)
+        XCTAssertEqual(MapGeometry.following(location, heading: nil).heading, 0)
+    }
+
+    func testMovedAwayIsAPanZoomOrTurnPastTheTolerances() {
+        let location = CLLocation(latitude: 40, longitude: -105)
+        let follow = MapGeometry.following(location, heading: 45)
+        func camera(north: Double = 0, distance: Double = MapGeometry.followDistance, heading: Double = 45) -> MapCamera {
+            let center = CLLocationCoordinate2D(latitude: location.coordinate.latitude + north / 111_320,
+                                                longitude: location.coordinate.longitude)
+            return MapCamera(centerCoordinate: center, distance: distance, heading: heading, pitch: 0)
+        }
+
+        XCTAssertFalse(MapGeometry.isMovedAway(follow, from: follow))
+        // The next GPS fix, or MapKit's own rounding, is within the tolerances
+        XCTAssertFalse(MapGeometry.isMovedAway(camera(north: 3), from: follow))
+        XCTAssertFalse(MapGeometry.isMovedAway(camera(distance: MapGeometry.followDistance * 1.02), from: follow))
+        XCTAssertFalse(MapGeometry.isMovedAway(camera(heading: 45.5), from: follow))
+        // A pan, a pinch, or a turn is not
+        XCTAssertTrue(MapGeometry.isMovedAway(camera(north: 12), from: follow))
+        XCTAssertTrue(MapGeometry.isMovedAway(camera(distance: MapGeometry.followDistance * 0.8), from: follow))
+        XCTAssertTrue(MapGeometry.isMovedAway(camera(heading: 50), from: follow))
+        // Headings wrap around north
+        XCTAssertFalse(MapGeometry.isMovedAway(camera(heading: 359.5), from: MapGeometry.following(location, heading: 0)))
     }
 
     func testMetersPerPointTakesTheTurnBackOut() throws {

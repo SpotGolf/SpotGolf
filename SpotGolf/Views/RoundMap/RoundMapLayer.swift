@@ -81,15 +81,13 @@ struct RoundMapLayer: View {
                                                                    metersAcross: metersAcross) {
                     camera.metersPerPoint = metersPerPoint
                 }
+                // Ends following as soon as the user starts to move the map, so the next GPS fix
+                // does not pull it back mid-gesture
+                camera.mapMoved(to: context.camera, ended: false)
             }
             .onGeometryChange(for: CGSize.self) { $0.size } action: { camera.mapSize = $0 }
             .onMapCameraChange(frequency: .onEnd) { context in
-                guard camera.followsUserLocation, let userLocation = services.locationManager.lastLocation else { return }
-                let mapCenter = CLLocation(latitude: context.region.center.latitude,
-                                           longitude: context.region.center.longitude)
-                if mapCenter.distance(from: userLocation) > 30 {
-                    camera.followsUserLocation = false
-                }
+                camera.mapMoved(to: context.camera, ended: true)
             }
             .onTapGesture(coordinateSpace: .local) { point in
                 // Distances come from the player's location, and taps while editing are for spots

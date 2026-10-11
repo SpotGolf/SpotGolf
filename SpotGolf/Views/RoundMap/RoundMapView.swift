@@ -57,7 +57,7 @@ struct RoundMapView: View {
                 camera.hasInitialPan = true
                 panToHole()
             } else if camera.followsUserLocation, round?.isActive == true, let location {
-                camera.position = MapGeometry.following(location, heading: shownHoleHeading)
+                camera.follow(location, heading: shownHoleHeading)
             }
         }
         .onChange(of: services.roundStore.revision) {
@@ -175,16 +175,16 @@ struct RoundMapView: View {
     }
 
     private func followUserLocation() {
-        camera.followsUserLocation = true
         if let location = services.locationManager.lastLocation {
-            camera.position = MapGeometry.following(location, heading: shownHoleHeading)
+            camera.follow(location, heading: shownHoleHeading)
+        } else {
+            camera.followsUserLocation = true
         }
     }
 
     private func panToHole() {
         guard let round, let holeCamera = MapGeometry.holeCamera(round, holeIndex: shownHoleIndex(round)) else { return }
-        camera.followsUserLocation = false
-        camera.position = .camera(holeCamera)
+        camera.show(holeCamera)
     }
 
     // MARK: - Track and suggestions
