@@ -170,23 +170,123 @@ enum PinMetrics {
     static let headCenter: CGFloat = head / 2 + arrow.height + gap + dot / 2
 }
 
-/// A green pin with a plus sign, or a flag for a putt the watch heard, its dot on the spot
-/// the watch found. Tapping turns the suggestion into a real stroke.
+/// How a suggestion looks on the map and in the legend: one color for each way the watch found
+/// it, so the player can tell a swing it felt from a putt it heard or a stop it only guessed at.
+enum SuggestionStyle: CaseIterable {
+    /// The watch's accelerometer felt a full swing.
+    case swing
+    /// The watch's microphone heard the putter hit the ball.
+    case contact
+    /// The player stood still near the green with no swing or contact.
+    case stop
+
+    init(_ kind: StrokeSuggestion.Kind) {
+        switch kind {
+        case .swing: self = .swing
+        case .contact: self = .contact
+        case .stop: self = .stop
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .swing: .green
+        case .contact: .purple
+        case .stop: .orange
+        }
+    }
+
+    /// In the pin's head.
+    var symbolName: String {
+        switch self {
+        case .swing, .stop: "plus"
+        case .contact: "flag.fill"
+        }
+    }
+
+    /// Next to the color in the legend. A stop names the stationary threshold it had to last.
+    func title(minStop: TimeInterval) -> String {
+        switch self {
+        case .swing: String(localized: "Swing")
+        case .contact: String(localized: "Putt")
+        case .stop: String(localized: "\(Int(minStop))s stop")
+        }
+    }
+
+    /// The color's name, for the legend's accessibility label.
+    var colorName: String {
+        switch self {
+        case .swing: String(localized: "Green")
+        case .contact: String(localized: "Purple")
+        case .stop: String(localized: "Orange")
+        }
+    }
+
+    /// The pin's accessibility label: a stop is a stroke the watch missed.
+    var accessibilityLabel: String {
+        switch self {
+        case .swing, .stop: String(localized: "Add suggested stroke")
+        case .contact: String(localized: "Add suggested putt")
+        }
+    }
+}
+
+/// A pin in the suggestion's color with a plus sign, or a flag for a putt the watch heard, its
+/// dot on the spot the watch found. Tapping turns the suggestion into a real stroke.
 struct SuggestionPin: View {
-    let isContact: Bool
+    let kind: StrokeSuggestion.Kind
     let action: () -> Void
 
     var body: some View {
+        let style = SuggestionStyle(kind)
         Button(action: action) {
-            MapPin(color: .green) {
-                Image(systemName: isContact ? "flag.fill" : "plus")
+            MapPin(color: style.color) {
+                Image(systemName: style.symbolName)
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(.white)
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isContact ? "Add suggested putt" : "Add suggested stroke")
+        .accessibilityLabel(style.accessibilityLabel)
+    }
+}
+
+/// What the suggestion pins' colors mean, under a small header, in small type so it does not
+/// crowd the map. The stop's label follows the stationary threshold in the settings.
+struct SuggestionLegend: View {
+    @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
+
+    private static let header = String(localized: "Guess types")
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(Self.header)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ForEach(SuggestionStyle.allCases, id: \.self) { style in
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(style.color)
+                            .frame(width: 7, height: 7)
+                        Text(style.title(minStop: stationaryThreshold))
+                    }
+                }
+            }
+            .font(.system(size: 10, weight: .semibold))
+        }
+        .lineLimit(1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.thickMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.header + ": "
+                            + SuggestionStyle.allCases.map { "\($0.colorName): \($0.title(minStop: stationaryThreshold))" }
+                                .joined(separator: ", "))
+        .accessibilityIdentifier("SuggestionLegend")
     }
 }
 

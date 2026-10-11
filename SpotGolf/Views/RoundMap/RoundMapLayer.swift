@@ -69,7 +69,7 @@ struct RoundMapLayer: View {
                     ForEach(suggestions) { suggestion in
                         if let coordinate = suggestion.coordinate {
                             Annotation("", coordinate: coordinate, anchor: .bottom) {
-                                SuggestionPin(isContact: suggestion.isContact) {
+                                SuggestionPin(kind: suggestion.kind) {
                                     guard let stroke = services.roundStore.addSuggestedStroke(
                                         suggestion, holeIndex: shownHoleIndex, roundID: round.id, holeTrack: holeTrack,
                                         bag: services.golfBag.bag) else { return }

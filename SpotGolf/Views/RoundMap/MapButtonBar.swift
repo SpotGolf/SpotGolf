@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Edit at the bottom left, the map buttons at the right, and setting the pin in the middle.
+/// Edit at the bottom left, the map buttons at the right, and in the middle setting the pin, or
+/// the suggestion pins' legend while editing.
 struct MapButtonBar: View {
     let round: Round
     let shownHoleIndex: Int
@@ -39,7 +40,11 @@ struct MapButtonBar: View {
             mapButtons
         }
         .overlay(alignment: .bottom) {
-            setPinButton
+            if isEditing {
+                SuggestionLegend()
+            } else {
+                setPinButton
+            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
@@ -49,7 +54,7 @@ struct MapButtonBar: View {
     /// player stands as the hole's pin, as the watch's button does.
     @ViewBuilder
     private var setPinButton: some View {
-        if round.isActive, !isEditing, let location = services.locationManager.lastLocation,
+        if round.isActive, let location = services.locationManager.lastLocation,
            round.isOnGreen(location.coordinate, holeIndex: shownHoleIndex) {
             Button {
                 services.roundStore.setPin(location.coordinate, holeIndex: shownHoleIndex, roundID: round.id)
