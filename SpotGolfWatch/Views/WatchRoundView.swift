@@ -82,7 +82,9 @@ struct WatchRoundView: View {
                         .map { Coordinate(latitude: $0.latitude, longitude: $0.longitude) }
                     let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction, middle: pin)
 
-                    holeTitle("Hole \(courseHole.number) · Par \(courseHole.par)", round)
+                    // Numbered through the round, as the phone does: the first hole of a second
+                    // nine is hole 10, not the nine's own hole 1
+                    holeTitle("Hole \(round.displayHoleNumber) · Par \(courseHole.par)", round)
 
                     if round.isOnGreen(location.coordinate, holeIndex: round.displayHoleIndex) {
                         setPinButton(location, round)
