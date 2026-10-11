@@ -79,6 +79,28 @@
         }
       }
     },
+    "%lld putts" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld putt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld putts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld putts, %lld practice, %lld ground" : {
       "localizations" : {
         "en" : {

@@ -109,6 +109,24 @@ final class HoleOverviewTests: XCTestCase {
         XCTAssertNil(HoleOverview.summary(round, holeIndex: 5, from: nil))
     }
 
+    func testStrokeSummaryCountsTheHoleStrokesAndPutts() {
+        var round = Round(courseSelection: .test)
+        round.holes = [RoundHole(strokes: strokes(3), stats: HoleStats(putts: 1, fairway: true, green: false)),
+                       RoundHole(strokes: strokes(4), stats: HoleStats(putts: 2, fairway: nil, green: true))]
+
+        XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 0), "3 strokes · 1 putt")
+        XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 1), "4 strokes · 2 putts")
+        XCTAssertNil(HoleOverview.strokeSummary(round, holeIndex: 2), "A hole with no strokes has no summary")
+    }
+
+    func testStrokeSummaryWorksOutPuttsWhenNoneAreSaved() {
+        var round = Round(courseSelection: .test)
+        round.holes = [RoundHole(strokes: strokes(1))]
+
+        // The stroke is off the test course's green
+        XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 0), "1 stroke · 0 putts")
+    }
+
     func testSummaryOfAPastRoundIsParOnly() {
         let round = Round(courseSelection: PathCourse.selection)
         round.end(at: round.date.addingTimeInterval(3600))
