@@ -10,8 +10,14 @@ struct MapButtonBar: View {
     let followsUserLocation: Bool
     /// The location button: the camera goes back to following the player.
     let followUserLocation: () -> Void
+    let mapStyle: MapStyleChoice
+    /// The map button: opens the sheet that picks the map's style.
+    let pickMapStyle: () -> Void
 
     @Environment(PhoneServices.self) private var services
+
+    /// Every round button is this big, as Apple Maps' are.
+    private static let buttonSize: CGFloat = 44
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
@@ -19,9 +25,8 @@ struct MapButtonBar: View {
                 isEditing.toggle()
             } label: {
                 Image(systemName: isEditing ? "checkmark" : "square.and.pencil")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .padding(12)
+                    .font(.title3)
+                    .frame(width: Self.buttonSize, height: Self.buttonSize)
                     .background(.thickMaterial)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
@@ -62,8 +67,8 @@ struct MapButtonBar: View {
         }
     }
 
-    /// Hole times and the round's log (only while editing), and following the player's
-    /// location (only during a round).
+    /// Hole times and the round's log (only while editing), then the map's style and, during a
+    /// round, following the player's location, together in one capsule as Apple Maps has them.
     private var mapButtons: some View {
         VStack(spacing: 8) {
             if isEditing {
@@ -74,7 +79,7 @@ struct MapButtonBar: View {
                 }
                 .accessibilityLabel("Hole times")
                 .font(.title3)
-                .padding(14)
+                .frame(width: Self.buttonSize, height: Self.buttonSize)
                 .background(.thickMaterial)
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
@@ -87,23 +92,36 @@ struct MapButtonBar: View {
                 .accessibilityLabel("Log")
                 .accessibilityIdentifier("RoundLog")
                 .font(.title3)
-                .padding(14)
+                .frame(width: Self.buttonSize, height: Self.buttonSize)
                 .background(.thickMaterial)
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
 
-            if round.isActive {
-                Button(action: followUserLocation) {
-                    Image(systemName: followsUserLocation ? "location.fill" : "location")
+            VStack(spacing: 0) {
+                Button(action: pickMapStyle) {
+                    Image(systemName: mapStyle.symbolName)
                         .font(.title3)
                         .foregroundStyle(.blue)
-                        .padding(14)
-                        .background(.thickMaterial)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        .frame(width: Self.buttonSize, height: Self.buttonSize)
+                }
+                .accessibilityLabel("Map style")
+                .accessibilityValue(Text(mapStyle.title))
+                .accessibilityIdentifier("MapStyle")
+
+                if round.isActive {
+                    Button(action: followUserLocation) {
+                        Image(systemName: followsUserLocation ? "location.fill" : "location")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                            .frame(width: Self.buttonSize, height: Self.buttonSize)
+                    }
+                    .accessibilityLabel("Follow location")
                 }
             }
+            .background(.thickMaterial)
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
         }
     }
 }

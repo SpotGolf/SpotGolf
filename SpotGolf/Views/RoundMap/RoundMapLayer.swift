@@ -13,6 +13,7 @@ struct RoundMapLayer: View {
     let trackLine: [CLLocationCoordinate2D]
     let holeTrack: [TrackPoint]
     let suggestions: [StrokeSuggestion]
+    let mapStyle: MapStyleChoice
     @Binding var camera: MapCameraState
     @Binding var target: CLLocationCoordinate2D?
     @Binding var spot: SpotSelection
@@ -78,6 +79,7 @@ struct RoundMapLayer: View {
                     }
                 }
             }
+            .mapStyle(mapStyle.mapStyle)
             .mapControls {
                 MapCompass()
             }

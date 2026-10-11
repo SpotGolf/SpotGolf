@@ -36,6 +36,10 @@ struct RoundMapView: View {
     @State private var editsAfterHoleChange = false
     /// A point the player tapped on the map, to see how far it is.
     @State private var target: CLLocationCoordinate2D?
+    /// How the map draws the ground. Read from the settings when the map opens, and kept there
+    /// each time the style sheet picks one.
+    @State private var mapStyle = MapStyleChoice.standard
+    @State private var showMapStyles = false
 
     var body: some View {
         Group {
@@ -44,6 +48,7 @@ struct RoundMapView: View {
             }
         }
         .onAppear {
+            mapStyle = MapStyleChoice.stored()
             services.locationManager.startUpdating()
             reloadTrack()
             // A past round shows its holes, not the player, so it does not wait for a location
@@ -117,14 +122,15 @@ struct RoundMapView: View {
             ZStack(alignment: .top) {
                 RoundMapLayer(round: round, shownHoleIndex: holeIndex, isEditing: isEditing,
                               trackLine: trackLine, holeTrack: holeTrack, suggestions: suggestions,
-                              camera: $camera, target: $target, spot: $spot)
+                              mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
                 VStack {
                     MapInfoOverlay(round: round, shownHoleIndex: holeIndex, target: $target)
                     Spacer()
                     MapButtonBar(round: round, shownHoleIndex: holeIndex, isEditing: $isEditing,
                                  showHoleTimes: $showHoleTimes, showLog: $showLog,
                                  followsUserLocation: camera.followsUserLocation,
-                                 followUserLocation: followUserLocation)
+                                 followUserLocation: followUserLocation,
+                                 mapStyle: mapStyle, pickMapStyle: { showMapStyles = true })
                 }
             }
             .ignoresSafeArea(edges: .bottom)
@@ -134,6 +140,9 @@ struct RoundMapView: View {
         }
         .sheet(isPresented: $showLog) {
             LogSheet(scope: .round(round))
+        }
+        .sheet(isPresented: $showMapStyles) {
+            MapStyleSheet(selected: mapStyle, center: previewCenter(round, holeIndex: holeIndex), select: selectMapStyle)
         }
         .fullScreenCover(isPresented: $showScorecard) {
             ScorecardView(roundID: round.id) { editHole($0, round) }
@@ -186,6 +195,19 @@ struct RoundMapView: View {
             editsAfterHoleChange = true
             selectHole(index, round)
         }
+    }
+
+    /// The style sheet's pick, kept in the settings for the next time the map opens.
+    private func selectMapStyle(_ choice: MapStyleChoice) {
+        mapStyle = choice
+        choice.store()
+    }
+
+    /// Where the style sheet's previews look: the shown hole's green, else the player.
+    private func previewCenter(_ round: Round, holeIndex: Int) -> CLLocationCoordinate2D {
+        round.greenCenter(holeIndex: holeIndex)
+            ?? services.locationManager.lastLocation?.coordinate
+            ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
     }
 
     private func followUserLocation() {
