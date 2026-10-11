@@ -166,6 +166,8 @@ enum PinMetrics {
     static let dot: CGFloat = 8
     /// Between the arrow's tip and the dot.
     static let gap: CGFloat = 2
+    /// From the dot's center up to the head's center.
+    static let headCenter: CGFloat = head / 2 + arrow.height + gap + dot / 2
 }
 
 /// A green pin with a plus sign, or a flag for a putt the watch heard, its dot on the spot
@@ -191,7 +193,7 @@ struct SuggestionPin: View {
 /// A spot's pin, red for a stroke with penalty strokes and blue otherwise, with the club it was hit
 /// with in the head, or its number before clubs were recorded, and its dot on the GPS
 /// location. Tapping the head opens the spot. While the spot is dragged, the pin turns orange
-/// and lifts off the dot, which shows where it would land.
+/// and lifts off the dot, and a bullseye around the dot shows where it would land.
 struct SpotPin: View {
     /// How far the pin lifts while dragged.
     private static let lift: CGFloat = 30
@@ -202,21 +204,32 @@ struct SpotPin: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            MapPin(color: isDragging ? .orange : color, dotColor: color,
-                   lift: isDragging ? Self.lift : 0, headScale: isDragging ? 1.5 : 1,
-                   shadow: isDragging ? .orange.opacity(0.4) : .black.opacity(0.25)) {
-                Text(stroke.club?.shortName ?? "\(number)")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .padding(.horizontal, 2)
-                    .foregroundStyle(.white)
+        // A tap gesture, not a button: a button would take the long press that lifts the pin
+        MapPin(color: isDragging ? .orange : color, dotColor: color,
+               lift: isDragging ? Self.lift : 0, headScale: isDragging ? 1.5 : 1,
+               shadow: isDragging ? .orange.opacity(0.4) : .black.opacity(0.25)) {
+            Text(stroke.club?.shortName ?? "\(number)")
+                .font(.caption)
+                .fontWeight(.bold)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 2)
+                .foregroundStyle(.white)
+        }
+        .overlay(alignment: .bottom) {
+            if isDragging {
+                // Centered on the dot, which sits at the bottom of the pin: a zero-height frame
+                // puts the marker's center on the bottom edge
+                TargetMarker()
+                    .frame(height: 0)
             }
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, action)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier("Stroke_\(number)")
     }

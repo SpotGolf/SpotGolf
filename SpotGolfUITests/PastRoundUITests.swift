@@ -90,13 +90,17 @@ final class PastRoundUITests: XCTestCase {
         app.navigationBars["Hole Times"].buttons["Done"].tap()
         XCTAssertTrue(app.navigationBars["Hole Times"].waitForNonExistence(timeout: 5), "Hole times sheet should close")
 
-        // Move stroke 1 by dragging it
+        // Move stroke 1 by dragging it. Stroke 2 stays put: the map must not pan under the drag,
+        // which would move every stroke on screen and leave stroke 1 where it was
         let first = app.buttons["Stroke_1"]
         let firstFrame = first.frame
+        let secondFrame = app.buttons["Stroke_2"].frame
         let grab = first.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         grab.press(forDuration: 0.6, thenDragTo: grab.withOffset(CGVector(dx: 60, dy: -60)))
         sleep(1)
         XCTAssertGreaterThan(distance(first.frame, firstFrame), 20, "Dragging should move stroke 1")
+        XCTAssertLessThan(distance(app.buttons["Stroke_2"].frame, secondFrame), 5,
+                          "Dragging stroke 1 should not move stroke 2 or the map")
 
         // Make stroke 1 the second stroke: stroke 2 is then drawn where stroke 1 was
         let movedFrame = first.frame

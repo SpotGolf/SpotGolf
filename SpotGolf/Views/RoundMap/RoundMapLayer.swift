@@ -21,6 +21,8 @@ struct RoundMapLayer: View {
     @Environment(PhoneServices.self) private var services
     @State private var draggingStroke: Stroke?
     @State private var dragOffset: CGSize = .zero
+    /// A dragged spot lands this far above the finger, where a thumb does not hide it.
+    private static let dropLift: CGFloat = 70
     /// The lines between the strokes are shown. Tapping a spot outside editing turns them on and off.
     @State private var showsStrokeLines = false
 
@@ -149,7 +151,8 @@ struct RoundMapLayer: View {
         .offset(draggingStroke?.id == stroke.id ? dragOffset : .zero)
         .gesture(
             LongPressGesture(minimumDuration: 0.3)
-                .sequenced(before: DragGesture(coordinateSpace: .global))
+                // The drag reports from the first movement, so the pin tracks the finger at once
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                 .onChanged { value in
                     guard isEditing else { return }
                     switch value {
@@ -157,13 +160,18 @@ struct RoundMapLayer: View {
                         if draggingStroke == nil {
                             withAnimation(.easeOut(duration: 0.15)) {
                                 draggingStroke = stroke
+                                // The finger is on the head, so the spot rises to the drop point
+                                // above it before the finger moves
+                                dragOffset = CGSize(width: 0, height: -(PinMetrics.headCenter + Self.dropLift))
                             }
                             #if os(iOS)
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             #endif
                         }
-                        if let drag {
-                            dragOffset = drag.translation
+                        if let drag, let dot = proxy.convert(stroke.coordinate, to: .global) {
+                            // Puts the pin's dot on the drop point
+                            let drop = dropPoint(under: drag)
+                            dragOffset = CGSize(width: drop.x - dot.x, height: drop.y - dot.y)
                         }
                     default:
                         break
@@ -172,9 +180,12 @@ struct RoundMapLayer: View {
                 .onEnded { value in
                     guard isEditing else { return }
                     switch value {
-                    case .second(true, let drag):
-                        if let drag,
-                           let coordinate = proxy.convert(drag.location, from: .global) {
+                    case .second(true, _):
+                        // Lands where the pin's dot is shown, which is above the finger even
+                        // when the finger never moved
+                        if let dot = proxy.convert(stroke.coordinate, to: .global),
+                           let coordinate = proxy.convert(CGPoint(x: dot.x + dragOffset.width,
+                                                                  y: dot.y + dragOffset.height), from: .global) {
                             services.roundStore.moveStroke(stroke, to: coordinate, in: round.id)
                         }
                     default:
@@ -184,6 +195,11 @@ struct RoundMapLayer: View {
                     dragOffset = .zero
                 }
         )
+    }
+
+    /// Where a dragged spot lands: above the finger, in global coordinates.
+    private func dropPoint(under drag: DragGesture.Value) -> CGPoint {
+        CGPoint(x: drag.location.x, y: drag.location.y - Self.dropLift)
     }
 
     /// The bubbles are drawn over the map rather than as map annotations, because an annotation
