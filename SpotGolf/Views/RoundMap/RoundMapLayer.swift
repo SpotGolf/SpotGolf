@@ -20,8 +20,6 @@ struct RoundMapLayer: View {
     @State private var draggingStroke: Stroke?
     @State private var dragOffset: CGSize = .zero
 
-    private static let dragLiftOffset: CGFloat = -30
-
     var body: some View {
         let strokesToShow = round.hole(at: shownHoleIndex).strokes
         MapReader { proxy in
@@ -37,7 +35,8 @@ struct RoundMapLayer: View {
                     }
                 }
                 ForEach(Array(strokesToShow.enumerated()), id: \.element.id) { index, stroke in
-                    Annotation("", coordinate: stroke.coordinate) {
+                    // The dot under the pin sits on the stroke
+                    Annotation("", coordinate: stroke.coordinate, anchor: .bottom) {
                         spotMarker(index: index, stroke: stroke, proxy: proxy)
                     }
                 }
@@ -122,56 +121,16 @@ struct RoundMapLayer: View {
         }
     }
 
-    private func strokeColor(for type: StrokeType) -> Color {
-        switch type {
-        case .regular: return .blue
-        case .penalty: return .red
-        case .outOfBounds: return .white
-        }
-    }
-
     private func spotMarker(index: Int, stroke: Stroke, proxy: MapProxy) -> some View {
-        let isDragging = draggingStroke?.id == stroke.id
-        let pinColor = strokeColor(for: stroke.type)
-        let textColor: Color = stroke.type == .outOfBounds ? .black : .white
-        return VStack(spacing: 0) {
-            Button {
-                guard isEditing else { return }
-                if let holeIdx = round.holeIndex(containing: stroke.id),
-                   let strokeIdx = round.holes[holeIdx].strokes.firstIndex(where: { $0.id == stroke.id }) {
-                    spot.newIndex = strokeIdx
-                }
-                spot.stroke = stroke
-            } label: {
-                Circle()
-                    .fill(isDragging ? Color.orange : pinColor)
-                    .frame(width: isDragging ? 42 : 28, height: isDragging ? 42 : 28)
-                    .overlay {
-                        Text("\(index + 1)")
-                            .font(isDragging ? .body : .caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(isDragging ? .white : textColor)
-                    }
-                    .overlay {
-                        if !isDragging && stroke.type == .outOfBounds {
-                            Circle().stroke(Color.gray, lineWidth: 1.5)
-                        }
-                    }
-                    .shadow(color: isDragging ? .orange.opacity(0.4) : .black.opacity(0.2),
-                            radius: isDragging ? 8 : 2, y: isDragging ? 2 : 1)
+        SpotPin(number: index + 1, stroke: stroke, isDragging: draggingStroke?.id == stroke.id) {
+            guard isEditing else { return }
+            if let holeIdx = round.holeIndex(containing: stroke.id),
+               let strokeIdx = round.holes[holeIdx].strokes.firstIndex(where: { $0.id == stroke.id }) {
+                spot.newIndex = strokeIdx
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("Stroke_\(index + 1)")
-
-            // Callout line from lifted marker down to map position
-            if isDragging {
-                Rectangle()
-                    .fill(Color.orange.opacity(0.6))
-                    .frame(width: 2, height: -Self.dragLiftOffset)
-            }
+            spot.stroke = stroke
         }
-        .offset(y: isDragging ? Self.dragLiftOffset : 0)
-        .offset(isDragging ? dragOffset : .zero)
+        .offset(draggingStroke?.id == stroke.id ? dragOffset : .zero)
         .gesture(
             LongPressGesture(minimumDuration: 0.3)
                 .sequenced(before: DragGesture(coordinateSpace: .global))

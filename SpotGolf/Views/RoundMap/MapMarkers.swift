@@ -87,32 +87,142 @@ struct HazardBubble: View {
     }
 }
 
-/// A pin with a plus sign, or a flag for a putt the watch heard. Tapping turns the suggestion
-/// into a real stroke.
+/// A pin on a point of the map: a round head on a short arrow, and a small dot on the point
+/// under the arrow's tip. Suggestion pins and spot pins are both drawn with it. Anchor the
+/// annotation at `.bottom`: the view's bottom edge runs through the dot's center. A lifted pin
+/// rises off the dot on a line, for a spot being dragged.
+struct MapPin<Content: View>: View {
+    let color: Color
+    /// The dot's color, when it differs from the head's.
+    var dotColor: Color? = nil
+    /// An edge on the head and the dot, for a white pin on light ground.
+    var outline: Color? = nil
+    var lift: CGFloat = 0
+    var headScale: CGFloat = 1
+    var shadow: Color = .black.opacity(0.25)
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(color)
+                    .frame(width: PinMetrics.head, height: PinMetrics.head)
+                    .overlay { content }
+                    .overlay {
+                        if let outline {
+                            Circle().stroke(outline, lineWidth: 1.5)
+                        }
+                    }
+                BubbleArrow()
+                    .fill(color)
+                    .frame(width: PinMetrics.arrow.width, height: PinMetrics.arrow.height)
+            }
+            .scaleEffect(headScale, anchor: .bottom)
+            .shadow(color: shadow, radius: headScale > 1 ? 8 : 2, y: headScale > 1 ? 2 : 1)
+            if lift > 0 {
+                Rectangle()
+                    .fill(color.opacity(0.6))
+                    .frame(width: 2, height: lift)
+            }
+            Color.clear.frame(width: PinMetrics.dot, height: PinMetrics.gap)
+            Circle()
+                .fill(dotColor ?? color)
+                .overlay { Circle().stroke(outline ?? .white, lineWidth: 1) }
+                .frame(width: PinMetrics.dot, height: PinMetrics.dot)
+                .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+        }
+        // Puts the dot's center, not its bottom, on the coordinate
+        .offset(y: PinMetrics.dot / 2)
+    }
+}
+
+enum PinMetrics {
+    /// The head's diameter.
+    static let head: CGFloat = 28
+    static let arrow = CGSize(width: 10, height: 7)
+    /// The dot's diameter.
+    static let dot: CGFloat = 8
+    /// Between the arrow's tip and the dot.
+    static let gap: CGFloat = 2
+}
+
+/// A green pin with a plus sign, or a flag for a putt the watch heard, its dot on the spot
+/// the watch found. Tapping turns the suggestion into a real stroke.
 struct SuggestionPin: View {
     let isContact: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 0) {
-                Circle()
-                    .fill(Color.green)
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        Image(systemName: isContact ? "flag.fill" : "plus")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                    }
-                BubbleArrow()
-                    .fill(Color.green)
-                    .frame(width: 10, height: 7)
+            MapPin(color: .green) {
+                Image(systemName: isContact ? "flag.fill" : "plus")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
             }
-            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isContact ? "Add suggested putt" : "Add suggested stroke")
+    }
+}
+
+/// A spot's pin in the stroke's color, blue for a regular stroke, with the club it was hit
+/// with in the head, or its number before clubs were recorded, and its dot on the GPS
+/// location. Tapping the head opens the spot. While the spot is dragged, the pin turns orange
+/// and lifts off the dot, which shows where it would land.
+struct SpotPin: View {
+    /// How far the pin lifts while dragged.
+    private static let lift: CGFloat = 30
+
+    let number: Int
+    let stroke: Stroke
+    let isDragging: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            MapPin(color: isDragging ? .orange : color, dotColor: color, outline: isDragging ? nil : outline,
+                   lift: isDragging ? Self.lift : 0, headScale: isDragging ? 1.5 : 1,
+                   shadow: isDragging ? .orange.opacity(0.4) : .black.opacity(0.25)) {
+                Text(stroke.club?.shortName ?? "\(number)")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 2)
+                    .foregroundStyle(isDragging ? .white : textColor)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier("Stroke_\(number)")
+    }
+
+    private var color: Color {
+        switch stroke.type {
+        case .regular: .blue
+        case .penalty: .red
+        case .outOfBounds: .white
+        }
+    }
+
+    private var textColor: Color {
+        stroke.type == .outOfBounds ? .black : .white
+    }
+
+    /// Out-of-bounds pins are white, so they get a gray edge to show on light ground.
+    private var outline: Color? {
+        stroke.type == .outOfBounds ? .gray : nil
+    }
+
+    private var accessibilityLabel: String {
+        if let club = stroke.club {
+            String(localized: "Spot \(number), \(club.name)")
+        } else {
+            String(localized: "Spot \(number)")
+        }
     }
 }
 

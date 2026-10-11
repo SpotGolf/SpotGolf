@@ -287,6 +287,8 @@
     "Settings" : {},
     "Share Pin Locations" : {},
     "Share capture" : {},
+    "Spot %lld" : {},
+    "Spot %lld, %@" : {},
     "Spot: %lld" : {},
     "SpotGolf" : {},
     "SpotGolf needs these to record your round" : {},
