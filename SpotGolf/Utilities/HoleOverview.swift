@@ -60,13 +60,14 @@ enum HoleOverview {
         return String(localized: "Par \(courseHole.par) - \(yards) yds")
     }
 
-    /// "3 strokes · 1 putt" for the hole's strokes so far, or nil before its first stroke. The
-    /// putts are the hole's saved stats, worked out again when the round has none saved yet.
+    /// "3 strokes · 1 putt" for the hole's score so far, penalty strokes included, or nil before
+    /// its first stroke. The putts are the hole's saved stats, worked out again when the round has
+    /// none saved yet.
     static func strokeSummary(_ round: Round, holeIndex: Int) -> String? {
         let hole = round.hole(at: holeIndex)
         guard !hole.strokes.isEmpty else { return nil }
         let putts = hole.stats?.putts ?? round.workOutStats(holeIndex: holeIndex)?.putts ?? 0
-        return String(localized: "\(hole.strokes.count) strokes") + " · " + String(localized: "\(putts) putts")
+        return String(localized: "\(hole.strokeCount) strokes") + " · " + String(localized: "\(putts) putts")
     }
 
     /// Feet up (+) or down (-) from `location` to the center of the hole's green. Nil without a

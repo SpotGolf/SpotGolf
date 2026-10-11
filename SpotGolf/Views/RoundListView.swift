@@ -206,7 +206,7 @@ private struct RoundRow: View {
                     .font(.headline)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
-                Text(verbatim: String(localized: "\(round.holes.count) holes") + " · " + String(localized: "\(round.allStrokes.count) strokes"))
+                Text(verbatim: String(localized: "\(round.holes.count) holes") + " · " + String(localized: "\(round.strokeCount) strokes"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

@@ -30,6 +30,12 @@ struct Stroke: Identifiable, Codable, Equatable {
         clubID.flatMap { Club.named($0) }
     }
 
+    /// What the stroke adds to the score: one, plus a penalty stroke when it went into a penalty
+    /// area or out of bounds.
+    var score: Int {
+        type == .regular ? 1 : 2
+    }
+
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }

@@ -13,7 +13,7 @@ Allow players to mark where bad shots went (penalty areas, out of bounds) by pla
 3. Player taps the pin to open the edit sheet.
 4. Edit sheet now has two new buttons: **"Mark out of bounds"** and **"Mark as penalty"**.
 5. Tapping either button sets the mark type, changes pin color, and dismisses the sheet.
-6. No automatic stroke adjustment — stroke count comes naturally from the marks the player places.
+6. A penalty or out of bounds mark scores two: the stroke and its penalty stroke. The next mark is the shot after the drop or the replay.
 
 ## Pin Colors
 

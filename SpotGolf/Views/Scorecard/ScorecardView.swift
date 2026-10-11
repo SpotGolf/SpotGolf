@@ -71,7 +71,7 @@ struct ScorecardView: View {
             }
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(round.allStrokes.count)")
+                Text("\(round.strokeCount)")
                     .font(isCompact ? .title : .largeTitle)
                     .fontWeight(.bold)
                     .monospacedDigit()
@@ -83,7 +83,7 @@ struct ScorecardView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Total score")
-            .accessibilityValue(toPar.map { "\(round.allStrokes.count), \($0)" } ?? "\(round.allStrokes.count)")
+            .accessibilityValue(toPar.map { "\(round.strokeCount), \($0)" } ?? "\(round.strokeCount)")
             .accessibilityIdentifier("ScorecardTotal")
         }
         .padding(.horizontal, 16)

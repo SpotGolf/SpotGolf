@@ -11,7 +11,7 @@ struct HoleStats: Codable, Equatable {
     /// The tee shot stopped on the fairway or the green. Nil on a par 3, or before the second
     /// stroke.
     var fairway: Bool?
-    /// The ball reached the green in par − 2 strokes or fewer.
+    /// The ball reached the green in par − 2 strokes or fewer, penalty strokes included.
     var green: Bool
 }
 
@@ -30,11 +30,12 @@ extension Round {
                 && (onGreen[1] || isOnFairway(second.coordinate, holeIndex: index))
         }
 
-        // Stroke number n on the green took n - 1 strokes to get there. A hole holed from off the
-        // green looks the same as one still being played, so it misses.
+        // The first stroke on the green took the strokes before it to get there, penalty strokes
+        // included. A hole holed from off the green looks the same as one still being played, so
+        // it misses.
         var green = false
         if let par, let firstOnGreen = onGreen.firstIndex(of: true) {
-            green = firstOnGreen <= par - 2
+            green = strokes[..<firstOnGreen].reduce(0) { $0 + $1.score } <= par - 2
         }
 
         return HoleStats(putts: onGreen.filter { $0 }.count, fairway: fairway, green: green)

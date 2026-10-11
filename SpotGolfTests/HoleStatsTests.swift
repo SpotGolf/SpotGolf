@@ -62,9 +62,17 @@ final class HoleStatsTests: XCTestCase {
         let result = stats([stroke(north: 0), stroke(north: 200, type: .penalty), stroke(north: 200), stroke(north: 300)])
 
         XCTAssertEqual(result?.fairway, false)
-        // Reaching the green took three strokes on a par 4
+        // Reaching the green took four strokes on a par 4, the penalty stroke included
         XCTAssertEqual(result?.green, false)
         XCTAssertEqual(result?.putts, 1)
+    }
+
+    func testAPenaltyStrokeCountsAgainstReachingTheGreenInRegulation() {
+        // The tee shot went in the water and the drop reached the green: three strokes on a par 4
+        let result = stats([stroke(north: 0, type: .penalty), stroke(north: 150), stroke(north: 300)])
+
+        XCTAssertEqual(result?.green, false)
+        XCTAssertEqual(stats([stroke(north: 0, type: .penalty), stroke(north: 150), stroke(north: 300)], par: 5)?.green, true)
     }
 
     func testAParThreeHasNoFairway() {

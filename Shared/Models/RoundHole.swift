@@ -12,8 +12,9 @@ struct RoundHole: Identifiable, Codable, Equatable {
         self.stats = stats
     }
 
-    /// Every stroke counts, putts included.
+    /// The hole's score: every stroke, putts included, plus a penalty stroke for each penalty or
+    /// out of bounds stroke.
     var strokeCount: Int {
-        strokes.count
+        strokes.reduce(0) { $0 + $1.score }
     }
 }

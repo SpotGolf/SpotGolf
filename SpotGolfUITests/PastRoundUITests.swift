@@ -126,8 +126,8 @@ final class PastRoundUITests: XCTestCase {
                        "Stroke 2 on hole 3 should be a regular stroke")
         app.buttons["Cancel"].tap()
 
-        // Hole 1: 2, hole 2: 2, hole 3: 2
-        XCTAssertEqual(scoreTotal, "6", "Score box should count 6 strokes")
+        // Hole 1: 2, hole 2: 2, hole 3: 2 plus the penalty stroke
+        XCTAssertEqual(scoreTotal, "7", "Score box should count 6 strokes and a penalty stroke")
     }
 
     // MARK: - Scorecard

@@ -348,6 +348,15 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.allStrokes.count, 2)
     }
 
+    func testStrokeCountAddsTheHolesWithTheirPenaltyStrokes() {
+        let coordinate = CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)
+        let hole1 = RoundHole(strokes: [Stroke(coordinate: coordinate), Stroke(coordinate: coordinate, type: .penalty)])
+        let hole2 = RoundHole(strokes: [Stroke(coordinate: coordinate, type: .outOfBounds)])
+        let round = Round(holes: [hole1, hole2], courseSelection: .test)
+
+        XCTAssertEqual(round.strokeCount, 5)
+    }
+
     func testHoleIndexContaining() {
         let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))

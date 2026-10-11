@@ -328,6 +328,11 @@ final class Round {
         holes.flatMap { $0.strokes }
     }
 
+    /// The round's score: every hole's `strokeCount`, penalty strokes included.
+    var strokeCount: Int {
+        holes.reduce(0) { $0 + $1.strokeCount }
+    }
+
     /// Strokes for every hole, as a snapshot for the watch.
     var strokesSnapshot: StrokesSnapshot {
         StrokesSnapshot(roundID: id, version: strokesVersion, holes: holes.map(\.strokes))

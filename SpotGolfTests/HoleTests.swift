@@ -43,6 +43,16 @@ final class HoleTests: XCTestCase {
         XCTAssertEqual(hole.strokeCount, 3)
     }
 
+    func testStrokeCountAddsAPenaltyStrokeForPenaltiesAndOutOfBounds() {
+        let coordinate = CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)
+        let hole = RoundHole(strokes: [Stroke(coordinate: coordinate),
+                                       Stroke(coordinate: coordinate, type: .penalty),
+                                       Stroke(coordinate: coordinate, type: .outOfBounds),
+                                       Stroke(coordinate: coordinate)])
+
+        XCTAssertEqual(hole.strokeCount, 6)
+    }
+
     func testCodableRoundTrip() throws {
         let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07))
         let hole = RoundHole(strokes: [stroke])

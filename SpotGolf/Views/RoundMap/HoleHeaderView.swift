@@ -105,7 +105,7 @@ struct HoleHeaderView: View {
 
     /// The round's total strokes, and how they compare to par on the finished holes.
     private var scoreBox: some View {
-        let total = round.allStrokes.count
+        let total = round.strokeCount
         let toPar = HoleOverview.toPar(round).map(HoleOverview.toParText)
         return Button(action: openScorecard) {
             VStack(spacing: 0) {

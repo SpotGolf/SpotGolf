@@ -34,6 +34,17 @@ final class HoleOverviewTests: XCTestCase {
         XCTAssertEqual(HoleOverview.toPar(round), 3)
     }
 
+    func testToParCountsPenaltyStrokes() {
+        var penalty = strokes(5)
+        penalty[1].type = .penalty
+        var round = Round(holes: [RoundHole(strokes: penalty), RoundHole(strokes: strokes(4))],
+                          status: .ended, courseSelection: .test)
+        round.setDisplayHole(1, at: Date())
+
+        // 5 strokes and a penalty stroke, then a par, on two par 4s
+        XCTAssertEqual(HoleOverview.toPar(round), 2)
+    }
+
     func testToParText() {
         XCTAssertEqual(HoleOverview.toParText(0), "E")
         XCTAssertEqual(HoleOverview.toParText(2), "+2")
@@ -117,6 +128,15 @@ final class HoleOverviewTests: XCTestCase {
         XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 0), "3 strokes · 1 putt")
         XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 1), "4 strokes · 2 putts")
         XCTAssertNil(HoleOverview.strokeSummary(round, holeIndex: 2), "A hole with no strokes has no summary")
+    }
+
+    func testStrokeSummaryCountsPenaltyStrokes() {
+        var penalty = strokes(3)
+        penalty[1].type = .outOfBounds
+        var round = Round(courseSelection: .test)
+        round.holes = [RoundHole(strokes: penalty, stats: HoleStats(putts: 1, fairway: false, green: false))]
+
+        XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 0), "4 strokes · 1 putt")
     }
 
     func testStrokeSummaryWorksOutPuttsWhenNoneAreSaved() {

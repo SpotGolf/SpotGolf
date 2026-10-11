@@ -16,10 +16,10 @@ Worked out from the strokes and the course shapes, and saved on each hole as `Ro
 
 | Stat | Rule |
 |---|---|
-| Score | Every stroke on the hole, penalty marks included |
+| Score | Every stroke on the hole, plus a penalty stroke for each penalty or out of bounds stroke |
 | Putts | Regular strokes inside the hole's green |
 | Fairway | Par 4 and 5 only. The second stroke is regular and inside one of the hole's fairways or its green |
-| Green | The first regular stroke inside the green is stroke number par − 1 or sooner. A hole holed from off the green misses, since it looks the same as a hole still being played |
+| Green | The strokes before the first regular stroke inside the green, penalty strokes included, are par − 2 or fewer. A hole holed from off the green misses, since it looks the same as a hole still being played |
 
 Score is the hole's stroke count. A hole with no strokes shows nothing. Each played hole of an active round shows its stats so far, the display hole included.
 
