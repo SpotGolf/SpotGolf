@@ -67,6 +67,74 @@ final class CourseServiceTests: XCTestCase {
         XCTAssertEqual(loaded?.subCourses.count, 1)
     }
 
+    func testLoadCachedCourseThrowsCorruptDataWhenFileIsNotGzip() throws {
+        let path = "us/az/not-gzip.json.gz"
+        try service.cacheCourseData(Data("404: Not Found".utf8), forPath: path)
+
+        XCTAssertThrowsError(try service.loadCachedCourse(path: path)) { error in
+            XCTAssertEqual(error as? CourseServiceError, .corruptData)
+        }
+    }
+
+    func testDecodeCourseThrowsCorruptDataWhenJSONIsNotACourse() throws {
+        let compressed = try Data("{\"name\": 1}".utf8).gzipCompressed()
+
+        XCTAssertThrowsError(try CourseService.decodeCourse(compressed)) { error in
+            XCTAssertEqual(error as? CourseServiceError, .corruptData)
+        }
+    }
+
+    // MARK: - fetchCourse
+
+    func testFetchCourseThrowsCourseMissingOn404() async throws {
+        StubURLProtocol.install(status: 404, body: Data("404: Not Found".utf8))
+        defer { StubURLProtocol.uninstall() }
+
+        let path = "us/az/missing.json.gz"
+        do {
+            _ = try await service.fetchCourse(path: path)
+            XCTFail("fetchCourse should throw")
+        } catch {
+            XCTAssertEqual(error as? CourseServiceError, .courseMissing)
+        }
+        XCTAssertNil(try service.loadCachedCourse(path: path), "a 404 body must not be cached")
+    }
+
+    func testFetchCourseThrowsCorruptDataWhenBodyIsNotGzip() async throws {
+        StubURLProtocol.install(status: 200, body: Data("not gzip".utf8))
+        defer { StubURLProtocol.uninstall() }
+
+        do {
+            _ = try await service.fetchCourse(path: "us/az/corrupt.json.gz")
+            XCTFail("fetchCourse should throw")
+        } catch {
+            XCTAssertEqual(error as? CourseServiceError, .corruptData)
+        }
+    }
+
+    func testFetchCourseFallsBackToCacheOn404() async throws {
+        let course = Course(
+            name: "Cached Course",
+            clubName: "Test Club",
+            location: CourseLocation(address: "123 Main St", city: "Phoenix", state: "AZ", country: "US",
+                                     coordinate: Coordinate(latitude: 33.45, longitude: -112.07)),
+            subCourses: []
+        )
+        let path = "us/az/cached.json.gz"
+        try service.cacheCourseData(try JSONEncoder().encode(course).gzipCompressed(), forPath: path)
+
+        StubURLProtocol.install(status: 404, body: Data())
+        defer { StubURLProtocol.uninstall() }
+
+        let loaded = try await service.fetchCourse(path: path)
+        XCTAssertEqual(loaded.name, "Cached Course")
+    }
+
+    func testErrorDescriptions() {
+        XCTAssertEqual(CourseServiceError.courseMissing.localizedDescription, "the course data is missing")
+        XCTAssertEqual(CourseServiceError.corruptData.localizedDescription, "the data is corrupt")
+    }
+
     // MARK: - testCacheSizeEnforcement
 
     func testCacheSizeEnforcement() throws {
@@ -177,4 +245,34 @@ final class CourseServiceTests: XCTestCase {
         XCTAssertEqual(results.count, 1)
         XCTAssertEqual(results[0].name, "Pine Valley Golf")
     }
+}
+
+// MARK: - StubURLProtocol
+
+/// Answers every request on the shared session with one canned response.
+private final class StubURLProtocol: URLProtocol {
+    nonisolated(unsafe) private static var status = 200
+    nonisolated(unsafe) private static var body = Data()
+
+    static func install(status: Int, body: Data) {
+        self.status = status
+        self.body = body
+        URLProtocol.registerClass(StubURLProtocol.self)
+    }
+
+    static func uninstall() {
+        URLProtocol.unregisterClass(StubURLProtocol.self)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

@@ -356,6 +356,11 @@
     "details not received yet" : {},
     "ft elevation" : {},
     "no audio" : {},
+    "the course address is not valid" : {},
+    "the course data is missing" : {},
+    "the course index version is not valid" : {},
+    "the data is corrupt" : {},
+    "the server returned status %lld" : {},
     "yds to center" : {},
     "yds to pin" : {}
   },

@@ -13,9 +13,25 @@ struct NearbyResult {
 
 // MARK: - CourseServiceError
 
-enum CourseServiceError: Error {
+enum CourseServiceError: LocalizedError, Equatable {
     case invalidVersion
     case invalidURL
+    /// The server has no file for the course (HTTP 404).
+    case courseMissing
+    /// The server answered with another failure status.
+    case badResponse(Int)
+    /// The course file is not valid gzip, or its JSON is not a course.
+    case corruptData
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidVersion: String(localized: "the course index version is not valid")
+        case .invalidURL: String(localized: "the course address is not valid")
+        case .courseMissing: String(localized: "the course data is missing")
+        case .badResponse(let status): String(localized: "the server returned status \(status)")
+        case .corruptData: String(localized: "the data is corrupt")
+        }
+    }
 }
 
 // MARK: - CourseService
@@ -131,16 +147,32 @@ class CourseService {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(from: url)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw http.statusCode == 404 ? CourseServiceError.courseMissing : .badResponse(http.statusCode)
+            }
+            let course = try Self.decodeCourse(data)
             try cacheCourseData(data, forPath: path)
-            let decompressed = try data.gzipDecompressed()
-            return try JSONDecoder().decode(Course.self, from: decompressed)
+            return course
         } catch {
             Log.courses.error("Could not download course \(path), trying the cache: \(String(describing: error))")
-            if let cached = try loadCachedCourse(path: path) {
-                return cached
+            do {
+                if let cached = try loadCachedCourse(path: path) {
+                    return cached
+                }
+            } catch {
+                Log.courses.error("Could not load cached course \(path): \(String(describing: error))")
             }
             throw error
+        }
+    }
+
+    /// Gunzips and decodes a course file. Throws `CourseServiceError.corruptData` when either step fails.
+    static func decodeCourse(_ data: Data) throws -> Course {
+        do {
+            return try JSONDecoder().decode(Course.self, from: data.gzipDecompressed())
+        } catch {
+            throw CourseServiceError.corruptData
         }
     }
 
@@ -163,9 +195,7 @@ class CourseService {
             return nil
         }
 
-        let compressed = try Data(contentsOf: fileURL)
-        let decompressed = try compressed.gzipDecompressed()
-        return try JSONDecoder().decode(Course.self, from: decompressed)
+        return try Self.decodeCourse(Data(contentsOf: fileURL))
     }
 
     // MARK: - Nearby & Search
