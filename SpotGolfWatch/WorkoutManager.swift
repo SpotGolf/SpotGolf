@@ -172,10 +172,33 @@ class WorkoutManager: NSObject {
             Log.workout.notice("Workout restart for \(reason) skipped: one was forced within \(Int(Self.forcedRestartInterval)) s")
             return
         }
+        endToRestart(session, reason: reason, value: 2)
+    }
+
+    /// The user's hard restart: ends the session and starts a new one, with no rate limit. A
+    /// session that is not running, or none at all, is started again right away, even while
+    /// a refusal is waited out.
+    func forceRestart(reason: String) {
+        guard wantsWorkout, !isStarting else {
+            Log.workout.notice("No workout to force a restart of for \(reason)")
+            return
+        }
+        if let session, session.state == .running || session.state == .paused {
+            endToRestart(session, reason: reason, value: 4)
+        } else {
+            waitsForForeground = false
+            refusedRetryDelay = RestartWatchdog.interval
+            Log.workout.error("Starting the workout again: \(reason)")
+            report(.workoutRestart, value: 4)
+            restart()
+        }
+    }
+
+    private func endToRestart(_ session: HKWorkoutSession, reason: String, value: Float) {
         lastForcedRestartAt = Date()
         restartAfterEnd = true
         Log.workout.error("Ending the workout to start a new one: \(reason)")
-        report(.workoutRestart, value: 2)
+        report(.workoutRestart, value: value)
         session.end()
     }
 

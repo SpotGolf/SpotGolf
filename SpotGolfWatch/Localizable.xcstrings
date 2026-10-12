@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ g" : {
+
+    },
     "%@ on %@" : {
       "comment" : "A round's title: the course and the day it was played",
       "localizations" : {
@@ -72,6 +75,9 @@
     "End Round" : {
 
     },
+    "Force" : {
+
+    },
     "Front" : {
 
     },
@@ -136,10 +142,16 @@
     "No microphone permission" : {
 
     },
+    "None" : {
+
+    },
     "OK" : {
 
     },
     "Open SpotGolf on your iPhone to allow:" : {
+
+    },
+    "Over %lld g at" : {
 
     },
     "Pin" : {
@@ -170,6 +182,9 @@
 
     },
     "Records wrist motion and sound while you putt. Tap a button after each stroke." : {
+
+    },
+    "Restart Sensors" : {
 
     },
     "Sand Wedge" : {

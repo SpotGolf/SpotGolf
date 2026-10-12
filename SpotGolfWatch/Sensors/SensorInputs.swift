@@ -51,6 +51,12 @@ final class SensorInputs {
     /// Taps on the app's own buttons, for the detectors to ignore.
     let taps = TapGuard()
 
+    /// A swing is 17 to 22 g, so a reading over this means the accelerometer is alive.
+    nonisolated static let highGThreshold: Double = 10
+
+    /// The last accelerometer reading over `highGThreshold` since launch, for the screen.
+    private(set) var lastHighG: HighGReading?
+
     /// Inputs that could not be started, with why, for the screen.
     private(set) var problems: [Input: String] = [:]
 
@@ -86,6 +92,23 @@ final class SensorInputs {
     /// A tap on one of the app's buttons: readings around it are ignored.
     func tapped() {
         taps.tapped()
+    }
+
+    /// The last reading over `highGThreshold` in a batch of (uptime, magnitude in g), or nil.
+    /// Called on the sensor's thread, so nonisolated: a main-actor method called there traps.
+    nonisolated static func lastHighG(in readings: [(uptime: Double, magnitude: Double)]) -> HighGReading? {
+        readings.last { $0.magnitude > highGThreshold }
+            .map { HighGReading(date: Uptime.date(at: $0.uptime), magnitude: $0.magnitude) }
+    }
+
+    /// Stops every running input and starts it again on a fresh manager, at the user's request.
+    /// The watchdogs start over, and a microphone waiting out a refusal is tried right away.
+    func restartAll(reason: String) {
+        microphoneRetryAfter = nil
+        for input in running {
+            watchdogs[input] = RestartWatchdog(startedAt: Date(), checksData: true)
+            restart(input, reason: reason)
+        }
     }
 
     // MARK: - Subscribing
@@ -162,7 +185,14 @@ final class SensorInputs {
                 guard let batch else { return }
                 accelerometer.send(batch)
                 let count = batch.count
-                Task { @MainActor in self?.received(.accelerometer, count: count) }
+                let highG = Self.lastHighG(in: batch.map { data in
+                    let a = data.acceleration
+                    return (data.timestamp, (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot())
+                })
+                Task { @MainActor in
+                    self?.received(.accelerometer, count: count)
+                    if let highG { self?.lastHighG = highG }
+                }
             }
         case .deviceMotion:
             guard CMBatchedSensorManager.isDeviceMotionSupported else {
@@ -333,6 +363,13 @@ final class SensorInputs {
         case .microphone: .microphoneStalled
         }
     }
+}
+
+/// An accelerometer reading over `SensorInputs.highGThreshold`. A top-level type, so it is
+/// not main-actor isolated and can be made on the sensor's thread.
+struct HighGReading: Equatable, Sendable {
+    let date: Date
+    let magnitude: Double
 }
 
 /// Handlers keyed by subscription, added and removed on the main actor and called on a

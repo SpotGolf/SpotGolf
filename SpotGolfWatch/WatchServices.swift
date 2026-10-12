@@ -114,6 +114,18 @@ final class WatchServices {
         recordingInputsChanged()
     }
 
+    /// The user's hard restart, for sensors that die as they did at Legacy Ridge on 2026-10-09
+    /// and stay dead through the repair ladder: every input goes on a fresh manager, location
+    /// updates start over, and the workout session is replaced with no rate limit, which
+    /// starts the inputs again once it runs.
+    func hardRestartSensors() {
+        Log.sensors.error("Hard restart of the sensors, asked for by the user")
+        watchSync.record(StreamEvent(code: .hardRestart))
+        sensors.restartAll(reason: "hard restart")
+        locationManager.restartUpdating()
+        workoutManager.forceRestart(reason: "hard restart")
+    }
+
     /// Runs here rather than in a view, so it works while watchOS runs the app in the
     /// background and no view is on screen. Only the display hole moves; the timeline is set
     /// by the strokes added on the phone.
