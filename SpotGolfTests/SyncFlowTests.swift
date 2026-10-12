@@ -680,6 +680,17 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertTrue(UserDefaults.standard.bool(forKey: WatchSync.debugLoggingKey))
     }
 
+    func testPuttLabSettingReachesTheWatch() {
+        let pair = SyncPair(startTimeout: 0.05)
+        defer { UserDefaults.standard.removeObject(forKey: WatchSync.puttLabKey) }
+        XCTAssertTrue(WatchSync.puttLabInRounds, "On until the phone says otherwise")
+        pair.phone.puttLab = { false }
+
+        pair.startRound()
+
+        XCTAssertFalse(WatchSync.puttLabInRounds)
+    }
+
     func testCancelledRoundsLinesAreDeletedOnBothDevices() {
         let pair = SyncPair(startTimeout: 0.05)
         pair.phoneTransport.isReachable = false

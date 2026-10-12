@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
     @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
+    @AppStorage(SettingsKey.puttLabInRounds) private var puttLabInRounds = true
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
 
@@ -52,11 +53,12 @@ struct SettingsView: View {
                     Text("Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts.")
                 }
                 Section {
-                    NavigationLink("Putt Captures") { PuttCapturesView() }
+                    Toggle("Putt Lab During Rounds", isOn: $puttLabInRounds)
+                        .accessibilityIdentifier("PuttLabInRounds")
                 } header: {
                     Text("Putt Lab")
                 } footer: {
-                    Text("Sensor recordings from the watch's Putt Lab page, for working out how to detect putts.")
+                    Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Takes effect when the next round starts.")
                 }
                 Section {
                     NavigationLink("Log") { LogView(scope: .outsideRounds) }

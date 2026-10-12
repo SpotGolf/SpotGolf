@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Records raw sensor data for putting detection work. Shown when no round is active.
+/// Records raw sensor data for putting detection work. Outside a round a capture is started by
+/// hand; in a round the round starts it, and the page records on each green.
 struct PuttLabView: View {
     @Environment(WatchServices.self) private var services
 
     /// The mark just made, shown with Undo until it is accepted or `confirmationTime` passes.
     @State private var lastMark: PuttCapture.MarkLabel?
     @State private var confirmationTask: Task<Void, Never>?
+    @State private var showsCaptures = false
 
     private static let confirmationTime: Duration = .seconds(4)
 
@@ -18,7 +20,13 @@ struct PuttLabView: View {
 
                 switch services.puttCapture.state {
                 case .idle:
-                    idle
+                    if services.roundStore.activeRound != nil {
+                        offForRound
+                    } else {
+                        idle
+                    }
+                case .waiting:
+                    waiting
                 case .starting:
                     ProgressView()
                     Text("Starting workout…")
@@ -73,11 +81,31 @@ struct PuttLabView: View {
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
-            if services.captureUploader.pendingFiles > 0 {
-                Text("Sending \(services.captureUploader.pendingFiles) file(s) to iPhone")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            Button("Captures") { showsCaptures = true }
+                .sheet(isPresented: $showsCaptures) {
+                    NavigationStack { CapturesView() }
+                }
+        }
+    }
+
+    /// In a round with Putt Lab off, or stopped on this page.
+    private var offForRound: some View {
+        Text("Putt Lab is off for this round. Turn on Putt Lab During Rounds in Settings on your iPhone before the next round.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+    }
+
+    /// In a round, between greens.
+    private var waiting: some View {
+        VStack(spacing: 8) {
+            Text("Hole \(services.roundStore.activeRound?.displayHoleNumber ?? 0)")
+                .font(.caption)
+                .fontWeight(.semibold)
+            Text("Waiting for a green")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Button("Stop", role: .destructive) { services.puttCapture.stop() }
         }
     }
 

@@ -30,6 +30,13 @@ final class WatchSync {
 
     /// Where the phone's Debug Logging setting is kept, for lines outside a round.
     static let debugLoggingKey = "debugLogging"
+    /// Where the phone's Putt Lab During Rounds setting is kept, for a round resumed after a relaunch.
+    static let puttLabKey = "puttLabInRounds"
+
+    /// The last Putt Lab During Rounds setting the phone sent. On until the phone says otherwise.
+    static var puttLabInRounds: Bool {
+        UserDefaults.standard.object(forKey: puttLabKey) as? Bool ?? true
+    }
 
     init(sync: SyncService, rounds: RoundStore, streams: StreamStore, logs: LogStore) {
         self.sync = sync
@@ -208,6 +215,7 @@ final class WatchSync {
         Log.rounds.notice("Round \(start.roundID) started by the phone")
         Log.isDebugEnabled = start.debugLogging
         UserDefaults.standard.set(start.debugLogging, forKey: Self.debugLoggingKey)
+        UserDefaults.standard.set(start.puttLab, forKey: Self.puttLabKey)
 
         // Another round still recording ends the usual way first
         if let other = rounds.activeRound, other.id != start.roundID {

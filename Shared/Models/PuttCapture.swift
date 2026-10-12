@@ -1,9 +1,14 @@
 import Foundation
 
-/// A putt capture: raw sensor data recorded on the watch's Putt Lab page, to study what a
-/// real putt looks like. See `plans/2026-10-06-putt-capture.md` for the files and their layout.
+/// A putt capture: raw sensor data recorded by the watch's Putt Lab, to study what a real putt
+/// looks like. A capture is a folder of segments, one per green visit in a round or a single
+/// one outside a round; each segment holds the files below. See `plans/2026-10-06-putt-capture.md`
+/// for the files and their layout and `plans/2026-10-12-putt-lab-in-rounds.md` for segments.
 enum PuttCapture {
-    static let version = 1
+    static let version = 2
+
+    /// The folder under Documents that holds every capture.
+    static let directoryName = "putt-captures"
 
     static let metaFile = "meta.json"
     static let marksFile = "marks.csv"
@@ -13,12 +18,25 @@ enum PuttCapture {
     /// The contacts `ContactDetector` found as the capture ran, for checking against the marks.
     static let contactsFile = "contacts.csv"
     static let contactsHeader = "t,score,burst,click,turning"
-    /// Every file a capture can hold, in the order they are sent to the phone: small ones first.
+    /// Every file a segment can hold.
     static let files = [metaFile, marksFile, contactsFile, accelFile, motionFile, audioFile]
 
-    /// Keys of the metadata sent with each file transfer.
-    static let captureKey = "capture"
-    static let fileKey = "file"
+    /// A segment's folder name in its capture: "001-hole1".
+    static func segmentFolder(_ segment: Int, hole: Int) -> String {
+        String(format: "%03d-hole%d", segment, hole)
+    }
+
+    /// Why a segment ended.
+    enum EndReason: String, Codable {
+        /// Stop on the Putt Lab page.
+        case stopped
+        case leftGreen
+        case holeAdvanced
+        case workoutStopped
+        case roundEnded
+        /// The app was killed with the segment open; the next launch finished it from the file sizes.
+        case appTerminated
+    }
 
     /// What the player labelled a stroke with, tapped after the stroke.
     enum MarkLabel: String, Codable, CaseIterable {
@@ -85,6 +103,15 @@ enum PuttCapture {
         /// and the scoring math and keeps only the counts and the battery levels.
         var savesData = true
         var marks: [Mark] = []
+        /// The capture folder the segment is in. Absent in version 1 captures, which were one segment.
+        var captureID: UUID?
+        /// The round the capture was recorded in. Absent outside a round.
+        var roundID: UUID?
+        /// The display hole when the segment started, 1-based; 0 outside a round.
+        var hole: Int?
+        /// The segment's number in its capture, from 1.
+        var segment: Int?
+        var endReason: EndReason?
 
         func json() throws -> Data {
             let encoder = JSONEncoder()
@@ -123,6 +150,11 @@ enum PuttCapture {
             microphone = try values.decodeIfPresent(Bool.self, forKey: .microphone) ?? true
             savesData = try values.decodeIfPresent(Bool.self, forKey: .savesData) ?? true
             marks = try values.decode([Mark].self, forKey: .marks)
+            captureID = try values.decodeIfPresent(UUID.self, forKey: .captureID)
+            roundID = try values.decodeIfPresent(UUID.self, forKey: .roundID)
+            hole = try values.decodeIfPresent(Int.self, forKey: .hole)
+            segment = try values.decodeIfPresent(Int.self, forKey: .segment)
+            endReason = try values.decodeIfPresent(EndReason.self, forKey: .endReason)
         }
     }
 

@@ -37,6 +37,43 @@ final class PuttCaptureTests: XCTestCase {
         XCTAssertEqual(decoded.version, PuttCapture.version)
     }
 
+    func testSegmentDetailsRoundTripThroughJSON() throws {
+        var meta = PuttCapture.Meta(startDate: Date(timeIntervalSince1970: 1_700_000_000), startUptime: 10)
+        meta.captureID = UUID()
+        meta.roundID = UUID()
+        meta.hole = 7
+        meta.segment = 3
+        meta.endReason = .leftGreen
+
+        let decoded = try PuttCapture.Meta(json: meta.json())
+
+        XCTAssertEqual(decoded, meta)
+        XCTAssertEqual(decoded.version, 2)
+    }
+
+    func testVersionOneCaptureHasNoSegmentDetails() throws {
+        var meta = PuttCapture.Meta(startDate: Date(timeIntervalSince1970: 1_700_000_000), startUptime: 10)
+        meta.version = 1
+        var json = try XCTUnwrap(try JSONSerialization.jsonObject(with: meta.json()) as? [String: Any])
+        for key in ["captureID", "roundID", "hole", "segment", "endReason"] {
+            json.removeValue(forKey: key)
+        }
+
+        let decoded = try PuttCapture.Meta(json: try JSONSerialization.data(withJSONObject: json))
+
+        XCTAssertEqual(decoded.version, 1)
+        XCTAssertNil(decoded.captureID)
+        XCTAssertNil(decoded.roundID)
+        XCTAssertNil(decoded.hole)
+        XCTAssertNil(decoded.segment)
+        XCTAssertNil(decoded.endReason)
+    }
+
+    func testSegmentFolderName() {
+        XCTAssertEqual(PuttCapture.segmentFolder(1, hole: 0), "001-hole0")
+        XCTAssertEqual(PuttCapture.segmentFolder(12, hole: 18), "012-hole18")
+    }
+
     func testMarkCSVLine() {
         let mark = PuttCapture.Mark(t: 1.5, label: .practice, date: Date(timeIntervalSince1970: 1_700_000_000.25))
 

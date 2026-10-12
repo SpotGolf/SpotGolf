@@ -41,10 +41,12 @@ struct StartRound: Codable, Equatable {
     let logBase: Int
     /// The phone's Debug Logging setting, which the watch follows.
     let debugLogging: Bool
+    /// The phone's Putt Lab During Rounds setting: the watch records a capture on the greens.
+    let puttLab: Bool
 
     init(roundID: UUID, date: Date, course: Data, holeTimeline: [HoleStart], displayHole: DisplayHole,
          pins: [PinLocation], strokes: StrokesSnapshot, streamBase: Int, version: String,
-         logBase: Int = 0, debugLogging: Bool = false) {
+         logBase: Int = 0, debugLogging: Bool = false, puttLab: Bool = true) {
         self.roundID = roundID
         self.date = date
         self.course = course
@@ -56,12 +58,14 @@ struct StartRound: Codable, Equatable {
         self.version = version
         self.logBase = logBase
         self.debugLogging = debugLogging
+        self.puttLab = puttLab
     }
 }
 
 extension StartRound {
     /// A phone from before versions were checked sends none; it is never the watch's. One from
-    /// before the app log sends no log base or debug setting.
+    /// before the app log sends no log base or debug setting, and one from before Putt Lab ran
+    /// in rounds sends no Putt Lab setting, which is on.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         roundID = try values.decode(UUID.self, forKey: .roundID)
@@ -75,6 +79,7 @@ extension StartRound {
         version = try values.decodeIfPresent(String.self, forKey: .version) ?? ""
         logBase = try values.decodeIfPresent(Int.self, forKey: .logBase) ?? 0
         debugLogging = try values.decodeIfPresent(Bool.self, forKey: .debugLogging) ?? false
+        puttLab = try values.decodeIfPresent(Bool.self, forKey: .puttLab) ?? true
     }
 }
 

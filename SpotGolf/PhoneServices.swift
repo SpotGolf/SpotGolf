@@ -20,7 +20,6 @@ final class PhoneServices {
     let golfBag: GolfBagStore
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
-    let puttCaptures: PuttCaptureStore
     /// Where rounds and streams are saved. UI tests start each run empty.
     let container: ModelContainer
     /// A round can only start with a paired watch that has the app. UI tests run without one.
@@ -56,12 +55,7 @@ final class PhoneServices {
             Self.launchWatchApp(sync: sync)
         }
         phoneSync.debugLogging = { UserDefaults.standard.bool(forKey: SettingsKey.debugLogging) }
-
-        let puttCaptures = PuttCaptureStore()
-        (sync.transport as? WatchConnectivityTransport)?.onFileReceived = { url, metadata in
-            puttCaptures.receive(file: url, metadata: metadata)
-        }
-        self.puttCaptures = puttCaptures
+        phoneSync.puttLab = { UserDefaults.standard.bool(forKey: SettingsKey.puttLabInRounds) }
 
         roundTracker = RoundTracker(rounds: rounds, location: location, showsActivity: !isUITesting)
         // UI tests run without iCloud

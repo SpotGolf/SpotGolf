@@ -24,7 +24,6 @@ final class WatchServices {
     let container: ModelContainer
     let contactMonitor: ContactMonitor
     let watchSync: WatchSync
-    let captureUploader: PuttCaptureUploader
     let puttCapture: PuttCaptureRecorder
     let permissions: PermissionChecker
     /// Shows the workout's status, which UI tests read to check recovery after a relaunch.
@@ -61,9 +60,7 @@ final class WatchServices {
         swingDetector = SwingDetector(sensors: inputs)
         contactMonitor = ContactMonitor(sensors: inputs) { workouts.isRunning }
         watchSync = WatchSync(sync: syncService, rounds: rounds, streams: streamStore, logs: logs)
-        captureUploader = PuttCaptureUploader(transport: syncService.transport as? WatchConnectivityTransport,
-                                              directory: PuttCaptureRecorder.directory)
-        puttCapture = PuttCaptureRecorder(sensors: inputs, workouts: workouts, uploader: captureUploader) {
+        puttCapture = PuttCaptureRecorder(sensors: inputs, workouts: workouts) {
             rounds.activeRound != nil
         }
     }
@@ -90,6 +87,9 @@ final class WatchServices {
         }
         swingDetector.onSwing = { sync.record($0) }
         contactMonitor.onContact = { sync.record($0) }
+        // Putt Lab records a segment for each of the monitor's sessions on a green
+        contactMonitor.onSession = { [weak self] in self?.puttCapture.sessionChanged($0) }
+        contactMonitor.onDetectorContact = { [weak self] in self?.puttCapture.detectorContact($0) }
         // The watch's own account of its workout and sensors goes into the round's stream
         workoutManager.onEvent = { sync.record($0) }
         sensors.onEvent = { sync.record($0) }
@@ -103,8 +103,8 @@ final class WatchServices {
         sync.sender.minBatchInterval = 5
         sync.sender.startRetryTimer()
         sync.sender.pump()
-        // Captures whose files never reached the phone
-        captureUploader.resumePending()
+        // Segments left open by a kill
+        puttCapture.recoverUnfinished()
 
         roundStore.addListener { [weak self] event in
             if case .roundsChanged = event { self?.recordingInputsChanged() }
@@ -184,13 +184,19 @@ final class WatchServices {
     /// Records while a round is active, and stops everything once it is not.
     private func activeRoundChanged(_ isActive: Bool) {
         Log.rounds.notice("Active round: \(isActive)")
-        if isActive {
-            // A round's swing detection and a capture can't share the sensors
-            puttCapture.stop()
+        if isActive, let round = roundStore.activeRound {
+            // A capture started by hand gives way to the round's own, when Putt Lab is on for rounds
+            if WatchSync.puttLabInRounds {
+                puttCapture.startInRound(roundID: round.id)
+            } else {
+                puttCapture.stop()
+            }
             locationManager.startUpdating()
             workoutManager.start()
         } else {
+            // The monitor's stop closes the open segment before the capture ends
             contactMonitor.roundEnded()
+            puttCapture.roundEnded()
             locationManager.stopUpdating()
             workoutManager.stop()
         }

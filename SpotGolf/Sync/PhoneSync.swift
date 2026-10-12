@@ -52,6 +52,8 @@ final class PhoneSync {
     private let launchWatchApp: () -> Void
     /// The Debug Logging setting, sent to the watch with each start. Tests set it.
     @ObservationIgnored var debugLogging: () -> Bool = { false }
+    /// The Putt Lab During Rounds setting, sent with each round start.
+    @ObservationIgnored var puttLab: () -> Bool = { true }
     private var startTimers: [UUID: Timer] = [:]
     private var retryTimers: [UUID: Timer] = [:]
 
@@ -189,7 +191,8 @@ final class PhoneSync {
                                streamBase: receiver.have(for: round.id),
                                version: version,
                                logBase: receiver.haveLogs(for: round.id),
-                               debugLogging: debugLogging())
+                               debugLogging: debugLogging(),
+                               puttLab: puttLab())
         sync.send(.startRound(start), reply: { [weak self] reply in
             switch reply {
             case .startRoundAck(let ack): self?.started(ack.roundID)

@@ -23,16 +23,6 @@
         }
       }
     },
-    "%@ to %@, %@ pts/h" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ to %2$@, %3$@ pts/h"
-          }
-        }
-      }
-    },
     "%lld" : {},
     "%lld Hybrid" : {},
     "%lld Iron" : {},
@@ -69,16 +59,6 @@
         }
       }
     },
-    "%lld of %lld files, %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld of %2$lld files, %3$@"
-          }
-        }
-      }
-    },
     "%lld putts" : {
       "localizations" : {
         "en" : {
@@ -97,16 +77,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "%lld putts, %lld practice, %lld ground" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld putts, %2$lld practice, %3$lld ground"
           }
         }
       }
@@ -133,6 +103,7 @@
         }
       }
     },
+    "%lld yards" : {},
     "%lld yds" : {},
     "%lld, %@" : {
       "localizations" : {
@@ -170,6 +141,7 @@
     "Back" : {},
     "Bad shot" : {},
     "Cancel" : {},
+    "Clear penalty" : {},
     "Clear target" : {},
     "Close" : {},
     "Clubs" : {},
@@ -197,10 +169,10 @@
     "Errors Only" : {},
     "Estimated" : {},
     "Export" : {},
-    "Export Failed" : {},
     "Failed to load course: %@" : {},
     "Fairway" : {},
     "Filter" : {},
+    "Follow location" : {},
     "Force end" : {},
     "Golf Bag" : {},
     "Good shot" : {},
@@ -215,6 +187,7 @@
     "Hole Times" : {},
     "Hole times" : {},
     "How long you must stand still on or near the green, with no swing, before a chip or putt is suggested." : {},
+    "Hybrid" : {},
     "Hybrids" : {},
     "Import Round…" : {},
     "Import failed: %@" : {},
@@ -248,6 +221,8 @@
     "Lob Wedge" : {},
     "Location" : {},
     "Log" : {},
+    "Map Style" : {},
+    "Map style" : {},
     "Microphone" : {},
     "Missed" : {},
     "Motion & Fitness" : {},
@@ -255,7 +230,6 @@
     "New Round" : {},
     "Next" : {},
     "No Log Lines" : {},
-    "No captures yet. Record one on the watch's Putt Lab page; it is sent here when it stops." : {},
     "No courses found" : {},
     "No courses nearby" : {},
     "Nothing has been recorded yet." : {},
@@ -267,6 +241,7 @@
     "Open SpotGolf on the watch and allow the %@." : {},
     "Orange" : {},
     "Out" : {},
+    "Out of bounds" : {},
     "Par" : {},
     "Par %lld" : {},
     "Par %lld - %lld yds" : {
@@ -280,6 +255,7 @@
       }
     },
     "Past Rounds" : {},
+    "Penalty stroke" : {},
     "Penalty strokes" : {},
     "Phone" : {},
     "Phone and Watch" : {},
@@ -291,8 +267,8 @@
     "Practice ground" : {},
     "Purple" : {},
     "Putt" : {},
-    "Putt Captures" : {},
     "Putt Lab" : {},
+    "Putt Lab During Rounds" : {},
     "Putter" : {},
     "Putts" : {},
     "Remove a penalty stroke" : {},
@@ -301,6 +277,7 @@
     "Round Log" : {},
     "Round start" : {},
     "Sand Wedge" : {},
+    "Satellite" : {},
     "Save" : {},
     "Score" : {},
     "Search Results" : {},
@@ -310,18 +287,18 @@
     "Select Course" : {},
     "Select Nines" : {},
     "Select Tee" : {},
-    "Sensor recordings from the watch's Putt Lab page, for working out how to detect putts." : {},
     "Set by you" : {},
     "Set pin location" : {},
     "Settings" : {},
     "Share Pin Locations" : {},
-    "Share capture" : {},
     "Shot quality" : {},
+    "Spot" : {},
     "Spot %lld" : {},
     "Spot %lld, %@" : {},
     "Spot: %lld" : {},
     "SpotGolf" : {},
     "SpotGolf needs these to record your round" : {},
+    "Standard" : {},
     "Start Round" : {},
     "Start time" : {},
     "Starting" : {},
@@ -337,6 +314,7 @@
     "The watch did not respond." : {},
     "The watch has not responded yet. Still trying." : {},
     "The watch is missing %@ permission." : {},
+    "The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Takes effect when the next round starts." : {},
     "To green" : {},
     "To pin" : {},
     "To point" : {},
@@ -351,18 +329,15 @@
     "What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; it takes effect on the watch when the next round starts." : {},
     "Woods" : {},
     "Yards" : {},
-    "battery test, mic off" : {},
-    "battery test, mic on" : {},
-    "details not received yet" : {},
     "ft elevation" : {},
-    "no audio" : {},
     "the course address is not valid" : {},
     "the course data is missing" : {},
     "the course index version is not valid" : {},
     "the data is corrupt" : {},
     "the server returned status %lld" : {},
     "yds to center" : {},
-    "yds to pin" : {}
+    "yds to pin" : {},
+    "·" : {}
   },
   "version" : "1.0"
 }

@@ -4,18 +4,38 @@ import CoreLocation
 import CourseDataSwift
 
 struct WatchRoundView: View {
+    /// The round's pages, in order.
+    enum Page: Hashable {
+        case info
+        case end
+        case puttLab
+    }
+
     @Environment(WatchServices.self) private var services
 
     @State private var liveDistance: String?
+    @State private var page = Page.info
 
     var body: some View {
         Group {
             if let round = services.roundStore.activeRound {
-                TabView {
+                TabView(selection: $page) {
                     infoPage(round)
+                        .tag(Page.info)
                     endRoundPage
+                        .tag(Page.end)
+                    PuttLabView()
+                        .tag(Page.puttLab)
                 }
                 .tabViewStyle(.page)
+                // Putt Lab's buttons come to the front on the green and leave with it
+                .onChange(of: services.puttCapture.state) { was, now in
+                    if now == .recording {
+                        page = .puttLab
+                    } else if was == .recording, now == .waiting {
+                        page = .info
+                    }
+                }
             } else {
                 TabView {
                     noRoundPage

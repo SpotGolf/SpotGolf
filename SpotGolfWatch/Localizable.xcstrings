@@ -18,6 +18,9 @@
     "%@ recorded" : {
 
     },
+    "%@ · %lld segment(s) · %@" : {
+
+    },
     "%lld" : {
 
     },
@@ -63,7 +66,13 @@
     "Cancel" : {
 
     },
+    "Captures" : {
+
+    },
     "Could not create files" : {
+
+    },
+    "Delete" : {
 
     },
     "Device motion stopped" : {
@@ -133,6 +142,9 @@
     "No active round" : {
 
     },
+    "No captures" : {
+
+    },
     "No device motion" : {
 
     },
@@ -143,6 +155,9 @@
 
     },
     "None" : {
+
+    },
+    "Not enough free space" : {
 
     },
     "OK" : {
@@ -178,6 +193,9 @@
     "Putt Lab" : {
 
     },
+    "Putt Lab is off for this round. Turn on Putt Lab During Rounds in Settings on your iPhone before the next round." : {
+
+    },
     "Putter" : {
 
     },
@@ -187,13 +205,13 @@
     "Restart Sensors" : {
 
     },
+    "Round" : {
+
+    },
     "Sand Wedge" : {
 
     },
     "Save data" : {
-
-    },
-    "Sending %lld file(s) to iPhone" : {
 
     },
     "Set pin location" : {
@@ -218,6 +236,9 @@
 
     },
     "Undo" : {
+
+    },
+    "Waiting for a green" : {
 
     },
     "Water" : {
