@@ -35,12 +35,6 @@ struct RoundMapLayer: View {
                 if round.isActive {
                     UserAnnotation()
                 }
-                if let pin = round.pin(onHole: shownHoleIndex) {
-                    // The base of the pole sits on the pin
-                    Annotation("", coordinate: pin.coordinate, anchor: PinFlag.base) {
-                        PinFlag(source: pin.source, scale: MapGeometry.flagScale(metersPerPoint: camera.metersPerPoint))
-                    }
-                }
                 ForEach(Array(strokesToShow.enumerated()), id: \.element.id) { index, stroke in
                     // The dot under the pin sits on the stroke
                     Annotation("", coordinate: stroke.coordinate, anchor: .bottom) {
@@ -78,6 +72,18 @@ struct RoundMapLayer: View {
                                 }
                             }
                         }
+                    }
+                }
+                if let pin = round.pin(onHole: shownHoleIndex) {
+                    // Last, so the flag is drawn over the spots and suggestions, not under them.
+                    // The base of the pole sits on the pin. Taps on the pole go through to a pin
+                    // under it.
+                    let shownSuggestions = isEditing ? suggestions : []
+                    Annotation("", coordinate: pin.coordinate, anchor: PinFlag.base) {
+                        PinFlag(source: pin.source, scale: MapGeometry.flagScale(metersPerPoint: camera.metersPerPoint),
+                                raised: MapGeometry.hasPinsOnGreen(round, holeIndex: shownHoleIndex,
+                                                                   suggestions: shownSuggestions))
+                            .allowsHitTesting(false)
                     }
                 }
             }

@@ -150,6 +150,13 @@ enum MapGeometry {
         let progress = min(max(zoom / fullZoom, 0), 1)
         return 1 + (largestFlagScale - 1) * progress
     }
+
+    /// Whether any of hole `index`'s strokes, or any of `suggestions`, is on its green, where
+    /// their pins would stand next to the flag.
+    static func hasPinsOnGreen(_ round: Round, holeIndex index: Int, suggestions: [StrokeSuggestion]) -> Bool {
+        round.hole(at: index).strokes.contains { round.isOnGreen($0.coordinate, holeIndex: index) }
+            || suggestions.contains { $0.coordinate.map { round.isOnGreen($0, holeIndex: index) } ?? false }
+    }
 }
 
 /// A thin line from one stroke to the next, with the yards between them shown at its middle.

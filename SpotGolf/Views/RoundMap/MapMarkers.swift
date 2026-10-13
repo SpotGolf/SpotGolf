@@ -1,9 +1,13 @@
 import SwiftUI
 
 /// A thin dark pole with a small flag at the top, on the hole's pin: green for a real pin,
-/// red for the center of the green until a real pin is known. Larger as the map zooms in.
+/// red for the center of the green until a real pin is known. Larger as the map zooms in, and
+/// on a taller pole when spots or suggestions are on the green, so the flag rises above their
+/// pin heads.
 struct PinFlag: View {
     static let size = CGSize(width: 12, height: 24)
+    /// The pole's height when raised: past the center of a pin head on the green.
+    static let raisedHeight: CGFloat = 36
     static let poleWidth: CGFloat = 1.5
     /// The flag's base, where the pole meets the ground: the map anchors and scales it there.
     static let base = UnitPoint(x: poleWidth / 2 / size.width, y: 1)
@@ -12,18 +16,21 @@ struct PinFlag: View {
 
     let source: PinSource
     let scale: CGFloat
+    /// On the taller pole, with spots or suggestions on the green.
+    var raised = false
 
     var body: some View {
+        let height = raised ? Self.raisedHeight : Self.size.height
         ZStack(alignment: .topLeading) {
             Rectangle()
                 .fill(Color(white: 0.15))
-                .frame(width: Self.poleWidth, height: Self.size.height)
+                .frame(width: Self.poleWidth, height: height)
             FlagShape()
                 .fill(source == .center ? Color.red : Self.realPinGreen)
                 .frame(width: Self.size.width - Self.poleWidth, height: 8)
                 .offset(x: Self.poleWidth)
         }
-        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
+        .frame(width: Self.size.width, height: height, alignment: .topLeading)
         .scaleEffect(scale, anchor: Self.base)
         .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
         .accessibilityElement(children: .ignore)

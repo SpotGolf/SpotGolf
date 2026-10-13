@@ -123,6 +123,28 @@ final class MapGeometryTests: XCTestCase {
         XCTAssertEqual(halfway, 1.25, accuracy: 1e-9)
     }
 
+    func testFlagIsRaisedWithAStrokeOrSuggestionOnTheGreen() {
+        let round = Round(courseSelection: PathCourse.selection)
+        let green = PathCourse.greens[1]
+        let onGreen = PathCourse.coordinate(north: green.north + 5, east: green.east).clLocation.coordinate
+        let offGreen = PathCourse.coordinate(north: green.north - 100, east: green.east).clLocation.coordinate
+        let fairwaySuggestion = StrokeSuggestion(timestamp: round.date, kind: .stop(duration: 30), coordinate: offGreen)
+        let greenSuggestion = StrokeSuggestion(timestamp: round.date, kind: .contact(score: 1), coordinate: onGreen)
+        let unplaced = StrokeSuggestion.swing(at: round.date, peakG: 5)
+
+        XCTAssertFalse(MapGeometry.hasPinsOnGreen(round, holeIndex: 1, suggestions: []))
+        XCTAssertFalse(MapGeometry.hasPinsOnGreen(round, holeIndex: 1, suggestions: [fairwaySuggestion, unplaced]))
+        XCTAssertTrue(MapGeometry.hasPinsOnGreen(round, holeIndex: 1, suggestions: [greenSuggestion]))
+        // Another hole's green does not count
+        XCTAssertFalse(MapGeometry.hasPinsOnGreen(round, holeIndex: 0, suggestions: [greenSuggestion]))
+
+        round.addStroke(Stroke(coordinate: offGreen), toHoleIndex: 1)
+        XCTAssertFalse(MapGeometry.hasPinsOnGreen(round, holeIndex: 1, suggestions: []))
+        round.addStroke(Stroke(coordinate: onGreen), toHoleIndex: 1)
+        XCTAssertTrue(MapGeometry.hasPinsOnGreen(round, holeIndex: 1, suggestions: []))
+        XCTAssertFalse(MapGeometry.hasPinsOnGreen(round, holeIndex: 0, suggestions: []))
+    }
+
     func testHoleTrackKeepsTheFixesOnTheHole() {
         let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
         round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600), source: .stroke)
