@@ -51,17 +51,19 @@ struct MapButtonBar: View {
     }
 
     /// Shown only during a round, while the phone is on the shown hole's green: saves where the
-    /// player stands as the hole's pin, as the watch's button does.
+    /// player stands as the hole's pin, as the watch's button does. Red until the player has set
+    /// the pin, then blue and offering to update it.
     @ViewBuilder
     private var setPinButton: some View {
         if round.isActive, let location = services.locationManager.lastLocation,
            round.isOnGreen(location.coordinate, holeIndex: shownHoleIndex) {
+            let isSet = round.hasSetPin(holeIndex: shownHoleIndex)
             Button {
                 services.roundStore.setPin(location.coordinate, holeIndex: shownHoleIndex, roundID: round.id)
             } label: {
-                Label("Set pin location", systemImage: "flag.fill")
+                Label(isSet ? "Update pin" : "Set pin location", systemImage: "flag.fill")
                     .font(.headline)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(isSet ? .blue : .red)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
                     .background(.thickMaterial)

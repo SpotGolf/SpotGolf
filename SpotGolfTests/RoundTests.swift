@@ -671,6 +671,21 @@ final class RoundTests: XCTestCase {
         XCTAssertNil(Round(courseSelection: .test).targetCoordinate(holeIndex: 0))
     }
 
+    func testHasSetPinOnlyForThePlayersOwnPin() {
+        var round = Round(courseSelection: PathCourse.selection)
+        XCTAssertFalse(round.hasSetPin(holeIndex: 0))
+
+        round.addCenterPins()
+        XCTAssertFalse(round.hasSetPin(holeIndex: 0))
+
+        round.mergePins([PinLocation(holeIndex: 0, coordinate: onGreen(0), setAt: round.date, source: .shared)])
+        XCTAssertFalse(round.hasSetPin(holeIndex: 0))
+
+        round.setPin(onGreen(0, north: 8), onHole: 0, at: round.date.addingTimeInterval(60))
+        XCTAssertTrue(round.hasSetPin(holeIndex: 0))
+        XCTAssertFalse(round.hasSetPin(holeIndex: 1))
+    }
+
     func testNoCenterPinsWithoutGreens() {
         var round = Round(courseSelection: .test)
 

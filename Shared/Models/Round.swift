@@ -297,6 +297,11 @@ final class Round {
         return source != .center
     }
 
+    /// True when the player set hole `index`'s pin, on the watch or the phone.
+    func hasSetPin(holeIndex index: Int) -> Bool {
+        pin(onHole: index)?.source == .set
+    }
+
     /// A center pin for every hole that has a green and no pin yet. Returns true if any were added.
     @discardableResult
     func addCenterPins() -> Bool {

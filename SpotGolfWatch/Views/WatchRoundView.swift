@@ -174,18 +174,20 @@ struct WatchRoundView: View {
         .accessibilityLabel(label)
     }
 
-    /// Shown only on the green: saves where the player stands as the shown hole's pin.
+    /// Shown only on the green: saves where the player stands as the shown hole's pin. Red until
+    /// the player has set the pin, then blue and offering to update it.
     private func setPinButton(_ location: CLLocation, _ round: Round) -> some View {
-        Button {
+        let isSet = round.hasSetPin(holeIndex: round.displayHoleIndex)
+        return Button {
             services.roundStore.setPin(location.coordinate, holeIndex: round.displayHoleIndex)
             WKInterfaceDevice.current().play(.success)
         } label: {
-            Label("Set pin location", systemImage: "flag.fill")
+            Label(isSet ? "Update pin" : "Set pin location", systemImage: "flag.fill")
                 .font(.caption2)
                 .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)
         }
-        .tint(.red)
+        .tint(isSet ? .blue : .red)
         .accessibilityIdentifier("setPinLocation")
     }
 
