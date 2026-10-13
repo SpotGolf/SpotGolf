@@ -691,6 +691,50 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertFalse(WatchSync.puttLabInRounds)
     }
 
+    func testGreenZoneSettingReachesTheWatch() {
+        let pair = SyncPair(startTimeout: 0.05)
+        defer { UserDefaults.standard.removeObject(forKey: WatchSync.greenZoneKey) }
+        XCTAssertEqual(WatchSync.greenZone, HoleShape.chipZoneMargin, "The default until the phone says")
+        pair.phone.greenZone = { 20 }
+
+        pair.startRound()
+
+        XCTAssertEqual(WatchSync.greenZone, 20)
+    }
+
+    func testSettingsSentWhenTheRoundIsOpenedReachTheWatch() {
+        let pair = SyncPair(startTimeout: 0.05)
+        defer {
+            UserDefaults.standard.removeObject(forKey: WatchSync.greenZoneKey)
+            UserDefaults.standard.removeObject(forKey: WatchSync.puttLabKey)
+        }
+        var received: [RoundSettingsMessage] = []
+        pair.watch.onSettings = { received.append($0) }
+        let id = pair.startRound()
+        XCTAssertEqual(WatchSync.greenZone, HoleShape.chipZoneMargin)
+        pair.phone.greenZone = { 20 }
+        pair.phone.puttLab = { false }
+
+        pair.phone.sendSettings()
+
+        XCTAssertEqual(WatchSync.greenZone, 20)
+        XCTAssertFalse(WatchSync.puttLabInRounds)
+        XCTAssertEqual(received, [RoundSettingsMessage(roundID: id, debugLogging: false, puttLab: false, greenZone: 20)])
+    }
+
+    func testSettingsForAnotherRoundAreIgnored() {
+        let pair = SyncPair(startTimeout: 0.05)
+        defer { UserDefaults.standard.removeObject(forKey: WatchSync.greenZoneKey) }
+        var received = 0
+        pair.watch.onSettings = { _ in received += 1 }
+        pair.startRound()
+
+        pair.phoneSync.send(.settings(RoundSettingsMessage(roundID: UUID(), debugLogging: false, puttLab: true, greenZone: 40)))
+
+        XCTAssertEqual(WatchSync.greenZone, HoleShape.chipZoneMargin)
+        XCTAssertEqual(received, 0)
+    }
+
     func testCancelledRoundsLinesAreDeletedOnBothDevices() {
         let pair = SyncPair(startTimeout: 0.05)
         pair.phoneTransport.isReachable = false

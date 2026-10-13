@@ -55,8 +55,10 @@ final class StrokeFinderSuggestionTests: XCTestCase {
     }
 
     private func suggestions(_ track: Track, _ swings: [StrokeSuggestion], contacts: [ContactEvent] = [],
-                             minStop: TimeInterval = 30, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
-        StrokeFinder.suggestions(on: hole, points: track.points, swings: swings, contacts: contacts, minStop: minStop, hidden: hidden)
+                             minStop: TimeInterval = 30, zoneMargin: CLLocationDistance = StrokeFinder.chipZoneMargin,
+                             hidden: Set<UUID> = []) -> [StrokeSuggestion] {
+        StrokeFinder.suggestions(on: hole, points: track.points, swings: swings, contacts: contacts, minStop: minStop,
+                                 zoneMargin: zoneMargin, hidden: hidden)
     }
 
     private func duration(of suggestion: StrokeSuggestion?) -> TimeInterval {
@@ -357,7 +359,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
     func testStopWithNoSwingNearTheGreenIsSuggested() {
         var track = Track()
-        track.walk(north: 260) // 25 m short of the green's edge
+        track.walk(north: 277) // 8 m short of the green's edge, inside the 10 m zone
         let arrived = track.now
         track.stand(40)
         track.walk(north: 300)
@@ -367,6 +369,16 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         // A slow walk joins the stop a few fixes before the player stands still
         XCTAssertEqual(found.first?.timestamp.timeIntervalSince(arrived) ?? .infinity, 0, accuracy: 8)
         XCTAssertGreaterThanOrEqual(duration(of: found.first), 40)
+    }
+
+    func testGreenZoneSetsHowFarFromTheGreenAStopCounts() {
+        var track = Track()
+        track.walk(north: 265) // 20 m short of the green's edge
+        track.stand(40)
+        track.walk(north: 300)
+
+        XCTAssertEqual(suggestions(track, []).count, 0, "Outside the 10 m zone")
+        XCTAssertEqual(suggestions(track, [], zoneMargin: 30).count, 1, "Inside a 30 m zone")
     }
 
     func testStopWithNoSwingInTheFairwayIsNotSuggested() {
@@ -513,9 +525,9 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         track.stand(20)
         let teeShot = track.swing()
         var putts: [ContactEvent] = []
-        // Ten putts at ten spots from 25 m short of the green's edge onto it
+        // Ten putts at ten spots from 8 m short of the green's edge onto it
         for index in 0..<10 {
-            track.walk(north: 260 + Double(index) * 6)
+            track.walk(north: 277 + Double(index) * 4)
             track.stand(20)
             putts.append(track.contact())
         }

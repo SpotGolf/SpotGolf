@@ -12,8 +12,9 @@ import os
 @MainActor
 @Observable
 final class ContactMonitor {
-    /// The zone the phone suggests putts in.
-    static let zoneMargin = HoleShape.chipZoneMargin
+    /// Meters from the green's edge the detector runs within: the zone the phone suggests putts
+    /// in. The phone's Green Zone setting sets it for each round.
+    var zoneMargin = HoleShape.chipZoneMargin
     /// Fixes beyond the zone for this long stop the detector.
     static let exitDelay: TimeInterval = 10
 
@@ -105,7 +106,7 @@ final class ContactMonitor {
             }
             return
         }
-        if toGreen <= Self.zoneMargin {
+        if toGreen <= zoneMargin {
             outsideSince = nil
             if !isRunning {
                 start()

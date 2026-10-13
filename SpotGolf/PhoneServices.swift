@@ -56,6 +56,7 @@ final class PhoneServices {
         }
         phoneSync.debugLogging = { UserDefaults.standard.bool(forKey: SettingsKey.debugLogging) }
         phoneSync.puttLab = { UserDefaults.standard.bool(forKey: SettingsKey.puttLabInRounds) }
+        phoneSync.greenZone = { UserDefaults.standard.double(forKey: SettingsKey.greenZone) }
 
         roundTracker = RoundTracker(rounds: rounds, location: location, showsActivity: !isUITesting)
         // UI tests run without iCloud

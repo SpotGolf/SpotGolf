@@ -9,6 +9,8 @@ final class SnapshotSync {
     private let rounds: RoundStore
     /// Only the phone owns strokes.
     private let sendsStrokes: Bool
+    /// The settings the watch follows, for the context. Only the phone has them.
+    var roundSettings: (Round) -> RoundSettingsMessage? = { _ in nil }
 
     init(sync: SyncService, rounds: RoundStore, sendsStrokes: Bool) {
         self.sync = sync
@@ -40,6 +42,13 @@ final class SnapshotSync {
         updateContext(round)
     }
 
+    /// Phone: the settings the watch follows, sent when the round is opened.
+    func sendSettings(_ round: Round) {
+        guard round.isActive, let settings = roundSettings(round) else { return }
+        sync.send(.settings(settings))
+        updateContext(round)
+    }
+
     /// The latest state for the other device to receive when it next runs.
     func updateContext(_ round: Round) {
         guard round.isActive else { return }
@@ -47,7 +56,8 @@ final class SnapshotSync {
             timeline: HoleTimelineMessage(roundID: round.id, entries: round.holeTimeline),
             displayHole: DisplayHoleMessage(roundID: round.id, displayHole: round.displayHole),
             pins: PinsMessage(roundID: round.id, pins: round.pins),
-            strokes: sendsStrokes ? round.strokesSnapshot : nil
+            strokes: sendsStrokes ? round.strokesSnapshot : nil,
+            settings: roundSettings(round)
         ))
     }
 

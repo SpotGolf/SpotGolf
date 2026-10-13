@@ -9,6 +9,7 @@ struct RoundMapView: View {
     @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
+    @AppStorage(SettingsKey.greenZone) private var greenZone: Double = HoleShape.chipZoneMargin
 
     private var round: Round? {
         services.roundStore.round(roundID)
@@ -51,6 +52,10 @@ struct RoundMapView: View {
             mapStyle = MapStyleChoice.stored()
             services.locationManager.startUpdating()
             reloadTrack()
+            // Settings changed since the round started reach the watch now
+            if round?.isActive == true {
+                services.phoneSync.sendSettings()
+            }
             // A past round shows its holes, not the player, so it does not wait for a location
             if let round, !round.isActive, !camera.hasInitialPan {
                 camera.hasInitialPan = true
@@ -258,6 +263,7 @@ struct RoundMapView: View {
             swings: services.streamStore.swings(for: round.id, until: round.endedAt),
             contacts: services.streamStore.contacts(for: round.id, until: round.endedAt),
             minStop: stationaryThreshold,
+            zoneMargin: greenZone,
             hidden: Set(round.hiddenSuggestionIDs)
         )
     }

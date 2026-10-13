@@ -10,14 +10,17 @@ enum SettingsKey {
     static let debugLogging = "debugLogging"
     /// The watch's Putt Lab records raw sensor data on the greens during a round.
     static let puttLabInRounds = "puttLabInRounds"
+    /// Meters from the green's edge that count as on the green: where putts and chips are
+    /// suggested and the watch listens for contacts.
+    static let greenZone = "greenZone"
     /// How the round map draws the ground, a `MapStyleChoice` raw value.
     static let mapStyle = "mapStyle"
     /// Set once `GolfBagStore` has put the standard bag in the store.
     static let bagSeeded = GolfBagStore.seededKey
 
     static var defaults: [String: Any] {
-        [stationaryThreshold: 30.0, sharePins: true, debugLogging: false, puttLabInRounds: true,
-         mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false]
+        [stationaryThreshold: 30.0, greenZone: HoleShape.chipZoneMargin, sharePins: true, debugLogging: false,
+         puttLabInRounds: true, mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false]
     }
 
     /// Gives code outside views the same defaults `@AppStorage` uses.

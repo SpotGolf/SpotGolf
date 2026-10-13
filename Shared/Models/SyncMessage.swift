@@ -16,7 +16,9 @@ enum SyncMessage: Codable, Equatable {
     case displayHole(DisplayHoleMessage)
     case pins(PinsMessage)
     case strokes(StrokesSnapshot)
-    /// The latest timeline, display hole, pins and strokes, sent as application context.
+    /// Phone → watch: the settings the watch follows, sent when the round is opened on the phone.
+    case settings(RoundSettingsMessage)
+    /// The latest timeline, display hole, pins, strokes and settings, sent as application context.
     case context(SyncContext)
     /// Part of a message too large for one send.
     case chunk(SyncChunk)
@@ -43,10 +45,13 @@ struct StartRound: Codable, Equatable {
     let debugLogging: Bool
     /// The phone's Putt Lab During Rounds setting: the watch records a capture on the greens.
     let puttLab: Bool
+    /// The phone's Green Zone setting: meters from the green's edge the watch listens for contacts in.
+    let greenZone: Double
 
     init(roundID: UUID, date: Date, course: Data, holeTimeline: [HoleStart], displayHole: DisplayHole,
          pins: [PinLocation], strokes: StrokesSnapshot, streamBase: Int, version: String,
-         logBase: Int = 0, debugLogging: Bool = false, puttLab: Bool = true) {
+         logBase: Int = 0, debugLogging: Bool = false, puttLab: Bool = true,
+         greenZone: Double = HoleShape.chipZoneMargin) {
         self.roundID = roundID
         self.date = date
         self.course = course
@@ -59,13 +64,15 @@ struct StartRound: Codable, Equatable {
         self.logBase = logBase
         self.debugLogging = debugLogging
         self.puttLab = puttLab
+        self.greenZone = greenZone
     }
 }
 
 extension StartRound {
     /// A phone from before versions were checked sends none; it is never the watch's. One from
     /// before the app log sends no log base or debug setting, and one from before Putt Lab ran
-    /// in rounds sends no Putt Lab setting, which is on.
+    /// in rounds sends no Putt Lab setting, which is on, and none before the Green Zone setting
+    /// sends a zone, which is the default.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         roundID = try values.decode(UUID.self, forKey: .roundID)
@@ -80,6 +87,7 @@ extension StartRound {
         logBase = try values.decodeIfPresent(Int.self, forKey: .logBase) ?? 0
         debugLogging = try values.decodeIfPresent(Bool.self, forKey: .debugLogging) ?? false
         puttLab = try values.decodeIfPresent(Bool.self, forKey: .puttLab) ?? true
+        greenZone = try values.decodeIfPresent(Double.self, forKey: .greenZone) ?? HoleShape.chipZoneMargin
     }
 }
 
@@ -221,11 +229,33 @@ struct StrokesSnapshot: Codable, Equatable {
     let holes: [[Stroke]]
 }
 
+/// The phone's settings the watch follows during a round. Sent with the round start, again
+/// each time the round is opened on the phone, and in the context, so a change made mid-round
+/// reaches the watch without a new round.
+struct RoundSettingsMessage: Codable, Equatable {
+    let roundID: UUID
+    let debugLogging: Bool
+    let puttLab: Bool
+    /// Meters from the green's edge the watch listens for contacts in.
+    let greenZone: Double
+}
+
 struct SyncContext: Codable, Equatable {
     let timeline: HoleTimelineMessage?
     let displayHole: DisplayHoleMessage?
     let pins: PinsMessage?
     let strokes: StrokesSnapshot?
+    /// Absent in contexts from before settings were sent.
+    let settings: RoundSettingsMessage?
+
+    init(timeline: HoleTimelineMessage?, displayHole: DisplayHoleMessage?, pins: PinsMessage?, strokes: StrokesSnapshot?,
+         settings: RoundSettingsMessage? = nil) {
+        self.timeline = timeline
+        self.displayHole = displayHole
+        self.pins = pins
+        self.strokes = strokes
+        self.settings = settings
+    }
 }
 
 struct SyncChunk: Codable, Equatable {
@@ -252,6 +282,7 @@ extension SyncMessage {
         case .displayHole: "displayHole"
         case .pins: "pins"
         case .strokes: "strokes"
+        case .settings: "settings"
         case .context: "context"
         case .chunk: "chunk"
         }

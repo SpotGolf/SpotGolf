@@ -35,6 +35,8 @@ final class WatchServices {
     @ObservationIgnored private var hasLaunched = false
     @ObservationIgnored private var activeRoundID: UUID?
     @ObservationIgnored private var detectsSwings = false
+    /// The Putt Lab setting the active round runs with, so only a change starts or stops the capture.
+    @ObservationIgnored private var puttLabInRound = false
 
     init(options: LaunchOptions = .current) {
         container = Storage.container(for: options)
@@ -90,6 +92,8 @@ final class WatchServices {
         // Putt Lab records a segment for each of the monitor's sessions on a green
         contactMonitor.onSession = { [weak self] in self?.puttCapture.sessionChanged($0) }
         contactMonitor.onDetectorContact = { [weak self] in self?.puttCapture.detectorContact($0) }
+        // Settings changed on the phone mid-round take effect at once
+        sync.onSettings = { [weak self] in self?.applyRoundSettings($0) }
         // The watch's own account of its workout and sensors goes into the round's stream
         workoutManager.onEvent = { sync.record($0) }
         sensors.onEvent = { sync.record($0) }
@@ -124,6 +128,20 @@ final class WatchServices {
         sensors.restartAll(reason: "hard restart")
         locationManager.restartUpdating()
         workoutManager.forceRestart(reason: "hard restart")
+    }
+
+    /// The phone's settings for the active round, sent mid-round: the zone changes at once, and
+    /// Putt Lab starts or stops when its setting changes.
+    private func applyRoundSettings(_ settings: RoundSettingsMessage) {
+        guard let round = roundStore.activeRound, round.id == settings.roundID else { return }
+        contactMonitor.zoneMargin = settings.greenZone
+        guard settings.puttLab != puttLabInRound else { return }
+        puttLabInRound = settings.puttLab
+        if settings.puttLab {
+            puttCapture.startInRound(roundID: round.id)
+        } else {
+            puttCapture.stop()
+        }
     }
 
     /// Runs here rather than in a view, so it works while watchOS runs the app in the
@@ -185,8 +203,10 @@ final class WatchServices {
     private func activeRoundChanged(_ isActive: Bool) {
         Log.rounds.notice("Active round: \(isActive)")
         if isActive, let round = roundStore.activeRound {
+            contactMonitor.zoneMargin = WatchSync.greenZone
             // A capture started by hand gives way to the round's own, when Putt Lab is on for rounds
-            if WatchSync.puttLabInRounds {
+            puttLabInRound = WatchSync.puttLabInRounds
+            if puttLabInRound {
                 puttCapture.startInRound(roundID: round.id)
             } else {
                 puttCapture.stop()

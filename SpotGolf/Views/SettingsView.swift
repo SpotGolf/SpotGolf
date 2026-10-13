@@ -12,11 +12,13 @@ struct SettingsView: View {
     #endif
 
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
+    @AppStorage(SettingsKey.greenZone) private var greenZone: Double = HoleShape.chipZoneMargin
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
     @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
     @AppStorage(SettingsKey.puttLabInRounds) private var puttLabInRounds = true
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
+    private let zoneOptions = stride(from: 5, through: 50, by: 5).map { $0 }
 
     var body: some View {
         NavigationStack {
@@ -27,10 +29,16 @@ struct SettingsView: View {
                             Text("\(seconds)s").tag(TimeInterval(seconds))
                         }
                     }
+                    Picker("Green Zone", selection: $greenZone) {
+                        ForEach(zoneOptions, id: \.self) { meters in
+                            Text("\(meters) m").tag(Double(meters))
+                        }
+                    }
+                    .accessibilityIdentifier("GreenZone")
                 } header: {
                     Text("Stroke Suggestions")
                 } footer: {
-                    Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested.")
+                    Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested, and how far from the green's edge still counts as on it. The watch listens for putts in the same zone; a change reaches it when you open the round.")
                 }
                 Section {
                     NavigationLink {
@@ -58,7 +66,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Putt Lab")
                 } footer: {
-                    Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Takes effect when the next round starts.")
+                    Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. A change reaches the watch when you open the round.")
                 }
                 Section {
                     NavigationLink("Log") { LogView(scope: .outsideRounds) }
@@ -68,7 +76,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Log")
                 } footer: {
-                    Text("What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; it takes effect on the watch when the next round starts.")
+                    Text("What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; a change reaches the watch when you open the round.")
                 }
                 #if DEBUG
                 ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)

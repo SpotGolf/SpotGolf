@@ -44,7 +44,8 @@ enum StrokeFinder {
     /// A stop farther than this from the hole's centerline is off the hole (the turn, the parking lot).
     static let maxCenterlineDistance: Double = 60
     /// Contacts, and stops with no contact, count only on the green or this close to its edge:
-    /// putts, and chips the watch barely felt. The watch listens in the same zone.
+    /// putts, and chips the watch barely felt. The watch listens in the same zone. The default
+    /// for `zoneMargin`, which the phone's Green Zone setting sets.
     static let chipZoneMargin = HoleShape.chipZoneMargin
     /// A contact of this score or more is a putt. Every indoor practice stroke scored under it.
     static let puttScore: Float = 2.7
@@ -65,12 +66,15 @@ enum StrokeFinder {
     /// playing when they walked away from it: a stop picks up a few fixes as the player slows
     /// down, so its start can fall just before the hole does. A hole with no start yet (no stroke
     /// on it) is also offered the stops after the last hole that has one; see `HoleTimeline.possibleHoles`.
-    /// `minStop` is the shortest stop with no swing that is offered; `hidden` holds the IDs of
-    /// dismissed and converted suggestions.
+    /// `minStop` is the shortest stop with no swing that is offered; `zoneMargin` is how far from
+    /// the green's edge still counts as on it; `hidden` holds the IDs of dismissed and converted
+    /// suggestions.
     static func suggestions(in round: Round, holeIndex: Int, points: [TrackPoint], swings: [StrokeSuggestion],
-                            contacts: [ContactEvent] = [], minStop: TimeInterval, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
+                            contacts: [ContactEvent] = [], minStop: TimeInterval,
+                            zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
         let shape = HoleShape(hole: round.courseHole(at: holeIndex), course: round.course)
-        return suggestions(on: shape, points: points, swings: swings, contacts: contacts, minStop: minStop, hidden: hidden) {
+        return suggestions(on: shape, points: points, swings: swings, contacts: contacts, minStop: minStop,
+                           zoneMargin: zoneMargin, hidden: hidden) {
             round.possibleHoles(at: $0.end).contains(holeIndex)
         }
     }
@@ -84,7 +88,8 @@ enum StrokeFinder {
     /// `tapInScore` or more after it is the tap-in, and a stop with no contact may be a putt or
     /// chip the watch missed. Softer swings are not strokes: putts never reach the swing threshold.
     static func suggestions(on hole: HoleShape, points: [TrackPoint], swings: [StrokeSuggestion],
-                            contacts: [ContactEvent] = [], minStop: TimeInterval, hidden: Set<UUID> = [],
+                            contacts: [ContactEvent] = [], minStop: TimeInterval,
+                            zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = [],
                             isOnHole: (_ stop: (start: Date, end: Date)) -> Bool = { _ in true }) -> [StrokeSuggestion] {
         /// A swing in the stop it was made in.
         struct Placed {
@@ -155,7 +160,7 @@ enum StrokeFinder {
         // it from the same spot; those around the shot are its own.
         var shortGame: [StrokeSuggestion] = []
         for (index, stop) in stops.enumerated() {
-            guard let toGreen = hole.metersToGreen(stop.center), toGreen <= chipZoneMargin else { continue }
+            guard let toGreen = hole.metersToGreen(stop.center), toGreen <= zoneMargin else { continue }
             let lastFullSwing = placed.filter { $0.stopIndex == index && $0.peakG >= fullSwingPeak }
                 .map(\.swing.timestamp).max()
             let stopContacts = placedContacts.filter { contact in

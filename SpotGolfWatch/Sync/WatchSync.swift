@@ -18,6 +18,10 @@ final class WatchSync {
     /// Permissions the watch needs and does not have. A new round is refused until there are none.
     @ObservationIgnored var missingPermissions: () -> [AppPermission] = { [] }
 
+    /// Called on the main actor with the phone's settings each time they arrive for the active
+    /// round: with the start, when the round is opened on the phone, and in the context.
+    @ObservationIgnored var onSettings: ((RoundSettingsMessage) -> Void)?
+
     /// This app's version. A round from a phone app on any other version is refused, so the two
     /// never record with different code. Tests set it.
     @ObservationIgnored var version = AppVersion.text()
@@ -36,6 +40,13 @@ final class WatchSync {
     /// The last Putt Lab During Rounds setting the phone sent. On until the phone says otherwise.
     static var puttLabInRounds: Bool {
         UserDefaults.standard.object(forKey: puttLabKey) as? Bool ?? true
+    }
+    /// Where the phone's Green Zone setting is kept, for a round resumed after a relaunch.
+    static let greenZoneKey = "greenZone"
+
+    /// The last Green Zone setting the phone sent, in meters. The default until the phone says.
+    static var greenZone: Double {
+        UserDefaults.standard.object(forKey: greenZoneKey) as? Double ?? HoleShape.chipZoneMargin
     }
 
     init(sync: SyncService, rounds: RoundStore, streams: StreamStore, logs: LogStore) {
@@ -182,6 +193,12 @@ final class WatchSync {
             return nil
         case .context(let context):
             snapshots.apply(context)
+            if let settings = context.settings {
+                apply(settings)
+            }
+            return nil
+        case .settings(let settings):
+            apply(settings)
             return nil
         case .startRoundAck, .startRoundRefused, .endRound, .streamBatch, .chunk:
             return nil
@@ -213,9 +230,8 @@ final class WatchSync {
         }
 
         Log.rounds.notice("Round \(start.roundID) started by the phone")
-        Log.isDebugEnabled = start.debugLogging
-        UserDefaults.standard.set(start.debugLogging, forKey: Self.debugLoggingKey)
-        UserDefaults.standard.set(start.puttLab, forKey: Self.puttLabKey)
+        store(RoundSettingsMessage(roundID: start.roundID, debugLogging: start.debugLogging, puttLab: start.puttLab,
+                                   greenZone: start.greenZone))
 
         // Another round still recording ends the usual way first
         if let other = rounds.activeRound, other.id != start.roundID {
@@ -267,6 +283,23 @@ final class WatchSync {
         let ack = StartRoundAck(roundID: start.roundID)
         sync.send(.startRoundAck(ack))
         return .startRoundAck(ack)
+    }
+
+    /// Keeps the phone's settings, which outlive the round for lines and rounds that come
+    /// before the next start.
+    private func store(_ settings: RoundSettingsMessage) {
+        Log.isDebugEnabled = settings.debugLogging
+        UserDefaults.standard.set(settings.debugLogging, forKey: Self.debugLoggingKey)
+        UserDefaults.standard.set(settings.puttLab, forKey: Self.puttLabKey)
+        UserDefaults.standard.set(settings.greenZone, forKey: Self.greenZoneKey)
+    }
+
+    /// Settings sent mid-round. Ignored for any round but the active one.
+    private func apply(_ settings: RoundSettingsMessage) {
+        guard rounds.activeRound?.id == settings.roundID else { return }
+        Log.rounds.notice("Settings for round \(settings.roundID): debug \(settings.debugLogging), Putt Lab \(settings.puttLab), green zone \(settings.greenZone) m")
+        store(settings)
+        onSettings?(settings)
     }
 
     /// The phone ended the round. Records after its end time are dropped, and the reply

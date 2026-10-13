@@ -54,6 +54,8 @@ final class PhoneSync {
     @ObservationIgnored var debugLogging: () -> Bool = { false }
     /// The Putt Lab During Rounds setting, sent with each round start.
     @ObservationIgnored var puttLab: () -> Bool = { true }
+    /// The Green Zone setting in meters, sent with each round start.
+    @ObservationIgnored var greenZone: () -> Double = { HoleShape.chipZoneMargin }
     private var startTimers: [UUID: Timer] = [:]
     private var retryTimers: [UUID: Timer] = [:]
 
@@ -71,6 +73,7 @@ final class PhoneSync {
         self.launchWatchApp = launchWatchApp
         receiver = StreamReceiver(rounds: rounds, streams: streams, logs: logs)
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: true)
+        snapshots.roundSettings = { [weak self] round in self?.roundSettings(for: round) }
 
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.addListener { [weak self] event in self?.roundChanged(event) }
@@ -83,6 +86,18 @@ final class PhoneSync {
     }
 
     /// Sends changes made on the phone to the watch.
+    /// The settings the watch follows, as they stand now.
+    private func roundSettings(for round: Round) -> RoundSettingsMessage {
+        RoundSettingsMessage(roundID: round.id, debugLogging: debugLogging(), puttLab: puttLab(), greenZone: greenZone())
+    }
+
+    /// Sends the active round's settings to the watch, so a change made on the phone mid-round
+    /// takes effect there. Called when the round is opened.
+    func sendSettings() {
+        guard let round = rounds.activeRound else { return }
+        snapshots.sendSettings(round)
+    }
+
     private func roundChanged(_ event: RoundEvent) {
         switch event {
         case .timelineChanged(let round): snapshots.sendTimeline(round)
@@ -192,7 +207,8 @@ final class PhoneSync {
                                version: version,
                                logBase: receiver.haveLogs(for: round.id),
                                debugLogging: debugLogging(),
-                               puttLab: puttLab())
+                               puttLab: puttLab(),
+                               greenZone: greenZone())
         sync.send(.startRound(start), reply: { [weak self] reply in
             switch reply {
             case .startRoundAck(let ack): self?.started(ack.roundID)
@@ -382,7 +398,7 @@ final class PhoneSync {
         case .endAck(let ack):
             watchEnded(ack.roundID, lastSeq: ack.lastSeq)
             return nil
-        case .startRound, .cancelRound, .endRequest, .streamAck, .strokes, .chunk:
+        case .startRound, .cancelRound, .endRequest, .streamAck, .strokes, .settings, .chunk:
             return nil
         }
     }

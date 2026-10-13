@@ -4,8 +4,9 @@ import CourseDataSwift
 /// The shapes of one hole: its tees, green and centerline. Any of them may be missing.
 struct HoleShape {
     /// On the green or this close to its edge is where putts and chips are made: the phone
-    /// suggests contacts and stops there, and the watch listens for contacts there.
-    static let chipZoneMargin: CLLocationDistance = 30
+    /// suggests contacts and stops there, and the watch listens for contacts there. The default
+    /// for the phone's Green Zone setting, which travels to the watch with each round.
+    static let chipZoneMargin: CLLocationDistance = 10
 
     var tees: [[Coordinate]] = []
     var green: [Coordinate]?

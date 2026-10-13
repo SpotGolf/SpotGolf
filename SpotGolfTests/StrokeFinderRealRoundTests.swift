@@ -15,8 +15,9 @@ final class StrokeFinderRealRoundTests: XCTestCase {
         let points: [TrackPoint]
         let swings: [StrokeSuggestion]
 
+        /// At the 30 m zone the per-hole counts below were tuned with, before the Green Zone setting.
         func suggestions(onHole hole: Int) -> [StrokeSuggestion] {
-            StrokeFinder.suggestions(in: round, holeIndex: hole, points: points, swings: swings, minStop: 30)
+            StrokeFinder.suggestions(in: round, holeIndex: hole, points: points, swings: swings, minStop: 30, zoneMargin: 30)
         }
     }
 
