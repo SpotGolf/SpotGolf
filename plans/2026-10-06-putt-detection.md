@@ -26,18 +26,18 @@ For every accelerometer reading `k` (800 a second):
 | High-passed audio | `h(n) = a(n) − a(n−1)` for each audio sample | |
 | Level | `level(m) = √(mean(h²))` over each millisecond `m` (48 samples) | |
 | Background | Median of `level` over the previous 10 s | `backgroundWindow = 10 s` |
-| Click | `click = max(level(m) : |t(m) − t(k)| ≤ 4 ms) ÷ background` | `clickWindow = 4 ms` |
+| Click | `click = max(level(m) : t(k) − 25 ms ≤ t(m) ≤ t(k)) ÷ background`. The burst peaks 7 to 17 ms after the click | `clickWindow = 25 ms` |
 | Score | `score = burst × click` | |
 | Onset gate | `level(m) ÷ max(level 2 to 6 ms before m) ≥ 4`, background as the divisor's floor | `minOnset = 4` |
-| Turning gate | Mean rotation rate over the 100 ms before `t(k)` `≥ 0.4 rad/s` | `minTurning = 0.4` |
-| Contact | Both gates pass and `score ≥ 1.2`. The strongest reading within 1 s is the event | `minRecordedScore = 1.2`, `contactSpacing = 1 s` |
+| Stroke gate | `StrokeGate`: still address, back at address tilt, backswing 2.5 to 35 degrees, contact −50 to +60 ms from the return to the address angle. See `plans/2026-10-16-bear-dance-putt-analysis.md` | `StrokeGate` constants |
+| Contact | Both gates pass and `score ≥ 0.6`. The strongest reading within 1 s is the event | `minRecordedScore = 0.6`, `contactSpacing = 1 s` |
 
 `t(k)` is `CMAccelerometerData.timestamp`; `t(m)` comes from the audio buffer's `AVAudioTime.hostTime`. Both are on the uptime clock and agree within 1 ms. Readings within 1 s of a tap on the app's own buttons are skipped.
 
 | Inputs | Source | Rate |
 |---|---|---|
 | x, y, z | batched accelerometer | 800 Hz |
-| rotation rate | batched device motion | 200 Hz |
+| rotation rate, gravity | batched device motion | 200 Hz |
 | a(n) | `AVAudioEngine` input tap, `.record`, `.measurement` | 48 kHz mono |
 
 Examples from the outdoor capture:

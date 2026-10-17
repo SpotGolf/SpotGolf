@@ -66,12 +66,12 @@ final class ContactRunner: @unchecked Sendable {
 
     func addMotion(_ batch: [CMDeviceMotion]) {
         guard isActive else { return }
-        let rotations = batch.map { motion in
-            let r = motion.rotationRate
-            return ContactDetector.Rotation(time: motion.timestamp, rate: (r.x * r.x + r.y * r.y + r.z * r.z).squareRoot())
+        let samples = batch.map { motion in
+            let r = motion.rotationRate, g = motion.gravity
+            return StrokeGate.Sample(time: motion.timestamp, rotation: SIMD3(r.x, r.y, r.z), gravity: SIMD3(g.x, g.y, g.z))
         }
         queue.async {
-            self.detector.addRotations(rotations)
+            self.detector.addMotion(samples)
         }
     }
 

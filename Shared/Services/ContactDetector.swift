@@ -1,9 +1,10 @@
 import Foundation
 
-/// Finds ball contact in the watch's sensor streams: an accelerometer burst and a microphone
-/// click at the same instant, with an instant attack, while the wrist is turning. Pure
-/// arithmetic over the samples, fed in batches as they arrive, so the same code runs on the
-/// watch and in a replay of a Putt Lab capture. See `plans/2026-10-06-putt-detection.md`.
+/// Finds ball contact in the watch's sensor streams: an accelerometer burst with a microphone
+/// click just before it, with an instant attack, at the end of a putting stroke that
+/// `StrokeGate` recognizes. Pure arithmetic over the samples, fed in batches as they arrive, so
+/// the same code runs on the watch and in a replay of a Putt Lab capture. See
+/// `plans/2026-10-06-putt-detection.md` and `plans/2026-10-16-bear-dance-putt-analysis.md`.
 ///
 /// Times are seconds on one clock: the watch uses uptime, which `CMAccelerometerData` and
 /// `AVAudioTime.hostTime` share; a replay uses seconds since its capture started.
@@ -14,21 +15,23 @@ struct ContactDetector {
     static let minBurst = 0.05
     /// The background is the median level over this long.
     static let backgroundWindow = 10.0
-    /// The click is the loudest millisecond this close to the reading.
-    static let clickWindow = 0.004
+    /// The click is the loudest millisecond in this long up to the reading: the burst peaks 7 to
+    /// 17 ms after the click.
+    static let clickWindow = 0.025
     /// The click must be this many times the loudest level 2 to 6 ms before it.
     static let minOnset = 4.0
     static let onsetGap = 0.002
     static let onsetSpan = 0.006
-    /// The wrist must turn this fast on average over `turningWindow` before the reading.
-    static let minTurning = 0.4
+    /// The mean rotation rate over this long before the reading is recorded with the contact.
     static let turningWindow = 0.1
     /// A contact scores at least this much; the phone draws the lines above it.
-    static let minRecordedScore = 1.2
+    static let minRecordedScore = 0.6
     /// Candidates this close together are one stroke: the strongest is the contact.
     static let contactSpacing = 1.0
-    /// A candidate whose audio or rotation has not arrived this long after the reading is dropped.
+    /// A candidate whose audio or motion has not arrived this long after the reading is dropped.
     static let maxWait = 3.0
+    /// Device motion kept: what the gate looks back on, for a candidate that waited `maxWait`.
+    static let motionKept = StrokeGate.stillFrom + StrokeGate.lead + maxWait
     /// The background is worked out again after this long; it barely changes faster.
     static let backgroundRefresh = 2.0
 
@@ -37,12 +40,6 @@ struct ContactDetector {
         let x: Double
         let y: Double
         let z: Double
-    }
-
-    struct Rotation {
-        let time: Double
-        /// The rotation rate's size in rad/s.
-        let rate: Double
     }
 
     struct Contact: Equatable {
@@ -65,8 +62,7 @@ struct ContactDetector {
     private var partial: (start: Double, sumSquares: Double, count: Int)?
     private var latestAudioTime = -Double.infinity
 
-    private var rotations: [Rotation] = []
-    private var latestRotationTime = -Double.infinity
+    private var gate = StrokeGate(keep: ContactDetector.motionKept)
 
     // The last readings of the previous batch, so the moving mean spans batches
     private var carry: [Reading] = []
@@ -109,15 +105,9 @@ struct ContactDetector {
         trimLevels()
     }
 
-    mutating func addRotations(_ batch: [Rotation]) {
-        rotations += batch
-        if let last = batch.last?.time {
-            latestRotationTime = max(latestRotationTime, last)
-            let keepFrom = last - Self.turningWindow - 1
-            if let first = rotations.firstIndex(where: { $0.time >= keepFrom }), first > 0 {
-                rotations.removeFirst(first)
-            }
-        }
+    /// Device motion in time order.
+    mutating func addMotion(_ batch: [StrokeGate.Sample]) {
+        gate.add(batch)
     }
 
     /// Accelerometer readings in time order, in g.
@@ -157,29 +147,32 @@ struct ContactDetector {
 
     // MARK: - Output
 
-    /// Scores the candidates whose audio and rotation have arrived, and returns the contacts
-    /// of strokes that are over. Call after each batch.
+    /// Scores the candidates whose audio and motion have arrived, and returns the contacts of
+    /// strokes that are over. Call after each batch.
     mutating func evaluate() -> [Contact] {
-        let complete = min(latestAudioTime - Self.clickWindow - 0.001, latestRotationTime)
+        let complete = min(latestAudioTime - 0.001, gate.latestTime - StrokeGate.lead)
         guard !candidates.isEmpty else { return closeOpen(before: complete) }
         let background = self.background(until: complete)
         var found: [Contact] = []
         var remaining: [Candidate] = []
         for candidate in candidates {
             if candidate.time > complete {
-                // Still waiting for audio or rotation; given up on when neither comes
+                // Still waiting for audio or motion; given up on when neither comes
                 if latestReadingTime - candidate.time < Self.maxWait { remaining.append(candidate) }
                 continue
             }
             guard let background, let (click, onset) = click(at: candidate.time, background: background) else { continue }
             guard onset >= Self.minOnset else { continue }
-            let turning = turning(before: candidate.time)
-            guard turning >= Self.minTurning else { continue }
             let score = candidate.burst * click
             guard score >= Self.minRecordedScore else { continue }
+            let inOpen = open.map { candidate.time - $0.start <= Self.contactSpacing } ?? false
+            // A weaker candidate in the stroke being scored could not replace its contact
+            if inOpen, let current = open, score <= current.best.score { continue }
+            guard gate.features(at: candidate.time)?.passes == true else { continue }
+            let turning = gate.meanRotationRate(before: candidate.time, span: Self.turningWindow, gap: 0.01)
             let contact = Contact(time: candidate.time, score: score, burst: candidate.burst, click: click, turning: turning)
-            if let current = open, candidate.time - current.start <= Self.contactSpacing {
-                if score > current.best.score { open = (current.start, contact) }
+            if inOpen, let current = open {
+                open = (current.start, contact)
             } else {
                 if let current = open { found.append(current.best) }
                 open = (candidate.time, contact)
@@ -224,13 +217,13 @@ struct ContactDetector {
         return value
     }
 
-    /// The loudest millisecond within `clickWindow` of `time` as a multiple of `background`, and
-    /// its onset: that level over the loudest 2 to 6 ms before it.
+    /// The loudest millisecond in the `clickWindow` up to `time` as a multiple of `background`,
+    /// and its onset: that level over the loudest 2 to 6 ms before it.
     private func click(at time: Double, background: Double) -> (click: Double, onset: Double)? {
         let first = levels.partitionIndex { $0.time >= time - Self.clickWindow }
         var loudest: (index: Int, level: Double)?
         var index = first
-        while index < levels.count, levels[index].time <= time + Self.clickWindow {
+        while index < levels.count, levels[index].time <= time {
             if loudest == nil || levels[index].level > loudest!.level {
                 loudest = (index, levels[index].level)
             }
@@ -247,17 +240,6 @@ struct ContactDetector {
             back -= 1
         }
         return (loudest.level / background, loudest.level / earlier)
-    }
-
-    /// The mean rotation rate over `turningWindow` before `time`, ending 10 ms before it.
-    private func turning(before time: Double) -> Double {
-        var total = 0.0
-        var count = 0
-        for rotation in rotations where rotation.time >= time - Self.turningWindow && rotation.time <= time - 0.01 {
-            total += rotation.rate
-            count += 1
-        }
-        return count > 0 ? total / Double(count) : 0
     }
 }
 

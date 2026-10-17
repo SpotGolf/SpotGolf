@@ -29,47 +29,55 @@ final class ContactDetectorTests: XCTestCase {
         }
     }
 
-    private func rotations(seconds: Double, rate: Double) -> [ContactDetector.Rotation] {
-        (0..<Int(seconds * 200)).map { ContactDetector.Rotation(time: Double($0) / 200, rate: rate) }
-    }
-
-    private func run(clickAt: Double?, burstAt: Double, turning: Double) -> [ContactDetector.Contact] {
+    private func run(clickAt: Double?, burstAt: Double, motion: [StrokeGate.Sample]) -> [ContactDetector.Contact] {
         var detector = ContactDetector()
         let seconds = 14.0
         var found: [ContactDetector.Contact] = []
         let audio = audio(seconds: seconds, clickAt: clickAt)
         let readings = readings(seconds: seconds, burstAt: burstAt)
-        let rotations = rotations(seconds: seconds, rate: turning)
         // Fed a second at a time, like the watch's batches
         for second in 0..<Int(seconds) {
             let audioStart = second * Int(sampleRate)
             detector.addAudio(Array(audio[audioStart..<(audioStart + Int(sampleRate))]), startTime: Double(second), sampleRate: sampleRate)
-            detector.addRotations(Array(rotations[(second * 200)..<((second + 1) * 200)]))
+            detector.addMotion(Array(motion[(second * 200)..<((second + 1) * 200)]))
             detector.addReadings(Array(readings[(second * 800)..<((second + 1) * 800)]))
             found += detector.evaluate()
         }
         return found + detector.flush()
     }
 
-    func testClickAndBurstTogetherWhileTurningIsAContact() {
-        let found = run(clickAt: 12.0, burstAt: 12.0, turning: 1.0)
+    func testPuttIsAContact() {
+        let found = run(clickAt: 11.99, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14))
 
         XCTAssertEqual(found.count, 1)
-        XCTAssertEqual(found[0].time, 12.0, accuracy: 0.01)
+        XCTAssertEqual(found[0].time, 12.0, accuracy: 0.03)
         XCTAssertGreaterThan(found[0].score, ContactDetector.minRecordedScore)
         XCTAssertGreaterThan(found[0].click, 10)
-        XCTAssertEqual(found[0].turning, 1.0, accuracy: 0.001)
+        XCTAssertGreaterThan(found[0].turning, 0.5)
     }
 
     func testBurstWithoutClickIsNotAContact() {
-        XCTAssertEqual(run(clickAt: nil, burstAt: 12.0, turning: 1.0), [])
+        XCTAssertEqual(run(clickAt: nil, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14)), [])
     }
 
     func testClickAwayFromTheBurstIsNotAContact() {
-        XCTAssertEqual(run(clickAt: 12.5, burstAt: 12.0, turning: 1.0), [])
+        XCTAssertEqual(run(clickAt: 11.5, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14)), [])
     }
 
-    /// With no audio or rotation, candidates are not kept beyond `maxWait`.
+    /// The burst peaks after the click; a click well after the burst started is something else.
+    func testClickAfterTheBurstIsNotAContact() {
+        XCTAssertEqual(run(clickAt: 12.03, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14)), [])
+    }
+
+    /// A click and a burst with the wrist turning steadily, as when lifting it: no putting stroke.
+    func testNoStrokeIsNotAContact() {
+        let turning = (0..<(14 * 200)).map {
+            StrokeGate.Sample(time: Double($0) / 200, rotation: SIMD3(0, 0, 1), gravity: SIMD3(0, 0, -1))
+        }
+        XCTAssertEqual(run(clickAt: 11.99, burstAt: 12.0, motion: turning), [])
+    }
+
+    /// With no audio or motion, candidates are not kept beyond `maxWait`.
     func testCandidatesAreDroppedWhenNoAudioComes() {
         var detector = ContactDetector()
         let readings = readings(seconds: 20, burstAt: 5)
@@ -79,9 +87,5 @@ final class ContactDetectorTests: XCTestCase {
         }
 
         XCTAssertEqual(detector.pendingCandidates, 0)
-    }
-
-    func testStillWristIsNotAContact() {
-        XCTAssertEqual(run(clickAt: 12.0, burstAt: 12.0, turning: 0.1), [])
     }
 }
