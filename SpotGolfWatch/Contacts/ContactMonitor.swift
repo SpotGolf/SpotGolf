@@ -68,6 +68,8 @@ final class ContactMonitor {
     @ObservationIgnored private let runner: ContactRunner
     @ObservationIgnored private var subscriptions: [SensorInputs.Subscription] = []
     @ObservationIgnored private var holeIndex: Int?
+    /// The display hole's number, which differs from its index + 1 after a shotgun start.
+    @ObservationIgnored private var holeNumber = 0
     @ObservationIgnored private var green = HoleShape()
     @ObservationIgnored private var outsideSince: Date?
     @ObservationIgnored private var startedAt: Date?
@@ -92,6 +94,7 @@ final class ContactMonitor {
     func update(location: CLLocation, round: Round) {
         if holeIndex != round.displayHoleIndex {
             holeIndex = round.displayHoleIndex
+            holeNumber = round.displayHoleNumber
             green = HoleShape(hole: round.displayCourseHole, course: round.course)
             outsideSince = nil
             if isRunning {
@@ -141,7 +144,7 @@ final class ContactMonitor {
                 runner.addAudio(MicrophoneInput.samples(buffer), hostSeconds: hostSeconds, sampleRate: buffer.format.sampleRate)
             }
         ]
-        let hole = holeIndex.map { $0 + 1 } ?? 0
+        let hole = holeIndex == nil ? 0 : holeNumber
         Log.contacts.notice("Contact detection on at hole \(hole)")
         onEvent?(StreamEvent(code: .contactsOn, value: Float(hole)))
         onSession?(.started(hole: hole))

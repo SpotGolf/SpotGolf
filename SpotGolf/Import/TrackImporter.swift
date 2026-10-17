@@ -14,7 +14,7 @@ enum TrackImporter {
         var points: [TrackPoint] = []
         var swings: [StrokeSuggestion] = []
         var contacts: [ContactEvent] = []
-        /// Strokes, with the 1-based hole they are on, in stroke order.
+        /// Strokes, with the number of the hole they are on (nine order, 1-based), in stroke order.
         var strokes: [(stroke: Stroke, hole: Int)] = []
     }
 
@@ -87,7 +87,7 @@ enum TrackImporter {
         let round = Round(id: id, date: start, courseSelection: courseSelection)
         round.holeTimeline = holeTimeline(of: round, points: export.points)
         for (stroke, hole) in export.strokes {
-            round.addStroke(stroke, toHoleIndex: hole - 1)
+            round.addStroke(stroke, toHoleIndex: courseSelection.playIndex(ofHoleNumber: hole))
         }
         round.updateStats()
 

@@ -200,8 +200,14 @@ final class Round {
         displayHole.holeIndex
     }
 
+    /// The display hole's number: its place in nine order, which a shotgun start does not change.
     var displayHoleNumber: Int {
-        displayHoleIndex + 1
+        holeNumber(at: displayHoleIndex)
+    }
+
+    /// The number the player sees for the hole at playing-order `index`.
+    func holeNumber(at index: Int) -> Int {
+        courseSelection.holeNumber(at: index)
     }
 
     var displayCourseHole: Hole? {

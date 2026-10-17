@@ -167,6 +167,18 @@ final class HoleAdvancerTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testShotgunStartAdvancesFromTheEighteenthToTheFirst() {
+        let (nines, front, back) = makeFrontBackSelection()
+        let shotgun = CourseSelection(course: nines.course, selectedSubCourseIndices: [0, 1], startHoleIndex: 8)
+
+        // Started on the 9th: index 9 is the 18th, standing on the 1st's tee
+        XCTAssertEqual(detect(location: standing(on: front[0]), courseSelection: shotgun, displayHoleIndex: 9), 10)
+        // The 9th to the 10th still works at the start of the round
+        XCTAssertEqual(detect(location: standing(on: back[0]), courseSelection: shotgun, displayHoleIndex: 0), 1)
+        // The 8th is the last hole played: nothing after it, even on the 9th's tee
+        XCTAssertNil(detect(location: standing(on: front[8]), courseSelection: shotgun, displayHoleIndex: 17))
+    }
+
     func testAdvancesFromFrontNineToBackNine() {
         let (selection, _, back) = makeFrontBackSelection()
 

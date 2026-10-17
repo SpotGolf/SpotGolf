@@ -104,7 +104,10 @@ struct ScorecardView: View {
     private func card(_ round: Round) -> some View {
         let rows = rows(round)
         let holeCount = round.lastHoleIndex + 1
-        let nines = stride(from: 0, to: holeCount, by: 9).map { $0..<min($0 + 9, holeCount) }
+        // Columns run in nine order (hole 1 first) whatever hole a shotgun start began on; each
+        // column holds the hole's playing-order index
+        let byNumber = (1...holeCount).map { round.courseSelection.playIndex(ofHoleNumber: $0) }
+        let nines = stride(from: 0, to: holeCount, by: 9).map { Array(byNumber[$0..<min($0 + 9, holeCount)]) }
         return HStack(spacing: 0) {
             column(rows, width: Self.titleWidth, isHeader: true) { row in
                 titleCell(row)
@@ -117,10 +120,10 @@ struct ScorecardView: View {
                                 holeCell(row, index: index, round: round)
                             }
                             .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier("ScorecardHole-\(index + 1)")
+                            .accessibilityIdentifier("ScorecardHole-\(round.holeNumber(at: index))")
                         }
                         column(rows, width: Self.subtotalWidth, isHeader: true) { row in
-                            subtotalCell(row, title: nine == 0 ? "Out" : "In", holes: Array(holes), round: round)
+                            subtotalCell(row, title: nine == 0 ? "Out" : "In", holes: holes, round: round)
                         }
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier(nine == 0 ? "ScorecardOut" : "ScorecardIn")
@@ -177,7 +180,7 @@ struct ScorecardView: View {
         let played = !hole.strokes.isEmpty
         switch row {
         case .hole:
-            Text("\(index + 1)")
+            Text("\(round.holeNumber(at: index))")
                 .font(.subheadline)
                 .fontWeight(.semibold)
         case .yards:
@@ -215,8 +218,8 @@ struct ScorecardView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Edit hole \(index + 1)")
-            .accessibilityIdentifier("ScorecardEdit-\(index + 1)")
+            .accessibilityLabel("Edit hole \(round.holeNumber(at: index))")
+            .accessibilityIdentifier("ScorecardEdit-\(round.holeNumber(at: index))")
         }
     }
 

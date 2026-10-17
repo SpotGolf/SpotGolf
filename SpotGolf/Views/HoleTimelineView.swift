@@ -33,7 +33,7 @@ struct HoleTimelineView: View {
     private func row(_ entry: HoleStart, round: Round) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Hole \(entry.holeIndex + 1)")
+                Text("Hole \(round.holeNumber(at: entry.holeIndex))")
                     .font(.headline)
                 if let label = label(for: entry.source) {
                     Text(label)
@@ -54,7 +54,7 @@ struct HoleTimelineView: View {
                 .labelsHidden()
             }
         }
-        .accessibilityIdentifier("HoleTime_\(entry.holeIndex + 1)")
+        .accessibilityIdentifier("HoleTime_\(round.holeNumber(at: entry.holeIndex))")
     }
 
     private func label(for source: HoleStartSource) -> LocalizedStringKey? {

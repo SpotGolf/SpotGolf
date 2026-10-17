@@ -135,7 +135,7 @@ struct HoleHeaderView: View {
         return Button {
             selectHole(index)
         } label: {
-            Text("\(index + 1)")
+            Text("\(round.holeNumber(at: index))")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(isShown ? Color.white : Color.primary)
@@ -144,7 +144,7 @@ struct HoleHeaderView: View {
                 .overlay(Circle().stroke(isShown ? Color.green : Color.secondary.opacity(0.5), lineWidth: 1.5))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Hole \(index + 1)")
+        .accessibilityLabel("Hole \(round.holeNumber(at: index))")
         .accessibilityAddTraits(isShown ? .isSelected : [])
     }
 }

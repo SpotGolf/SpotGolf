@@ -14,6 +14,8 @@ struct CourseSelectionView: View {
     @State private var searchText = ""
     @State private var selectedCourse: Course?
     @State private var selectedIndices: [Int] = []
+    /// The hole a shotgun start begins on, 1-based in nine order.
+    @State private var startingHole = 1
     /// The nines are picked and the tee is next.
     @State private var nines: CourseSelection?
     @State private var isLoading = false
@@ -173,10 +175,12 @@ struct CourseSelectionView: View {
                 // Single sub-course: no nines to pick
                 selectedCourse = course
                 selectedIndices = course.subCourses.isEmpty ? [] : [0]
+                startingHole = 1
                 selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices))
             } else {
                 selectedCourse = course
                 selectedIndices = defaultIndices(for: course)
+                startingHole = 1
             }
         } catch {
             Log.courses.error("Could not load course \(entry.path): \(String(describing: error))")
@@ -216,8 +220,23 @@ struct CourseSelectionView: View {
             }
 
             Section {
+                let holeCount = CourseSelection(course: course, selectedSubCourseIndices: selectedIndices).holeCount
+                Stepper(value: $startingHole, in: 1...max(1, holeCount)) {
+                    LabeledContent("Starting hole", value: "\(startingHole)")
+                }
+                .disabled(holeCount <= 1)
+                .accessibilityIdentifier("StartingHole")
+                .onChange(of: holeCount) {
+                    startingHole = min(startingHole, max(1, holeCount))
+                }
+            } footer: {
+                Text("For a shotgun start. Holes advance from the starting hole to the last one, then from hole 1.")
+            }
+
+            Section {
                 Button {
-                    selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices))
+                    selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices,
+                                                startHoleIndex: startingHole - 1))
                 } label: {
                     HStack {
                         Spacer()
@@ -237,8 +256,7 @@ struct CourseSelectionView: View {
         List {
             ForEach(nines.teeNames, id: \.self) { tee in
                 Button {
-                    select(CourseSelection(course: nines.course, selectedSubCourseIndices: nines.selectedSubCourseIndices,
-                                           teeName: tee))
+                    select(nines.with(tee: tee))
                 } label: {
                     HStack {
                         Circle()
