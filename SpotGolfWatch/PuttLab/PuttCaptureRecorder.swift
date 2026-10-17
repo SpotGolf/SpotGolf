@@ -270,7 +270,10 @@ final class PuttCaptureRecorder {
         writer.add(contact: contact)
         contactCount += 1
         Log.puttLab.notice("Contact at \(contact.time - writer.startUptime) s: score \(contact.score)")
-        WKInterfaceDevice.current().play(.directionUp)
+        // In a round a haptic would only add contacts the phone could suggest
+        if !inRound {
+            sensors.play(.directionUp)
+        }
     }
 
     // MARK: - Marks
@@ -278,19 +281,17 @@ final class PuttCaptureRecorder {
     /// Records that a stroke with this label just happened. The tap itself is not a stroke.
     func mark(_ label: PuttCapture.MarkLabel) {
         guard state == .recording, let writer else { return }
-        sensors.tapped()
         let mark = writer.mark(label)
         Log.puttLab.notice("Mark \(label.rawValue) at \(mark.t) s")
-        WKInterfaceDevice.current().play(.success)
+        sensors.play(.success)
     }
 
     /// Takes back the last mark, tapped by mistake.
     func undoLastMark() {
         guard state == .recording, let writer else { return }
-        sensors.tapped()
         writer.undoLastMark()
         Log.puttLab.notice("Undid the last mark")
-        WKInterfaceDevice.current().play(.click)
+        sensors.play(.click)
     }
 
     // MARK: - Stop

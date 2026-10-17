@@ -4,7 +4,9 @@ import os
 
 /// Runs a `ContactDetector` on its own queue, fed from the sensor and audio threads, and hands
 /// each contact to `onContact` on that queue. Readings within `TapGuard.window` of a tap on the
-/// app's own buttons are dropped: a tap is a loud 2 to 3.6 g knock on the watch.
+/// app's own buttons are dropped: a tap is a loud 2 to 3.6 g knock on the watch. Contacts are
+/// checked again when reported, since a tap registers on release, after its knock's batch may
+/// have arrived.
 /// Sendable because its state is only touched on `queue`.
 final class ContactRunner: @unchecked Sendable {
     private let queue = DispatchQueue(label: "golf.spot.SpotGolf.contacts", qos: .userInitiated)
@@ -50,9 +52,7 @@ final class ContactRunner: @unchecked Sendable {
         }
         setActive(false)
         queue.async {
-            for contact in self.detector.flush() {
-                self.onContact?(contact)
-            }
+            self.report(self.detector.flush())
             completion?()
         }
     }
@@ -85,10 +85,19 @@ final class ContactRunner: @unchecked Sendable {
         }
         queue.async {
             self.detector.addReadings(readings)
-            for contact in self.detector.evaluate() {
-                self.onContact?(contact)
-            }
+            self.report(self.detector.evaluate())
         }
+    }
+
+    private func report(_ contacts: [ContactDetector.Contact]) {
+        for contact in Self.untapped(contacts, taps: taps) {
+            onContact?(contact)
+        }
+    }
+
+    /// The contacts not within `TapGuard.window` of a tap.
+    static func untapped(_ contacts: [ContactDetector.Contact], taps: TapGuard) -> [ContactDetector.Contact] {
+        contacts.filter { !taps.covers(uptime: $0.time) }
     }
 
     /// A contact as the stream records it.

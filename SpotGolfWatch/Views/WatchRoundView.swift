@@ -180,7 +180,7 @@ struct WatchRoundView: View {
         let isSet = round.hasSetPin(holeIndex: round.displayHoleIndex)
         return Button {
             services.roundStore.setPin(location.coordinate, holeIndex: round.displayHoleIndex)
-            WKInterfaceDevice.current().play(.success)
+            services.sensors.play(.success)
         } label: {
             Label(isSet ? "Update pin" : "Set pin location", systemImage: "flag.fill")
                 .font(.caption2)
@@ -197,8 +197,7 @@ struct WatchRoundView: View {
                 highGView
 
                 Button {
-                    services.sensors.tapped()
-                    WKInterfaceDevice.current().play(.click)
+                    services.sensors.play(.click)
                     services.hardRestartSensors()
                 } label: {
                     Label("Restart Sensors", systemImage: "arrow.clockwise")
