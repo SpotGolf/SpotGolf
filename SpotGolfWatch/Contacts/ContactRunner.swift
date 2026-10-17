@@ -100,9 +100,9 @@ final class ContactRunner: @unchecked Sendable {
         contacts.filter { !taps.covers(uptime: $0.time) }
     }
 
-    /// A contact as the stream records it.
+    /// A contact as the stream records it. Every contact has passed the stroke gate.
     static func event(_ contact: ContactDetector.Contact) -> ContactEvent {
         ContactEvent(timestamp: Uptime.date(at: contact.time), score: Float(contact.score),
-                     burst: Float(contact.burst), click: Float(contact.click), turning: Float(contact.turning))
+                     burst: Float(contact.burst), click: Float(contact.click), turning: Float(contact.turning), gated: true)
     }
 }

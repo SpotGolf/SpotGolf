@@ -14,7 +14,8 @@ enum TrackExporter {
     /// stroke order. Strokes have no time, so their timestamp is blank. Track rows fill
     /// altitude/accuracy/source and leave the rest blank. Swing rows fill the location of the
     /// nearest fix (blank if none is close enough), source, hole (its number in nine order, from
-    /// the hole timeline), and peak force in g; contact rows the same with score, burst and click instead.
+    /// the hole timeline), and peak force in g; contact rows the same with score, burst and click
+    /// instead, typed gatedContact when the watch's stroke gate passed them.
     /// Stroke rows fill hole (its number), stroke (1-based), the penalty strokes in strokeType, the
     /// club and the shot quality. Event rows fill
     /// source, hole, the event's name in strokeType and its value in peakG. Altitude and
@@ -48,7 +49,7 @@ enum TrackExporter {
             let longitude = fix.map { String($0.longitude) } ?? ""
             let hole = round.holeNumber(at: round.holeIndex(at: contact.timestamp))
             rows.append((contact.timestamp,
-                         "contact,\(formatter.string(from: contact.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,,\(contact.score),\(contact.burst),\(contact.click),,"))
+                         "\(contact.gated ? "gatedContact" : "contact"),\(formatter.string(from: contact.timestamp)),\(latitude),\(longitude),,,watch,\(hole),,,,\(contact.score),\(contact.burst),\(contact.click),,"))
         }
 
         // The watch's workout and sensor events: the code's name where a stroke's type goes, its value where a swing's peak goes

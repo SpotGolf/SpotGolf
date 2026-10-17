@@ -13,4 +13,8 @@ struct ContactEvent: Equatable {
     let click: Float
     /// Mean rotation rate over the 100 ms before, in rad/s.
     let turning: Float
+    /// The watch's `StrokeGate` passed it: it came at the end of a putting stroke. Watches from
+    /// before the gate recorded every contact over the score floor, and the phone keeps its
+    /// older rules for those.
+    var gated = false
 }

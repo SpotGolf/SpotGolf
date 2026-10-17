@@ -6,7 +6,8 @@ enum StreamRecord: Equatable {
     case fix(TrackPoint)
     /// A swing the watch detected: a `StrokeSuggestion` with a time and peak force only.
     case swing(StrokeSuggestion)
-    /// Ball contact the watch heard and felt.
+    /// Ball contact the watch heard and felt. A gated contact is its own kind, so a phone from
+    /// before the stroke gate skips it rather than taking it for an ungated one.
     case contact(ContactEvent)
     /// The workout or a sensor starting, stopping, failing or restarting.
     case event(StreamEvent)
@@ -18,6 +19,7 @@ enum StreamRecord: Equatable {
     private static let swingKind: UInt8 = 1
     private static let contactKind: UInt8 = 2
     private static let eventKind: UInt8 = 3
+    private static let gatedContactKind: UInt8 = 4
 
     var timestamp: Date {
         switch self {
@@ -32,7 +34,7 @@ enum StreamRecord: Equatable {
     /// (Int64), peak force in g (Float32), then 12 zero bytes. Contact: kind 2, milliseconds
     /// since 1970 (Int64), then score, burst, click and turning (Float32 each). Event: kind 3,
     /// milliseconds since 1970 (Int64), code (UInt16), value (Float32), then 10 zero bytes.
-    /// Little-endian.
+    /// Gated contact: kind 4, then the same as a contact. Little-endian.
     var record: Data {
         var data = Data(capacity: Self.size)
         switch self {
@@ -45,7 +47,7 @@ enum StreamRecord: Equatable {
             data.append(littleEndian: (swing.peakG ?? 0).bitPattern)
             data.append(Data(count: Self.size - data.count))
         case .contact(let contact):
-            data.append(Self.contactKind)
+            data.append(contact.gated ? Self.gatedContactKind : Self.contactKind)
             data.append(littleEndian: Int64((contact.timestamp.timeIntervalSince1970 * 1000).rounded()))
             data.append(littleEndian: contact.score.bitPattern)
             data.append(littleEndian: contact.burst.bitPattern)
@@ -75,12 +77,13 @@ enum StreamRecord: Equatable {
             let peakBits: UInt32 = body.littleEndianInteger(at: 8)
             self = .swing(.swing(at: Date(timeIntervalSince1970: Double(milliseconds) / 1000),
                                  peakG: Float(bitPattern: peakBits)))
-        case Self.contactKind:
+        case Self.contactKind, Self.gatedContactKind:
             let body = Data(body)
             let milliseconds: Int64 = body.littleEndianInteger(at: 0)
             func float(_ offset: Int) -> Float { Float(bitPattern: body.littleEndianInteger(at: offset) as UInt32) }
             self = .contact(ContactEvent(timestamp: Date(timeIntervalSince1970: Double(milliseconds) / 1000),
-                                         score: float(8), burst: float(12), click: float(16), turning: float(20)))
+                                         score: float(8), burst: float(12), click: float(16), turning: float(20),
+                                         gated: record[record.startIndex] == Self.gatedContactKind))
         case Self.eventKind:
             let body = Data(body)
             let milliseconds: Int64 = body.littleEndianInteger(at: 0)

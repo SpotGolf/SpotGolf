@@ -14,6 +14,8 @@ enum TrackImporter {
         var points: [TrackPoint] = []
         var swings: [StrokeSuggestion] = []
         var contacts: [ContactEvent] = []
+        /// The watch's workout and sensor events: when it listened for contacts, among others.
+        var events: [StreamEvent] = []
         /// Strokes, with the number of the hole they are on (nine order, 1-based), in stroke order.
         var strokes: [(stroke: Stroke, hole: Int)] = []
     }
@@ -30,7 +32,7 @@ enum TrackImporter {
         }
     }
 
-    /// The fixes, swings, contacts and strokes in a CSV. Rows that can't be read are skipped.
+    /// The fixes, swings, contacts, events and strokes in a CSV. Rows that can't be read are skipped.
     /// The hole on swing and contact rows is ignored: the hole starts are worked out again from
     /// the GPS. Exports from before contacts were recorded are read too.
     static func read(_ csv: String) throws -> Export {
@@ -58,10 +60,15 @@ enum TrackImporter {
             case "swing":
                 guard let date = formatter.date(from: fields[1]), let peakG = Float(fields[10]) else { continue }
                 export.swings.append(.swing(at: date, peakG: peakG))
-            case "contact":
+            case "contact", "gatedContact":
                 guard fields.count >= 14, let date = formatter.date(from: fields[1]), let score = Float(fields[11]),
                       let burst = Float(fields[12]), let click = Float(fields[13]) else { continue }
-                export.contacts.append(ContactEvent(timestamp: date, score: score, burst: burst, click: click, turning: 0))
+                export.contacts.append(ContactEvent(timestamp: date, score: score, burst: burst, click: click, turning: 0,
+                                                    gated: fields[0] == "gatedContact"))
+            case "event":
+                guard let date = formatter.date(from: fields[1]), let value = Float(fields[10]),
+                      let code = StreamEvent.Code.allCases.first(where: { String(describing: $0) == fields[9] }) else { continue }
+                export.events.append(StreamEvent(timestamp: date, code: code, value: value))
             case "stroke":
                 guard let lat = Double(fields[2]), let lon = Double(fields[3]),
                       let hole = Int(fields[7]), let number = Int(fields[8]) else { continue }
@@ -92,7 +99,7 @@ enum TrackImporter {
         round.updateStats()
 
         let records = (export.points.map(StreamRecord.fix) + export.swings.map(StreamRecord.swing)
-                       + export.contacts.map(StreamRecord.contact))
+                       + export.contacts.map(StreamRecord.contact) + export.events.map(StreamRecord.event))
             .sorted { $0.timestamp < $1.timestamp }
         return (round, records)
     }

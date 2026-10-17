@@ -23,11 +23,16 @@ final class TrackImporterTests: XCTestCase {
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 39.8, longitude: -105.1), penaltyStrokes: 1, quality: .bad),
                         toHoleIndex: 1)
         let points = stride(from: 0.0, through: 200, by: 10).map(point)
-        return TrackExporter.csv(round: round, points: points, swings: swings, contacts: contacts)
+        return TrackExporter.csv(round: round, points: points, swings: swings, contacts: contacts, events: events)
     }
 
     /// Turning is not exported, so it reads back as zero.
-    private let contacts = [ContactEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_105), score: 6.5, burst: 0.25, click: 40, turning: 0)]
+    private let contacts = [ContactEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_105), score: 6.5, burst: 0.25, click: 40, turning: 0),
+                            ContactEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_155), score: 0.75, burst: 0.25, click: 3, turning: 0,
+                                         gated: true)]
+
+    private let events = [StreamEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_150), code: .contactsOn, value: 2),
+                          StreamEvent(timestamp: Date(timeIntervalSince1970: 1_700_000_190), code: .contactsOff, value: 40)]
 
     func testReadsWhatTheExporterWrites() throws {
         let export = try TrackImporter.read(exportedCSV())
@@ -35,6 +40,7 @@ final class TrackImporterTests: XCTestCase {
         XCTAssertEqual(export.points, stride(from: 0.0, through: 200, by: 10).map(point))
         XCTAssertEqual(export.swings, swings)
         XCTAssertEqual(export.contacts, contacts)
+        XCTAssertEqual(export.events, events)
         XCTAssertEqual(export.strokes.map(\.hole), [1, 2])
         XCTAssertEqual(export.strokes.map(\.stroke.penaltyStrokes), [0, 1])
         XCTAssertEqual(export.strokes.map(\.stroke.quality), [.good, .bad])
@@ -89,9 +95,11 @@ final class TrackImporterTests: XCTestCase {
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0])
         XCTAssertEqual(round.holes.map { $0.strokes.count }, [1, 1])
 
-        XCTAssertEqual(records.count, 24)
+        // 21 fixes, 2 swings, 2 contacts, 2 events
+        XCTAssertEqual(records.count, 27)
         XCTAssertEqual(records.map(\.timestamp), records.map(\.timestamp).sorted())
         XCTAssertEqual(records.filter { if case .swing = $0 { true } else { false } }.count, 2)
+        XCTAssertEqual(records.filter { if case .event = $0 { true } else { false } }.count, 2)
     }
 
     func testRoundWithoutFixesIsAnError() throws {

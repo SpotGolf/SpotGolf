@@ -12,6 +12,8 @@ import CourseDataSwift
 /// hitting the ball instead: each contact it heard is a putt, and a stop with no contact may be
 /// one it missed. Measured on the Coal Creek round of 2026-10-02 and the putting captures of
 /// 2026-10-06; see plans/2026-10-04-full-swing-strokes.md and plans/2026-10-06-putt-detection.md.
+/// A watch with the stroke gate sends only contacts at the end of a putting stroke, so rounds
+/// with gated contacts trust each one; see plans/2026-10-16-bear-dance-putt-analysis.md.
 enum StrokeFinder {
     // MARK: - Stops
 
@@ -55,6 +57,12 @@ enum StrokeFinder {
     /// Contacts this close together are one stroke: practice strokes come 2 to 5 s before the
     /// putt. A tap-in comes at least this long after the putt.
     static let sameStrokeGap: TimeInterval = 5
+    /// With gated contacts, a full swing drops only the contacts this close to it: the knock or
+    /// shake itself. Every gated contact further from it is a putt.
+    static let fullSwingContactGap: TimeInterval = 2
+    /// With gated contacts, a stop the watch listened through is offered only when it has a
+    /// swing this strong, under `fullSwingPeak`: a chip the gate turned away.
+    static let chipSwingPeak: Float = 8
     /// At most this many suggestions are offered per hole. Full swings are always kept; putts and
     /// chips fill the rest.
     static let maxPerHole = 10
@@ -70,10 +78,10 @@ enum StrokeFinder {
     /// the green's edge still counts as on it; `hidden` holds the IDs of dismissed and converted
     /// suggestions.
     static func suggestions(in round: Round, holeIndex: Int, points: [TrackPoint], swings: [StrokeSuggestion],
-                            contacts: [ContactEvent] = [], minStop: TimeInterval,
+                            contacts: [ContactEvent] = [], events: [StreamEvent] = [], minStop: TimeInterval,
                             zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
         let shape = HoleShape(hole: round.courseHole(at: holeIndex), course: round.course)
-        return suggestions(on: shape, points: points, swings: swings, contacts: contacts, minStop: minStop,
+        return suggestions(on: shape, points: points, swings: swings, contacts: contacts, events: events, minStop: minStop,
                            zoneMargin: zoneMargin, hidden: hidden) {
             round.possibleHoles(at: $0.end).contains(holeIndex)
         }
@@ -87,8 +95,14 @@ enum StrokeFinder {
     /// the green, each contact of `puttScore` or more is a putt, the first later contact of
     /// `tapInScore` or more after it is the tap-in, and a stop with no contact may be a putt or
     /// chip the watch missed. Softer swings are not strokes: putts never reach the swing threshold.
+    ///
+    /// When the round has gated contacts, the watch's stroke gate has already told putts from
+    /// everything else: on or near the green every gated contact is a putt, a full swing drops
+    /// only the contacts within `fullSwingContactGap` of it, a full swing after a putt in the
+    /// same stop is a knock or a shake and not offered, and a stop with no putt is offered only
+    /// where the watch was not listening (`events`), or where it has a swing of `chipSwingPeak`.
     static func suggestions(on hole: HoleShape, points: [TrackPoint], swings: [StrokeSuggestion],
-                            contacts: [ContactEvent] = [], minStop: TimeInterval,
+                            contacts: [ContactEvent] = [], events: [StreamEvent] = [], minStop: TimeInterval,
                             zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = [],
                             isOnHole: (_ stop: (start: Date, end: Date)) -> Bool = { _ in true }) -> [StrokeSuggestion] {
         /// A swing in the stop it was made in.
@@ -116,6 +130,40 @@ enum StrokeFinder {
             placed.append(Placed(swing: swing, peakG: peakG, stopIndex: stopIndex, spot: spot))
         }
 
+        // A watch with the stroke gate sends only gated contacts; an older one, none
+        let gated = contacts.contains(where: \.gated)
+        let usedContacts = gated ? contacts.filter(\.gated) : contacts
+        func inZone(_ stop: Stop) -> Bool {
+            hole.metersToGreen(stop.center).map { $0 <= zoneMargin } ?? false
+        }
+
+        // Contacts in the stops they were made in, at the fix nearest each
+        struct PlacedContact {
+            let contact: ContactEvent
+            let stopIndex: Int
+            let coordinate: CLLocationCoordinate2D
+        }
+        var placedContacts: [PlacedContact] = []
+        for contact in usedContacts.sorted(by: { $0.timestamp < $1.timestamp }) {
+            guard let stopIndex = stops.firstIndex(where: { $0.contains(contact.timestamp, slack: stopSlack) }) else { continue }
+            let coordinate = nearestFix(to: contact.timestamp, in: points)
+                .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } ?? stops[stopIndex].coordinate
+            placedContacts.append(PlacedContact(contact: contact, stopIndex: stopIndex, coordinate: coordinate))
+        }
+
+        // Gated: the putts in each stop near the green, all but those around a full swing
+        var gatedPutts: [Int: [PlacedContact]] = [:]
+        if gated {
+            for (index, stop) in stops.enumerated() where inZone(stop) {
+                let fullSwings = placed.filter { $0.stopIndex == index && $0.peakG >= fullSwingPeak }.map(\.swing.timestamp)
+                gatedPutts[index] = placedContacts.filter { contact in
+                    contact.stopIndex == index && !fullSwings.contains {
+                        abs(contact.contact.timestamp.timeIntervalSince($0)) <= fullSwingContactGap
+                    }
+                }
+            }
+        }
+
         // Full swings: the strongest of those made at one spot is the shot. Its ID comes from the
         // first swing there, which does not change as more arrive.
         var fullSwings: [StrokeSuggestion] = []
@@ -128,7 +176,11 @@ enum StrokeFinder {
                 id: StrokeSuggestion.id(at: first.swing.timestamp)))
             atOneSpot = []
         }
-        for full in placed where full.peakG >= fullSwingPeak {
+        // Gated: a full swing after a putt in the same stop is a knock or a shake
+        func afterPutt(_ swing: Placed) -> Bool {
+            gatedPutts[swing.stopIndex]?.contains { $0.contact.timestamp < swing.swing.timestamp } ?? false
+        }
+        for full in placed where full.peakG >= fullSwingPeak && !afterPutt(full) {
             if let last = atOneSpot.last,
                full.swing.timestamp.timeIntervalSince(last.swing.timestamp) <= sameShotWindow,
                LocalDistance.meters(fromLat: last.spot.latitude, lon: last.spot.longitude,
@@ -141,26 +193,29 @@ enum StrokeFinder {
         }
         finishShot()
 
-        // Contacts in the stops they were made in, at the fix nearest each
-        struct PlacedContact {
-            let contact: ContactEvent
-            let stopIndex: Int
-            let coordinate: CLLocationCoordinate2D
-        }
-        var placedContacts: [PlacedContact] = []
-        for contact in contacts.sorted(by: { $0.timestamp < $1.timestamp }) {
-            guard let stopIndex = stops.firstIndex(where: { $0.contains(contact.timestamp, slack: stopSlack) }) else { continue }
-            let coordinate = nearestFix(to: contact.timestamp, in: points)
-                .map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } ?? stops[stopIndex].coordinate
-            placedContacts.append(PlacedContact(contact: contact, stopIndex: stopIndex, coordinate: coordinate))
-        }
-
         // Putts and tap-ins the watch heard, and stops with no contact near the green. In a
         // stop with a full swing, a chip, the contacts after the shot are the putts that followed
         // it from the same spot; those around the shot are its own.
         var shortGame: [StrokeSuggestion] = []
-        for (index, stop) in stops.enumerated() {
-            guard let toGreen = hole.metersToGreen(stop.center), toGreen <= zoneMargin else { continue }
+        let listening = listeningWindows(in: events, until: points.last?.timestamp ?? .distantFuture)
+        for (index, stop) in stops.enumerated() where inZone(stop) {
+            if gated {
+                let putts = gatedPutts[index] ?? []
+                for putt in putts {
+                    shortGame.append(StrokeSuggestion(timestamp: putt.contact.timestamp, kind: .contact(score: putt.contact.score),
+                                                      coordinate: putt.coordinate, id: StrokeSuggestion.id(at: putt.contact.timestamp)))
+                }
+                let stopSwings = placed.filter { $0.stopIndex == index }
+                // A stop the watch listened through and heard nothing in is not a putt, unless a swing says it may be a chip
+                let listened = wasListening(through: stop, in: listening)
+                let chipSwing = stopSwings.contains { $0.peakG >= chipSwingPeak && $0.peakG < fullSwingPeak }
+                if putts.isEmpty, !stopSwings.contains(where: { $0.peakG >= fullSwingPeak }), stop.duration >= minStop,
+                   !listened || chipSwing {
+                    shortGame.append(StrokeSuggestion(timestamp: stop.start, kind: .stop(duration: stop.duration),
+                                                      coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
+                }
+                continue
+            }
             let lastFullSwing = placed.filter { $0.stopIndex == index && $0.peakG >= fullSwingPeak }
                 .map(\.swing.timestamp).max()
             let stopContacts = placedContacts.filter { contact in
@@ -214,6 +269,34 @@ enum StrokeFinder {
             }
         }
         return strokes
+    }
+
+    /// When the watch listened for contacts: from each `contactsOn` to the `contactsOff` after
+    /// it, or to the next `contactsOn` or `end` when the watch stopped without saying so.
+    static func listeningWindows(in events: [StreamEvent], until end: Date) -> [DateInterval] {
+        var windows: [DateInterval] = []
+        var on: Date?
+        for event in events.sorted(by: { $0.timestamp < $1.timestamp }) {
+            switch event.code {
+            case .contactsOn:
+                if let on { windows.append(DateInterval(start: on, end: max(on, event.timestamp))) }
+                on = event.timestamp
+            case .contactsOff:
+                if let on { windows.append(DateInterval(start: on, end: max(on, event.timestamp))) }
+                on = nil
+            default:
+                continue
+            }
+        }
+        if let on { windows.append(DateInterval(start: on, end: max(on, end))) }
+        return windows
+    }
+
+    /// Whether the watch listened for at least half of the stop.
+    private static func wasListening(through stop: Stop, in windows: [DateInterval]) -> Bool {
+        let stopInterval = DateInterval(start: stop.start, end: stop.end)
+        let heard = windows.compactMap { $0.intersection(with: stopInterval)?.duration }.reduce(0, +)
+        return heard >= stop.duration / 2
     }
 
     /// When a stroke was probably hit: the time of the fix nearest to it in `points`, which

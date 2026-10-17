@@ -47,6 +47,16 @@ final class StrokeFinderSuggestionTests: XCTestCase {
             ContactEvent(timestamp: now, score: score, burst: 0.3, click: 20, turning: 1)
         }
 
+        /// Ball contact that passed the watch's stroke gate, at the current time.
+        func gatedContact(score: Float = 5) -> ContactEvent {
+            ContactEvent(timestamp: now, score: score, burst: 0.3, click: 20, turning: 1, gated: true)
+        }
+
+        /// The watch starting or stopping contact detection at the current time.
+        func listening(_ on: Bool) -> StreamEvent {
+            StreamEvent(timestamp: now, code: on ? .contactsOn : .contactsOff, value: 1)
+        }
+
         mutating func addFix(north: Double? = nil) {
             let point = PathCourse.coordinate(north: north ?? self.north, east: east)
             points.append(TrackPoint(timestamp: now, latitude: point.latitude, longitude: point.longitude, altitude: nil))
@@ -55,10 +65,11 @@ final class StrokeFinderSuggestionTests: XCTestCase {
     }
 
     private func suggestions(_ track: Track, _ swings: [StrokeSuggestion], contacts: [ContactEvent] = [],
-                             minStop: TimeInterval = 30, zoneMargin: CLLocationDistance = StrokeFinder.chipZoneMargin,
+                             events: [StreamEvent] = [], minStop: TimeInterval = 30,
+                             zoneMargin: CLLocationDistance = StrokeFinder.chipZoneMargin,
                              hidden: Set<UUID> = []) -> [StrokeSuggestion] {
-        StrokeFinder.suggestions(on: hole, points: track.points, swings: swings, contacts: contacts, minStop: minStop,
-                                 zoneMargin: zoneMargin, hidden: hidden)
+        StrokeFinder.suggestions(on: hole, points: track.points, swings: swings, contacts: contacts, events: events,
+                                 minStop: minStop, zoneMargin: zoneMargin, hidden: hidden)
     }
 
     private func duration(of suggestion: StrokeSuggestion?) -> TimeInterval {
@@ -369,6 +380,114 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         // A slow walk joins the stop a few fixes before the player stands still
         XCTAssertEqual(found.first?.timestamp.timeIntervalSince(arrived) ?? .infinity, 0, accuracy: 8)
         XCTAssertGreaterThanOrEqual(duration(of: found.first), 40)
+    }
+
+    // MARK: - Gated contacts
+
+    /// No score line and no stronger-contact rule: the gate already turned away practice strokes.
+    func testEveryGatedContactIsAPutt() {
+        var track = Track()
+        track.walk(north: 300)
+        track.stand(20)
+        let putt = track.gatedContact(score: 3)
+        track.stand(3)
+        let tapIn = track.gatedContact(score: 0.8)
+        track.stand(20)
+
+        let found = suggestions(track, [], contacts: [putt, tapIn])
+        XCTAssertEqual(found.map(\.timestamp), [putt.timestamp, tapIn.timestamp])
+        XCTAssertEqual(found.last?.kind, .contact(score: 0.8))
+    }
+
+    /// A knock of the putter after the putt: the putt stays, and the knock is not a stroke.
+    func testFullSwingAfterAGatedPuttIsNotOffered() {
+        var track = Track()
+        track.walk(north: 300)
+        track.stand(20)
+        let putt = track.gatedContact()
+        track.stand(10)
+        let knock = track.swing(peakG: 37.8)
+        track.stand(20)
+
+        XCTAssertEqual(suggestions(track, [knock], contacts: [putt]).map(\.timestamp), [putt.timestamp])
+    }
+
+    /// A chip's own contact is dropped; the putt that follows it from the same spot is not.
+    func testFullSwingDropsOnlyTheGatedContactsAroundIt() {
+        var track = Track()
+        track.walk(north: 300)
+        track.stand(20)
+        let chip = track.swing(peakG: 15)
+        track.stand(1)
+        let chipContact = track.gatedContact(score: 40)
+        track.stand(20)
+        let putt = track.gatedContact()
+        track.stand(20)
+
+        XCTAssertEqual(suggestions(track, [chip], contacts: [chipContact, putt]).map(\.timestamp), [chip.timestamp, putt.timestamp])
+    }
+
+    /// The watch listened through the stop and heard no putt there.
+    func testListenedStopWithNoGatedContactIsNotSuggested() {
+        var track = Track()
+        track.walk(north: 270)
+        let on = track.listening(true)
+        track.walk(north: 277)
+        track.stand(40)
+        track.walk(north: 300)
+        track.stand(20)
+        let putt = track.gatedContact()
+        track.stand(20)
+        let off = track.listening(false)
+
+        XCTAssertEqual(suggestions(track, [], contacts: [putt], events: [on, off]).map(\.timestamp), [putt.timestamp])
+    }
+
+    func testStopWhereTheWatchWasNotListeningIsSuggested() {
+        var track = Track()
+        track.walk(north: 277)
+        track.stand(40)
+        track.walk(north: 300)
+        let on = track.listening(true)
+        track.stand(20)
+        let putt = track.gatedContact()
+        track.stand(20)
+
+        let found = suggestions(track, [], contacts: [putt], events: [on])
+        XCTAssertEqual(found.count, 2)
+        XCTAssertGreaterThanOrEqual(duration(of: found.first), 40)
+        XCTAssertEqual(found.last?.timestamp, putt.timestamp)
+    }
+
+    /// A chip the gate turned away still gets its stop suggestion.
+    func testListenedStopWithAChipSizedSwingIsSuggested() {
+        var track = Track()
+        let on = track.listening(true)
+        track.walk(north: 277)
+        track.stand(20)
+        let chip = track.swing(peakG: 8.5)
+        track.stand(20)
+        track.walk(north: 300)
+        track.stand(20)
+        let putt = track.gatedContact()
+        track.stand(20)
+
+        let found = suggestions(track, [chip], contacts: [putt], events: [on])
+        XCTAssertEqual(found.count, 2)
+        XCTAssertGreaterThanOrEqual(duration(of: found.first), 40)
+    }
+
+    func testListeningWindowsCloseAtTheNextStartOrTheEnd() {
+        let start = Self.start
+        let events = [StreamEvent(timestamp: start, code: .contactsOn, value: 1),
+                      StreamEvent(timestamp: start.addingTimeInterval(10), code: .contactsOn, value: 2),
+                      StreamEvent(timestamp: start.addingTimeInterval(20), code: .contactsOff, value: 10),
+                      StreamEvent(timestamp: start.addingTimeInterval(30), code: .workoutStarted),
+                      StreamEvent(timestamp: start.addingTimeInterval(40), code: .contactsOn, value: 3)]
+
+        let windows = StrokeFinder.listeningWindows(in: events, until: start.addingTimeInterval(50))
+        XCTAssertEqual(windows.map { $0.start.timeIntervalSince(start) }, [0, 10, 40])
+        XCTAssertEqual(windows.map { $0.end.timeIntervalSince(start) }, [10, 20, 50])
     }
 
     func testGreenZoneSetsHowFarFromTheGreenAStopCounts() {

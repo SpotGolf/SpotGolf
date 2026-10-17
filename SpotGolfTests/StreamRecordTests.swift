@@ -27,6 +27,18 @@ final class StreamRecordTests: XCTestCase {
         XCTAssertEqual(record.timestamp, contact.timestamp)
     }
 
+    func testGatedContactIsItsOwnKind() throws {
+        let contact = ContactEvent(timestamp: StreamFixtures.start.addingTimeInterval(12.345), score: 0.75, burst: 0.25, click: 3,
+                                   turning: 1.2, gated: true)
+        let record = StreamRecord.contact(contact)
+
+        let data = record.record
+
+        XCTAssertEqual(data.count, 25)
+        XCTAssertEqual(data.first, 4)
+        XCTAssertEqual(StreamRecord(record: data), record)
+    }
+
     func testSwingRecordHoldsTimeAndPeakForce() throws {
         let record = StreamFixtures.swing(12.345, peakG: 14.75)
 

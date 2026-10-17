@@ -262,6 +262,7 @@ struct RoundMapView: View {
             points: roundTrack,
             swings: services.streamStore.swings(for: round.id, until: round.endedAt),
             contacts: services.streamStore.contacts(for: round.id, until: round.endedAt),
+            events: services.streamStore.events(for: round.id, until: round.endedAt),
             minStop: stationaryThreshold,
             zoneMargin: greenZone,
             hidden: Set(round.hiddenSuggestionIDs)
