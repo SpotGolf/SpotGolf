@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Edit at the bottom left, the map buttons at the right, and in the middle setting the pin, or
-/// the suggestion pins' legend while editing.
+/// Green View over Edit at the bottom left, the map buttons at the right, and in the middle
+/// setting the pin, or the suggestion pins' legend while editing. Green View hides both capsules:
+/// it is always in edit mode, and its X closes it.
 struct MapButtonBar: View {
     let round: Round
     let shownHoleIndex: Int
@@ -14,6 +15,10 @@ struct MapButtonBar: View {
     let mapStyle: MapStyleChoice
     /// The map button: opens the sheet that picks the map's style.
     let pickMapStyle: () -> Void
+    /// Green View is showing in place of the map, so the map's own buttons are hidden.
+    let showsGreenView: Bool
+    /// The Green View button, which also starts editing. Nil when the hole has no green outline to draw.
+    let openGreenView: (() -> Void)?
 
     @Environment(PhoneServices.self) private var services
 
@@ -22,18 +27,11 @@ struct MapButtonBar: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            Button {
-                isEditing.toggle()
-            } label: {
-                Image(systemName: isEditing ? "checkmark" : "square.and.pencil")
-                    .font(.title3)
-                    .frame(width: Self.buttonSize, height: Self.buttonSize)
-                    .background(.thickMaterial)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            // One capsule, as the map buttons on the right. Not in Green View, which is always
+            // in edit mode and closes with its X.
+            if !showsGreenView {
+                editCapsule
             }
-            .accessibilityLabel(isEditing ? "Done" : "Edit")
-            .accessibilityIdentifier("EditHole")
 
             Spacer(minLength: 0)
 
@@ -48,6 +46,36 @@ struct MapButtonBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
+    }
+
+    /// Green View over Edit, in one capsule.
+    private var editCapsule: some View {
+        VStack(spacing: 0) {
+            if let openGreenView {
+                Button(action: openGreenView) {
+                    Image(systemName: "flag")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+                        .frame(width: Self.buttonSize, height: Self.buttonSize)
+                }
+                .accessibilityLabel("Green View")
+                .accessibilityIdentifier("GreenView")
+            }
+
+            Button {
+                isEditing.toggle()
+            } label: {
+                Image(systemName: isEditing ? "checkmark" : "square.and.pencil")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: Self.buttonSize, height: Self.buttonSize)
+            }
+            .accessibilityLabel(isEditing ? "Done" : "Edit")
+            .accessibilityIdentifier("EditHole")
+        }
+        .background(.thickMaterial)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 
     /// Shown only during a round, while the phone is on the shown hole's green: saves where the
@@ -76,6 +104,7 @@ struct MapButtonBar: View {
 
     /// Hole times and the round's log (only while editing), then the map's style and, during a
     /// round, following the player's location, together in one capsule as Apple Maps has them.
+    /// The capsule is not in Green View.
     private var mapButtons: some View {
         VStack(spacing: 8) {
             if isEditing {
@@ -105,30 +134,36 @@ struct MapButtonBar: View {
                 .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
 
-            VStack(spacing: 0) {
-                Button(action: pickMapStyle) {
-                    Image(systemName: mapStyle.symbolName)
+            if !showsGreenView {
+                mapCapsule
+            }
+        }
+    }
+
+    private var mapCapsule: some View {
+        VStack(spacing: 0) {
+            Button(action: pickMapStyle) {
+                Image(systemName: mapStyle.symbolName)
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: Self.buttonSize, height: Self.buttonSize)
+            }
+            .accessibilityLabel("Map style")
+            .accessibilityValue(Text(mapStyle.title))
+            .accessibilityIdentifier("MapStyle")
+
+            if round.isActive {
+                Button(action: followUserLocation) {
+                    Image(systemName: followsUserLocation ? "location.fill" : "location")
                         .font(.title3)
                         .foregroundStyle(.blue)
                         .frame(width: Self.buttonSize, height: Self.buttonSize)
                 }
-                .accessibilityLabel("Map style")
-                .accessibilityValue(Text(mapStyle.title))
-                .accessibilityIdentifier("MapStyle")
-
-                if round.isActive {
-                    Button(action: followUserLocation) {
-                        Image(systemName: followsUserLocation ? "location.fill" : "location")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                            .frame(width: Self.buttonSize, height: Self.buttonSize)
-                    }
-                    .accessibilityLabel("Follow location")
-                }
+                .accessibilityLabel("Follow location")
             }
-            .background(.thickMaterial)
-            .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
         }
+        .background(.thickMaterial)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 }

@@ -65,3 +65,44 @@ struct SpotSelection {
     /// The delete confirmation is showing.
     var confirmsDelete = false
 }
+
+/// Whether Green View shows in place of the map, and the rule that opens it by itself. Green View
+/// is always in edit mode, and only its X or a hole change closes it. See
+/// plans/2026-10-17-green-view.md.
+struct GreenViewState {
+    private(set) var isShown = false
+    /// The player closed it with X on the hole shown, so it does not open by itself again there.
+    private(set) var closedOnHole = false
+    /// The player's last location was on the shown hole's green.
+    private var wasOnGreen = false
+
+    /// The Green View button.
+    mutating func open() {
+        isShown = true
+    }
+
+    /// The X in the top bar.
+    mutating func close() {
+        isShown = false
+        closedOnHole = true
+    }
+
+    /// The shown hole changed. Green View edits, and the map holds an edited hole, so the display
+    /// hole moving on does not land here until Green View is closed.
+    mutating func holeChanged() {
+        isShown = false
+        closedOnHole = false
+        wasOnGreen = false
+    }
+
+    /// A new location during a round: walking onto the green opens Green View. `metersOffGreen`
+    /// is 0 on the green and nil without one.
+    mutating func playerMoved(metersOffGreen: CLLocationDistance?) {
+        guard let metersOffGreen else { return }
+        let onGreen = metersOffGreen == 0
+        if onGreen, !wasOnGreen, !closedOnHole {
+            isShown = true
+        }
+        wasOnGreen = onGreen
+    }
+}

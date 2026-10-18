@@ -41,6 +41,7 @@ struct RoundMapView: View {
     /// each time the style sheet picks one.
     @State private var mapStyle = MapStyleChoice.standard
     @State private var showMapStyles = false
+    @State private var greenView = GreenViewState()
 
     var body: some View {
         Group {
@@ -72,6 +73,12 @@ struct RoundMapView: View {
             } else if camera.followsUserLocation, round?.isActive == true, let location {
                 camera.follow(location, heading: shownHoleHeading)
             }
+            if let round, round.isActive, let location {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    greenView.playerMoved(metersOffGreen: round.metersOffGreen(location.coordinate,
+                                                                              holeIndex: shownHoleIndex(round)))
+                }
+            }
         }
         .onChange(of: services.roundStore.revision) {
             if round == nil {
@@ -87,8 +94,18 @@ struct RoundMapView: View {
             editsAfterHoleChange = false
             editingHoleIndex = isEditing ? shown : nil
             target = nil
+            withAnimation(.easeInOut(duration: 0.2)) {
+                greenView.holeChanged()
+            }
             panToHole()
             filterTrack()
+        }
+        .onChange(of: greenView.isShown) { _, shown in
+            // Green View is for marking putts, so it is always in edit mode. Its X ends editing; a
+            // hole change sets editing itself.
+            if shown {
+                isEditing = true
+            }
         }
         .onChange(of: isEditing) {
             editingHoleIndex = isEditing ? round.map(shownHoleIndex) : nil
@@ -128,14 +145,34 @@ struct RoundMapView: View {
                 RoundMapLayer(round: round, shownHoleIndex: holeIndex, isEditing: isEditing,
                               trackLine: trackLine, holeTrack: holeTrack, suggestions: suggestions,
                               mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
+                if greenView.isShown {
+                    // Over the map rather than in place of it, so the map keeps its camera
+                    GreenView(round: round, shownHoleIndex: holeIndex,
+                              trackLine: trackLine, holeTrack: holeTrack, suggestions: suggestions,
+                              spot: $spot) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            greenView.close()
+                        }
+                        isEditing = false
+                    }
+                    .transition(.opacity)
+                }
                 VStack {
-                    MapInfoOverlay(round: round, shownHoleIndex: holeIndex, target: $target)
+                    if !greenView.isShown {
+                        MapInfoOverlay(round: round, shownHoleIndex: holeIndex, target: $target)
+                    }
                     Spacer()
                     MapButtonBar(round: round, shownHoleIndex: holeIndex, isEditing: $isEditing,
                                  showHoleTimes: $showHoleTimes, showLog: $showLog,
                                  followsUserLocation: camera.followsUserLocation,
                                  followUserLocation: followUserLocation,
-                                 mapStyle: mapStyle, pickMapStyle: { showMapStyles = true })
+                                 mapStyle: mapStyle, pickMapStyle: { showMapStyles = true },
+                                 showsGreenView: greenView.isShown,
+                                 openGreenView: round.green(holeIndex: holeIndex) == nil ? nil : {
+                                     withAnimation(.easeInOut(duration: 0.2)) {
+                                         greenView.open()
+                                     }
+                                 })
                 }
             }
             .ignoresSafeArea(edges: .bottom)

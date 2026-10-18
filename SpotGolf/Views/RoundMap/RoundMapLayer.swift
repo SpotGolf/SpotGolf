@@ -64,11 +64,8 @@ struct RoundMapLayer: View {
                         if let coordinate = suggestion.coordinate {
                             Annotation("", coordinate: coordinate, anchor: .bottom) {
                                 SuggestionPin(kind: suggestion.kind) {
-                                    guard let stroke = services.roundStore.addSuggestedStroke(
-                                        suggestion, holeIndex: shownHoleIndex, roundID: round.id, holeTrack: holeTrack,
-                                        bag: services.golfBag.bag) else { return }
-                                    spot.newIndex = round.hole(at: shownHoleIndex).strokes.firstIndex { $0.id == stroke.id } ?? 0
-                                    spot.stroke = stroke
+                                    SpotActions.takeSuggestion(suggestion, round: round, holeIndex: shownHoleIndex,
+                                                               holeTrack: holeTrack, services: services, spot: &spot)
                                 }
                             }
                         }
@@ -126,14 +123,8 @@ struct RoundMapLayer: View {
                         case .second(true, let drag):
                             guard isEditing, let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
-                            spot.newIndex = round.hole(at: shownHoleIndex).strokes.count // capture before append
-                            let stroke = Stroke(coordinate: coordinate,
-                                                club: HoleOverview.guessedClub(round, holeIndex: shownHoleIndex, strokeIndex: spot.newIndex,
-                                                                               at: coordinate, bag: services.golfBag.bag))
-                            // Hit when the player was nearest to it, going by the hole's GPS
-                            services.roundStore.addStroke(to: round.id, holeIndex: shownHoleIndex, stroke: stroke,
-                                                          hitAt: StrokeFinder.estimatedTime(of: stroke, in: holeTrack))
-                            spot.stroke = stroke
+                            SpotActions.addSpot(at: coordinate, round: round, holeIndex: shownHoleIndex,
+                                                holeTrack: holeTrack, services: services, spot: &spot)
                         default:
                             break
                         }
@@ -238,7 +229,7 @@ struct RoundMapLayer: View {
         return ZStack {
             ForEach(lines.indices, id: \.self) { index in
                 if let point = proxy.convert(lines[index].midpoint, to: .local) {
-                    DistanceLabel(yards: lines[index].yards, number: index + 1)
+                    DistanceLabel(value: lines[index].yards, unit: .yards, identifier: "StrokeDistance_\(index + 1)")
                         .fixedSize()
                         .position(point)
                 }

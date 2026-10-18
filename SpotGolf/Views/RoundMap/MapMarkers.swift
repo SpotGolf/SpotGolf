@@ -94,14 +94,20 @@ struct HazardBubble: View {
     }
 }
 
-/// A small white label with the yards between two strokes, centered on their line.
+/// A small white label with the distance between two points, centered on their line: yards on
+/// the map, feet in Green View.
 struct DistanceLabel: View {
-    let yards: Int
-    /// The line's number in the hole, from 1, for its accessibility identifier.
-    let number: Int
+    enum Unit {
+        case yards
+        case feet
+    }
+
+    let value: Int
+    let unit: Unit
+    let identifier: String
 
     var body: some View {
-        Text("\(yards)")
+        Text(unit == .feet ? "\(value) ft" : "\(value)")
             .font(.system(size: 10, weight: .bold))
             .monospacedDigit()
             .foregroundStyle(.black)
@@ -110,8 +116,8 @@ struct DistanceLabel: View {
             .background(RoundedRectangle(cornerRadius: 5).fill(.white))
             .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(yards) yards")
-            .accessibilityIdentifier("StrokeDistance_\(number)")
+            .accessibilityLabel(unit == .feet ? "\(value) feet" : "\(value) yards")
+            .accessibilityIdentifier(identifier)
     }
 }
 

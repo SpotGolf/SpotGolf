@@ -27,6 +27,10 @@
     "%lld Hybrid" : {},
     "%lld Iron" : {},
     "%lld Wood" : {},
+    "%lld feet" : {},
+    "%lld ft" : {},
+    "%lld ft to center" : {},
+    "%lld ft to pin" : {},
     "%lld holes" : {
       "localizations" : {
         "en" : {
@@ -145,6 +149,7 @@
     "Clear penalty" : {},
     "Clear target" : {},
     "Close" : {},
+    "Close Green View" : {},
     "Clubs" : {},
     "Corrected" : {},
     "Could not open SpotGolf on the watch (%@). Open it on the watch, then tap Retry." : {},
@@ -179,6 +184,7 @@
     "Golf Bag" : {},
     "Good shot" : {},
     "Green" : {},
+    "Green View" : {},
     "Green Zone" : {},
     "Green center" : {},
     "Guess types" : {},
@@ -334,6 +340,7 @@
     "What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; a change reaches the watch when you open the round." : {},
     "Woods" : {},
     "Yards" : {},
+    "Your location" : {},
     "ft elevation" : {},
     "the course address is not valid" : {},
     "the course data is missing" : {},

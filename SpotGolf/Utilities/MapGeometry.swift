@@ -9,6 +9,7 @@ enum MapGeometry {
     static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.0015, longitudeDelta: 0.0015)
     /// How high the camera that follows the player sits, in meters.
     static let followDistance: CLLocationDistance = 600
+    static let feetPerMeter = 3.28084
 
     /// Degrees clockwise from north, from `start` to `end`.
     static func bearing(from start: Coordinate, to end: Coordinate) -> Double {
@@ -166,6 +167,12 @@ struct StrokeLine: Equatable {
     let yards: Int
 
     var coordinates: [CLLocationCoordinate2D] { [start, end] }
+
+    /// The feet along the line, for Green View.
+    var feet: Int {
+        Int((CLLocation(latitude: start.latitude, longitude: start.longitude)
+            .distance(from: CLLocation(latitude: end.latitude, longitude: end.longitude)) * MapGeometry.feetPerMeter).rounded())
+    }
 
     /// Halfway along the line, where its yards are shown.
     var midpoint: CLLocationCoordinate2D {
