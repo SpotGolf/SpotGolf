@@ -67,6 +67,10 @@ final class SensorInputs {
     /// Called on the main actor with each event worth keeping in the round's stream.
     @ObservationIgnored var onEvent: ((StreamEvent) -> Void)?
 
+    /// Called on the main actor with each tap on the app's buttons and each haptic, for Putt
+    /// Lab's events: "tap" with no value, or "haptic" with the `WKHapticType` raw value.
+    @ObservationIgnored var onGuarded: ((_ event: String, _ value: Double) -> Void)?
+
     /// After the mic refuses to start, the next try waits this long: usually permission is missing.
     static let microphoneRetryDelay: TimeInterval = 60
 
@@ -92,6 +96,7 @@ final class SensorInputs {
     /// A tap on one of the app's buttons: readings around it are ignored.
     func tapped() {
         taps.tapped()
+        onGuarded?("tap", 0)
     }
 
     /// The last reading over `highGThreshold` in a batch of (uptime, magnitude in g), or nil.

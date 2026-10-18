@@ -1,3 +1,4 @@
+import CoreLocation
 import CoreMotion
 import Foundation
 import Observation
@@ -46,6 +47,8 @@ final class PuttCaptureRecorder {
     @ObservationIgnored var freeSpace: () -> Int64? = { PuttCaptureRecorder.freeSpace() }
     /// The folder captures are recorded into.
     @ObservationIgnored let root: URL
+    /// The round's Green Zone in meters, written into each segment of a round.
+    @ObservationIgnored var greenZone: () -> Double? = { nil }
 
     @ObservationIgnored private let sensors: SensorInputs
     @ObservationIgnored private let workouts: WorkoutManager
@@ -67,8 +70,16 @@ final class PuttCaptureRecorder {
         self.root = root
         self.isRoundActive = isRoundActive
         runner = ContactRunner(taps: sensors.taps)
+        // The main queue keeps contacts and candidates ahead of the segment's close, which follows them
         runner.onContact = { [weak self] contact in
-            Task { @MainActor in self?.found(contact) }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.found(contact) }
+            }
+        }
+        runner.onCandidate = { [weak self] candidate in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.writer?.add(candidate: candidate) }
+            }
         }
         // Batched sensor data only arrives once the workout runs, which is some time after `start`
         workouts.addRunningListener { [weak self] isRunning in
@@ -150,9 +161,44 @@ final class PuttCaptureRecorder {
         found(contact)
     }
 
-    /// The round ended: the capture ends with it.
-    func roundEnded() {
+    /// A candidate the round's monitor judged, while a segment is open.
+    func detectorCandidate(_ candidate: ContactDetector.Judged) {
         guard inRound else { return }
+        writer?.add(candidate: candidate)
+    }
+
+    /// The round the capture is recording, or nil.
+    var captureRoundID: UUID? { inRound ? roundID : nil }
+
+    /// Putt Lab is recording the round, so the monitor's sessions should record their candidates.
+    var recordsRound: Bool { inRound && state != .idle }
+
+    // MARK: - Events and locations
+
+    /// Something that just happened on the watch, into the open segment's events.
+    func record(event: String, value: Double = 0) {
+        writer?.add(event: event, value: value)
+    }
+
+    /// Something that happened on the watch at `date`, into the open segment's events.
+    func record(event: String, value: Double, at date: Date) {
+        writer?.add(event: event, value: value, at: date)
+    }
+
+    /// A stream event, at its own time, into the open segment's events.
+    func record(_ event: StreamEvent) {
+        writer?.add(event: event.name, value: Double(event.value), at: event.timestamp)
+    }
+
+    /// GPS fixes, into the open segment.
+    func record(_ locations: [CLLocation]) {
+        writer?.add(locations: locations)
+    }
+
+    /// The round ended: the capture ends with it.
+    /// `roundID`, when given, must be the capture's round: a later round's capture is left alone.
+    func roundEnded(roundID: UUID? = nil) {
+        guard inRound, roundID == nil || roundID == self.roundID else { return }
         if state == .recording {
             closeSegment(reason: .roundEnded)
         }
@@ -210,6 +256,10 @@ final class PuttCaptureRecorder {
         meta.roundID = roundID
         meta.hole = hole
         meta.segment = segmentCount + 1
+        meta.greenZone = inRound ? greenZone() : nil
+        let device = WKInterfaceDevice.current()
+        meta.wristLocation = device.wristLocation == .left ? "left" : "right"
+        meta.crownOrientation = device.crownOrientation == .left ? "left" : "right"
         let directory = captureDirectory.appendingPathComponent(PuttCapture.segmentFolder(segmentCount + 1, hole: hole), isDirectory: true)
         let writer: CaptureWriter
         do {
@@ -228,7 +278,7 @@ final class PuttCaptureRecorder {
         Log.puttLab.notice("Segment \(self.segmentCount) of capture \(captureID) recording at hole \(hole); microphone \(self.microphone), saving \(self.savesData)")
 
         let runner = inRound ? nil : self.runner
-        runner?.start()
+        runner?.start(recordingCandidates: true)
         subscriptions = [
             sensors.subscribeAccelerometer { batch in
                 runner?.addAccelerometer(batch)
@@ -253,14 +303,21 @@ final class PuttCaptureRecorder {
             subscription.cancel()
         }
         subscriptions = []
-        self.writer = nil
         let battery = Self.batteryLevel
         if inRound {
+            // The monitor reports a stop after the contact it flushes, so nothing is left to come
+            self.writer = nil
             writer.finish(reason: reason, battery: battery) { _ in }
         } else {
-            // The stroke still open in the detector is reported first, so it reaches contacts.csv
-            runner.stop {
-                writer.finish(reason: reason, battery: battery) { _ in }
+            // The stroke still open in the detector, and its candidates, reach the files first:
+            // the writer stays open until they have come through the main queue
+            runner.stop { [weak self] in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        if self?.writer === writer { self?.writer = nil }
+                        writer.finish(reason: reason, battery: battery) { _ in }
+                    }
+                }
             }
         }
     }

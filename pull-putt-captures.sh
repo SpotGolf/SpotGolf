@@ -6,7 +6,8 @@
 # Lists Documents/putt-captures in the watch app's container, copies every file that is not
 # already here with the same size into <folder>/<captureID>/<segment>/ (default
 # Data/putt-captures), then checks each segment's accel.bin and motion.bin sizes and the WAV's
-# frame count against meta.json and prints a summary. devicectl cannot delete, so captures are
+# frame count against meta.json, looks for mic gaps in audio-buffers.csv (version 3 on), and
+# prints a summary. devicectl cannot delete, so captures are
 # deleted on the watch, on Putt Lab's Captures page, once they are here.
 # See plans/2026-10-12-putt-lab-in-rounds.md.
 set -euo pipefail
@@ -77,9 +78,50 @@ echo "Copied $copied file(s), $skipped already here."
 
 # Checks and summary
 python3 -I - "$DEST" <<'EOF'
-import json, os, struct, sys
+import csv, json, os, struct, sys
 root = sys.argv[1]
 problems = 0
+
+# A mic gap shorter than this is clock jitter between buffers
+MIN_GAP = 0.05
+
+def wav_frames(path):
+    """Frames in a WAV's data chunk, reading its chunks: AVAudioFile adds JUNK and FLLR chunks, so
+    the data chunk does not start at byte 44."""
+    with open(path, "rb") as f:
+        head = f.read(12)
+        if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+            return None
+        block = None
+        while True:
+            chunk = f.read(8)
+            if len(chunk) < 8:
+                return None
+            cid, csize = chunk[:4], struct.unpack("<I", chunk[4:])[0]
+            if cid == b"fmt ":
+                fmt = f.read(csize)
+                block = struct.unpack("<H", fmt[12:14])[0]
+                f.seek(csize % 2, 1)
+            elif cid == b"data":
+                if not block:
+                    return None
+                # A segment cut short by a kill never had its data size written
+                available = os.path.getsize(path) - f.tell()
+                return min(csize, available) // block
+            else:
+                f.seek(csize + csize % 2, 1)
+
+def mic_gaps(path, rate):
+    """Gaps between microphone buffers, as (capture time, seconds missing)."""
+    gaps = []
+    previous_end = None
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            t, frames = float(row["t"]), int(row["frames"])
+            if previous_end is not None and t - previous_end > MIN_GAP:
+                gaps.append((previous_end, t - previous_end))
+            previous_end = t + frames / rate
+    return gaps
 for capture in sorted(os.listdir(root)):
     cdir = os.path.join(root, capture)
     if not os.path.isdir(cdir):
@@ -102,25 +144,33 @@ for capture in sorted(os.listdir(root)):
                 notes.append(f"motion.bin is {size('motion.bin')} bytes, expected {meta.get('motionCount', 0) * 60}")
             wav = os.path.join(sdir, "audio.wav")
             if meta.get("microphone", True) and os.path.exists(wav):
-                with open(wav, "rb") as f:
-                    header = f.read(44)
-                frames = None
-                if len(header) >= 44 and header[:4] == b"RIFF":
-                    channels, = struct.unpack("<H", header[22:24])
-                    bits, = struct.unpack("<H", header[34:36])
-                    data_size = os.path.getsize(wav) - 44
-                    frames = data_size // max(1, channels * bits // 8)
+                frames = wav_frames(wav)
                 if frames is None or abs(frames - meta.get("audioFrames", 0)) > 4096:
                     notes.append(f"audio.wav has {frames} frames, meta.json says {meta.get('audioFrames', 0)}")
+            buffers = os.path.join(sdir, "audio-buffers.csv")
+            rate = (meta.get("audio") or {}).get("sampleRate")
+            if os.path.exists(buffers) and rate:
+                gaps = mic_gaps(buffers, rate)
+                if gaps:
+                    lost = sum(g for _, g in gaps)
+                    first = ", ".join(f"{g:.2f} s at {t:.1f} s" for t, g in gaps[:3])
+                    notes.append(f"mic gaps: {len(gaps)}, {lost:.2f} s in all ({first}{', ...' if len(gaps) > 3 else ''})")
         if meta.get("endDate") is None:
             notes.append("not finished")
         marks = len(meta.get("marks", []))
-        contacts = max(0, sum(1 for _ in open(os.path.join(sdir, "contacts.csv"))) - 1) if os.path.exists(os.path.join(sdir, "contacts.csv")) else 0
+        def rows(name):
+            p = os.path.join(sdir, name)
+            return max(0, sum(1 for _ in open(p)) - 1) if os.path.exists(p) else 0
+        contacts = rows("contacts.csv")
+        extras = ""
+        if meta.get("version", 1) >= 3:
+            extras = (f", {rows('candidates.csv')} candidates, {rows('events.csv')} events, {rows('locations.csv')} fixes"
+                      f", {meta.get('wristLocation', '?')} wrist, crown {meta.get('crownOrientation', '?')}")
         battery = ""
         if meta.get("startBattery") is not None and meta.get("endBattery") is not None:
             battery = f", battery {meta['startBattery'] * 100:.0f}% → {meta['endBattery'] * 100:.0f}%"
         hole = meta.get("hole", "?")
-        print(f"  {segment}: hole {hole}, {meta.get('duration', 0) or 0:.0f} s, {marks} marks, {contacts} contacts, "
+        print(f"  {segment}: hole {hole}, {meta.get('duration', 0) or 0:.0f} s, {marks} marks, {contacts} contacts{extras}, "
               f"ended {meta.get('endReason', '?')}{battery}" + (f"  !! {'; '.join(notes)}" if notes else ""))
         problems += len(notes)
 print()

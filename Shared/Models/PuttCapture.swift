@@ -5,7 +5,7 @@ import Foundation
 /// one outside a round; each segment holds the files below. See `plans/2026-10-06-putt-capture.md`
 /// for the files and their layout and `plans/2026-10-12-putt-lab-in-rounds.md` for segments.
 enum PuttCapture {
-    static let version = 2
+    static let version = 3
 
     /// The folder under Documents that holds every capture.
     static let directoryName = "putt-captures"
@@ -18,8 +18,24 @@ enum PuttCapture {
     /// The contacts `ContactDetector` found as the capture ran, for checking against the marks.
     static let contactsFile = "contacts.csv"
     static let contactsHeader = "t,score,burst,click,turning"
+    /// Every candidate the detector judged with `StrokeGate`, passed or not, with what the gate
+    /// measured, so the gate's limits can be checked against the marks. Version 3 on.
+    static let candidatesFile = "candidates.csv"
+    static let candidatesHeader = "t,burst,click,onset,score,still,tilt,backswing,returnOffset,passed"
+    /// Each microphone buffer: its capture time, length and first frame in `audio.wav`, so a mic
+    /// stall shows as a gap. Version 3 on.
+    static let audioBuffersFile = "audio-buffers.csv"
+    static let audioBuffersHeader = "t,frames,firstFrame"
+    /// What happened on the watch while recording: taps on the app's buttons, haptics, display
+    /// hole changes, swings, and the workout's and sensors' stream events. Version 3 on.
+    static let eventsFile = "events.csv"
+    static let eventsHeader = "t,event,value"
+    /// The watch's GPS fixes. Version 3 on.
+    static let locationsFile = "locations.csv"
+    static let locationsHeader = "t,latitude,longitude,altitude,horizontalAccuracy,verticalAccuracy,speed,course"
     /// Every file a segment can hold.
-    static let files = [metaFile, marksFile, contactsFile, accelFile, motionFile, audioFile]
+    static let files = [metaFile, marksFile, contactsFile, candidatesFile, eventsFile, locationsFile, accelFile, motionFile,
+                        audioFile, audioBuffersFile]
 
     /// A segment's folder name in its capture: "001-hole1".
     static func segmentFolder(_ segment: Int, hole: Int) -> String {
@@ -112,10 +128,20 @@ enum PuttCapture {
         /// The segment's number in its capture, from 1.
         var segment: Int?
         var endReason: EndReason?
+        /// The wrist the watch is worn on, "left" or "right", as set on the watch. Version 3 on.
+        var wristLocation: String?
+        /// The side the Digital Crown is on, "left" or "right", as the wearer sees it. Version 3 on.
+        var crownOrientation: String?
+        /// The round's Green Zone in meters when the segment started. Absent outside a round.
+        var greenZone: Double?
 
+        /// Dates keep their milliseconds, so marks match the stream. Version 2 cut them to seconds.
         func json() throws -> Data {
             let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
+            encoder.dateEncodingStrategy = .custom { date, encoder in
+                var container = encoder.singleValueContainer()
+                try container.encode(PuttCapture.dateFormat.format(date))
+            }
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             return try encoder.encode(self)
         }
@@ -126,9 +152,16 @@ enum PuttCapture {
             self.startUptime = startUptime
         }
 
+        /// Reads dates with or without milliseconds.
         init(json: Data) throws {
             let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
+            decoder.dateDecodingStrategy = .custom { decoder in
+                let text = try decoder.singleValueContainer().decode(String.self)
+                if let date = (try? PuttCapture.dateFormat.parse(text)) ?? (try? Date.ISO8601FormatStyle().parse(text)) {
+                    return date
+                }
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not a date: \(text)"))
+            }
             self = try decoder.decode(Meta.self, from: json)
         }
 
@@ -155,6 +188,9 @@ enum PuttCapture {
             hole = try values.decodeIfPresent(Int.self, forKey: .hole)
             segment = try values.decodeIfPresent(Int.self, forKey: .segment)
             endReason = try values.decodeIfPresent(EndReason.self, forKey: .endReason)
+            wristLocation = try values.decodeIfPresent(String.self, forKey: .wristLocation)
+            crownOrientation = try values.decodeIfPresent(String.self, forKey: .crownOrientation)
+            greenZone = try values.decodeIfPresent(Double.self, forKey: .greenZone)
         }
     }
 

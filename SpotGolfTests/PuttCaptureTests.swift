@@ -44,11 +44,14 @@ final class PuttCaptureTests: XCTestCase {
         meta.hole = 7
         meta.segment = 3
         meta.endReason = .leftGreen
+        meta.wristLocation = "left"
+        meta.crownOrientation = "right"
+        meta.greenZone = 15
 
         let decoded = try PuttCapture.Meta(json: meta.json())
 
         XCTAssertEqual(decoded, meta)
-        XCTAssertEqual(decoded.version, 2)
+        XCTAssertEqual(decoded.version, 3)
     }
 
     func testVersionOneCaptureHasNoSegmentDetails() throws {

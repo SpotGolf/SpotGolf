@@ -1,3 +1,4 @@
+import CoreLocation
 import XCTest
 @testable import SpotGolfWatch
 
@@ -84,6 +85,47 @@ final class PuttCaptureRecorderTests: XCTestCase {
         XCTAssertEqual(recorder.state, .idle)
         let last = try await finishedMeta(of: capture.appendingPathComponent("002-hole4"))
         XCTAssertEqual(last.endReason, .roundEnded)
+    }
+
+    /// A segment records the watch's orientation, the Green Zone, and the round's events,
+    /// candidates and fixes while it is open; nothing between greens.
+    func testSegmentRecordsOrientationEventsCandidatesAndFixes() async throws {
+        recorder.greenZone = { 15 }
+        recorder.startInRound(roundID: roundID)
+        XCTAssertTrue(recorder.recordsRound)
+        recorder.record(event: "tap")
+        recorder.sessionChanged(.started(hole: 5))
+        let segment = try XCTUnwrap(captureFolders.first).appendingPathComponent("001-hole5")
+
+        recorder.record(event: "displayHole", value: 6)
+        recorder.record(StreamEvent(code: .microphoneRestart, value: 2))
+        recorder.detectorCandidate(ContactDetector.Judged(time: Uptime.now, burst: 0.3, click: 20, onset: 9, score: 6, features: nil))
+        recorder.record([CLLocation(latitude: 39.25, longitude: -104.5)])
+        recorder.sessionChanged(.stopped(reason: .leftGreen))
+        recorder.record(event: "tap")
+
+        let meta = try await finishedMeta(of: segment)
+        XCTAssertEqual(meta.greenZone, 15)
+        XCTAssertNotNil(meta.wristLocation)
+        XCTAssertNotNil(meta.crownOrientation)
+        let events = try String(contentsOf: segment.appendingPathComponent(PuttCapture.eventsFile), encoding: .utf8)
+            .split(separator: "\n").dropFirst().map { $0.split(separator: ",")[1] }
+        XCTAssertEqual(events, ["displayHole", "microphoneRestart"])
+        XCTAssertEqual(try String(contentsOf: segment.appendingPathComponent(PuttCapture.candidatesFile), encoding: .utf8)
+            .split(separator: "\n").count, 2)
+        XCTAssertEqual(try String(contentsOf: segment.appendingPathComponent(PuttCapture.locationsFile), encoding: .utf8)
+            .split(separator: "\n").count, 2)
+    }
+
+    /// A round ending as the next round starts leaves the new round's capture alone.
+    func testEndOfAnEarlierRoundLeavesTheNewCaptureAlone() {
+        recorder.startInRound(roundID: UUID())
+        recorder.startInRound(roundID: roundID)
+
+        recorder.roundEnded(roundID: UUID())
+
+        XCTAssertEqual(recorder.state, .waiting)
+        XCTAssertEqual(recorder.captureRoundID, roundID)
     }
 
     func testStopOnTheGreenEndsTheCaptureForTheRound() async throws {

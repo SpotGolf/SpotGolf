@@ -34,6 +34,8 @@ final class WatchServices {
     // The last values acted on, so only changes are acted on. Swing detection starts off.
     @ObservationIgnored private var hasLaunched = false
     @ObservationIgnored private var activeRoundID: UUID?
+    /// The display hole last written to Putt Lab's events.
+    @ObservationIgnored private var recordedDisplayHole: Int?
     @ObservationIgnored private var detectsSwings = false
     /// The Putt Lab setting the active round runs with, so only a change starts or stops the capture.
     @ObservationIgnored private var puttLabInRound = false
@@ -79,6 +81,7 @@ final class WatchServices {
         locationManager.setUpdatesInBackground()
         locationManager.onRawLocations = { [weak self] locations in
             sync.record(locations)
+            self?.puttCapture.record(locations)
             // Every fix, so leaving the green is seen over its whole time window
             for location in locations {
                 self?.advanceHole(location)
@@ -87,18 +90,31 @@ final class WatchServices {
                 }
             }
         }
-        swingDetector.onSwing = { sync.record($0) }
+        swingDetector.onSwing = { [weak self] swing in
+            sync.record(swing)
+            self?.puttCapture.record(event: "swing", value: Double(swing.peakG ?? 0), at: swing.timestamp)
+        }
         contactMonitor.onContact = { sync.record($0) }
         // Putt Lab records a segment for each of the monitor's sessions on a green
         contactMonitor.onSession = { [weak self] in self?.puttCapture.sessionChanged($0) }
         contactMonitor.onDetectorContact = { [weak self] in self?.puttCapture.detectorContact($0) }
+        contactMonitor.onDetectorCandidate = { [weak self] in self?.puttCapture.detectorCandidate($0) }
+        contactMonitor.recordsCandidates = { [weak self] in self?.puttCapture.recordsRound ?? false }
+        let monitor = contactMonitor
+        puttCapture.greenZone = { monitor.zoneMargin }
+        // Putt Lab's events: taps, haptics, swings, display hole changes and the stream's events
+        sensors.onGuarded = { [weak self] in self?.puttCapture.record(event: $0, value: $1) }
         // Settings changed on the phone mid-round take effect at once
         sync.onSettings = { [weak self] in self?.applyRoundSettings($0) }
         // The watch's own account of its workout and sensors goes into the round's stream
-        workoutManager.onEvent = { sync.record($0) }
-        sensors.onEvent = { sync.record($0) }
-        swingDetector.onEvent = { sync.record($0) }
-        contactMonitor.onEvent = { sync.record($0) }
+        let record: (StreamEvent) -> Void = { [weak self] event in
+            sync.record(event)
+            self?.puttCapture.record(event)
+        }
+        workoutManager.onEvent = record
+        sensors.onEvent = record
+        swingDetector.onEvent = record
+        contactMonitor.onEvent = record
         // A batched sensor that stays dead through its own restarts needs a new workout session
         sensors.onStalled = { [weak self] input in
             guard input != .microphone else { return }
@@ -111,7 +127,14 @@ final class WatchServices {
         puttCapture.recoverUnfinished()
 
         roundStore.addListener { [weak self] event in
-            if case .roundsChanged = event { self?.recordingInputsChanged() }
+            guard case .roundsChanged = event, let self else { return }
+            self.recordingInputsChanged()
+            // Putt Lab's events: the display hole, however it changed
+            let hole = self.roundStore.activeRound?.displayHoleNumber
+            if hole != self.recordedDisplayHole {
+                self.recordedDisplayHole = hole
+                if let hole { self.puttCapture.record(event: "displayHole", value: Double(hole)) }
+            }
         }
         workoutManager.addRunningListener { [weak self] _ in self?.recordingInputsChanged() }
         // A round already active at launch, after a crash or a relaunch by watchOS
@@ -214,9 +237,10 @@ final class WatchServices {
             locationManager.startUpdating()
             workoutManager.start()
         } else {
-            // The monitor's stop closes the open segment before the capture ends
+            // The monitor's stop closes the open segment, after the contact it flushes; the capture ends after both
             contactMonitor.roundEnded()
-            puttCapture.roundEnded()
+            let capturedRound = puttCapture.captureRoundID
+            contactMonitor.afterPending { [weak self] in self?.puttCapture.roundEnded(roundID: capturedRound) }
             locationManager.stopUpdating()
             workoutManager.stop()
         }

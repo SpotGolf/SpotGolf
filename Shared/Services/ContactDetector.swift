@@ -50,10 +50,29 @@ struct ContactDetector {
         let turning: Double
     }
 
+    /// A candidate with a click that passed the onset test and the score floor, and what the
+    /// gate measured at it. For Putt Lab, which records them all.
+    struct Judged: Equatable {
+        let time: Double
+        let burst: Double
+        let click: Double
+        let onset: Double
+        let score: Double
+        /// Nil when the motion did not reach far enough back.
+        let features: StrokeGate.Features?
+
+        var passed: Bool { features?.passes == true }
+    }
+
     private struct Candidate {
         let time: Double
         let burst: Double
     }
+
+    /// Keep every judged candidate for `takeJudged`. Each is then measured by the gate, even
+    /// one too weak to replace the stroke's contact.
+    var recordsCandidates = false
+    private var judged: [Judged] = []
 
     // Audio levels per millisecond, oldest first
     private var levels: [(time: Double, level: Double)] = []
@@ -167,8 +186,14 @@ struct ContactDetector {
             guard score >= Self.minRecordedScore else { continue }
             let inOpen = open.map { candidate.time - $0.start <= Self.contactSpacing } ?? false
             // A weaker candidate in the stroke being scored could not replace its contact
-            if inOpen, let current = open, score <= current.best.score { continue }
-            guard gate.features(at: candidate.time)?.passes == true else { continue }
+            let weaker = inOpen && score <= (open?.best.score ?? 0)
+            if weaker && !recordsCandidates { continue }
+            let features = gate.features(at: candidate.time)
+            if recordsCandidates {
+                judged.append(Judged(time: candidate.time, burst: candidate.burst, click: click, onset: onset, score: score,
+                                     features: features))
+            }
+            guard !weaker, features?.passes == true else { continue }
             let turning = gate.meanRotationRate(before: candidate.time, span: Self.turningWindow, gap: 0.01)
             let contact = Contact(time: candidate.time, score: score, burst: candidate.burst, click: click, turning: turning)
             if inOpen, let current = open {
@@ -180,6 +205,12 @@ struct ContactDetector {
         }
         candidates = remaining
         return found + closeOpen(before: complete)
+    }
+
+    /// The candidates judged since the last call, when `recordsCandidates` is on.
+    mutating func takeJudged() -> [Judged] {
+        defer { judged = [] }
+        return judged
     }
 
     /// The contact of a stroke still being scored, at the end of the stream.

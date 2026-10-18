@@ -33,10 +33,12 @@ final class CaptureAudioWriter: @unchecked Sendable {
         return info
     }
 
-    func write(_ buffer: AVAudioPCMBuffer, hostSeconds: Double) {
+    /// Writes the buffer and returns the index of its first frame in the file, or nil once closed.
+    @discardableResult
+    func write(_ buffer: AVAudioPCMBuffer, hostSeconds: Double) -> Int? {
         lock.lock()
         defer { lock.unlock() }
-        guard !closed else { return }
+        guard !closed else { return nil }
         if info == nil {
             info = PuttCapture.Audio(sampleRate: buffer.format.sampleRate, channels: Int(buffer.format.channelCount),
                                      startTime: hostSeconds - captureStartUptime, startHostTime: hostSeconds,
@@ -57,7 +59,9 @@ final class CaptureAudioWriter: @unchecked Sendable {
                 Log.puttLab.error("Audio write failed: \(String(describing: error))")
             }
         }
+        let first = frames
         frames += Int(buffer.frameLength)
+        return first
     }
 
     func close() {

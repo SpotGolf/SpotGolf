@@ -5,7 +5,8 @@ extension SensorInputs {
     /// to 1130, so the detectors ignore readings around it, and around the tap that played it.
     /// Every haptic goes through here.
     func play(_ haptic: WKHapticType) {
-        tapped()
+        taps.tapped()
+        onGuarded?("haptic", Double(haptic.rawValue))
         WKInterfaceDevice.current().play(haptic)
     }
 }

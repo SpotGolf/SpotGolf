@@ -58,8 +58,16 @@ final class ContactMonitor {
     /// Called on the main actor with each contact as the detector reported it, at its uptime.
     @ObservationIgnored var onDetectorContact: ((ContactDetector.Contact) -> Void)?
 
-    /// Called on the main actor as the detector goes on and off, for Putt Lab's segments.
+    /// Called on the main actor as the detector goes on and off, for Putt Lab's segments. In
+    /// order with the contacts: a stop comes after the contact the detector flushes on stopping.
     @ObservationIgnored var onSession: ((SessionChange) -> Void)?
+
+    /// Called on the main actor with every candidate the stroke gate judged, while
+    /// `recordsCandidates` said so when the session started.
+    @ObservationIgnored var onDetectorCandidate: ((ContactDetector.Judged) -> Void)?
+
+    /// Whether a session starting now records its candidates: while Putt Lab records the round.
+    @ObservationIgnored var recordsCandidates: () -> Bool = { false }
 
     /// Called with each start and stop, for the round's stream.
     @ObservationIgnored var onEvent: ((StreamEvent) -> Void)?
@@ -80,12 +88,20 @@ final class ContactMonitor {
         self.sensors = sensors
         self.isWorkoutRunning = isWorkoutRunning
         runner = ContactRunner(taps: sensors.taps)
+        // The main queue keeps contacts, candidates and session changes in the order the runner sent them
         runner.onContact = { [weak self] contact in
             let event = ContactRunner.event(contact)
             Log.contacts.notice("Contact at \(event.timestamp): score \(event.score), burst \(event.burst) g, click \(event.click), turning \(event.turning) rad/s")
-            Task { @MainActor in
-                self?.onContact?(event)
-                self?.onDetectorContact?(contact)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.onContact?(event)
+                    self?.onDetectorContact?(contact)
+                }
+            }
+        }
+        runner.onCandidate = { [weak self] candidate in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.onDetectorCandidate?(candidate) }
             }
         }
     }
@@ -125,6 +141,16 @@ final class ContactMonitor {
         }
     }
 
+    /// Runs `block` on the main actor after every contact, candidate and session change the
+    /// detector has sent so far.
+    func afterPending(_ block: @escaping @MainActor @Sendable () -> Void) {
+        runner.afterQueued {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { block() }
+            }
+        }
+    }
+
     func roundEnded() {
         holeIndex = nil
         if isRunning {
@@ -135,7 +161,7 @@ final class ContactMonitor {
     private func start() {
         isRunning = true
         startedAt = Date()
-        runner.start()
+        runner.start(recordingCandidates: recordsCandidates())
         let runner = runner
         subscriptions = [
             sensors.subscribeAccelerometer { runner.addAccelerometer($0) },
@@ -147,7 +173,12 @@ final class ContactMonitor {
         let hole = holeIndex == nil ? 0 : holeNumber
         Log.contacts.notice("Contact detection on at hole \(hole)")
         onEvent?(StreamEvent(code: .contactsOn, value: Float(hole)))
-        onSession?(.started(hole: hole))
+        // After a stop still flushing, so Putt Lab closes the last segment before it opens the next
+        runner.afterQueued { [weak self] in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.onSession?(.started(hole: hole)) }
+            }
+        }
     }
 
     private func stop(reason: StopReason) {
@@ -156,11 +187,15 @@ final class ContactMonitor {
             subscription.cancel()
         }
         subscriptions = []
-        runner.stop()
+        // Putt Lab hears of the stop after the contact the detector flushes, so the contact reaches the segment
+        runner.stop { [weak self] in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.onSession?(.stopped(reason: reason)) }
+            }
+        }
         let seconds = startedAt.map { Date().timeIntervalSince($0) } ?? 0
         startedAt = nil
         Log.contacts.notice("Contact detection off after \(Int(seconds)) s: \(reason.text)")
         onEvent?(StreamEvent(code: .contactsOff, value: Float(seconds)))
-        onSession?(.stopped(reason: reason))
     }
 }

@@ -30,7 +30,14 @@ final class ContactDetectorTests: XCTestCase {
     }
 
     private func run(clickAt: Double?, burstAt: Double, motion: [StrokeGate.Sample]) -> [ContactDetector.Contact] {
+        run(clickAt: clickAt, burstAt: burstAt, motion: motion, recordingCandidates: false).contacts
+    }
+
+    private func run(clickAt: Double?, burstAt: Double, motion: [StrokeGate.Sample],
+                     recordingCandidates: Bool) -> (contacts: [ContactDetector.Contact], judged: [ContactDetector.Judged]) {
         var detector = ContactDetector()
+        detector.recordsCandidates = recordingCandidates
+        var judged: [ContactDetector.Judged] = []
         let seconds = 14.0
         var found: [ContactDetector.Contact] = []
         let audio = audio(seconds: seconds, clickAt: clickAt)
@@ -42,8 +49,37 @@ final class ContactDetectorTests: XCTestCase {
             detector.addMotion(Array(motion[(second * 200)..<((second + 1) * 200)]))
             detector.addReadings(Array(readings[(second * 800)..<((second + 1) * 800)]))
             found += detector.evaluate()
+            judged += detector.takeJudged()
         }
-        return found + detector.flush()
+        return (found + detector.flush(), judged)
+    }
+
+    /// Putt Lab records every candidate the gate judged, with what it measured.
+    func testRecordedCandidatesCarryTheGatesMeasures() throws {
+        let putt = run(clickAt: 11.99, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14),
+                       recordingCandidates: true)
+        let turning = (0..<(14 * 200)).map {
+            StrokeGate.Sample(time: Double($0) / 200, rotation: SIMD3(0, 0, 1), gravity: SIMD3(0, 0, -1))
+        }
+        let lift = run(clickAt: 11.99, burstAt: 12.0, motion: turning, recordingCandidates: true)
+
+        XCTAssertEqual(putt.contacts.count, 1)
+        XCTAssertGreaterThan(putt.judged.count, 1, "The weaker candidates of the stroke are measured too")
+        let best = try XCTUnwrap(putt.judged.max { $0.score < $1.score })
+        XCTAssertTrue(best.passed)
+        XCTAssertEqual(best.time, putt.contacts[0].time)
+        XCTAssertEqual(try XCTUnwrap(best.features).backswing, 12, accuracy: 1)
+        XCTAssertEqual(lift.contacts, [])
+        XCTAssertFalse(lift.judged.isEmpty)
+        XCTAssertFalse(lift.judged.contains { $0.passed })
+    }
+
+    func testCandidatesAreNotKeptUnlessAsked() {
+        let putt = run(clickAt: 11.99, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14),
+                       recordingCandidates: false)
+
+        XCTAssertEqual(putt.contacts.count, 1)
+        XCTAssertEqual(putt.judged, [])
     }
 
     func testPuttIsAContact() {

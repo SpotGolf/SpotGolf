@@ -18,6 +18,10 @@ final class ContactRunner: @unchecked Sendable {
     /// Called on the runner's queue. Times are on the uptime clock.
     var onContact: ((ContactDetector.Contact) -> Void)?
 
+    /// Called on the runner's queue with every candidate the gate judged, when the detector was
+    /// started recording candidates.
+    var onCandidate: ((ContactDetector.Judged) -> Void)?
+
     init(taps: TapGuard) {
         self.taps = taps
     }
@@ -35,12 +39,20 @@ final class ContactRunner: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// Starts a fresh detector. Input before this is dropped.
-    func start() {
+    /// Starts a fresh detector. Input before this is dropped. With `recordingCandidates` every
+    /// judged candidate goes to `onCandidate`.
+    func start(recordingCandidates: Bool = false) {
         setActive(true)
         queue.async {
             self.detector = ContactDetector()
+            self.detector.recordsCandidates = recordingCandidates
         }
+    }
+
+    /// Runs `block` on the queue once the work queued before it is done, so it comes after
+    /// every contact reported so far.
+    func afterQueued(_ block: @escaping @Sendable () -> Void) {
+        queue.async(execute: block)
     }
 
     /// Drops input from now on, reports the stroke still being scored, then calls `completion`
@@ -53,6 +65,7 @@ final class ContactRunner: @unchecked Sendable {
         setActive(false)
         queue.async {
             self.report(self.detector.flush())
+            self.reportJudged()
             completion?()
         }
     }
@@ -86,6 +99,13 @@ final class ContactRunner: @unchecked Sendable {
         queue.async {
             self.detector.addReadings(readings)
             self.report(self.detector.evaluate())
+            self.reportJudged()
+        }
+    }
+
+    private func reportJudged() {
+        for candidate in detector.takeJudged() {
+            onCandidate?(candidate)
         }
     }
 

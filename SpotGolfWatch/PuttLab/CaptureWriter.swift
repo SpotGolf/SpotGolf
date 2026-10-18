@@ -1,15 +1,18 @@
 import AVFAudio
+import CoreLocation
 import CoreMotion
 import Foundation
 import os
 
-/// Writes one segment of a putt capture: the six files in one folder, times in seconds since
-/// the segment started on the uptime clock. Sensor batches come in on the sensors' own threads
+/// Writes one segment of a putt capture: the files in `PuttCapture.files`, in one folder, times
+/// in seconds since the segment started on the uptime clock. Sensor batches come in on the sensors' own threads
 /// and are encoded there; every file write happens on the writer's own queue, which is also
 /// where the marks and the counts live. `finish` closes the files and completes `meta.json`.
 final class CaptureWriter: @unchecked Sendable {
     let directory: URL
     let startUptime: Double
+    /// Read with `startUptime`, so a date goes on the segment's clock by it.
+    let startDate: Date
     /// Readings and audio are written. Off for a battery test: only the counts are kept.
     let savesData: Bool
 
@@ -20,6 +23,10 @@ final class CaptureWriter: @unchecked Sendable {
     private var motionHandle: FileHandle?
     private var marksHandle: FileHandle?
     private var contactsHandle: FileHandle?
+    private var candidatesHandle: FileHandle?
+    private var eventsHandle: FileHandle?
+    private var locationsHandle: FileHandle?
+    private var audioBuffersHandle: FileHandle?
     private var accelCount = 0
     private var motionCount = 0
     private var contactCount = 0
@@ -32,6 +39,7 @@ final class CaptureWriter: @unchecked Sendable {
         self.directory = directory
         self.meta = meta
         startUptime = meta.startUptime
+        startDate = meta.startDate
         self.savesData = savesData
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         if savesData {
@@ -42,6 +50,16 @@ final class CaptureWriter: @unchecked Sendable {
                                           header: PuttCapture.Mark.csvHeader + "\n")
         contactsHandle = try Self.createFile(directory.appendingPathComponent(PuttCapture.contactsFile),
                                              header: PuttCapture.contactsHeader + "\n")
+        candidatesHandle = try Self.createFile(directory.appendingPathComponent(PuttCapture.candidatesFile),
+                                               header: PuttCapture.candidatesHeader + "\n")
+        eventsHandle = try Self.createFile(directory.appendingPathComponent(PuttCapture.eventsFile),
+                                           header: PuttCapture.eventsHeader + "\n")
+        locationsHandle = try Self.createFile(directory.appendingPathComponent(PuttCapture.locationsFile),
+                                              header: PuttCapture.locationsHeader + "\n")
+        if microphone {
+            audioBuffersHandle = try Self.createFile(directory.appendingPathComponent(PuttCapture.audioBuffersFile),
+                                                     header: PuttCapture.audioBuffersHeader + "\n")
+        }
         try meta.json().write(to: directory.appendingPathComponent(PuttCapture.metaFile))
         audio = microphone
             ? CaptureAudioWriter(url: savesData ? directory.appendingPathComponent(PuttCapture.audioFile) : nil,
@@ -102,8 +120,11 @@ final class CaptureWriter: @unchecked Sendable {
     }
 
     func add(audio buffer: AVAudioPCMBuffer, hostSeconds: Double) {
-        guard let audio else { return }
-        audio.write(buffer, hostSeconds: hostSeconds)
+        guard let audio, let first = audio.write(buffer, hostSeconds: hostSeconds) else { return }
+        let line = "\(hostSeconds - startUptime),\(buffer.frameLength),\(first)\n"
+        io.async {
+            self.write(Data(line.utf8), to: self.audioBuffersHandle, name: "audio buffers")
+        }
         // The audio's start goes into meta.json as soon as it is known, so a segment cut short
         // by a kill still says where its audio begins
         io.async {
@@ -121,6 +142,54 @@ final class CaptureWriter: @unchecked Sendable {
         io.async {
             self.write(Data(line.utf8), to: self.contactsHandle, name: "contacts")
             self.contactCount += 1
+        }
+    }
+
+    /// A candidate the stroke gate judged, at its uptime. Measures the gate could not take are blank.
+    func add(candidate: ContactDetector.Judged) {
+        let f = candidate.features
+        let fields: [String] = [
+            "\(candidate.time - startUptime)", "\(candidate.burst)", "\(candidate.click)", "\(candidate.onset)", "\(candidate.score)",
+            f.map { "\($0.still)" } ?? "", f.map { "\($0.tilt)" } ?? "", f.map { "\($0.backswing)" } ?? "",
+            f?.returnOffset.map { "\($0)" } ?? "", candidate.passed ? "1" : "0"
+        ]
+        let line = fields.joined(separator: ",") + "\n"
+        io.async {
+            self.write(Data(line.utf8), to: self.candidatesHandle, name: "candidates")
+        }
+    }
+
+    /// Something that happened on the watch, at its uptime.
+    func add(event: String, value: Double, atUptime uptime: Double = Uptime.now) {
+        let line = "\(uptime - startUptime),\(event),\(value)\n"
+        io.async {
+            self.write(Data(line.utf8), to: self.eventsHandle, name: "events")
+        }
+    }
+
+    /// Something that happened on the watch at `date`, which is put on the segment's clock by
+    /// the start date: the two were read together.
+    func add(event: String, value: Double, at date: Date) {
+        add(event: event, value: value, atUptime: startUptime + date.timeIntervalSince(startDate))
+    }
+
+    /// GPS fixes. Unknown altitude, accuracy, speed or course are blank.
+    func add(locations: [CLLocation]) {
+        let lines = locations.map { location -> String in
+            func valid(_ value: Double, _ ok: Bool) -> String { ok ? "\(value)" : "" }
+            let fields = [
+                "\(location.timestamp.timeIntervalSince(startDate))",
+                "\(location.coordinate.latitude)", "\(location.coordinate.longitude)",
+                valid(location.altitude, location.verticalAccuracy >= 0),
+                valid(location.horizontalAccuracy, location.horizontalAccuracy >= 0),
+                valid(location.verticalAccuracy, location.verticalAccuracy >= 0),
+                valid(location.speed, location.speed >= 0),
+                valid(location.course, location.course >= 0)
+            ]
+            return fields.joined(separator: ",") + "\n"
+        }.joined()
+        io.async {
+            self.write(Data(lines.utf8), to: self.locationsHandle, name: "locations")
         }
     }
 
@@ -172,6 +241,10 @@ final class CaptureWriter: @unchecked Sendable {
             try? self.motionHandle?.close()
             try? self.marksHandle?.close()
             try? self.contactsHandle?.close()
+            try? self.candidatesHandle?.close()
+            try? self.eventsHandle?.close()
+            try? self.locationsHandle?.close()
+            try? self.audioBuffersHandle?.close()
             self.meta.endDate = endDate
             self.meta.duration = duration
             self.meta.endReason = reason
