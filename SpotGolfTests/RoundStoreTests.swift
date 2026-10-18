@@ -813,4 +813,16 @@ final class RoundStoreTests: XCTestCase {
 
         XCTAssertEqual(RoundStore(context: ModelContext(container)).round(id)?.hiddenSuggestionIDs, [suggestion])
     }
+
+    func testShowSuggestionUnhidesOnlyThatSuggestion() {
+        let id = startRound()
+        let shown = UUID()
+        let kept = UUID()
+        store.hideSuggestion(shown, roundID: id)
+        store.hideSuggestion(kept, roundID: id)
+
+        store.showSuggestion(shown, roundID: id)
+
+        XCTAssertEqual(RoundStore(context: ModelContext(container)).round(id)?.hiddenSuggestionIDs, [kept])
+    }
 }

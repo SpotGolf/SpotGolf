@@ -64,6 +64,17 @@ struct SpotSelection {
     var quality: ShotQuality = .good
     /// The delete confirmation is showing.
     var confirmsDelete = false
+    /// The stroke was added to open this sheet, so Cancel takes it back out.
+    var isNew = false
+    /// The suggestion the new stroke was taken from, shown again on Cancel.
+    var suggestionID: UUID?
+
+    /// Ends the sheet, keeping the stroke as it is in the round.
+    mutating func close() {
+        stroke = nil
+        isNew = false
+        suggestionID = nil
+    }
 }
 
 /// Whether Green View shows in place of the map, and the rule that opens it by itself. Green View

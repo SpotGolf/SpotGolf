@@ -110,6 +110,13 @@ class RoundStore {
         changed()
     }
 
+    /// Shows a hidden stroke suggestion again, when the stroke taken from it is cancelled.
+    func showSuggestion(_ suggestionID: UUID, roundID: UUID) {
+        guard let round = round(roundID), round.hiddenSuggestionIDs.contains(suggestionID) else { return }
+        round.hiddenSuggestionIDs.removeAll { $0 == suggestionID }
+        changed()
+    }
+
     // MARK: - Display hole
 
     /// Shows a hole on both devices. The active round when `roundID` is nil.

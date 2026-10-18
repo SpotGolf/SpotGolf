@@ -15,6 +15,7 @@ enum SpotActions {
         services.roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke,
                                       hitAt: StrokeFinder.estimatedTime(of: stroke, in: holeTrack))
         spot.stroke = stroke
+        spot.isNew = true
     }
 
     /// Turns a suggestion into a real stroke and opens it in the spot sheet.
@@ -25,5 +26,19 @@ enum SpotActions {
             bag: services.golfBag.bag) else { return }
         spot.newIndex = round.hole(at: holeIndex).strokes.firstIndex { $0.id == stroke.id } ?? 0
         spot.stroke = stroke
+        spot.isNew = true
+        spot.suggestionID = suggestion.id
+    }
+
+    /// Closes the spot sheet without saving. A stroke added to open it is taken back out, and the
+    /// suggestion it came from shows again.
+    static func cancel(round: Round, services: PhoneServices, spot: inout SpotSelection) {
+        if spot.isNew, let stroke = spot.stroke {
+            services.roundStore.removeStroke(stroke, from: round.id)
+            if let suggestionID = spot.suggestionID {
+                services.roundStore.showSuggestion(suggestionID, roundID: round.id)
+            }
+        }
+        spot.close()
     }
 }

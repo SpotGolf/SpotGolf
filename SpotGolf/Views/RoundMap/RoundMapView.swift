@@ -193,7 +193,8 @@ struct RoundMapView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: Binding(
             get: { spot.stroke != nil && !spot.confirmsDelete },
-            set: { if !$0 && !spot.confirmsDelete { spot.stroke = nil } }
+            // Swiping the sheet away is Cancel
+            set: { if !$0 && !spot.confirmsDelete { SpotActions.cancel(round: round, services: services, spot: &spot) } }
         )) {
             SpotEditSheet(round: round, shownHoleIndex: holeIndex, spot: $spot)
         }
@@ -202,7 +203,7 @@ struct RoundMapView: View {
                 if let stroke = spot.stroke {
                     services.roundStore.removeStroke(stroke, from: round.id)
                 }
-                spot.stroke = nil
+                spot.close()
             }
             Button("Cancel", role: .cancel) {
                 spot.confirmsDelete = false

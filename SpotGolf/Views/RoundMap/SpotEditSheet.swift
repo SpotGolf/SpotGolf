@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Moves a spot in its hole's order, picks its club, counts its penalty strokes, rates the shot,
 /// or deletes it. The club grid shows the bag with the stroke's club selected, or the guess for a
-/// stroke without one. Save applies every change at once; Cancel drops them.
+/// stroke without one. Save applies every change at once; Cancel drops them, and takes out a stroke
+/// added to open the sheet.
 /// See plans/2026-10-11-club-selection.md and plans/2026-10-11-penalty-strokes.md.
 struct SpotEditSheet: View {
     let round: Round
@@ -117,7 +118,7 @@ struct SpotEditSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        spot.stroke = nil
+                        SpotActions.cancel(round: round, services: services, spot: &spot)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -125,7 +126,7 @@ struct SpotEditSheet: View {
                         if let stroke = spot.stroke {
                             save(stroke)
                         }
-                        spot.stroke = nil
+                        spot.close()
                     }
                 }
             }
