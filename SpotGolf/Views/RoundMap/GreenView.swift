@@ -12,6 +12,8 @@ struct GreenView: View {
     let shownHoleIndex: Int
     let trackLine: [CLLocationCoordinate2D]
     let holeTrack: [TrackPoint]
+    /// The fixes where the hole could start, for the time of a spot placed by hand.
+    let startWindow: [TrackPoint]
     let suggestions: [StrokeSuggestion]
     @Binding var spot: SpotSelection
     /// The X in the top bar.
@@ -243,7 +245,8 @@ struct GreenView: View {
                 .onEnded { value in
                     if case .second(true, _) = value {
                         let drop = CGPoint(x: dot.x + dragOffset.width, y: dot.y + dragOffset.height)
-                        services.roundStore.moveStroke(stroke, to: projection.coordinate(at: drop), in: round.id)
+                        SpotActions.move(stroke, to: projection.coordinate(at: drop), round: round,
+                                         startWindow: startWindow, services: services)
                     }
                     draggingStroke = nil
                     dragOffset = .zero
@@ -352,7 +355,7 @@ struct GreenView: View {
             .onEnded { value in
                 guard case .second(true, let drag) = value, let drag, let projection else { return }
                 SpotActions.addSpot(at: projection.coordinate(at: drag.location), round: round, holeIndex: shownHoleIndex,
-                                    holeTrack: holeTrack, services: services, spot: &spot)
+                                    startWindow: startWindow, services: services, spot: &spot)
             }
     }
 }

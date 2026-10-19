@@ -79,16 +79,7 @@ final class PastRoundUITests: XCTestCase {
         createPastRound()
         openPastRound()
 
-        // Hole times are offered while editing, as during a round
-        XCTAssertFalse(app.buttons["Hole times"].exists, "Hole times should only show while editing")
         app.startEditing()
-        let holeTimes = app.buttons["Hole times"]
-        XCTAssertTrue(holeTimes.waitForExistence(timeout: 5), "Hole times should show while editing")
-        holeTimes.tap()
-        XCTAssertTrue(app.navigationBars["Hole Times"].waitForExistence(timeout: 5), "Hole times sheet should open")
-        // The Edit button also reads "Done" while editing
-        app.navigationBars["Hole Times"].buttons["Done"].tap()
-        XCTAssertTrue(app.navigationBars["Hole Times"].waitForNonExistence(timeout: 5), "Hole times sheet should close")
 
         // Move stroke 1 by dragging it. Stroke 2 stays put: the map must not pan under the drag,
         // which would move every stroke on screen and leave stroke 1 where it was

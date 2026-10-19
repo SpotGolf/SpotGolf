@@ -75,8 +75,8 @@ enum StrokeFinder {
     /// down, so its start can fall just before the hole does. A hole with no start yet (no stroke
     /// on it) is also offered the stops after the last hole that has one; see `HoleTimeline.possibleHoles`.
     /// `minStop` is the shortest stop with no swing that is offered; `zoneMargin` is how far from
-    /// the green's edge still counts as on it; `hidden` holds the IDs of dismissed and converted
-    /// suggestions.
+    /// the green's edge still counts as on it; `hidden` holds the IDs of the suggestions turned
+    /// into strokes.
     static func suggestions(in round: Round, holeIndex: Int, points: [TrackPoint], swings: [StrokeSuggestion],
                             contacts: [ContactEvent] = [], events: [StreamEvent] = [], minStop: TimeInterval,
                             zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = []) -> [StrokeSuggestion] {

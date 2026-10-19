@@ -1,10 +1,10 @@
 import Foundation
 
 extension RoundStore {
-    /// Turns a stroke suggestion into a stroke on hole `holeIndex`, in the order it was
-    /// probably hit, going by the hole's GPS, and hides the suggestion. The club is guessed
-    /// for the stroke's place in that order. Returns the stroke, or nil when the suggestion has
-    /// no location.
+    /// Turns a stroke suggestion into a stroke on hole `holeIndex`, hit at the suggestion's time,
+    /// in the order it was probably hit, going by the hole's GPS. The suggestion is hidden while
+    /// the stroke exists. The club is guessed for the stroke's place in that order. Returns the
+    /// stroke, or nil when the suggestion has no location.
     @discardableResult
     func addSuggestedStroke(_ suggestion: StrokeSuggestion, holeIndex: Int, roundID: UUID, holeTrack: [TrackPoint],
                             bag: GolfBag) -> Stroke? {
@@ -13,12 +13,12 @@ extension RoundStore {
         let strokes = round.hole(at: holeIndex).strokes
         let insertAt = Self.insertionIndex(for: suggestion.timestamp, in: strokes, holeTrack: holeTrack)
         let club = HoleOverview.guessedClub(round, holeIndex: holeIndex, strokeIndex: insertAt, at: coordinate, bag: bag)
-        let stroke = Stroke(coordinate: coordinate, club: club)
-        addStroke(to: roundID, holeIndex: holeIndex, stroke: stroke, hitAt: suggestion.timestamp)
+        let stroke = Stroke(coordinate: coordinate, club: club, origin: .suggestion(id: suggestion.id),
+                            hitAt: suggestion.timestamp)
+        addStroke(to: roundID, holeIndex: holeIndex, stroke: stroke)
         if insertAt != strokes.count {
             reorderStroke(stroke, to: insertAt, in: roundID)
         }
-        hideSuggestion(suggestion.id, roundID: roundID)
         return stroke
     }
 

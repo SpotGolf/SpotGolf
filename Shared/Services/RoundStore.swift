@@ -9,7 +9,7 @@ import SwiftData
 enum RoundEvent {
     /// Any change to `rounds`, from either device.
     case roundsChanged
-    /// A timeline change made on this device: a hole's first stroke, or a start time set by hand.
+    /// A timeline change made on this device: a hole's start set, moved or cleared by its strokes.
     case timelineChanged(Round)
     /// A display hole change made on this device.
     case displayHoleChanged(Round)
@@ -101,22 +101,6 @@ class RoundStore {
         changed()
     }
 
-    // MARK: - Suggestions
-
-    /// Hides a stroke suggestion the user dismissed or turned into a stroke.
-    func hideSuggestion(_ suggestionID: UUID, roundID: UUID) {
-        guard let round = round(roundID), !round.hiddenSuggestionIDs.contains(suggestionID) else { return }
-        round.hiddenSuggestionIDs.append(suggestionID)
-        changed()
-    }
-
-    /// Shows a hidden stroke suggestion again, when the stroke taken from it is cancelled.
-    func showSuggestion(_ suggestionID: UUID, roundID: UUID) {
-        guard let round = round(roundID), round.hiddenSuggestionIDs.contains(suggestionID) else { return }
-        round.hiddenSuggestionIDs.removeAll { $0 == suggestionID }
-        changed()
-    }
-
     // MARK: - Display hole
 
     /// Shows a hole on both devices. The active round when `roundID` is nil.
@@ -182,42 +166,11 @@ class RoundStore {
         return true
     }
 
-    /// Replaces the timeline with one changed on this device.
-    func setTimeline(_ entries: [HoleStart], roundID: UUID) {
-        guard let round = round(roundID) else { return }
-        let normalized = HoleTimeline.normalized(entries)
-        guard normalized != round.holeTimeline else { return }
-        round.holeTimeline = normalized
-        changed()
-        report(.timelineChanged(round))
-    }
-
-    /// Sets a timeline entry's start time, as the user's own correction. The time is kept
-    /// between the entries before and after it, so the order of holes never changes.
-    func setStartTime(_ date: Date, entryID: UUID, roundID: UUID) {
-        guard var entries = round(roundID)?.holeTimeline,
-              let i = entries.firstIndex(where: { $0.id == entryID }),
-              let range = Self.startTimeRange(for: entryID, in: entries) else { return }
-        entries[i].startedAt = min(max(date, range.lowerBound), range.upperBound)
-        entries[i].source = .userSet
-        entries[i].version += 1
-        setTimeline(entries, roundID: roundID)
-    }
-
-    /// The start times an entry can have: after the entry before it and before the one after it.
-    /// Nil for the first entry, which is the round's start.
-    static func startTimeRange(for entryID: UUID, in entries: [HoleStart]) -> ClosedRange<Date>? {
-        guard let i = entries.firstIndex(where: { $0.id == entryID }), i > 0 else { return nil }
-        let lower = entries[i - 1].startedAt.addingTimeInterval(1)
-        let upper = i + 1 < entries.count ? entries[i + 1].startedAt.addingTimeInterval(-1) : .distantFuture
-        return lower <= upper ? lower...upper : nil
-    }
-
     // MARK: - Strokes
 
-    /// Adds a stroke. `hitAt` is when it was hit, when known: a hole's first stroke starts the
-    /// hole in the timeline, and an earlier one added later moves the start back.
-    func addStroke(to roundID: UUID, holeIndex: Int, stroke: Stroke, hitAt: Date? = nil) {
+    /// Adds a stroke. When its `hitAt` is known, a hole's first stroke starts the hole in the
+    /// timeline, and an earlier one added later moves the start back.
+    func addStroke(to roundID: UUID, holeIndex: Int, stroke: Stroke) {
         var added = false
         changeStrokes(roundID) { round in
             guard !round.hasStroke(id: stroke.id) else { return false }
@@ -225,16 +178,30 @@ class RoundStore {
             added = true
             return true
         }
-        guard added, let hitAt, let round = round(roundID),
+        guard added, let hitAt = stroke.hitAt, let round = round(roundID),
               round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
-        changed()
-        report(.timelineChanged(round))
+        timelineChanged(round)
     }
 
-    func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID) {
-        changeStroke(stroke.id, in: roundID) { existing in
-            existing = Stroke(id: existing.id, coordinate: coordinate, penaltyStrokes: existing.penaltyStrokes,
-                              quality: existing.quality, club: existing.club)
+    /// Moves a stroke. A manual stroke was hit where it is now, so `estimatedTime` works out its
+    /// time again, from the GPS, and its hole's start follows it both ways. A stroke from a
+    /// suggestion keeps the suggestion's time, so its hole's start stays.
+    func moveStroke(_ stroke: Stroke, to coordinate: CLLocationCoordinate2D, in roundID: UUID,
+                    estimatedTime: (Stroke) -> Date? = { _ in nil }) {
+        guard let round = round(roundID), let holeIndex = round.holeIndex(containing: stroke.id),
+              let existing = round.holes[holeIndex].strokes.first(where: { $0.id == stroke.id }) else { return }
+        var moved = Stroke(id: existing.id, coordinate: coordinate, penaltyStrokes: existing.penaltyStrokes,
+                           quality: existing.quality, club: existing.club, origin: existing.origin, hitAt: existing.hitAt)
+        if moved.origin == .manual {
+            moved.hitAt = estimatedTime(moved)
+        }
+        let replacement = moved
+        changeStroke(stroke.id, in: roundID) { $0 = replacement }
+        guard replacement.origin == .manual else { return }
+        let movedBack = replacement.hitAt.map { round.strokeHit(onHole: holeIndex, at: $0) } ?? false
+        let restarted = round.restartHole(holeIndex) { $0.hitAt ?? estimatedTime($0) }
+        if movedBack || restarted {
+            timelineChanged(round)
         }
     }
 
@@ -263,12 +230,20 @@ class RoundStore {
         }
     }
 
-    func removeStroke(_ stroke: Stroke, from roundID: UUID) {
+    /// Removes a stroke. Its hole's start follows the strokes left (see `Round.restartHole`), and
+    /// `estimatedTime` works out the time of a manual stroke that has none, from the GPS. A stroke
+    /// from a suggestion shows the suggestion again.
+    func removeStroke(_ stroke: Stroke, from roundID: UUID, estimatedTime: (Stroke) -> Date? = { _ in nil }) {
+        var removedFrom: Int?
         changeStrokes(roundID) { round in
             guard let holeIndex = round.holeIndex(containing: stroke.id) else { return false }
             round.holes[holeIndex].strokes.removeAll { $0.id == stroke.id }
+            removedFrom = holeIndex
             return true
         }
+        guard let removedFrom, let round = round(roundID),
+              round.restartHole(removedFrom, hitTime: { $0.hitAt ?? estimatedTime($0) }) else { return }
+        timelineChanged(round)
     }
 
     /// Applies the phone's strokes on the watch when the snapshot is newer than the last one applied.
@@ -293,6 +268,11 @@ class RoundStore {
             change(&round.holes[holeIndex].strokes[strokeIndex])
             return true
         }
+    }
+
+    private func timelineChanged(_ round: Round) {
+        changed()
+        report(.timelineChanged(round))
     }
 
     /// Every stroke change adds 1 to the round's strokes version, so the watch can tell newer from

@@ -64,9 +64,7 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
         let starts = timeline(path)
 
         XCTAssertEqual(starts.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(starts[0].source, .roundStart)
         XCTAssertEqual(starts[1].startedAt, leftGreen)
-        XCTAssertEqual(starts[1].source, .estimated)
     }
 
     func testOverhitApproachAndWalkBackEndsTheHoleAtTheLastGreenVisit() {
@@ -115,7 +113,7 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
         let starts = timeline(path)
 
         XCTAssertEqual(starts.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(starts[1].startedAt.timeIntervalSince(arrival), 0, accuracy: 20)
+        XCTAssertEqual(starts[1].startedAt?.timeIntervalSince(arrival) ?? .infinity, 0, accuracy: 20)
     }
 
     /// Coal Creek, 2026-10-02: the walk from the 8th green to the 9th tee crossed the 18th tee.

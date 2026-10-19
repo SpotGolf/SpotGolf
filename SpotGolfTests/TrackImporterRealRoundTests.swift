@@ -26,7 +26,8 @@ final class TrackImporterRealRoundTests: XCTestCase {
         let formatter = ISO8601DateFormatter()
         let leftSeventeenthGreen = try XCTUnwrap(formatter.date(from: "2026-10-02T18:16:24Z"))
         let reachedEighteenthTee = try XCTUnwrap(formatter.date(from: "2026-10-02T18:17:40Z"))
-        XCTAssertGreaterThan(round.holeTimeline[17].startedAt, leftSeventeenthGreen)
-        XCTAssertLessThan(round.holeTimeline[17].startedAt, reachedEighteenthTee)
+        let start = try XCTUnwrap(round.startOfHole(17))
+        XCTAssertGreaterThan(start, leftSeventeenthGreen)
+        XCTAssertLessThan(start, reachedEighteenthTee)
     }
 }

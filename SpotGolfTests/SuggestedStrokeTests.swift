@@ -53,7 +53,9 @@ final class SuggestedStrokeTests: XCTestCase {
         XCTAssertEqual(strokes.last?.id, last.id)
         XCTAssertEqual(strokes[1].id, added?.id)
         XCTAssertEqual(strokes[1].club?.id, "3w", "200 m to the green as the second stroke: the 3 wood, not the driver")
-        XCTAssertEqual(store.round(id)?.hiddenSuggestionIDs, [middle.id])
+        XCTAssertEqual(strokes[1].origin, .suggestion(id: middle.id))
+        XCTAssertEqual(strokes[1].hitAt, middle.timestamp)
+        XCTAssertEqual(store.round(id)?.takenSuggestionIDs, [middle.id])
     }
 
     func testSuggestionHitAfterEveryStrokeGoesLast() {

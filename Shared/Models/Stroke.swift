@@ -1,8 +1,17 @@
 import Foundation
 import CoreLocation
 
-/// A place the player hit the ball from, saved in the round. It has no time: a stroke's order
-/// in its hole is its stroke number (see `StrokeFinder.estimatedTime(of:in:)` for when it was hit).
+/// Where a stroke came from.
+enum StrokeOrigin: Codable, Equatable {
+    /// Placed by hand. Its time is the GPS fix nearest the spot, worked out again when it is moved.
+    case manual
+    /// Taken from a suggestion. It keeps the suggestion's time when it is moved, and the
+    /// suggestion is hidden while the stroke exists.
+    case suggestion(id: UUID)
+}
+
+/// A place the player hit the ball from, saved in the round. A stroke's order in its hole is its
+/// stroke number; its time sets when the hole started (see `Round.restartHole`).
 struct Stroke: Identifiable, Codable, Equatable {
     /// The most penalty strokes one stroke can cost.
     static let maxPenaltyStrokes = 4
@@ -18,15 +27,20 @@ struct Stroke: Identifiable, Codable, Equatable {
     /// `Club.id` of the club it was hit with. Nil for strokes from before clubs were recorded,
     /// and when the bag had nothing to offer. See plans/2026-10-11-club-selection.md.
     var clubID: String?
+    let origin: StrokeOrigin
+    /// When it was hit. Nil for a manual stroke placed where there was no GPS.
+    var hitAt: Date?
 
     init(id: UUID = UUID(), coordinate: CLLocationCoordinate2D, penaltyStrokes: Int = 0, quality: ShotQuality = .good,
-         club: Club? = nil) {
+         club: Club? = nil, origin: StrokeOrigin = .manual, hitAt: Date? = nil) {
         self.id = id
         self.latitude = coordinate.latitude
         self.longitude = coordinate.longitude
         self.penaltyStrokes = Self.clamped(penaltyStrokes: penaltyStrokes)
         self.quality = quality
         self.clubID = club?.id
+        self.origin = origin
+        self.hitAt = hitAt
     }
 
     /// `count` kept between 0 and `maxPenaltyStrokes`.
@@ -54,7 +68,7 @@ struct Stroke: Identifiable, Codable, Equatable {
     // MARK: - Codable
 
     private enum CodingKeys: String, CodingKey {
-        case id, latitude, longitude, penaltyStrokes, quality, clubID
+        case id, latitude, longitude, penaltyStrokes, quality, clubID, origin, hitAt
         /// Strokes saved before penalty strokes were counted: regular, penalty or outOfBounds.
         case type
     }
@@ -65,6 +79,8 @@ struct Stroke: Identifiable, Codable, Equatable {
         latitude = try values.decode(Double.self, forKey: .latitude)
         longitude = try values.decode(Double.self, forKey: .longitude)
         clubID = try values.decodeIfPresent(String.self, forKey: .clubID)
+        origin = try values.decode(StrokeOrigin.self, forKey: .origin)
+        hitAt = try values.decodeIfPresent(Date.self, forKey: .hitAt)
         quality = try values.decodeIfPresent(ShotQuality.self, forKey: .quality) ?? .unrated
         if let count = try values.decodeIfPresent(Int.self, forKey: .penaltyStrokes) {
             penaltyStrokes = Self.clamped(penaltyStrokes: count)
@@ -82,5 +98,7 @@ struct Stroke: Identifiable, Codable, Equatable {
         try values.encode(penaltyStrokes, forKey: .penaltyStrokes)
         try values.encode(quality, forKey: .quality)
         try values.encodeIfPresent(clubID, forKey: .clubID)
+        try values.encode(origin, forKey: .origin)
+        try values.encodeIfPresent(hitAt, forKey: .hitAt)
     }
 }

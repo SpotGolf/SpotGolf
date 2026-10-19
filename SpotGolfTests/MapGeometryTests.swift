@@ -147,11 +147,25 @@ final class MapGeometryTests: XCTestCase {
 
     func testHoleTrackKeepsTheFixesOnTheHole() {
         let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
-        round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600), source: .stroke)
+        round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600))
         let early = TrackPoint(location: StreamFixtures.location(60))
         let late = TrackPoint(location: StreamFixtures.location(700))
 
         XCTAssertEqual(HoleTrack.points([early, late], in: round, holeIndex: 0), [early])
         XCTAssertEqual(HoleTrack.points([early, late], in: round, holeIndex: 1), [late])
+    }
+
+    func testStartWindowRunsBetweenTheStartsAroundTheHole() {
+        let round = Round(date: StreamFixtures.start, courseSelection: .test)
+        round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600))
+        round.startHole(2, at: StreamFixtures.start.addingTimeInterval(1200))
+        round.startHole(4, at: StreamFixtures.start.addingTimeInterval(2400))
+        let fixes = [300, 900, 1500, 2700].map { TrackPoint(location: StreamFixtures.location(TimeInterval($0))) }
+
+        // Hole 2's own start is left out: from hole 1's start to hole 4's
+        XCTAssertEqual(HoleTrack.startWindow(fixes, in: round, holeIndex: 2), [fixes[1], fixes[2]])
+        // No earlier start for hole 0, and no later one for hole 4
+        XCTAssertEqual(HoleTrack.startWindow(fixes, in: round, holeIndex: 0), [fixes[0]])
+        XCTAssertEqual(HoleTrack.startWindow(fixes, in: round, holeIndex: 4), [fixes[2], fixes[3]])
     }
 }

@@ -7,7 +7,6 @@ struct MapButtonBar: View {
     let round: Round
     let shownHoleIndex: Int
     @Binding var isEditing: Bool
-    @Binding var showHoleTimes: Bool
     @Binding var showLog: Bool
     let followsUserLocation: Bool
     /// The location button: the camera goes back to following the player.
@@ -102,24 +101,12 @@ struct MapButtonBar: View {
         }
     }
 
-    /// Hole times and the round's log (only while editing), then the map's style and, during a
-    /// round, following the player's location, together in one capsule as Apple Maps has them.
+    /// The round's log (only while editing), then the map's style and, during a round, following
+    /// the player's location, together in one capsule as Apple Maps has them.
     /// The capsule is not in Green View.
     private var mapButtons: some View {
         VStack(spacing: 8) {
             if isEditing {
-                Button {
-                    showHoleTimes = true
-                } label: {
-                    Image(systemName: "clock")
-                }
-                .accessibilityLabel("Hole times")
-                .font(.title3)
-                .frame(width: Self.buttonSize, height: Self.buttonSize)
-                .background(.thickMaterial)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-
                 Button {
                     showLog = true
                 } label: {

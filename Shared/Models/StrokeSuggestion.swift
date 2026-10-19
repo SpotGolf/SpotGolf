@@ -56,7 +56,7 @@ struct StrokeSuggestion: Identifiable, Equatable {
     }
 
     /// The same UUID every time for the same millisecond, so a stop or swing found again gives
-    /// the same ID and a dismissed suggestion stays dismissed.
+    /// the same ID and a suggestion turned into a stroke stays hidden.
     static func id(at date: Date) -> UUID {
         // A fixed base, with the milliseconds in the last 8 bytes
         var bytes: uuid_t = (0x53, 0x47, 0x53, 0x54, 0x52, 0x4B, 0x40, 0x00, 0x80, 0, 0, 0, 0, 0, 0, 0)

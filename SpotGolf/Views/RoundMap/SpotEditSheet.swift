@@ -8,6 +8,8 @@ import SwiftUI
 struct SpotEditSheet: View {
     let round: Round
     let shownHoleIndex: Int
+    /// The fixes where the hole could start, for Cancel taking out a new spot.
+    let startWindow: [TrackPoint]
     @Binding var spot: SpotSelection
 
     @Environment(PhoneServices.self) private var services
@@ -118,7 +120,7 @@ struct SpotEditSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        SpotActions.cancel(round: round, services: services, spot: &spot)
+                        SpotActions.cancel(round: round, startWindow: startWindow, services: services, spot: &spot)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {

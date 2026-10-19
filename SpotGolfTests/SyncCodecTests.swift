@@ -50,6 +50,14 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }
 
+    func testTimelineWithAClearedStartRoundTrips() throws {
+        let entries = [HoleStart(holeIndex: 0, startedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                       HoleStart(holeIndex: 1, startedAt: nil, version: 1)]
+        let message = SyncMessage.holeTimeline(HoleTimelineMessage(roundID: roundID, entries: entries))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+    }
+
     func testStreamBatchWithLogLinesRoundTrips() throws {
         let line = LogLine(timestamp: Date(timeIntervalSince1970: 1_700_000_000.25), device: .watch,
                            level: .error, category: "sensors", message: "accelerometer stalled")

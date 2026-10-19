@@ -60,11 +60,26 @@ final class StrokeTests: XCTestCase {
         XCTAssertEqual(decoded, stroke)
 
         let old = """
-        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"type":"regular"}
+        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"origin":{"manual":{}},"type":"regular"}
         """
         let oldStroke = try JSONDecoder().decode(Stroke.self, from: Data(old.utf8))
         XCTAssertNil(oldStroke.club)
         XCTAssertNil(oldStroke.clubID)
+    }
+
+    func testOriginAndHitTimeRoundTrip() throws {
+        let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
+        let strokes = [
+            Stroke(coordinate: coord),
+            Stroke(coordinate: coord, hitAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            Stroke(coordinate: coord, origin: .suggestion(id: UUID()), hitAt: Date(timeIntervalSince1970: 1_700_000_100)),
+        ]
+
+        for stroke in strokes {
+            XCTAssertEqual(try JSONDecoder().decode(Stroke.self, from: JSONEncoder().encode(stroke)), stroke)
+        }
+        XCTAssertEqual(strokes[0].origin, .manual)
+        XCTAssertNil(strokes[0].hitAt)
     }
 
     func testEquatable() {
@@ -124,7 +139,7 @@ final class StrokeTests: XCTestCase {
     func testOldStrokesDecodeTheirTypeAsPenaltyStrokes() throws {
         func decode(type: String) throws -> Stroke {
             let json = """
-            {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"type":"\(type)"}
+            {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"origin":{"manual":{}},"type":"\(type)"}
             """
             return try JSONDecoder().decode(Stroke.self, from: Data(json.utf8))
         }
@@ -144,7 +159,7 @@ final class StrokeTests: XCTestCase {
         XCTAssertEqual(decoded, stroke)
 
         let old = """
-        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"penaltyStrokes":1}
+        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"origin":{"manual":{}},"penaltyStrokes":1}
         """
         XCTAssertEqual(try JSONDecoder().decode(Stroke.self, from: Data(old.utf8)).quality, .unrated)
     }

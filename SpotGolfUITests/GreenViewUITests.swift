@@ -56,7 +56,7 @@ final class GreenViewUITests: XCTestCase {
         XCTAssertTrue(closeButton.exists, "Green View should have an X")
         XCTAssertFalse(app.buttons["MapStyle"].exists, "The map's buttons should be hidden in Green View")
         XCTAssertTrue(element("GreenViewPinDistance").exists, "The feet to the pin should show during a round")
-        XCTAssertTrue(app.buttons["Hole times"].exists, "Green View should be in edit mode")
+        XCTAssertTrue(app.buttons["RoundLog"].exists, "Green View should be in edit mode")
         XCTAssertFalse(app.buttons["EditHole"].exists, "Green View is always in edit mode, so it has no Edit button")
         XCTAssertFalse(greenViewButton.exists, "The Green View button should be hidden in Green View")
 

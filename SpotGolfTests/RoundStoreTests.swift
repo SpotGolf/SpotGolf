@@ -45,8 +45,9 @@ final class RoundStoreTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func makeStroke(latitude: Double = 33.45, longitude: Double = -112.07) -> Stroke {
-        Stroke(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
+    private func makeStroke(latitude: Double = 33.45, longitude: Double = -112.07, origin: StrokeOrigin = .manual,
+                            hitAt: Date? = nil) -> Stroke {
+        Stroke(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), origin: origin, hitAt: hitAt)
     }
 
     /// Starts a round and returns its ID.
@@ -248,53 +249,13 @@ final class RoundStoreTests: XCTestCase {
         let id = startRound()
         let round = store.round(id)!
         // The other device's copy, with hole 5 started
-        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600), source: .stroke)]
+        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600))]
 
         XCTAssertTrue(store.mergeTimeline(other, roundID: id))
 
         XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 4])
         XCTAssertTrue(timelineChanges.isEmpty)
         XCTAssertFalse(store.mergeTimeline(other, roundID: id))
-    }
-
-    func testSetTimelineReportsChangeOnlyWhenDifferent() {
-        let id = startRound()
-        let round = store.round(id)!
-        let entries = round.holeTimeline + [HoleStart(holeIndex: 2, startedAt: round.date.addingTimeInterval(600), source: .estimated)]
-
-        store.setTimeline(entries, roundID: id)
-        store.setTimeline(entries, roundID: id)
-
-        XCTAssertEqual(store.round(id)?.holeTimeline.last?.holeIndex, 2)
-        XCTAssertEqual(timelineChanges.count, 1)
-    }
-
-    func testSetStartTimeStaysBetweenNeighbors() throws {
-        let id = store.startRound(date: Date().addingTimeInterval(-3600), courseSelection: .test).id
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: Date().addingTimeInterval(-1800))
-        store.addStroke(to: id, holeIndex: 2, stroke: makeStroke(), hitAt: Date().addingTimeInterval(-600))
-        let timeline = try XCTUnwrap(store.round(id)?.holeTimeline)
-
-        // Before hole 1's start: kept just after it, so no entry is dropped
-        store.setStartTime(timeline[0].startedAt.addingTimeInterval(-60), entryID: timeline[2].id, roundID: id)
-
-        let updated = try XCTUnwrap(store.round(id)?.holeTimeline)
-        XCTAssertEqual(updated.map(\.holeIndex), [0, 1, 2])
-        XCTAssertEqual(updated[2].startedAt, timeline[1].startedAt.addingTimeInterval(1))
-    }
-
-    func testSetStartTimeStrokesEntryUserSet() throws {
-        let id = store.startRound(date: Date().addingTimeInterval(-3600), courseSelection: .test).id
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: Date())
-        let entry = try XCTUnwrap(store.round(id)?.holeTimeline.last)
-        let newTime = entry.startedAt.addingTimeInterval(-30)
-
-        store.setStartTime(newTime, entryID: entry.id, roundID: id)
-
-        let updated = try XCTUnwrap(store.round(id)?.holeTimeline.last)
-        XCTAssertEqual(updated.startedAt, newTime)
-        XCTAssertEqual(updated.source, .userSet)
-        XCTAssertEqual(updated.version, entry.version + 1)
     }
 
     // MARK: - addStroke
@@ -351,11 +312,10 @@ final class RoundStoreTests: XCTestCase {
         let id = startRound()
         let hitAt = Date().addingTimeInterval(600)
 
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: hitAt)
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: hitAt))
 
         XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 1])
         XCTAssertEqual(store.round(id)?.holeTimeline.last?.startedAt, hitAt)
-        XCTAssertEqual(store.round(id)?.holeTimeline.last?.source, .stroke)
         XCTAssertEqual(timelineChanges.count, 1)
         XCTAssertEqual(strokeChanges.count, 1)
     }
@@ -372,9 +332,9 @@ final class RoundStoreTests: XCTestCase {
     func testLaterStrokeOnAHoleKeepsItsStart() {
         let id = startRound()
         let first = Date().addingTimeInterval(600)
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: first)
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: first))
 
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: first.addingTimeInterval(60))
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: first.addingTimeInterval(60)))
 
         XCTAssertEqual(store.round(id)?.holeTimeline.last?.startedAt, first)
         XCTAssertEqual(timelineChanges.count, 1)
@@ -383,9 +343,9 @@ final class RoundStoreTests: XCTestCase {
     func testEarlierStrokeOnAHoleMovesItsStartBack() {
         let id = startRound()
         let first = Date().addingTimeInterval(600)
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: first)
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: first))
 
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: first.addingTimeInterval(-60))
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: first.addingTimeInterval(-60)))
 
         XCTAssertEqual(store.round(id)?.holeTimeline.last?.startedAt, first.addingTimeInterval(-60))
         XCTAssertEqual(store.round(id)?.holeTimeline.last?.version, 1)
@@ -394,10 +354,11 @@ final class RoundStoreTests: XCTestCase {
 
     func testAddingAStrokeAgainDoesNotTouchTheTimeline() {
         let id = startRound()
-        let stroke = makeStroke()
-        store.addStroke(to: id, holeIndex: 1, stroke: stroke, hitAt: Date().addingTimeInterval(600))
+        var stroke = makeStroke(hitAt: Date().addingTimeInterval(600))
+        store.addStroke(to: id, holeIndex: 1, stroke: stroke)
 
-        store.addStroke(to: id, holeIndex: 1, stroke: stroke, hitAt: Date().addingTimeInterval(300))
+        stroke.hitAt = Date().addingTimeInterval(300)
+        store.addStroke(to: id, holeIndex: 1, stroke: stroke)
 
         XCTAssertEqual(timelineChanges.count, 1)
     }
@@ -439,6 +400,59 @@ final class RoundStoreTests: XCTestCase {
 
         XCTAssertEqual(store.round(id)?.strokesVersion, 3)
         XCTAssertEqual(strokeVersions, [1, 2, 3])
+    }
+
+    func testMovingAManualStrokeMovesItsHolesStartBothWays() {
+        let id = startRound()
+        let start = Date().addingTimeInterval(600)
+        let stroke = makeStroke(hitAt: start)
+        store.addStroke(to: id, holeIndex: 1, stroke: stroke)
+
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id) { _ in
+            start.addingTimeInterval(-120)
+        }
+        XCTAssertEqual(store.round(id)?.startOfHole(1), start.addingTimeInterval(-120))
+        XCTAssertEqual(store.round(id)?.holes[1].strokes[0].hitAt, start.addingTimeInterval(-120))
+
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 35.0, longitude: -114.0), in: id) { _ in
+            start.addingTimeInterval(60)
+        }
+        XCTAssertEqual(store.round(id)?.startOfHole(1), start.addingTimeInterval(60))
+        XCTAssertEqual(timelineChanges.count, 3)
+    }
+
+    func testMovingASuggestionStrokeKeepsItsTimeAndItsHolesStart() {
+        let id = startRound()
+        let start = Date().addingTimeInterval(600)
+        let stroke = makeStroke(origin: .suggestion(id: UUID()), hitAt: start)
+        store.addStroke(to: id, holeIndex: 1, stroke: stroke)
+
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id) { _ in
+            start.addingTimeInterval(-120)
+        }
+
+        let moved = store.round(id)?.holes[1].strokes[0]
+        XCTAssertEqual(moved?.latitude, 34.0)
+        XCTAssertEqual(moved?.hitAt, start)
+        XCTAssertEqual(moved?.origin, stroke.origin)
+        XCTAssertEqual(store.round(id)?.startOfHole(1), start)
+        XCTAssertEqual(timelineChanges.count, 1)
+    }
+
+    func testMovingAStrokeKeepsItsOtherValues() {
+        let id = startRound()
+        var stroke = makeStroke(hitAt: Date())
+        stroke.penaltyStrokes = 2
+        stroke.quality = .bad
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
+
+        store.moveStroke(stroke, to: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0), in: id)
+
+        let moved = store.round(id)?.holes[0].strokes[0]
+        XCTAssertEqual(moved?.penaltyStrokes, 2)
+        XCTAssertEqual(moved?.quality, .bad)
+        XCTAssertEqual(moved?.origin, .manual)
+        XCTAssertNil(moved?.hitAt, "No GPS to time it at its new spot")
     }
 
     // MARK: - reorderStroke
@@ -534,6 +548,59 @@ final class RoundStoreTests: XCTestCase {
         store.removeStroke(stroke, from: id)
 
         XCTAssertTrue(store.rounds[0].holes[0].strokes.isEmpty)
+    }
+
+    func testRemovingAHolesLastStrokeClearsItsStart() {
+        let id = startRound()
+        let stroke = makeStroke(hitAt: Date().addingTimeInterval(600))
+        store.addStroke(to: id, holeIndex: 1, stroke: stroke)
+
+        store.removeStroke(stroke, from: id)
+
+        XCTAssertNil(store.round(id)?.startOfHole(1))
+        XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 1], "The cleared entry stays")
+        XCTAssertEqual(timelineChanges.count, 2)
+    }
+
+    func testRemovingTheEarliestStrokeMovesItsHolesStartLater() {
+        let id = startRound()
+        let start = Date().addingTimeInterval(600)
+        let first = makeStroke(hitAt: start)
+        store.addStroke(to: id, holeIndex: 1, stroke: first)
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: start.addingTimeInterval(180)))
+
+        store.removeStroke(first, from: id)
+
+        XCTAssertEqual(store.round(id)?.startOfHole(1), start.addingTimeInterval(180))
+    }
+
+    func testRemovingAStrokeTimesAManualStrokeWithNoTimeFromTheGPS() {
+        let id = startRound()
+        let start = Date().addingTimeInterval(600)
+        let first = makeStroke(hitAt: start)
+        store.addStroke(to: id, holeIndex: 1, stroke: first)
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke())
+
+        store.removeStroke(first, from: id) { _ in start.addingTimeInterval(240) }
+
+        XCTAssertEqual(store.round(id)?.startOfHole(1), start.addingTimeInterval(240))
+        XCTAssertNil(store.round(id)?.holes[1].strokes[0].hitAt, "The estimate is not saved")
+    }
+
+    func testRemovingAStrokeAddedToTheWrongHoleGivesTheHoleBack() throws {
+        let id = startRound()
+        let holeOneStart = Date().addingTimeInterval(600)
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: holeOneStart))
+        // Hole 1's tee shot added to hole 2 by mistake
+        let mistake = makeStroke(hitAt: holeOneStart.addingTimeInterval(30))
+        store.addStroke(to: id, holeIndex: 2, stroke: mistake)
+        let round = try XCTUnwrap(store.round(id))
+        XCTAssertFalse(round.possibleHoles(at: holeOneStart.addingTimeInterval(300)).contains(1))
+
+        store.removeStroke(mistake, from: id)
+
+        XCTAssertNil(round.startOfHole(2))
+        XCTAssertTrue(round.possibleHoles(at: holeOneStart.addingTimeInterval(300)).contains(1))
     }
 
     func testRemoveMissingStrokeDoesNotBumpVersion() {
@@ -765,7 +832,7 @@ final class RoundStoreTests: XCTestCase {
 
         let id = startRound()
         store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
-        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(), hitAt: Date().addingTimeInterval(600))
+        store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: Date().addingTimeInterval(600)))
         store.setDisplayHole(1)
 
         // Should not crash
@@ -802,27 +869,19 @@ final class RoundStoreTests: XCTestCase {
         }
     }
 
-    // MARK: - Hidden suggestions
+    // MARK: - Taken suggestions
 
-    func testHiddenSuggestionsAreSavedOnceWithTheRound() {
+    func testASuggestionIsHiddenWhileItsStrokeExists() {
         let id = startRound()
-        let suggestion = UUID()
+        let suggestionID = UUID()
+        let stroke = makeStroke(origin: .suggestion(id: suggestionID), hitAt: Date())
+        store.addStroke(to: id, holeIndex: 0, stroke: stroke)
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
 
-        store.hideSuggestion(suggestion, roundID: id)
-        store.hideSuggestion(suggestion, roundID: id)
+        XCTAssertEqual(RoundStore(context: ModelContext(container)).round(id)?.takenSuggestionIDs, [suggestionID])
 
-        XCTAssertEqual(RoundStore(context: ModelContext(container)).round(id)?.hiddenSuggestionIDs, [suggestion])
-    }
+        store.removeStroke(stroke, from: id)
 
-    func testShowSuggestionUnhidesOnlyThatSuggestion() {
-        let id = startRound()
-        let shown = UUID()
-        let kept = UUID()
-        store.hideSuggestion(shown, roundID: id)
-        store.hideSuggestion(kept, roundID: id)
-
-        store.showSuggestion(shown, roundID: id)
-
-        XCTAssertEqual(RoundStore(context: ModelContext(container)).round(id)?.hiddenSuggestionIDs, [kept])
+        XCTAssertEqual(store.round(id)?.takenSuggestionIDs, [])
     }
 }

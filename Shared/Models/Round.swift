@@ -40,9 +40,6 @@ final class Round {
     var lastSeq: Int?
     /// Phone: the watch has confirmed `lastSeq`. Watch: the phone has acknowledged the end.
     var endConfirmed: Bool
-    /// Phone only: stroke suggestions the user dismissed or turned into strokes. Suggestions
-    /// are not saved: `StrokeFinder` works them out again and gives the same stop the same ID.
-    var hiddenSuggestionIDs: [UUID]
 
     private var holesData: Data
     private var holeTimelineData: Data
@@ -67,9 +64,8 @@ final class Round {
         self.streamBase = 0
         self.logBase = 0
         self.endConfirmed = false
-        self.hiddenSuggestionIDs = []
         holesData = Self.encode(holes)
-        holeTimelineData = Self.encode([HoleStart(holeIndex: 0, startedAt: date, source: .roundStart)])
+        holeTimelineData = Self.encode([HoleStart(holeIndex: 0, startedAt: date)])
         displayHoleData = Self.encode(DisplayHole(holeIndex: 0, changedAt: date))
         courseSelectionData = Self.encode(courseSelection)
         pinsData = Self.encode([PinLocation]())
@@ -350,6 +346,15 @@ final class Round {
         holes.flatMap { $0.strokes }
     }
 
+    /// The suggestions turned into strokes, hidden while their strokes exist. Suggestions are not
+    /// saved: `StrokeFinder` works them out again and gives the same stop the same ID.
+    var takenSuggestionIDs: Set<UUID> {
+        Set(allStrokes.compactMap { stroke in
+            guard case .suggestion(let id) = stroke.origin else { return nil }
+            return id
+        })
+    }
+
     /// The round's score: every hole's `strokeCount`, penalty strokes included.
     var strokeCount: Int {
         holes.reduce(0) { $0 + $1.strokeCount }
@@ -377,31 +382,59 @@ final class Round {
         }
     }
 
+    /// When hole `index` started, or nil when it has no start.
+    func startOfHole(_ index: Int) -> Date? {
+        holeTimeline.first { $0.holeIndex == index }?.startedAt
+    }
+
     /// Adds a start for hole `index` when it has none. Holes are played in order, so the start
     /// must fall between the starts of the holes before and after it; otherwise nothing changes.
     @discardableResult
-    func startHole(_ index: Int, at date: Date, source: HoleStartSource) -> Bool {
-        guard index > 0, index <= lastHoleIndex, !holeTimeline.contains(where: { $0.holeIndex == index }) else { return false }
-        let merged = HoleTimeline.normalized(holeTimeline + [HoleStart(holeIndex: index, startedAt: date, source: source)])
-        guard merged.count == holeTimeline.count + 1 else { return false }
-        holeTimeline = merged
-        ensureHole(index)
-        return true
+    func startHole(_ index: Int, at date: Date) -> Bool {
+        guard index <= lastHoleIndex, startOfHole(index) == nil else { return false }
+        return setStart(ofHole: index, to: date)
     }
 
     /// A stroke on hole `index` hit at `date` starts the hole when it has no start yet, and moves
-    /// the start back when it was hit before it. A start the user set by hand is never moved.
-    /// Returns true if the timeline changed.
+    /// the start back when it was hit before it. Returns true if the timeline changed.
     @discardableResult
     func strokeHit(onHole index: Int, at date: Date) -> Bool {
-        guard let i = holeTimeline.firstIndex(where: { $0.holeIndex == index }) else {
-            return startHole(index, at: date, source: .stroke)
+        guard let start = startOfHole(index) else { return startHole(index, at: date) }
+        guard date < start else { return false }
+        return setStart(ofHole: index, to: date)
+    }
+
+    /// Sets hole `index`'s start from its strokes, after one of them was moved or removed, so the
+    /// start follows them both ways: the earliest stroke's time, or no start once the hole has
+    /// no strokes. `hitTime` is when each stroke was hit. Nothing changes when a stroke's time is
+    /// unknown. Returns true if the timeline changed.
+    @discardableResult
+    func restartHole(_ index: Int, hitTime: (Stroke) -> Date?) -> Bool {
+        let strokes = hole(at: index).strokes
+        let times = strokes.compactMap(hitTime)
+        guard times.count == strokes.count else { return false }
+        return setStart(ofHole: index, to: times.min())
+    }
+
+    /// Sets or clears hole `index`'s start. A hole keeps its one entry, with a higher version for
+    /// each change, so the change wins over the other device's older copy. Hole 0's start is the
+    /// round's and never changes, and a start that would put the holes out of order is not set.
+    private func setStart(ofHole index: Int, to date: Date?) -> Bool {
+        guard index > 0 else { return false }
+        var entries = holeTimeline
+        if let i = entries.firstIndex(where: { $0.holeIndex == index }) {
+            guard entries[i].startedAt != date else { return false }
+            entries[i].startedAt = date
+            entries[i].version += 1
+        } else {
+            guard date != nil else { return false }
+            entries.append(HoleStart(holeIndex: index, startedAt: date))
         }
-        guard i > 0, date < holeTimeline[i].startedAt, holeTimeline[i].source != .userSet,
-              date > holeTimeline[i - 1].startedAt else { return false }
-        holeTimeline[i].startedAt = date
-        holeTimeline[i].source = .stroke
-        holeTimeline[i].version += 1
+        if let date {
+            guard HoleTimeline.fits(holeIndex: index, at: date, in: entries) else { return false }
+            ensureHole(index)
+        }
+        holeTimeline = HoleTimeline.normalized(entries)
         return true
     }
 

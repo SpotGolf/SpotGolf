@@ -12,6 +12,8 @@ struct RoundMapLayer: View {
     /// The hole's track as the map draws it, and all of its fixes.
     let trackLine: [CLLocationCoordinate2D]
     let holeTrack: [TrackPoint]
+    /// The fixes where the hole could start, for the time of a spot placed by hand.
+    let startWindow: [TrackPoint]
     let suggestions: [StrokeSuggestion]
     let mapStyle: MapStyleChoice
     @Binding var camera: MapCameraState
@@ -124,7 +126,7 @@ struct RoundMapLayer: View {
                             guard isEditing, let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
                             SpotActions.addSpot(at: coordinate, round: round, holeIndex: shownHoleIndex,
-                                                holeTrack: holeTrack, services: services, spot: &spot)
+                                                startWindow: startWindow, services: services, spot: &spot)
                         default:
                             break
                         }
@@ -183,7 +185,8 @@ struct RoundMapLayer: View {
                         if let dot = proxy.convert(stroke.coordinate, to: .global),
                            let coordinate = proxy.convert(CGPoint(x: dot.x + dragOffset.width,
                                                                   y: dot.y + dragOffset.height), from: .global) {
-                            services.roundStore.moveStroke(stroke, to: coordinate, in: round.id)
+                            SpotActions.move(stroke, to: coordinate, round: round, startWindow: startWindow,
+                                             services: services)
                         }
                     default:
                         break

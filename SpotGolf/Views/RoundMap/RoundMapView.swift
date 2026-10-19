@@ -27,10 +27,11 @@ struct RoundMapView: View {
     /// The whole round's GPS, and the part of it on the hole shown.
     @State private var roundTrack: [TrackPoint] = []
     @State private var holeTrack: [TrackPoint] = []
+    /// The fixes where the hole shown could start, for the time of a spot placed by hand.
+    @State private var startWindow: [TrackPoint] = []
     /// The hole's track as the map draws it, without the fixes too close together to show.
     @State private var trackLine: [CLLocationCoordinate2D] = []
     @State private var suggestions: [StrokeSuggestion] = []
-    @State private var showHoleTimes = false
     @State private var showLog = false
     @State private var showScorecard = false
     /// The scorecard's edit button picked another hole: edit mode starts once the map shows it.
@@ -84,7 +85,7 @@ struct RoundMapView: View {
             if round == nil {
                 dismiss()
             }
-            // A new stroke can start its hole in the timeline, which changes the hole's track
+            // A stroke change can move its hole's start, which changes the hole's track
             filterTrack()
         }
         .onChange(of: round.map(shownHoleIndex)) { _, shown in
@@ -109,9 +110,6 @@ struct RoundMapView: View {
         }
         .onChange(of: isEditing) {
             editingHoleIndex = isEditing ? round.map(shownHoleIndex) : nil
-            refreshSuggestions()
-        }
-        .onChange(of: round?.hiddenSuggestionIDs, initial: true) {
             refreshSuggestions()
         }
         .onChange(of: services.streamStore.revision) {
@@ -143,13 +141,13 @@ struct RoundMapView: View {
             RoundSyncBanner(round: round)
             ZStack(alignment: .top) {
                 RoundMapLayer(round: round, shownHoleIndex: holeIndex, isEditing: isEditing,
-                              trackLine: trackLine, holeTrack: holeTrack, suggestions: suggestions,
-                              mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
+                              trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
+                              suggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
                 if greenView.isShown {
                     // Over the map rather than in place of it, so the map keeps its camera
                     GreenView(round: round, shownHoleIndex: holeIndex,
-                              trackLine: trackLine, holeTrack: holeTrack, suggestions: suggestions,
-                              spot: $spot) {
+                              trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
+                              suggestions: suggestions, spot: $spot) {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             greenView.close()
                         }
@@ -163,7 +161,7 @@ struct RoundMapView: View {
                     }
                     Spacer()
                     MapButtonBar(round: round, shownHoleIndex: holeIndex, isEditing: $isEditing,
-                                 showHoleTimes: $showHoleTimes, showLog: $showLog,
+                                 showLog: $showLog,
                                  followsUserLocation: camera.followsUserLocation,
                                  followUserLocation: followUserLocation,
                                  mapStyle: mapStyle, pickMapStyle: { showMapStyles = true },
@@ -176,9 +174,6 @@ struct RoundMapView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
-        }
-        .sheet(isPresented: $showHoleTimes) {
-            HoleTimelineView(roundID: round.id)
         }
         .sheet(isPresented: $showLog) {
             LogSheet(scope: .round(round))
@@ -194,14 +189,16 @@ struct RoundMapView: View {
         .sheet(isPresented: Binding(
             get: { spot.stroke != nil && !spot.confirmsDelete },
             // Swiping the sheet away is Cancel
-            set: { if !$0 && !spot.confirmsDelete { SpotActions.cancel(round: round, services: services, spot: &spot) } }
+            set: { if !$0 && !spot.confirmsDelete {
+                SpotActions.cancel(round: round, startWindow: startWindow, services: services, spot: &spot)
+            } }
         )) {
-            SpotEditSheet(round: round, shownHoleIndex: holeIndex, spot: $spot)
+            SpotEditSheet(round: round, shownHoleIndex: holeIndex, startWindow: startWindow, spot: $spot)
         }
         .alert("Delete Spot", isPresented: $spot.confirmsDelete) {
             Button("Delete", role: .destructive) {
                 if let stroke = spot.stroke {
-                    services.roundStore.removeStroke(stroke, from: round.id)
+                    SpotActions.remove(stroke, round: round, startWindow: startWindow, services: services)
                 }
                 spot.close()
             }
@@ -273,6 +270,7 @@ struct RoundMapView: View {
         guard let round else {
             roundTrack = []
             holeTrack = []
+            startWindow = []
             trackLine = []
             suggestions = []
             return
@@ -285,6 +283,7 @@ struct RoundMapView: View {
     private func filterTrack() {
         guard let round else { return }
         holeTrack = HoleTrack.points(roundTrack, in: round, holeIndex: shownHoleIndex(round))
+        startWindow = HoleTrack.startWindow(roundTrack, in: round, holeIndex: shownHoleIndex(round))
         trackLine = TrackLine.coordinates(of: holeTrack)
         refreshSuggestions()
     }
@@ -303,7 +302,7 @@ struct RoundMapView: View {
             events: services.streamStore.events(for: round.id, until: round.endedAt),
             minStop: stationaryThreshold,
             zoneMargin: greenZone,
-            hidden: Set(round.hiddenSuggestionIDs)
+            hidden: round.takenSuggestionIDs
         )
     }
 }

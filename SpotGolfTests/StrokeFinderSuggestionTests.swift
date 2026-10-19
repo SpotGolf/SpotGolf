@@ -603,7 +603,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         let stop = track.now
         track.walk(north: 340, east: 40)
         var round = Round(date: Self.start, courseSelection: PathCourse.selection)
-        round.holeTimeline.append(HoleStart(holeIndex: 1, startedAt: track.now, source: .stroke))
+        round.holeTimeline.append(HoleStart(holeIndex: 1, startedAt: track.now))
         XCTAssertEqual(StrokeFinder.suggestions(in: round, holeIndex: 0, points: track.points, swings: [], minStop: 30).count, 1)
 
         // Hole 2 starts just after the stop begins, so the player left the stop on hole 2

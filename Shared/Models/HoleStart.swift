@@ -1,30 +1,22 @@
 import Foundation
 
-/// How a hole timeline entry was made.
-enum HoleStartSource: String, Codable {
-    case roundStart     // first entry
-    case stroke         // the hole's first stroke, added on the phone
-    case estimated      // worked out from the GPS track when a round is imported
-    case corrected      // moved by the phone from the GPS path; only in rounds saved before it stopped
-    case userSet        // set by the user; the phone never moves it
-}
-
 /// The moment play moved to a hole. A round's timeline is a list of these, and the hole
 /// for any timestamp is the last entry that started at or before it.
 struct HoleStart: Codable, Equatable, Identifiable {
     let id: UUID
     let holeIndex: Int
-    var startedAt: Date
-    var source: HoleStartSource
+    /// Nil once the hole's last stroke is removed: the hole has no start until it gets a stroke
+    /// again. The entry is kept, with a higher version, so the other device's older copy can't
+    /// bring the start back.
+    var startedAt: Date?
     /// Only the phone changes an entry after it is made, and it adds 1 each time, so the
     /// higher version is always the newer copy.
     var version: Int
 
-    init(id: UUID = UUID(), holeIndex: Int, startedAt: Date, source: HoleStartSource, version: Int = 0) {
+    init(id: UUID = UUID(), holeIndex: Int, startedAt: Date?, version: Int = 0) {
         self.id = id
         self.holeIndex = holeIndex
         self.startedAt = startedAt
-        self.source = source
         self.version = version
     }
 }
@@ -42,22 +34,37 @@ enum HoleTimeline {
     }
 
     /// Sorts by start time and drops any entry whose hole is not higher than the one before
-    /// it, because golf is played in order and the hole only goes up.
+    /// it, because golf is played in order and the hole only goes up. Entries with no start
+    /// come last, by hole.
     static func normalized(_ entries: [HoleStart]) -> [HoleStart] {
         // The ID breaks ties so every device picks the same order
-        let sorted = entries.sorted {
-            $0.startedAt != $1.startedAt ? $0.startedAt < $1.startedAt : $0.id.uuidString < $1.id.uuidString
+        let started = entries.filter { $0.startedAt != nil }.sorted { (a: HoleStart, b: HoleStart) -> Bool in
+            let aStart = a.startedAt ?? .distantPast
+            let bStart = b.startedAt ?? .distantPast
+            return aStart != bStart ? aStart < bStart : a.id.uuidString < b.id.uuidString
         }
         var result: [HoleStart] = []
-        for entry in sorted where result.last.map({ entry.holeIndex > $0.holeIndex }) ?? true {
+        for entry in started where result.last.map({ entry.holeIndex > $0.holeIndex }) ?? true {
             result.append(entry)
         }
-        return result
+        let cleared = entries.filter { $0.startedAt == nil }.sorted {
+            $0.holeIndex != $1.holeIndex ? $0.holeIndex < $1.holeIndex : $0.id.uuidString < $1.id.uuidString
+        }
+        return result + cleared
+    }
+
+    /// True when hole `index` can start at `date`: after the start of every earlier hole and
+    /// before the start of every later one, since holes are played in order.
+    static func fits(holeIndex index: Int, at date: Date, in entries: [HoleStart]) -> Bool {
+        entries.allSatisfy { entry in
+            guard let start = entry.startedAt, entry.holeIndex != index else { return true }
+            return entry.holeIndex < index ? start < date : start > date
+        }
     }
 
     /// The hole being played at `date`. Before the first entry, the first entry's hole.
     static func holeIndex(at date: Date, in entries: [HoleStart]) -> Int {
-        (entries.last(where: { $0.startedAt <= date }) ?? entries.first)?.holeIndex ?? 0
+        (entries.last(where: { $0.startedAt.map { $0 <= date } ?? false }) ?? entries.first)?.holeIndex ?? 0
     }
 
     /// The holes a moment can be on: the hole being played by the timeline, and the holes after
@@ -65,7 +72,9 @@ enum HoleTimeline {
     /// stroke, so until then its GPS reads as the hole before it by time alone.
     static func possibleHoles(at date: Date, in entries: [HoleStart], lastHoleIndex: Int) -> ClosedRange<Int> {
         let current = holeIndex(at: date, in: entries)
-        let next = entries.first(where: { $0.startedAt > date && $0.holeIndex > current })?.holeIndex ?? lastHoleIndex + 1
+        let next = entries.first(where: { entry in
+            entry.holeIndex > current && entry.startedAt.map { $0 > date } ?? false
+        })?.holeIndex ?? lastHoleIndex + 1
         return current...max(current, next - 1)
     }
 }

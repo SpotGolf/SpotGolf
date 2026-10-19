@@ -104,9 +104,9 @@ final class ShotgunStartTests: XCTestCase {
         let round = Round(courseSelection: selection(start: 8))
 
         // Hole 18 is index 9, hole 1 index 10, hole 8 the last
-        XCTAssertTrue(round.startHole(9, at: round.date.addingTimeInterval(9 * 900), source: .stroke))
-        XCTAssertTrue(round.startHole(10, at: round.date.addingTimeInterval(10 * 900), source: .stroke))
-        XCTAssertTrue(round.startHole(17, at: round.date.addingTimeInterval(17 * 900), source: .stroke))
+        XCTAssertTrue(round.startHole(9, at: round.date.addingTimeInterval(9 * 900)))
+        XCTAssertTrue(round.startHole(10, at: round.date.addingTimeInterval(10 * 900)))
+        XCTAssertTrue(round.startHole(17, at: round.date.addingTimeInterval(17 * 900)))
         XCTAssertEqual(round.holeTimeline.map { round.holeNumber(at: $0.holeIndex) }, [9, 18, 1, 8])
         XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(10 * 900 + 60)), 10)
     }

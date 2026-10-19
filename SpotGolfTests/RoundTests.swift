@@ -37,7 +37,6 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.holeTimeline.count, 1)
         XCTAssertEqual(round.holeTimeline[0].holeIndex, 0)
         XCTAssertEqual(round.holeTimeline[0].startedAt, date)
-        XCTAssertEqual(round.holeTimeline[0].source, .roundStart)
     }
 
     func testStartingAndEndingRoundsAreInProgressButNotActive() {
@@ -204,19 +203,18 @@ final class RoundTests: XCTestCase {
         var round = Round(courseSelection: .test)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
 
-        let changed = round.startHole(1, at: round.date.addingTimeInterval(600), source: .stroke)
+        let changed = round.startHole(1, at: round.date.addingTimeInterval(600))
 
         XCTAssertTrue(changed)
         XCTAssertEqual(round.holes.count, 2)
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(round.holeTimeline.last?.source, .stroke)
         XCTAssertEqual(round.displayHoleIndex, 0) // the timeline does not move the display
     }
 
     func testStartHoleCanSkipAhead() {
         var round = Round(courseSelection: .test)
 
-        round.startHole(6, at: round.date.addingTimeInterval(600), source: .stroke)
+        round.startHole(6, at: round.date.addingTimeInterval(600))
 
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 6])
         XCTAssertEqual(round.holes.count, 7)
@@ -224,22 +222,22 @@ final class RoundTests: XCTestCase {
 
     func testStartHoleIgnoresAHoleThatHasAStart() {
         var round = Round(courseSelection: .test)
-        round.startHole(3, at: round.date.addingTimeInterval(600), source: .stroke)
+        round.startHole(3, at: round.date.addingTimeInterval(600))
 
-        XCTAssertFalse(round.startHole(0, at: round.date.addingTimeInterval(1200), source: .stroke))
-        XCTAssertFalse(round.startHole(3, at: round.date.addingTimeInterval(1200), source: .stroke))
+        XCTAssertFalse(round.startHole(0, at: round.date.addingTimeInterval(1200)))
+        XCTAssertFalse(round.startHole(3, at: round.date.addingTimeInterval(1200)))
         XCTAssertEqual(round.holeTimeline.count, 2)
     }
 
     func testStartHoleMustFitBetweenTheHolesAroundIt() {
         var round = Round(courseSelection: .test)
-        round.startHole(3, at: round.date.addingTimeInterval(600), source: .stroke)
+        round.startHole(3, at: round.date.addingTimeInterval(600))
 
         // An earlier hole before hole 4's start fits in
-        XCTAssertTrue(round.startHole(1, at: round.date.addingTimeInterval(300), source: .stroke))
+        XCTAssertTrue(round.startHole(1, at: round.date.addingTimeInterval(300)))
         // An earlier hole after hole 4's start, or a later hole before it, does not
-        XCTAssertFalse(round.startHole(2, at: round.date.addingTimeInterval(900), source: .stroke))
-        XCTAssertFalse(round.startHole(5, at: round.date.addingTimeInterval(400), source: .stroke))
+        XCTAssertFalse(round.startHole(2, at: round.date.addingTimeInterval(900)))
+        XCTAssertFalse(round.startHole(5, at: round.date.addingTimeInterval(400)))
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 1, 3])
         XCTAssertEqual(round.holeTimeline.map(\.startedAt), [0, 300, 600].map { round.date.addingTimeInterval($0) })
     }
@@ -247,8 +245,8 @@ final class RoundTests: XCTestCase {
     func testStartHoleDoesNotPassLastHole() {
         var round = Round(courseSelection: .test)
 
-        XCTAssertFalse(round.startHole(Round.maxHoles, at: round.date.addingTimeInterval(600), source: .stroke))
-        XCTAssertTrue(round.startHole(Round.maxHoles - 1, at: round.date.addingTimeInterval(600), source: .stroke))
+        XCTAssertFalse(round.startHole(Round.maxHoles, at: round.date.addingTimeInterval(600)))
+        XCTAssertTrue(round.startHole(Round.maxHoles - 1, at: round.date.addingTimeInterval(600)))
         XCTAssertEqual(round.holes.count, Round.maxHoles)
     }
 
@@ -259,7 +257,6 @@ final class RoundTests: XCTestCase {
 
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 2])
         XCTAssertEqual(round.holeTimeline[1].startedAt, round.date.addingTimeInterval(600))
-        XCTAssertEqual(round.holeTimeline[1].source, .stroke)
     }
 
     func testLaterStrokeHitLeavesTheStartAlone() {
@@ -272,21 +269,12 @@ final class RoundTests: XCTestCase {
 
     func testEarlierStrokeHitMovesTheStartBack() {
         var round = Round(courseSelection: .test)
-        round.holeTimeline.append(HoleStart(holeIndex: 2, startedAt: round.date.addingTimeInterval(600), source: .estimated))
+        round.holeTimeline.append(HoleStart(holeIndex: 2, startedAt: round.date.addingTimeInterval(600)))
 
         XCTAssertTrue(round.strokeHit(onHole: 2, at: round.date.addingTimeInterval(500)))
 
         XCTAssertEqual(round.holeTimeline[1].startedAt, round.date.addingTimeInterval(500))
-        XCTAssertEqual(round.holeTimeline[1].source, .stroke)
         XCTAssertEqual(round.holeTimeline[1].version, 1)
-    }
-
-    func testStrokeHitNeverMovesAStartTheUserSet() {
-        var round = Round(courseSelection: .test)
-        round.holeTimeline.append(HoleStart(holeIndex: 2, startedAt: round.date.addingTimeInterval(600), source: .userSet))
-
-        XCTAssertFalse(round.strokeHit(onHole: 2, at: round.date.addingTimeInterval(500)))
-        XCTAssertEqual(round.holeTimeline[1].startedAt, round.date.addingTimeInterval(600))
     }
 
     func testStrokeHitDoesNotMoveAStartBeforeTheHoleBeforeIt() {
@@ -309,8 +297,8 @@ final class RoundTests: XCTestCase {
 
     func testHoleIndexAtUsesTimeline() {
         var round = Round(courseSelection: .test)
-        round.startHole(1, at: round.date.addingTimeInterval(600), source: .stroke)
-        round.startHole(2, at: round.date.addingTimeInterval(1200), source: .stroke)
+        round.startHole(1, at: round.date.addingTimeInterval(600))
+        round.startHole(2, at: round.date.addingTimeInterval(1200))
 
         XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(-10)), 0)
         XCTAssertEqual(round.holeIndex(at: round.date.addingTimeInterval(599)), 0)
@@ -320,7 +308,7 @@ final class RoundTests: XCTestCase {
 
     func testPossibleHolesReachTheNextStart() {
         var round = Round(courseSelection: .test)
-        round.startHole(3, at: round.date.addingTimeInterval(600), source: .stroke)
+        round.startHole(3, at: round.date.addingTimeInterval(600))
 
         // Holes 2 and 3 have no start yet, so a moment before hole 4 can be on holes 1 to 3
         XCTAssertEqual(round.possibleHoles(at: round.date.addingTimeInterval(-10)), 0...2)
@@ -331,11 +319,87 @@ final class RoundTests: XCTestCase {
     func testMergeTimelineReportsChange() {
         let round = Round(courseSelection: .test)
         // The other device's copy, with hole 5 started
-        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600), source: .stroke)]
+        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600))]
 
         XCTAssertTrue(round.mergeTimeline(other))
         XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 4])
         XCTAssertFalse(round.mergeTimeline(other))
+    }
+
+    // MARK: - Starts that follow strokes
+
+    /// A round with hole 2's strokes hit at `minutes` after the round's start, and hole 2 started
+    /// at the first of them.
+    private func roundWithHole2Strokes(_ minutes: [Double]) -> Round {
+        let round = Round(courseSelection: .test)
+        for minute in minutes {
+            let hitAt = round.date.addingTimeInterval(minute * 60)
+            round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0), hitAt: hitAt),
+                            toHoleIndex: 2)
+            round.strokeHit(onHole: 2, at: hitAt)
+        }
+        return round
+    }
+
+    func testRestartHoleClearsTheStartOfAHoleWithNoStrokes() {
+        let round = roundWithHole2Strokes([10])
+        round.holes[2].strokes.removeAll()
+
+        XCTAssertTrue(round.restartHole(2, hitTime: \.hitAt))
+
+        XCTAssertNil(round.startOfHole(2))
+        XCTAssertEqual(round.holeTimeline.last?.version, 1, "The cleared entry stays, newer")
+        XCTAssertEqual(round.possibleHoles(at: round.date.addingTimeInterval(600)), 0...round.lastHoleIndex)
+    }
+
+    func testRestartHoleMovesTheStartToTheEarliestStrokeLeft() {
+        let round = roundWithHole2Strokes([10, 15, 20])
+        round.holes[2].strokes.removeFirst()
+
+        XCTAssertTrue(round.restartHole(2, hitTime: \.hitAt))
+
+        XCTAssertEqual(round.startOfHole(2), round.date.addingTimeInterval(15 * 60))
+    }
+
+    func testRestartHoleWithAStrokeOfUnknownTimeChangesNothing() {
+        let round = roundWithHole2Strokes([10, 15])
+        round.holes[2].strokes.removeFirst()
+        round.holes[2].strokes.append(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)))
+
+        XCTAssertFalse(round.restartHole(2, hitTime: \.hitAt))
+
+        XCTAssertEqual(round.startOfHole(2), round.date.addingTimeInterval(10 * 60))
+    }
+
+    func testRestartHoleNeverChangesTheRoundStart() {
+        let round = Round(courseSelection: .test)
+
+        XCTAssertFalse(round.restartHole(0, hitTime: \.hitAt))
+
+        XCTAssertEqual(round.startOfHole(0), round.date)
+    }
+
+    func testRestartHoleKeepsTheHolesInOrder() {
+        let round = roundWithHole2Strokes([10, 30])
+        round.startHole(3, at: round.date.addingTimeInterval(20 * 60))
+        round.holes[2].strokes.removeFirst()
+
+        // Hole 2's next stroke is after hole 3's start, so hole 2 keeps its start
+        XCTAssertFalse(round.restartHole(2, hitTime: \.hitAt))
+        XCTAssertEqual(round.startOfHole(2), round.date.addingTimeInterval(10 * 60))
+    }
+
+    func testAClearedHoleStartsAgainOnTheSameEntry() {
+        let round = roundWithHole2Strokes([10])
+        let id = round.holeTimeline.last?.id
+        round.holes[2].strokes.removeAll()
+        round.restartHole(2, hitTime: \.hitAt)
+
+        XCTAssertTrue(round.strokeHit(onHole: 2, at: round.date.addingTimeInterval(12 * 60)))
+
+        XCTAssertEqual(round.holeTimeline.map(\.id), [round.holeTimeline[0].id, id])
+        XCTAssertEqual(round.startOfHole(2), round.date.addingTimeInterval(12 * 60))
+        XCTAssertEqual(round.holeTimeline.last?.version, 2)
     }
 
     func testAllStrokes() {
@@ -456,14 +520,14 @@ final class RoundTests: XCTestCase {
         // The course's last hole is the last one that can be shown or started
         XCTAssertEqual(round.lastHoleIndex, 1)
         XCTAssertFalse(round.setDisplayHole(2, at: round.date.addingTimeInterval(1200)))
-        XCTAssertFalse(round.startHole(2, at: round.date.addingTimeInterval(1200), source: .stroke))
+        XCTAssertFalse(round.startHole(2, at: round.date.addingTimeInterval(1200)))
         XCTAssertNil(round.courseHole(at: 2))
     }
 
     func testRoundWithMultipleHolesSurvivesSaving() throws {
         var round = Round(courseSelection: .test)
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)), toHoleIndex: 0)
-        round.startHole(1, at: round.date.addingTimeInterval(600), source: .stroke)
+        round.startHole(1, at: round.date.addingTimeInterval(600))
         round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0)), toHoleIndex: 1)
         round.setDisplayHole(1, at: round.date.addingTimeInterval(700))
 
@@ -730,7 +794,6 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(a.streamBase, b.streamBase, file: file, line: line)
         XCTAssertEqual(a.lastSeq, b.lastSeq, file: file, line: line)
         XCTAssertEqual(a.endConfirmed, b.endConfirmed, file: file, line: line)
-        XCTAssertEqual(a.hiddenSuggestionIDs, b.hiddenSuggestionIDs, file: file, line: line)
         XCTAssertEqual(a.holes, b.holes, file: file, line: line)
         XCTAssertEqual(a.holeTimeline, b.holeTimeline, file: file, line: line)
         XCTAssertEqual(a.displayHole, b.displayHole, file: file, line: line)

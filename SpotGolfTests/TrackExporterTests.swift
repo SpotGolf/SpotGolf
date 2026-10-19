@@ -45,7 +45,7 @@ final class TrackExporterTests: XCTestCase {
 
     func testSwingRowCarriesNearestFixHoleAndPeak() {
         var round = Round(date: start, courseSelection: .test)
-        round.startHole(1, at: start.addingTimeInterval(20), source: .stroke)
+        round.startHole(1, at: start.addingTimeInterval(20))
         let swing = StrokeSuggestion.swing(at: start.addingTimeInterval(32), peakG: 12.5)
 
         let csv = TrackExporter.csv(round: round,
@@ -121,7 +121,7 @@ final class TrackExporterTests: XCTestCase {
 
     func testContactRowCarriesNearestFixHoleAndScores() {
         var round = Round(date: start, courseSelection: .test)
-        round.startHole(1, at: start.addingTimeInterval(20), source: .stroke)
+        round.startHole(1, at: start.addingTimeInterval(20))
         let contact = ContactEvent(timestamp: start.addingTimeInterval(32), score: 6.5, burst: 0.25, click: 40, turning: 1.2)
 
         let csv = TrackExporter.csv(round: round,

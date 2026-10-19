@@ -112,11 +112,13 @@ enum TrackImporter {
     /// never at that green but were at the previous tee. A hole whose tee was never reached
     /// that way is left out.
     static func holeTimeline(of round: Round, points: [TrackPoint]) -> [HoleStart] {
-        var timeline = [HoleStart(holeIndex: 0, startedAt: round.date, source: .roundStart)]
+        var timeline = [HoleStart(holeIndex: 0, startedAt: round.date)]
         guard round.lastHoleIndex > 0 else { return timeline }
+        var last = round.date
         for hole in 1...round.lastHoleIndex {
-            guard let start = start(of: hole, in: round, after: timeline[timeline.count - 1].startedAt, points: points) else { continue }
-            timeline.append(HoleStart(holeIndex: hole, startedAt: start, source: .estimated))
+            guard let start = start(of: hole, in: round, after: last, points: points) else { continue }
+            timeline.append(HoleStart(holeIndex: hole, startedAt: start))
+            last = start
         }
         return timeline
     }
