@@ -55,7 +55,7 @@ final class StrokeFinderRealRoundTests: XCTestCase {
     func testEveryHoleStartsFromThePath() throws {
         let round = try walnutCreek().round
 
-        XCTAssertEqual(round.holeTimeline.map(\.holeIndex), Array(0..<18))
+        XCTAssertEqual(round.startedHoles, Array(0..<18))
         // The player's last fix within 10 m of green 1 was at 14:23:28, then they walked to tee 2
         let holeTwo = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-25T14:23:20Z"))
         XCTAssertEqual(try XCTUnwrap(round.startOfHole(1)).timeIntervalSince(holeTwo), 10, accuracy: 10)

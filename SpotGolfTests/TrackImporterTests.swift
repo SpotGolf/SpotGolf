@@ -92,7 +92,7 @@ final class TrackImporterTests: XCTestCase {
         XCTAssertEqual(round.status, .active)
         XCTAssertEqual(round.date, start)
         XCTAssertNil(round.endedAt)
-        XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0])
+        XCTAssertEqual(round.startedHoles, [0])
         XCTAssertEqual(round.holes.map { $0.strokes.count }, [1, 1])
 
         // 21 fixes, 2 swings, 2 contacts, 2 events

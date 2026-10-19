@@ -9,8 +9,6 @@ import SwiftData
 enum RoundEvent {
     /// Any change to `rounds`, from either device.
     case roundsChanged
-    /// A timeline change made on this device: a hole's start set, moved or cleared by its strokes.
-    case timelineChanged(Round)
     /// A display hole change made on this device.
     case displayHoleChanged(Round)
     /// A pin set on this device.
@@ -156,16 +154,6 @@ class RoundStore {
         return true
     }
 
-    // MARK: - Hole timeline
-
-    /// Merges the other device's timeline. Returns true if anything changed.
-    @discardableResult
-    func mergeTimeline(_ entries: [HoleStart], roundID: UUID) -> Bool {
-        guard let round = round(roundID), round.mergeTimeline(entries) else { return false }
-        changed()
-        return true
-    }
-
     // MARK: - Strokes
 
     /// Adds a stroke. When its `hitAt` is known, a hole's first stroke starts the hole in the
@@ -180,7 +168,7 @@ class RoundStore {
         }
         guard added, let hitAt = stroke.hitAt, let round = round(roundID),
               round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
-        timelineChanged(round)
+        changed()
     }
 
     /// Moves a stroke. A manual stroke was hit where it is now, so `estimatedTime` works out its
@@ -201,7 +189,7 @@ class RoundStore {
         let movedBack = replacement.hitAt.map { round.strokeHit(onHole: holeIndex, at: $0) } ?? false
         let restarted = round.restartHole(holeIndex) { $0.hitAt ?? estimatedTime($0) }
         if movedBack || restarted {
-            timelineChanged(round)
+            changed()
         }
     }
 
@@ -243,7 +231,7 @@ class RoundStore {
         }
         guard let removedFrom, let round = round(roundID),
               round.restartHole(removedFrom, hitTime: { $0.hitAt ?? estimatedTime($0) }) else { return }
-        timelineChanged(round)
+        changed()
     }
 
     /// Applies the phone's strokes on the watch when the snapshot is newer than the last one applied.
@@ -268,11 +256,6 @@ class RoundStore {
             change(&round.holes[holeIndex].strokes[strokeIndex])
             return true
         }
-    }
-
-    private func timelineChanged(_ round: Round) {
-        changed()
-        report(.timelineChanged(round))
     }
 
     /// Every stroke change adds 1 to the round's strokes version, so the watch can tell newer from

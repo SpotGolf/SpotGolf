@@ -86,13 +86,9 @@ struct RoundListView: View {
                 }
                 .accessibilityLabel("Settings")
             }
-            if #available(iOS 26.0, *) {
-                // A status, not a button, so it has no glass background of its own
-                watchStatusItem
-                    .sharedBackgroundVisibility(.hidden)
-            } else {
-                watchStatusItem
-            }
+            // A status, not a button, so it has no glass background of its own
+            watchStatusItem
+                .sharedBackgroundVisibility(.hidden)
             ToolbarItem(placement: .primaryAction) {
                 if let current = services.roundStore.currentRound {
                     if current.isActive {

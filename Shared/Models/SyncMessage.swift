@@ -12,13 +12,12 @@ enum SyncMessage: Codable, Equatable {
     case endAck(EndAck)
     case streamBatch(StreamBatch)
     case streamAck(StreamAck)
-    case holeTimeline(HoleTimelineMessage)
     case displayHole(DisplayHoleMessage)
     case pins(PinsMessage)
     case strokes(StrokesSnapshot)
     /// Phone → watch: the settings the watch follows, sent when the round is opened on the phone.
     case settings(RoundSettingsMessage)
-    /// The latest timeline, display hole, pins, strokes and settings, sent as application context.
+    /// The latest display hole, pins, strokes and settings, sent as application context.
     case context(SyncContext)
     /// Part of a message too large for one send.
     case chunk(SyncChunk)
@@ -31,7 +30,6 @@ struct StartRound: Codable, Equatable {
     let date: Date
     /// `CourseSelection.trimmed`, JSON, gzipped.
     let course: Data
-    let holeTimeline: [HoleStart]
     let displayHole: DisplayHole
     let pins: [PinLocation]
     let strokes: StrokesSnapshot
@@ -48,14 +46,13 @@ struct StartRound: Codable, Equatable {
     /// The phone's Green Zone setting: meters from the green's edge the watch listens for contacts in.
     let greenZone: Double
 
-    init(roundID: UUID, date: Date, course: Data, holeTimeline: [HoleStart], displayHole: DisplayHole,
+    init(roundID: UUID, date: Date, course: Data, displayHole: DisplayHole,
          pins: [PinLocation], strokes: StrokesSnapshot, streamBase: Int, version: String,
          logBase: Int = 0, debugLogging: Bool = false, puttLab: Bool = true,
          greenZone: Double = HoleShape.chipZoneMargin) {
         self.roundID = roundID
         self.date = date
         self.course = course
-        self.holeTimeline = holeTimeline
         self.displayHole = displayHole
         self.pins = pins
         self.strokes = strokes
@@ -78,7 +75,6 @@ extension StartRound {
         roundID = try values.decode(UUID.self, forKey: .roundID)
         date = try values.decode(Date.self, forKey: .date)
         course = try values.decode(Data.self, forKey: .course)
-        holeTimeline = try values.decode([HoleStart].self, forKey: .holeTimeline)
         displayHole = try values.decode(DisplayHole.self, forKey: .displayHole)
         pins = try values.decode([PinLocation].self, forKey: .pins)
         strokes = try values.decode(StrokesSnapshot.self, forKey: .strokes)
@@ -204,11 +200,6 @@ struct StreamAck: Codable, Equatable {
     }
 }
 
-struct HoleTimelineMessage: Codable, Equatable {
-    let roundID: UUID
-    let entries: [HoleStart]
-}
-
 /// Both ways. The hole both devices show; the later change wins.
 struct DisplayHoleMessage: Codable, Equatable {
     let roundID: UUID
@@ -241,16 +232,14 @@ struct RoundSettingsMessage: Codable, Equatable {
 }
 
 struct SyncContext: Codable, Equatable {
-    let timeline: HoleTimelineMessage?
     let displayHole: DisplayHoleMessage?
     let pins: PinsMessage?
     let strokes: StrokesSnapshot?
     /// Absent in contexts from before settings were sent.
     let settings: RoundSettingsMessage?
 
-    init(timeline: HoleTimelineMessage?, displayHole: DisplayHoleMessage?, pins: PinsMessage?, strokes: StrokesSnapshot?,
+    init(displayHole: DisplayHoleMessage?, pins: PinsMessage?, strokes: StrokesSnapshot?,
          settings: RoundSettingsMessage? = nil) {
-        self.timeline = timeline
         self.displayHole = displayHole
         self.pins = pins
         self.strokes = strokes
@@ -278,7 +267,6 @@ extension SyncMessage {
         case .endAck: "endAck"
         case .streamBatch: "streamBatch"
         case .streamAck: "streamAck"
-        case .holeTimeline: "holeTimeline"
         case .displayHole: "displayHole"
         case .pins: "pins"
         case .strokes: "strokes"

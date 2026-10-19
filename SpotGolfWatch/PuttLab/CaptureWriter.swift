@@ -119,7 +119,7 @@ final class CaptureWriter: @unchecked Sendable {
         }
     }
 
-    func add(audio buffer: AVAudioPCMBuffer, hostSeconds: Double) {
+    func add(audio buffer: AVReadOnlyAudioPCMBuffer, hostSeconds: Double) {
         guard let audio, let first = audio.write(buffer, hostSeconds: hostSeconds) else { return }
         let line = "\(hostSeconds - startUptime),\(buffer.frameLength),\(first)\n"
         io.async {

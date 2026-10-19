@@ -21,7 +21,7 @@ final class TrackImporterRealRoundTests: XCTestCase {
         let export = try TrackImporter.read(String(contentsOf: roundURL, encoding: .utf8))
         let (round, _) = try TrackImporter.round(from: export, courseSelection: selection)
 
-        XCTAssertEqual(round.holeTimeline.map(\.holeIndex), Array(0..<18))
+        XCTAssertEqual(round.startedHoles, Array(0..<18))
         // The player's last fix on the 17th green was at 18:16:24, and they reached the 18th tee at 18:17:40
         let formatter = ISO8601DateFormatter()
         let leftSeventeenthGreen = try XCTUnwrap(formatter.date(from: "2026-10-02T18:16:24Z"))

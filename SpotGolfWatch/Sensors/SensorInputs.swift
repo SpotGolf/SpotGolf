@@ -80,7 +80,7 @@ final class SensorInputs {
     @ObservationIgnored private let microphone: MicrophoneInput
     @ObservationIgnored private let accelerometer = Subscribers<[CMAccelerometerData]>()
     @ObservationIgnored private let motion = Subscribers<[CMDeviceMotion]>()
-    @ObservationIgnored private let audio: Subscribers<(AVAudioPCMBuffer, Double)>
+    @ObservationIgnored private let audio: Subscribers<(AVReadOnlyAudioPCMBuffer, Double)>
     @ObservationIgnored private var running: Set<Input> = []
     @ObservationIgnored private var watchdogs: [Input: RestartWatchdog] = [:]
     @ObservationIgnored private var lastData: [Input: Date] = [:]
@@ -88,7 +88,7 @@ final class SensorInputs {
     @ObservationIgnored private var timer: Timer?
 
     init() {
-        let audio = Subscribers<(AVAudioPCMBuffer, Double)>()
+        let audio = Subscribers<(AVReadOnlyAudioPCMBuffer, Double)>()
         self.audio = audio
         microphone = MicrophoneInput { buffer, hostSeconds in audio.send((buffer, hostSeconds)) }
     }

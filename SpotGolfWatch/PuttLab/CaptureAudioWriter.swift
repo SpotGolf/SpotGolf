@@ -35,7 +35,7 @@ final class CaptureAudioWriter: @unchecked Sendable {
 
     /// Writes the buffer and returns the index of its first frame in the file, or nil once closed.
     @discardableResult
-    func write(_ buffer: AVAudioPCMBuffer, hostSeconds: Double) -> Int? {
+    func write(_ buffer: AVReadOnlyAudioPCMBuffer, hostSeconds: Double) -> Int? {
         lock.lock()
         defer { lock.unlock() }
         guard !closed else { return nil }

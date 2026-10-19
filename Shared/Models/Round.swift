@@ -16,7 +16,7 @@ enum RoundStatus: String, Codable {
 /// A round of golf, saved with SwiftData. `RoundStore` makes and changes every round, so
 /// changes made on one device can be sent to the other.
 ///
-/// Values with parts of their own (holes, timeline, display hole, pins, course) are saved as
+/// Values with parts of their own (holes, display hole, pins, course) are saved as
 /// encoded data and decoded once when first read. Reading one also reads its saved data, so
 /// views and observers see it change.
 @Model
@@ -40,15 +40,16 @@ final class Round {
     var lastSeq: Int?
     /// Phone: the watch has confirmed `lastSeq`. Watch: the phone has acknowledged the end.
     var endConfirmed: Bool
+    /// When play moved to each hole, by play index, or nil for a hole with no start yet. Hole 0
+    /// starts with the round. Only the phone changes it. See `HoleTimeline`.
+    var holeStarts: [Date?] = []
 
     private var holesData: Data
-    private var holeTimelineData: Data
     private var displayHoleData: Data
     private var courseSelectionData: Data
     private var pinsData: Data
 
     @Transient private var holesCache: [RoundHole]?
-    @Transient private var holeTimelineCache: [HoleStart]?
     @Transient private var displayHoleCache: DisplayHole?
     @Transient private var courseSelectionCache: CourseSelection?
     @Transient private var pinsCache: [PinLocation]?
@@ -64,11 +65,11 @@ final class Round {
         self.streamBase = 0
         self.logBase = 0
         self.endConfirmed = false
-        holesData = Self.encode(holes)
-        holeTimelineData = Self.encode([HoleStart(holeIndex: 0, startedAt: date)])
-        displayHoleData = Self.encode(DisplayHole(holeIndex: 0, changedAt: date))
-        courseSelectionData = Self.encode(courseSelection)
-        pinsData = Self.encode([PinLocation]())
+        self.holesData = Self.encode(holes)
+        self.holeStarts = [date] + Array(repeating: nil, count: Self.lastHoleIndex(of: courseSelection))
+        self.displayHoleData = Self.encode(DisplayHole(holeIndex: 0, changedAt: date))
+        self.courseSelectionData = Self.encode(courseSelection)
+        self.pinsData = Self.encode([PinLocation]())
     }
 
     var holes: [RoundHole] {
@@ -76,14 +77,6 @@ final class Round {
         set {
             holesCache = newValue
             holesData = Self.encode(newValue)
-        }
-    }
-
-    var holeTimeline: [HoleStart] {
-        get { Self.value(holeTimelineData, cache: &holeTimelineCache) ?? [] }
-        set {
-            holeTimelineCache = newValue
-            holeTimelineData = Self.encode(newValue)
         }
     }
 
@@ -179,12 +172,12 @@ final class Round {
 
     /// The hole being played at `date`, by the timeline.
     func holeIndex(at date: Date) -> Int {
-        HoleTimeline.holeIndex(at: date, in: holeTimeline)
+        HoleTimeline.holeIndex(at: date, in: holeStarts)
     }
 
     /// The holes a moment can be on. See `HoleTimeline.possibleHoles`.
     func possibleHoles(at date: Date) -> ClosedRange<Int> {
-        HoleTimeline.possibleHoles(at: date, in: holeTimeline, lastHoleIndex: lastHoleIndex)
+        HoleTimeline.possibleHoles(at: date, in: holeStarts, lastHoleIndex: lastHoleIndex)
     }
 
     var course: Course {
@@ -332,8 +325,12 @@ final class Round {
 
     /// The last hole that can be played: the course's last hole, or `maxHoles` without course holes.
     var lastHoleIndex: Int {
-        let count = courseSelection.orderedHoles.count
-        return (count > 0 ? min(count, Self.maxHoles) : Self.maxHoles) - 1
+        Self.lastHoleIndex(of: courseSelection)
+    }
+
+    private static func lastHoleIndex(of selection: CourseSelection) -> Int {
+        let count = selection.orderedHoles.count
+        return (count > 0 ? min(count, maxHoles) : maxHoles) - 1
     }
 
     /// The hole at `index`, or an empty hole when play has not reached it yet.
@@ -384,7 +381,7 @@ final class Round {
 
     /// When hole `index` started, or nil when it has no start.
     func startOfHole(_ index: Int) -> Date? {
-        holeTimeline.first { $0.holeIndex == index }?.startedAt
+        holeStarts.indices.contains(index) ? holeStarts[index] : nil
     }
 
     /// Adds a start for hole `index` when it has none. Holes are played in order, so the start
@@ -416,34 +413,15 @@ final class Round {
         return setStart(ofHole: index, to: times.min())
     }
 
-    /// Sets or clears hole `index`'s start. A hole keeps its one entry, with a higher version for
-    /// each change, so the change wins over the other device's older copy. Hole 0's start is the
-    /// round's and never changes, and a start that would put the holes out of order is not set.
+    /// Sets or clears hole `index`'s start. Hole 0's start is the round's and never changes, and a
+    /// start that would put the holes out of order is not set.
     private func setStart(ofHole index: Int, to date: Date?) -> Bool {
-        guard index > 0 else { return false }
-        var entries = holeTimeline
-        if let i = entries.firstIndex(where: { $0.holeIndex == index }) {
-            guard entries[i].startedAt != date else { return false }
-            entries[i].startedAt = date
-            entries[i].version += 1
-        } else {
-            guard date != nil else { return false }
-            entries.append(HoleStart(holeIndex: index, startedAt: date))
-        }
+        guard index > 0, holeStarts.indices.contains(index), holeStarts[index] != date else { return false }
         if let date {
-            guard HoleTimeline.fits(holeIndex: index, at: date, in: entries) else { return false }
+            guard HoleTimeline.fits(holeIndex: index, at: date, in: holeStarts) else { return false }
             ensureHole(index)
         }
-        holeTimeline = HoleTimeline.normalized(entries)
-        return true
-    }
-
-    /// Merges another copy of the timeline into this one. Returns true if anything changed.
-    @discardableResult
-    func mergeTimeline(_ entries: [HoleStart]) -> Bool {
-        let merged = HoleTimeline.merge(holeTimeline, entries)
-        guard merged != holeTimeline else { return false }
-        holeTimeline = merged
+        holeStarts[index] = date
         return true
     }
 

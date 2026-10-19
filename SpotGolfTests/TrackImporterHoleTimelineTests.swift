@@ -3,7 +3,7 @@ import CoreLocation
 import CourseDataSwift
 @testable import SpotGolf
 
-/// `TrackImporter.holeTimeline` on `PathCourse`: holes start when the player leaves the previous green.
+/// `TrackImporter.holeStarts` on `PathCourse`: holes start when the player leaves the previous green.
 final class TrackImporterHoleTimelineTests: XCTestCase {
 
     private let start = Date(timeIntervalSince1970: 1_700_000_000)
@@ -40,8 +40,13 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
         }
     }
 
-    private func timeline(_ path: Path, course: CourseSelection = PathCourse.selection) -> [HoleStart] {
-        TrackImporter.holeTimeline(of: Round(date: start, courseSelection: course), points: path.points)
+    private func timeline(_ path: Path, course: CourseSelection = PathCourse.selection) -> [Date?] {
+        TrackImporter.holeStarts(of: Round(date: start, courseSelection: course), points: path.points)
+    }
+
+    /// The holes with a start.
+    private func started(_ starts: [Date?]) -> [Int] {
+        starts.indices.filter { starts[$0] != nil }
     }
 
     /// Hole 1 from tee to green, then the walk to hole 2's tee. Returns the time the player left green 1.
@@ -63,8 +68,8 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
 
         let starts = timeline(path)
 
-        XCTAssertEqual(starts.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(starts[1].startedAt, leftGreen)
+        XCTAssertEqual(started(starts), [0, 1])
+        XCTAssertEqual(starts[1], leftGreen)
     }
 
     func testOverhitApproachAndWalkBackEndsTheHoleAtTheLastGreenVisit() {
@@ -82,7 +87,7 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
         path.walk(north: 300, east: 60)
         path.stand(30)
 
-        XCTAssertEqual(timeline(path)[1].startedAt, leftGreen)
+        XCTAssertEqual(timeline(path)[1], leftGreen)
     }
 
     func testTeePassedBeforeReachingTheGreenDoesNotStartTheHole() {
@@ -98,7 +103,7 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
         path.walk(north: 300, east: 60)
         path.stand(30)
 
-        XCTAssertEqual(timeline(path)[1].startedAt, leftGreen)
+        XCTAssertEqual(timeline(path)[1], leftGreen)
     }
 
     func testWithoutAGreenVisitTheHoleStartsAtTheTee() {
@@ -112,8 +117,8 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
 
         let starts = timeline(path)
 
-        XCTAssertEqual(starts.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(starts[1].startedAt?.timeIntervalSince(arrival) ?? .infinity, 0, accuracy: 20)
+        XCTAssertEqual(started(starts), [0, 1])
+        XCTAssertEqual(starts[1]?.timeIntervalSince(arrival) ?? .infinity, 0, accuracy: 20)
     }
 
     /// Coal Creek, 2026-10-02: the walk from the 8th green to the 9th tee crossed the 18th tee.
@@ -137,8 +142,8 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
 
         let starts = timeline(path)
 
-        XCTAssertEqual(starts.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(starts[1].startedAt, leftGreen)
+        XCTAssertEqual(started(starts), [0, 1])
+        XCTAssertEqual(starts[1], leftGreen)
     }
 
     func testEveryHoleIsTakenInOrder() {
@@ -153,15 +158,15 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
 
         let starts = timeline(path)
 
-        XCTAssertEqual(starts.map(\.holeIndex), [0, 1, 2])
-        XCTAssertEqual(starts[2].startedAt, leftGreenTwo)
+        XCTAssertEqual(started(starts), [0, 1, 2])
+        XCTAssertEqual(starts[2], leftGreenTwo)
     }
 
     func testCourseWithoutTeesHasOnlyTheRoundStart() {
         var path = Path(start: start)
         _ = playHoleOneAndWalkToTeeTwo(&path)
 
-        XCTAssertEqual(timeline(path, course: .test).map(\.holeIndex), [0])
+        XCTAssertEqual(started(timeline(path, course: .test)), [0])
     }
 
     func testImportedRoundGetsItsTimelineFromTheGPS() throws {
@@ -171,7 +176,7 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
 
         let (round, _) = try TrackImporter.round(from: export, courseSelection: PathCourse.selection)
 
-        XCTAssertEqual(round.holeTimeline.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(round.holeTimeline[1].startedAt, leftGreen)
+        XCTAssertEqual(round.startedHoles, [0, 1])
+        XCTAssertEqual(round.startOfHole(1), leftGreen)
     }
 }

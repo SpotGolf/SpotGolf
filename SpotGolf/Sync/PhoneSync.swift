@@ -100,7 +100,6 @@ final class PhoneSync {
 
     private func roundChanged(_ event: RoundEvent) {
         switch event {
-        case .timelineChanged(let round): snapshots.sendTimeline(round)
         case .displayHoleChanged(let round): snapshots.sendDisplayHole(round)
         case .pinsChanged(let round): snapshots.sendPins(round)
         case .strokesChanged(let round): snapshots.sendStrokes(round)
@@ -200,8 +199,7 @@ final class PhoneSync {
             return
         }
         let start = StartRound(roundID: round.id, date: round.date, course: course,
-                               holeTimeline: round.holeTimeline, displayHole: round.displayHole,
-                               pins: round.pins,
+                               displayHole: round.displayHole, pins: round.pins,
                                strokes: round.strokesSnapshot,
                                streamBase: receiver.have(for: round.id),
                                version: version,
@@ -377,9 +375,6 @@ final class PhoneSync {
             let ack = receiver.receive(batch)
             finishIfComplete(batch.roundID)
             return .streamAck(ack)
-        case .holeTimeline(let timeline):
-            snapshots.apply(timeline)
-            return nil
         case .displayHole(let displayHole):
             snapshots.apply(displayHole)
             return nil

@@ -69,7 +69,6 @@ final class WatchSync {
     /// Sends changes made on the watch to the phone. Strokes change only on the phone.
     private func roundChanged(_ event: RoundEvent) {
         switch event {
-        case .timelineChanged(let round): snapshots.sendTimeline(round)
         case .displayHoleChanged(let round): snapshots.sendDisplayHole(round)
         case .pinsChanged(let round): snapshots.sendPins(round)
         case .strokesChanged, .roundsChanged: break
@@ -179,9 +178,6 @@ final class WatchSync {
         case .streamAck(let ack):
             sender.handle(ack)
             return nil
-        case .holeTimeline(let timeline):
-            snapshots.apply(timeline)
-            return nil
         case .displayHole(let displayHole):
             snapshots.apply(displayHole)
             return nil
@@ -245,7 +241,6 @@ final class WatchSync {
         if rounds.round(start.roundID) == nil {
             rounds.startRound(id: start.roundID, date: start.date, courseSelection: selection)
             rounds.update(start.roundID) { round in
-                round.holeTimeline = HoleTimeline.normalized(start.holeTimeline)
                 round.displayHole = start.displayHole
                 round.pins = start.pins
             }
@@ -255,7 +250,6 @@ final class WatchSync {
                 round.endedAt = nil
                 round.lastSeq = nil
                 round.endConfirmed = false
-                round.mergeTimeline(start.holeTimeline)
                 round.mergeDisplayHole(start.displayHole)
                 round.mergePins(start.pins)
             }

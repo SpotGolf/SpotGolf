@@ -87,12 +87,12 @@ enum TrackImporter {
     }
 
     /// An active round on `courseSelection` holding the export's strokes, and its stream records.
-    /// It stays active so it can still be changed. The timeline comes from the GPS and the course.
+    /// It stays active so it can still be changed. The hole starts come from the GPS and the course.
     static func round(from export: Export, courseSelection: CourseSelection,
                       id: UUID = UUID()) throws -> (round: Round, records: [StreamRecord]) {
         guard let start = export.points.first?.timestamp else { throw ImportError.empty }
         let round = Round(id: id, date: start, courseSelection: courseSelection)
-        round.holeTimeline = holeTimeline(of: round, points: export.points)
+        round.holeStarts = holeStarts(of: round, points: export.points)
         for (stroke, hole) in export.strokes {
             round.addStroke(stroke, toHoleIndex: courseSelection.playIndex(ofHoleNumber: hole))
         }
@@ -104,23 +104,23 @@ enum TrackImporter {
         return (round, records)
     }
 
-    // MARK: - Hole timeline
+    // MARK: - Hole starts
 
-    /// The round's hole timeline from the GPS path and the course alone. Holes are taken in
+    /// The round's hole starts from the GPS path and the course alone. Holes are taken in
     /// playing order, each after the one before it. A hole starts just after the player last
     /// left the previous green before reaching its tee, or on reaching its tee when they were
     /// never at that green but were at the previous tee. A hole whose tee was never reached
-    /// that way is left out.
-    static func holeTimeline(of round: Round, points: [TrackPoint]) -> [HoleStart] {
-        var timeline = [HoleStart(holeIndex: 0, startedAt: round.date)]
-        guard round.lastHoleIndex > 0 else { return timeline }
+    /// that way has no start.
+    static func holeStarts(of round: Round, points: [TrackPoint]) -> [Date?] {
+        var starts: [Date?] = [round.date] + Array(repeating: nil, count: round.lastHoleIndex)
+        guard round.lastHoleIndex > 0 else { return starts }
         var last = round.date
         for hole in 1...round.lastHoleIndex {
             guard let start = start(of: hole, in: round, after: last, points: points) else { continue }
-            timeline.append(HoleStart(holeIndex: hole, startedAt: start))
+            starts[hole] = start
             last = start
         }
-        return timeline
+        return starts
     }
 
     /// When `hole` started, after `after`, or nil when its tee was not reached.

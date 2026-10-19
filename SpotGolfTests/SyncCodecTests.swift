@@ -50,14 +50,6 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }
 
-    func testTimelineWithAClearedStartRoundTrips() throws {
-        let entries = [HoleStart(holeIndex: 0, startedAt: Date(timeIntervalSince1970: 1_700_000_000)),
-                       HoleStart(holeIndex: 1, startedAt: nil, version: 1)]
-        let message = SyncMessage.holeTimeline(HoleTimelineMessage(roundID: roundID, entries: entries))
-
-        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
-    }
-
     func testStreamBatchWithLogLinesRoundTrips() throws {
         let line = LogLine(timestamp: Date(timeIntervalSince1970: 1_700_000_000.25), device: .watch,
                            level: .error, category: "sensors", message: "accelerometer stalled")
@@ -85,7 +77,7 @@ final class SyncCodecTests: XCTestCase {
 
     func testStartRoundFromBeforeTheAppLogHasNoLogBaseOrDebugSetting() throws {
         let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
-                               holeTimeline: [], displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                               displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
                                pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
                                streamBase: 4, version: "0.5.0", logBase: 9, debugLogging: true)
         var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])
@@ -103,7 +95,7 @@ final class SyncCodecTests: XCTestCase {
 
     func testStartRoundFromBeforePuttLabRanInRoundsHasItOn() throws {
         let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
-                               holeTimeline: [], displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                               displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
                                pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
                                streamBase: 0, version: "0.9.0", puttLab: false)
         var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])
@@ -120,7 +112,7 @@ final class SyncCodecTests: XCTestCase {
 
     func testStartRoundFromBeforeTheGreenZoneSettingHasTheDefault() throws {
         let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
-                               holeTimeline: [], displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                               displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
                                pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
                                streamBase: 0, version: "0.9.0", greenZone: 25)
         var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])

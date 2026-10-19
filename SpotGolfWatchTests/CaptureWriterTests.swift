@@ -166,8 +166,9 @@ final class CaptureWriterTests: XCTestCase {
         let directory = root.appendingPathComponent("segment")
         let writer = try CaptureWriter(directory: directory, meta: meta(), savesData: true, microphone: true)
         let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
-        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096))
-        buffer.frameLength = 4096
+        let pcm = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096))
+        pcm.frameLength = 4096
+        let buffer = AVReadOnlyAudioPCMBuffer(copying: pcm)
 
         writer.add(audio: buffer, hostSeconds: writer.startUptime + 1)
         writer.add(audio: buffer, hostSeconds: writer.startUptime + 2)

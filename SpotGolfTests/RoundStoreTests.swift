@@ -9,7 +9,6 @@ final class RoundStoreTests: XCTestCase {
 
     private var container: ModelContainer!
     private var store: RoundStore!
-    private var timelineChanges: [Round]!
     private var displayHoleChanges: [Round]!
     private var strokeChanges: [Round]!
     /// The round's strokes version when each stroke change was reported.
@@ -19,13 +18,11 @@ final class RoundStoreTests: XCTestCase {
         try await super.setUp()
         container = Storage.inMemoryContainer()
         store = RoundStore(context: ModelContext(container))
-        timelineChanges = []
         displayHoleChanges = []
         strokeChanges = []
         strokeVersions = []
         store.addListener { [weak self] event in
             switch event {
-            case .timelineChanged(let round): self?.timelineChanges.append(round)
             case .displayHoleChanged(let round): self?.displayHoleChanges.append(round)
             case .strokesChanged(let round):
                 self?.strokeChanges.append(round)
@@ -37,7 +34,6 @@ final class RoundStoreTests: XCTestCase {
 
     override func tearDown() async throws {
         store = nil
-        timelineChanges = nil
         displayHoleChanges = nil
         strokeChanges = nil
         strokeVersions = nil
@@ -161,8 +157,7 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(store.round(id)?.displayHoleIndex, 2)
         XCTAssertEqual(displayHoleChanges.count, 1)
         XCTAssertEqual(displayHoleChanges[0].displayHoleIndex, 2)
-        XCTAssertEqual(store.round(id)?.holeTimeline.count, 1)
-        XCTAssertTrue(timelineChanges.isEmpty)
+        XCTAssertEqual(store.round(id)?.startedHoles, [0])
     }
 
     func testSetDisplayHoleByRoundID() {
@@ -243,21 +238,6 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertFalse(store.mergePins([pin], roundID: id))
     }
 
-    // MARK: - Hole timeline
-
-    func testMergeTimelineDoesNotReportChange() {
-        let id = startRound()
-        let round = store.round(id)!
-        // The other device's copy, with hole 5 started
-        let other = round.holeTimeline + [HoleStart(holeIndex: 4, startedAt: round.date.addingTimeInterval(600))]
-
-        XCTAssertTrue(store.mergeTimeline(other, roundID: id))
-
-        XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 4])
-        XCTAssertTrue(timelineChanges.isEmpty)
-        XCTAssertFalse(store.mergeTimeline(other, roundID: id))
-    }
-
     // MARK: - addStroke
 
     func testAddStrokeToSpecificRound() {
@@ -314,9 +294,8 @@ final class RoundStoreTests: XCTestCase {
 
         store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: hitAt))
 
-        XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 1])
-        XCTAssertEqual(store.round(id)?.holeTimeline.last?.startedAt, hitAt)
-        XCTAssertEqual(timelineChanges.count, 1)
+        XCTAssertEqual(store.round(id)?.startedHoles, [0, 1])
+        XCTAssertEqual(store.round(id)?.startOfHole(1), hitAt)
         XCTAssertEqual(strokeChanges.count, 1)
     }
 
@@ -325,8 +304,7 @@ final class RoundStoreTests: XCTestCase {
 
         store.addStroke(to: id, holeIndex: 1, stroke: makeStroke())
 
-        XCTAssertEqual(store.round(id)?.holeTimeline.count, 1)
-        XCTAssertTrue(timelineChanges.isEmpty)
+        XCTAssertEqual(store.round(id)?.startedHoles, [0])
     }
 
     func testLaterStrokeOnAHoleKeepsItsStart() {
@@ -336,8 +314,7 @@ final class RoundStoreTests: XCTestCase {
 
         store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: first.addingTimeInterval(60)))
 
-        XCTAssertEqual(store.round(id)?.holeTimeline.last?.startedAt, first)
-        XCTAssertEqual(timelineChanges.count, 1)
+        XCTAssertEqual(store.round(id)?.startOfHole(1), first)
     }
 
     func testEarlierStrokeOnAHoleMovesItsStartBack() {
@@ -347,20 +324,19 @@ final class RoundStoreTests: XCTestCase {
 
         store.addStroke(to: id, holeIndex: 1, stroke: makeStroke(hitAt: first.addingTimeInterval(-60)))
 
-        XCTAssertEqual(store.round(id)?.holeTimeline.last?.startedAt, first.addingTimeInterval(-60))
-        XCTAssertEqual(store.round(id)?.holeTimeline.last?.version, 1)
-        XCTAssertEqual(timelineChanges.count, 2)
+        XCTAssertEqual(store.round(id)?.startOfHole(1), first.addingTimeInterval(-60))
     }
 
     func testAddingAStrokeAgainDoesNotTouchTheTimeline() {
         let id = startRound()
-        var stroke = makeStroke(hitAt: Date().addingTimeInterval(600))
+        let first = Date().addingTimeInterval(600)
+        var stroke = makeStroke(hitAt: first)
         store.addStroke(to: id, holeIndex: 1, stroke: stroke)
 
         stroke.hitAt = Date().addingTimeInterval(300)
         store.addStroke(to: id, holeIndex: 1, stroke: stroke)
 
-        XCTAssertEqual(timelineChanges.count, 1)
+        XCTAssertEqual(store.round(id)?.startOfHole(1), first)
     }
 
     // MARK: - moveStroke
@@ -418,7 +394,6 @@ final class RoundStoreTests: XCTestCase {
             start.addingTimeInterval(60)
         }
         XCTAssertEqual(store.round(id)?.startOfHole(1), start.addingTimeInterval(60))
-        XCTAssertEqual(timelineChanges.count, 3)
     }
 
     func testMovingASuggestionStrokeKeepsItsTimeAndItsHolesStart() {
@@ -436,7 +411,6 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertEqual(moved?.hitAt, start)
         XCTAssertEqual(moved?.origin, stroke.origin)
         XCTAssertEqual(store.round(id)?.startOfHole(1), start)
-        XCTAssertEqual(timelineChanges.count, 1)
     }
 
     func testMovingAStrokeKeepsItsOtherValues() {
@@ -558,8 +532,7 @@ final class RoundStoreTests: XCTestCase {
         store.removeStroke(stroke, from: id)
 
         XCTAssertNil(store.round(id)?.startOfHole(1))
-        XCTAssertEqual(store.round(id)?.holeTimeline.map(\.holeIndex), [0, 1], "The cleared entry stays")
-        XCTAssertEqual(timelineChanges.count, 2)
+        XCTAssertEqual(store.round(id)?.startedHoles, [0])
     }
 
     func testRemovingTheEarliestStrokeMovesItsHolesStartLater() {
@@ -838,7 +811,7 @@ final class RoundStoreTests: XCTestCase {
         // Should not crash
         XCTAssertEqual(store.rounds.count, 1)
         XCTAssertEqual(store.rounds[0].allStrokes.count, 2)
-        XCTAssertEqual(store.rounds[0].holeTimeline.map(\.holeIndex), [0, 1])
+        XCTAssertEqual(store.rounds[0].startedHoles, [0, 1])
         XCTAssertEqual(store.rounds[0].displayHoleIndex, 1)
     }
 
