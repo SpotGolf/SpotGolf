@@ -131,10 +131,10 @@ enum TrackImporter {
         let window = points.filter { $0.timestamp > after }
 
         func isAtPreviousGreen(_ point: TrackPoint) -> Bool {
-            previous.metersToGreen(Coordinate(latitude: point.latitude, longitude: point.longitude)).map { $0 <= greenEdgeMargin } ?? false
+            previous.metersToGreen(Coordinate(lat: point.latitude, lon: point.longitude)).map { $0 <= greenEdgeMargin } ?? false
         }
         func isAt(_ tees: HoleShape, _ point: TrackPoint) -> Bool {
-            tees.metersToTee(Coordinate(latitude: point.latitude, longitude: point.longitude)).map { $0 <= teeArrivalRadius } ?? false
+            tees.metersToTee(Coordinate(lat: point.latitude, lon: point.longitude)).map { $0 <= teeArrivalRadius } ?? false
         }
 
         // The tee only counts once the player has been at the previous green, or at the previous

@@ -58,7 +58,7 @@ extension Round {
     /// True when `coordinate` is on one of hole `index`'s fairways.
     func isOnFairway(_ coordinate: CLLocationCoordinate2D, holeIndex index: Int) -> Bool {
         guard let courseHole = courseHole(at: index) else { return false }
-        return courseHole.onFairway(Coordinate(latitude: coordinate.latitude, longitude: coordinate.longitude),
+        return courseHole.onFairway(Coordinate(lat: coordinate.latitude, lon: coordinate.longitude),
                                     from: course.features)
     }
 }

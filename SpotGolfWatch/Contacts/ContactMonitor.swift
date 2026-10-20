@@ -117,7 +117,7 @@ final class ContactMonitor {
                 stop(reason: .holeAdvanced)
             }
         }
-        let point = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        let point = Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude)
         guard let toGreen = green.metersToGreen(point) else { return }
         guard isWorkoutRunning() else {
             if isRunning {

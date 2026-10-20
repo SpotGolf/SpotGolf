@@ -55,7 +55,7 @@ final class HoleOverviewTests: XCTestCase {
         let round = Round(courseSelection: PathCourse.selection)
         // Hole 1's green is 300 m north of its tee
         let tee = PathCourse.coordinate(north: 0, east: 0)
-        let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
+        let location = CLLocation(latitude: tee.lat, longitude: tee.lon)
 
         let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: location)
 
@@ -68,7 +68,7 @@ final class HoleOverviewTests: XCTestCase {
         round.setPin(pin.clLocation.coordinate, onHole: 0, at: round.date)
         let tee = PathCourse.coordinate(north: 0, east: 0)
 
-        let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: CLLocation(latitude: tee.latitude, longitude: tee.longitude))
+        let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: CLLocation(latitude: tee.lat, longitude: tee.lon))
 
         XCTAssertEqual(Double(yards ?? 0), 310 * 1.09361, accuracy: 2)
     }
@@ -85,8 +85,8 @@ final class HoleOverviewTests: XCTestCase {
     func testPreviousYardsIsFromTheLocationToTheLastStroke() {
         let tee = PathCourse.coordinate(north: 0, east: 0)
         let ball = PathCourse.coordinate(north: 100, east: 0)
-        let strokes = [Stroke(coordinate: CLLocationCoordinate2D(latitude: tee.latitude, longitude: tee.longitude))]
-        let location = CLLocation(latitude: ball.latitude, longitude: ball.longitude)
+        let strokes = [Stroke(coordinate: CLLocationCoordinate2D(latitude: tee.lat, longitude: tee.lon))]
+        let location = CLLocation(latitude: ball.lat, longitude: ball.lon)
 
         let yards = HoleOverview.previousYards(strokes: strokes, from: location)
 
@@ -96,7 +96,7 @@ final class HoleOverviewTests: XCTestCase {
     func testPreviousYardsWithoutALocationIsBetweenTheLastTwoStrokes() {
         let points = [PathCourse.coordinate(north: 0, east: 0), PathCourse.coordinate(north: 50, east: 0),
                       PathCourse.coordinate(north: 200, east: 0)]
-        let strokes = points.map { Stroke(coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) }
+        let strokes = points.map { Stroke(coordinate: CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)) }
 
         let yards = HoleOverview.previousYards(strokes: strokes, from: nil)
 
@@ -112,7 +112,7 @@ final class HoleOverviewTests: XCTestCase {
         let round = Round(courseSelection: PathCourse.selection)
         let tee = PathCourse.coordinate(north: 0, east: 0)
 
-        let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
+        let location = CLLocation(latitude: tee.lat, longitude: tee.lon)
         let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: location)
 
         XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: location), "Par 4 - \(yards ?? 0) yds")
@@ -152,7 +152,7 @@ final class HoleOverviewTests: XCTestCase {
         round.end(at: round.date.addingTimeInterval(3600))
         let tee = PathCourse.coordinate(north: 0, east: 0)
 
-        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: CLLocation(latitude: tee.latitude, longitude: tee.longitude)),
+        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: CLLocation(latitude: tee.lat, longitude: tee.lon)),
                        "Par 4")
     }
 
@@ -161,13 +161,13 @@ final class HoleOverviewTests: XCTestCase {
         let tee = PathCourse.coordinate(north: 0, east: 0)
 
         // The path course's greens have no elevation
-        XCTAssertNil(HoleOverview.feetToGreenCenter(round, holeIndex: 0, from: CLLocation(latitude: tee.latitude, longitude: tee.longitude)))
+        XCTAssertNil(HoleOverview.feetToGreenCenter(round, holeIndex: 0, from: CLLocation(latitude: tee.lat, longitude: tee.lon)))
     }
 
     func testHazardsAheadOnlyDuringARoundWithALocation() {
         let round = Round(courseSelection: PathCourse.selection)
         let tee = PathCourse.coordinate(north: 0, east: 0)
-        let location = CLLocation(latitude: tee.latitude, longitude: tee.longitude)
+        let location = CLLocation(latitude: tee.lat, longitude: tee.lon)
 
         // The path course has no hazards
         XCTAssertTrue(HoleOverview.hazardsAhead(round, holeIndex: 0, from: location).isEmpty)

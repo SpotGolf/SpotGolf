@@ -11,17 +11,16 @@ enum PinSource: String, Codable {
     case set
 }
 
-/// Where the pin is on a hole's green. See plans/2026-10-06-pin-location.md.
+/// Where the pin is on a hole's green. `Round.pins` holds one per hole. See
+/// plans/2026-10-06-pin-location.md.
 struct PinLocation: Codable, Equatable {
-    let holeIndex: Int
     let latitude: Double
     let longitude: Double
     /// When it was set.
     let setAt: Date
     let source: PinSource
 
-    init(holeIndex: Int, coordinate: CLLocationCoordinate2D, setAt: Date, source: PinSource = .set) {
-        self.holeIndex = holeIndex
+    init(coordinate: CLLocationCoordinate2D, setAt: Date, source: PinSource = .set) {
         self.latitude = coordinate.latitude
         self.longitude = coordinate.longitude
         self.setAt = setAt

@@ -40,17 +40,17 @@ enum DistanceCalculator {
     static func greenDistances(from location: CLLocation, green: Feature, direction: Vector2D,
                                middle: Coordinate? = nil) -> GreenDistances {
         let playerCoord = Coordinate(location.coordinate)
-        let playerProj = playerCoord.latitude * direction.dx + playerCoord.longitude * direction.dy
+        let playerProj = playerCoord.lat * direction.dx + playerCoord.lon * direction.dy
 
         func signedYards(to point: Coordinate) -> Int {
             let dist = Int(yards(from: location, to: point.clLocation))
-            let pointProj = point.latitude * direction.dx + point.longitude * direction.dy
+            let pointProj = point.lat * direction.dx + point.lon * direction.dy
             return playerProj > pointProj ? -dist : dist
         }
 
         return GreenDistances(
             front: signedYards(to: green.front(vector: direction)),
-            middle: signedYards(to: middle ?? green.middle()),
+            middle: signedYards(to: middle ?? green.center),
             back: signedYards(to: green.back(vector: direction))
         )
     }
@@ -58,7 +58,7 @@ enum DistanceCalculator {
     private static let maxAngle = 45.0 * .pi / 180 // features beyond 45° off line of play are excluded
 
     static func featuresAhead(from location: CLLocation, features: [Feature], green: Feature, limit: Int = 3) -> [FeatureDistance] {
-        let coord = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        let coord = Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude)
         if PolygonGeometry.contains(coord, in: green.polygon) { return [] }
 
         let greenCenter = green.center
@@ -66,8 +66,8 @@ enum DistanceCalculator {
         let distToGreen = location.distance(from: greenLoc)
 
         // Player → green vector for angle check
-        let toGreenLat = greenCenter.latitude - coord.latitude
-        let toGreenLon = greenCenter.longitude - coord.longitude
+        let toGreenLat = greenCenter.lat - coord.lat
+        let toGreenLon = greenCenter.lon - coord.lon
         let toGreenMag = sqrt(toGreenLat * toGreenLat + toGreenLon * toGreenLon)
 
         guard toGreenMag > 0 else { return [] }
@@ -83,8 +83,8 @@ enum DistanceCalculator {
             guard featureToGreen < distToGreen else { return nil }
 
             // Angle between player→nearest point and player→green
-            let toFeatLat = nearest.latitude - coord.latitude
-            let toFeatLon = nearest.longitude - coord.longitude
+            let toFeatLat = nearest.lat - coord.lat
+            let toFeatLon = nearest.lon - coord.lon
             let toFeatMag = sqrt(toFeatLat * toFeatLat + toFeatLon * toFeatLon)
             guard toFeatMag > 0 else { return nil }
 

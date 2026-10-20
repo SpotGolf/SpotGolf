@@ -8,7 +8,7 @@ extension CourseSelection {
             name: "Test Course",
             clubName: "Test Club",
             location: CourseLocation(address: "", city: "Denver", state: "CO", country: "US",
-                                     coordinate: Coordinate(latitude: 39.0, longitude: -105.0)),
+                                     coordinate: Coordinate(lat: 39.0, lon: -105.0)),
             subCourses: [
                 SubCourse(name: "Front", holes: (1...9).map { Hole(number: $0, par: 4) }),
                 SubCourse(name: "Back", holes: (10...18).map { Hole(number: $0, par: 4) })
@@ -26,8 +26,8 @@ enum PathCourse {
     static let baseLongitude = -105.0
 
     static func coordinate(north: Double, east: Double) -> Coordinate {
-        Coordinate(latitude: baseLatitude + north / LocalDistance.metersPerDegree,
-                   longitude: baseLongitude + east / (LocalDistance.metersPerDegree * cos(baseLatitude * .pi / 180)))
+        Coordinate(lat: baseLatitude + north / LocalDistance.metersPerDegree,
+                   lon: baseLongitude + east / (LocalDistance.metersPerDegree * cos(baseLatitude * .pi / 180)))
     }
 
     static func square(north: Double, east: Double, half: Double) -> [Coordinate] {
@@ -43,9 +43,9 @@ enum PathCourse {
         var features: [Feature] = []
         var holes: [Hole] = []
         for index in 0..<3 {
-            let tee = Feature(id: 100 + index, type: .tee, polygon: square(north: tees[index].north, east: tees[index].east, half: 5))
+            let tee = Feature(id: 100 + index, type: .tee, polygon: CoordinatePath(square(north: tees[index].north, east: tees[index].east, half: 5)))
             let green = Feature(id: 200 + index, type: .green,
-                                polygon: square(north: greens[index].north, east: greens[index].east, half: 15))
+                                polygon: CoordinatePath(square(north: greens[index].north, east: greens[index].east, half: 15)))
             features += [tee, green]
             holes.append(Hole(number: index + 1, par: 4, features: [green.id], tees: ["Blue": tee.id],
                               centerline: [coordinate(north: tees[index].north, east: tees[index].east),

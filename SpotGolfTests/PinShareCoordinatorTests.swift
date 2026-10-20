@@ -99,7 +99,7 @@ final class PinShareCoordinatorTests: XCTestCase {
         let id = await startRound()
 
         let round = store.round(id)
-        XCTAssertEqual(round?.pins.count, 3)
+        XCTAssertEqual(round?.pins.compactMap { $0 }.count, 3)
         XCTAssertEqual(round?.pin(onHole: 0)?.source, .center)
         XCTAssertEqual(round?.pin(onHole: 1)?.source, .shared)
         XCTAssertEqual(round?.pin(onHole: 1)?.longitude ?? 0, onGreen(1, east: 5).longitude, accuracy: 1e-9)
@@ -113,7 +113,7 @@ final class PinShareCoordinatorTests: XCTestCase {
 
         let id = await startRound()
 
-        XCTAssertEqual(store.round(id)?.pins.map(\.source), [.center, .center, .center])
+        XCTAssertEqual(store.round(id)?.pins.map { $0?.source }, [.center, .center, .center])
     }
 
     func testSharedPinsOffTheGreenOrFromAnotherDayAreLeftOut() async {
@@ -122,7 +122,7 @@ final class PinShareCoordinatorTests: XCTestCase {
 
         let id = await startRound()
 
-        XCTAssertEqual(store.round(id)?.pins.map(\.source), [.center, .center, .center])
+        XCTAssertEqual(store.round(id)?.pins.map { $0?.source }, [.center, .center, .center])
     }
 
     func testRoundsNotActiveAreLeftAlone() async {
@@ -130,7 +130,7 @@ final class PinShareCoordinatorTests: XCTestCase {
 
         await run()
 
-        XCTAssertTrue(store.round(id)?.pins.isEmpty == true)
+        XCTAssertEqual(store.round(id)?.pins, [nil, nil, nil])
         XCTAssertEqual(sharing.fetchCount, 0)
     }
 
@@ -275,12 +275,12 @@ final class PinShareCoordinatorTests: XCTestCase {
 
     func testRoundPinBecomesASharedPinByNineAndHoleNumber() {
         let round = Round(courseSelection: PathCourse.selection)
-        let pin = PinLocation(holeIndex: 2, coordinate: onGreen(2), setAt: now)
+        let pin = PinLocation(coordinate: onGreen(2), setAt: now)
 
-        let sharedPin = round.sharedPin(for: pin)
+        let sharedPin = round.sharedPin(for: pin, holeIndex: 2)
 
         XCTAssertEqual(sharedPin, shared(2))
-        XCTAssertNil(round.sharedPin(for: PinLocation(holeIndex: 9, coordinate: onGreen(2), setAt: now)))
+        XCTAssertNil(round.sharedPin(for: pin, holeIndex: 9))
     }
 
     func testSharedPinsBecomeRoundPinsOnlyForHolesPlayedAndOnTheGreen() {
@@ -290,7 +290,7 @@ final class PinShareCoordinatorTests: XCTestCase {
 
         let pins = round.pins(from: [shared(1), shared(0, east: 40), offCourse])
 
-        XCTAssertEqual(pins, [PinLocation(holeIndex: 1, coordinate: onGreen(1), setAt: now, source: .shared)])
+        XCTAssertEqual(pins, [nil, PinLocation(coordinate: onGreen(1), setAt: now, source: .shared), nil])
     }
 
     func testRecordNameIsOnePerHolePerDay() {

@@ -8,29 +8,24 @@ import SwiftData
 final class LogEntry {
     /// The round the line belongs to, or nil outside a round.
     var roundID: UUID?
-    /// `LogDevice`.
-    var device: String
+    var device: LogDevice
     var seq: Int
     var timestamp: Date
-    /// `LogLevel`.
-    var level: String
+    var level: LogLevel
     var category: String
     var message: String
 
     init(roundID: UUID?, device: LogDevice, seq: Int, line: LogLine) {
         self.roundID = roundID
-        self.device = device.rawValue
+        self.device = device
         self.seq = seq
         timestamp = line.timestamp
-        level = line.level.rawValue
+        level = line.level
         category = line.category
         message = line.message
     }
 
     var line: LogLine {
-        LogLine(timestamp: timestamp,
-                device: LogDevice(rawValue: device) ?? .phone,
-                level: LogLevel(rawValue: level) ?? .notice,
-                category: category, message: message)
+        LogLine(timestamp: timestamp, device: device, level: level, category: category, message: message)
     }
 }

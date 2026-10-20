@@ -75,7 +75,7 @@ enum HoleOverview {
     static func feetToGreenCenter(_ round: Round, holeIndex: Int, from location: CLLocation?) -> Int? {
         guard let courseHole = round.courseHole(at: holeIndex),
               let green = courseHole.green(from: round.course.features),
-              let greenElevation = green.center.elevation,
+              let greenElevation = green.center.ele,
               let location, location.verticalAccuracy >= 0 else { return nil }
         return Int(((greenElevation - location.altitude) * 3.28084).rounded())
     }

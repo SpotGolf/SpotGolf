@@ -39,7 +39,7 @@ struct HoleAdvancer {
             reset(holeIndex: displayHoleIndex, holes: orderedHoles, course: courseSelection.course)
         }
 
-        let point = Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        let point = Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude)
         guard let toTee = nextTees.metersToTee(point) else { return nil }
         if toTee == 0 {
             return nextIndex

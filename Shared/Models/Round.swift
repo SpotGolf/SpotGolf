@@ -16,9 +16,8 @@ enum RoundStatus: String, Codable {
 /// A round of golf, saved with SwiftData. `RoundStore` makes and changes every round, so
 /// changes made on one device can be sent to the other.
 ///
-/// Values with parts of their own (holes, display hole, pins, course) are saved as
-/// encoded data and decoded once when first read. Reading one also reads its saved data, so
-/// views and observers see it change.
+/// Per-hole values (`holeStarts`, `pins`) are arrays by play index with one entry per hole, nil
+/// for a hole without one. `holes` grows as play reaches each hole.
 @Model
 final class Round {
     @Attribute(.unique) var id: UUID
@@ -34,30 +33,30 @@ final class Round {
     var streamBase: Int
     /// The first `seq` of the watch's log lines for the round: nonzero when an ended round is
     /// resumed, so the phone keeps the lines of both stints. Only the watch uses it.
-    var logBase: Int = 0
+    var logBase: Int
     /// The index of the watch's last stream record, once the watch has ended the round.
     /// Nil when the watch recorded nothing.
     var lastSeq: Int?
     /// Phone: the watch has confirmed `lastSeq`. Watch: the phone has acknowledged the end.
     var endConfirmed: Bool
-    /// When play moved to each hole, by play index, or nil for a hole with no start yet. Hole 0
-    /// starts with the round. Only the phone changes it. See `HoleTimeline`.
-    var holeStarts: [Date?] = []
-
-    private var holesData: Data
-    private var displayHoleData: Data
-    private var courseSelectionData: Data
-    private var pinsData: Data
-
-    @Transient private var holesCache: [RoundHole]?
-    @Transient private var displayHoleCache: DisplayHole?
-    @Transient private var courseSelectionCache: CourseSelection?
-    @Transient private var pinsCache: [PinLocation]?
+    var holes: [RoundHole]
+    /// When play moved to each hole, or nil for a hole with no start yet. Hole 0 starts with the
+    /// round. Only the phone changes it. See `HoleTimeline`.
+    var holeStarts: [Date?]
+    /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
+    var displayHole: DisplayHole
+    /// Stored as one encoded column: `Course` comes from CourseDataSwift and has optional values,
+    /// and SwiftData crashes reading change history (which `@Query` does) for an optional value
+    /// inside a struct it splits into columns. See plans/2026-10-19-swiftdata-models.md.
+    @Attribute(.codable) var courseSelection: CourseSelection
+    /// Where each hole's pin is, or nil for a hole without one. See plans/2026-10-06-pin-location.md.
+    var pins: [PinLocation?]
 
     static let maxHoles = 18
 
     init(id: UUID = UUID(), date: Date = Date(), holes: [RoundHole] = [RoundHole()],
          status: RoundStatus = .active, courseSelection: CourseSelection) {
+        let holeCount = Self.lastHoleIndex(of: courseSelection) + 1
         self.id = id
         self.date = date
         self.status = status
@@ -65,68 +64,11 @@ final class Round {
         self.streamBase = 0
         self.logBase = 0
         self.endConfirmed = false
-        self.holesData = Self.encode(holes)
-        self.holeStarts = [date] + Array(repeating: nil, count: Self.lastHoleIndex(of: courseSelection))
-        self.displayHoleData = Self.encode(DisplayHole(holeIndex: 0, changedAt: date))
-        self.courseSelectionData = Self.encode(courseSelection)
-        self.pinsData = Self.encode([PinLocation]())
-    }
-
-    var holes: [RoundHole] {
-        get { Self.value(holesData, cache: &holesCache) ?? [RoundHole()] }
-        set {
-            holesCache = newValue
-            holesData = Self.encode(newValue)
-        }
-    }
-
-    /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
-    var displayHole: DisplayHole {
-        get { Self.value(displayHoleData, cache: &displayHoleCache) ?? DisplayHole(holeIndex: 0, changedAt: date) }
-        set {
-            displayHoleCache = newValue
-            displayHoleData = Self.encode(newValue)
-        }
-    }
-
-    /// Written once at the start, by this build, so it always decodes.
-    var courseSelection: CourseSelection {
-        get { Self.value(courseSelectionData, cache: &courseSelectionCache)! }
-        set {
-            courseSelectionCache = newValue
-            courseSelectionData = Self.encode(newValue)
-        }
-    }
-
-    /// Where the pin is, at most one per hole. See plans/2026-10-06-pin-location.md.
-    var pins: [PinLocation] {
-        get { Self.value(pinsData, cache: &pinsCache) ?? [] }
-        set {
-            pinsCache = newValue
-            pinsData = Self.encode(newValue)
-        }
-    }
-
-    private static func encode<T: Encodable>(_ value: T) -> Data {
-        do {
-            return try JSONEncoder().encode(value)
-        } catch {
-            Log.storage.error("Could not encode \(String(describing: T.self)): \(String(describing: error))")
-            return Data()
-        }
-    }
-
-    /// The decoded value, from `cache` once it has been decoded. Nil when it can't be decoded.
-    private static func value<T: Decodable>(_ data: Data, cache: inout T?) -> T? {
-        if let cache { return cache }
-        do {
-            let value = try JSONDecoder().decode(T.self, from: data)
-            cache = value
-            return value
-        } catch {
-            Log.storage.error("Could not decode \(String(describing: T.self)): \(String(describing: error))")
-            return nil
-        }
+        self.holes = holes
+        self.holeStarts = [date] + Array(repeating: nil, count: holeCount - 1)
+        self.displayHole = DisplayHole(holeIndex: 0, changedAt: date)
+        self.courseSelection = courseSelection
+        self.pins = Array(repeating: nil, count: holeCount)
     }
 
     /// Recording and syncing.
@@ -228,7 +170,7 @@ final class Round {
 
     /// The pin on hole `index`, if it has been set.
     func pin(onHole index: Int) -> PinLocation? {
-        pins.first { $0.holeIndex == index }
+        pins.indices.contains(index) ? pins[index] : nil
     }
 
     /// The green of hole `index`, or nil when the course has no green outline for it.
@@ -239,13 +181,13 @@ final class Round {
 
     /// The center of hole `index`'s green, or nil without a green.
     func greenCenter(holeIndex index: Int) -> CLLocationCoordinate2D? {
-        green(holeIndex: index).map { CLLocationCoordinate2D(latitude: $0.center.latitude, longitude: $0.center.longitude) }
+        green(holeIndex: index).map { CLLocationCoordinate2D(latitude: $0.center.lat, longitude: $0.center.lon) }
     }
 
     /// True when `coordinate` is inside the green of hole `index`. False when the course has no green for it.
     func isOnGreen(_ coordinate: CLLocationCoordinate2D, holeIndex index: Int) -> Bool {
         guard let green = green(holeIndex: index) else { return false }
-        return PolygonGeometry.contains(Coordinate(latitude: coordinate.latitude, longitude: coordinate.longitude),
+        return PolygonGeometry.contains(Coordinate(lat: coordinate.latitude, lon: coordinate.longitude),
                                         in: green.polygon)
     }
 
@@ -254,38 +196,31 @@ final class Round {
     func metersOffGreen(_ coordinate: CLLocationCoordinate2D, holeIndex index: Int) -> Double? {
         guard let green = green(holeIndex: index) else { return nil }
         if isOnGreen(coordinate, holeIndex: index) { return 0 }
-        let outline = (green.polygon + [green.polygon[0]]).map { (latitude: $0.latitude, longitude: $0.longitude) }
+        let outline = (green.polygon + [green.polygon[0]]).map { (latitude: $0.lat, longitude: $0.lon) }
         return LocalDistance.meters(fromLat: coordinate.latitude, lon: coordinate.longitude, toPolyline: outline)
             ?? LocalDistance.meters(fromLat: coordinate.latitude, lon: coordinate.longitude,
-                                    toLat: green.center.latitude, lon: green.center.longitude)
+                                    toLat: green.center.lat, lon: green.center.lon)
     }
 
     /// Sets the player's pin on hole `index`, replacing any earlier one. Returns false when the
     /// point is not on that hole's green.
     @discardableResult
     func setPin(_ coordinate: CLLocationCoordinate2D, onHole index: Int, at date: Date) -> Bool {
-        guard isOnGreen(coordinate, holeIndex: index) else { return false }
-        let pin = PinLocation(holeIndex: index, coordinate: coordinate, setAt: date, source: .set)
-        if let i = pins.firstIndex(where: { $0.holeIndex == index }) {
-            pins[i] = pin
-        } else {
-            pins.append(pin)
-        }
+        guard pins.indices.contains(index), isOnGreen(coordinate, holeIndex: index) else { return false }
+        pins[index] = PinLocation(coordinate: coordinate, setAt: date, source: .set)
         return true
     }
 
     /// Takes each pin that replaces the one on its hole, by `PinLocation.isReplaced(by:)`: from
-    /// the other device, from other golfers, or the green centers. Returns true if any changed.
+    /// the other device, from other golfers, or the green centers. `others` is by play index, like
+    /// `pins`. Returns true if any changed.
     @discardableResult
-    func mergePins(_ others: [PinLocation]) -> Bool {
+    func mergePins(_ others: [PinLocation?]) -> Bool {
         var changed = false
-        for other in others where other.holeIndex >= 0 && other.holeIndex <= lastHoleIndex {
-            if let i = pins.firstIndex(where: { $0.holeIndex == other.holeIndex }) {
-                guard pins[i].isReplaced(by: other) else { continue }
-                pins[i] = other
-            } else {
-                pins.append(other)
-            }
+        for index in others.indices where pins.indices.contains(index) {
+            guard let other = others[index] else { continue }
+            if let pin = pins[index], !pin.isReplaced(by: other) { continue }
+            pins[index] = other
             changed = true
         }
         return changed
@@ -311,8 +246,8 @@ final class Round {
     /// A center pin for every hole that has a green and no pin yet. Returns true if any were added.
     @discardableResult
     func addCenterPins() -> Bool {
-        mergePins((0...lastHoleIndex).compactMap { index in
-            greenCenter(holeIndex: index).map { PinLocation(holeIndex: index, coordinate: $0, setAt: date, source: .center) }
+        mergePins(pins.indices.map { index in
+            greenCenter(holeIndex: index).map { PinLocation(coordinate: $0, setAt: date, source: .center) }
         })
     }
 

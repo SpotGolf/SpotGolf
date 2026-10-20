@@ -102,10 +102,10 @@ final class PinShareCoordinator {
 
     private func upload(_ round: Round) async {
         guard let since = sharingSince[round.id] else { return }
-        for pin in round.pins where pin.source == .set && pin.setAt >= since
-            && uploads[round.id]?[pin.holeIndex] != pin.setAt {
-            guard let shared = round.sharedPin(for: pin) else { continue }
-            uploads[round.id, default: [:]][pin.holeIndex] = pin.setAt
+        for (index, pin) in round.pins.enumerated() {
+            guard let pin, pin.source == .set, pin.setAt >= since, uploads[round.id]?[index] != pin.setAt,
+                  let shared = round.sharedPin(for: pin, holeIndex: index) else { continue }
+            uploads[round.id, default: [:]][index] = pin.setAt
             do {
                 try await sharing.upload(shared)
             } catch {

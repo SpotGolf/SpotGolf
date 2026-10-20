@@ -315,12 +315,28 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertNil(watchRound(id))
     }
 
-    func testLargeCourseIsSentInChunks() throws {
+    /// Broadlands with 120 extra bunkers of random outline on hole 1, so its start no longer fits in
+    /// one message. Real courses fit since course outlines were stored compactly.
+    private func largeSelection() throws -> CourseSelection {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Broadlands-Golf-Course.json", withExtension: "gz"))
-        let course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: url).gzipDecompressed())
+        var course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: url).gzipDecompressed())
+        var random = SeededGenerator(seed: 7)
+        let center = course.location.coordinate
+        for index in 0..<120 {
+            let polygon = CoordinatePath((0..<200).map { _ in
+                Coordinate(lat: center.lat + random.uniform(-0.01...0.01), lon: center.lon + random.uniform(-0.01...0.01))
+            })
+            let bunker = Feature(id: course.nextFeatureID + index, type: .bunker, polygon: polygon)
+            course.features.append(bunker)
+            course.subCourses[0].holes[0].features.append(bunker.id)
+        }
         let selection = CourseSelection(course: course, selectedSubCourseIndices: [0, 1])
-        let size = try JSONEncoder().encode(selection.trimmed).gzipCompressed().count
-        print("Broadlands trimmed, gzipped course: \(size) bytes")
+        XCTAssertGreaterThan(try JSONEncoder().encode(selection.trimmed).gzipCompressed().count, SyncCodec.maxMessageBytes)
+        return selection
+    }
+
+    func testLargeCourseIsSentInChunks() throws {
+        let selection = try largeSelection()
 
         let id = pair.startRound(selection)
 
@@ -328,17 +344,13 @@ final class SyncFlowTests: XCTestCase {
             if case .chunk(let chunk) = message { return chunk }
             return nil
         }
-        XCTAssertEqual(chunks.count > 1, size > SyncCodec.maxMessageBytes)
-        XCTAssertEqual(watchRound(id)?.course.name, course.name)
+        XCTAssertGreaterThan(chunks.count, 1)
+        XCTAssertEqual(watchRound(id)?.course.name, selection.course.name)
         XCTAssertEqual(phoneRound(id)?.status, .active)
     }
 
     func testLostChunkMeansNoConfirmationUntilRetry() throws {
-        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Broadlands-Golf-Course.json", withExtension: "gz"))
-        let course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: url).gzipDecompressed())
-        let selection = CourseSelection(course: course, selectedSubCourseIndices: [0, 1])
-        try XCTSkipUnless(try JSONEncoder().encode(selection.trimmed).gzipCompressed().count > SyncCodec.maxMessageBytes,
-                          "The course fits in one message")
+        let selection = try largeSelection()
 
         pair.phoneTransport.holdsSends = true
         let id = pair.startRound(selection)
@@ -768,7 +780,7 @@ final class SyncFlowTests: XCTestCase {
         func at(_ north: Double, _ east: Double) -> CLLocation {
             defer { seconds += 1 }
             let point = PathCourse.coordinate(north: north, east: east)
-            return CLLocation(coordinate: CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude),
+            return CLLocation(coordinate: CLLocationCoordinate2D(latitude: point.lat, longitude: point.lon),
                               altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 3,
                               timestamp: StreamFixtures.start.addingTimeInterval(seconds))
         }
@@ -1150,7 +1162,7 @@ final class SyncFlowTests: XCTestCase {
     func testStartedRoundHasCenterPinsOnBothDevices() {
         let id = pair.startRound(PathCourse.selection)
 
-        XCTAssertEqual(phoneRound(id)?.pins.map(\.source), [.center, .center, .center])
+        XCTAssertEqual(phoneRound(id)?.pins.map { $0?.source }, [.center, .center, .center])
         XCTAssertEqual(watchRound(id)?.pins, phoneRound(id)?.pins)
     }
 

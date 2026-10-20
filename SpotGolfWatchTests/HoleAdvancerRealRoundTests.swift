@@ -67,6 +67,6 @@ final class HoleAdvancerRealRoundTests: XCTestCase {
     }
 
     private static func coordinate(_ location: CLLocation) -> Coordinate {
-        Coordinate(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude)
     }
 }

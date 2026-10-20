@@ -123,7 +123,7 @@ enum StrokeFinder {
                   swing.timestamp >= stops[stopIndex].start else { continue }
             let stop = stops[stopIndex]
             let spot = nearestFix(to: swing.timestamp, in: points)
-                .map { Coordinate(latitude: $0.latitude, longitude: $0.longitude) } ?? stop.center
+                .map { Coordinate(lat: $0.latitude, lon: $0.longitude) } ?? stop.center
             // Off the hole: the turn, the parking lot. A tee box is on the hole.
             let atTee = hole.metersToTee(spot).map { $0 <= teeShotRadius } ?? false
             if !atTee, let off = hole.metersToCenterline(stop.center), off > maxCenterlineDistance { continue }
@@ -172,7 +172,7 @@ enum StrokeFinder {
             guard let first = atOneSpot.first, let shot = atOneSpot.max(by: { $0.peakG < $1.peakG }) else { return }
             fullSwings.append(StrokeSuggestion(
                 timestamp: shot.swing.timestamp, kind: shot.swing.kind,
-                coordinate: CLLocationCoordinate2D(latitude: shot.spot.latitude, longitude: shot.spot.longitude),
+                coordinate: CLLocationCoordinate2D(latitude: shot.spot.lat, longitude: shot.spot.lon),
                 id: StrokeSuggestion.id(at: first.swing.timestamp)))
             atOneSpot = []
         }
@@ -183,8 +183,8 @@ enum StrokeFinder {
         for full in placed where full.peakG >= fullSwingPeak && !afterPutt(full) {
             if let last = atOneSpot.last,
                full.swing.timestamp.timeIntervalSince(last.swing.timestamp) <= sameShotWindow,
-               LocalDistance.meters(fromLat: last.spot.latitude, lon: last.spot.longitude,
-                                    toLat: full.spot.latitude, lon: full.spot.longitude) <= sameShotRadius {
+               LocalDistance.meters(fromLat: last.spot.lat, lon: last.spot.lon,
+                                    toLat: full.spot.lat, lon: full.spot.lon) <= sameShotRadius {
                 atOneSpot.append(full)
             } else {
                 finishShot()
@@ -325,7 +325,7 @@ enum StrokeFinder {
         let center: Coordinate
 
         var coordinate: CLLocationCoordinate2D {
-            CLLocationCoordinate2D(latitude: center.latitude, longitude: center.longitude)
+            CLLocationCoordinate2D(latitude: center.lat, longitude: center.lon)
         }
 
         var duration: TimeInterval { end.timeIntervalSince(start) }
@@ -347,7 +347,7 @@ enum StrokeFinder {
             while next < points.count {
                 let center = median(members.suffix(centerWindow).map { points[$0] })
                 let point = points[next]
-                if LocalDistance.meters(fromLat: center.latitude, lon: center.longitude,
+                if LocalDistance.meters(fromLat: center.lat, lon: center.lon,
                                         toLat: point.latitude, lon: point.longitude) <= stopRadius {
                     members.append(next)
                     misses = 0
@@ -371,7 +371,7 @@ enum StrokeFinder {
     }
 
     private static func median(_ points: [TrackPoint]) -> Coordinate {
-        Coordinate(latitude: median(points.map(\.latitude)), longitude: median(points.map(\.longitude)))
+        Coordinate(lat: median(points.map(\.latitude)), lon: median(points.map(\.longitude)))
     }
 
     private static func median(_ values: [Double]) -> Double {

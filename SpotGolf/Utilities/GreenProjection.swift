@@ -30,7 +30,7 @@ struct GreenProjection: Equatable {
 
     /// Fitted to `green` with `openMargin` around it. Nil for an outline without points, or
     /// before the view has a size.
-    init?(green polygon: [Coordinate], heading: Double, size: CGSize) {
+    init?(green polygon: some RandomAccessCollection<Coordinate>, heading: Double, size: CGSize) {
         guard !polygon.isEmpty, size.width > 0, size.height > 0 else { return nil }
         let origin = PolygonGeometry.centroid(of: polygon).clCoordinate
         self.init(origin: origin, heading: heading,

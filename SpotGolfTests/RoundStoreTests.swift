@@ -221,7 +221,7 @@ final class RoundStoreTests: XCTestCase {
 
         store.setPin(pathGreen(0), holeIndex: 1)
 
-        XCTAssertTrue(store.round(id)?.pins.isEmpty == true)
+        XCTAssertEqual(store.round(id)?.pins, [nil, nil, nil])
         XCTAssertTrue(changes.isEmpty)
     }
 
@@ -229,11 +229,11 @@ final class RoundStoreTests: XCTestCase {
         let id = store.startRound(courseSelection: PathCourse.selection).id
         var changes: [Round] = []
         store.addListener { if case .pinsChanged(let round) = $0 { changes.append(round) } }
-        let pin = PinLocation(holeIndex: 0, coordinate: pathGreen(0), setAt: Date())
+        let pin = PinLocation(coordinate: pathGreen(0), setAt: Date())
 
         XCTAssertTrue(store.mergePins([pin], roundID: id))
 
-        XCTAssertEqual(store.round(id)?.pins, [pin])
+        XCTAssertEqual(store.round(id)?.pins, [pin, nil, nil])
         XCTAssertTrue(changes.isEmpty)
         XCTAssertFalse(store.mergePins([pin], roundID: id))
     }
@@ -832,7 +832,7 @@ final class RoundStoreTests: XCTestCase {
         let id = store.startRound(courseSelection: PathCourse.selection).id
         var events: [RoundEvent] = []
         store.addListener { events.append($0) }
-        let pin = PinLocation(holeIndex: 0, coordinate: pathGreen(0), setAt: Date())
+        let pin = PinLocation(coordinate: pathGreen(0), setAt: Date())
 
         XCTAssertTrue(store.mergePins([pin], roundID: id))
 

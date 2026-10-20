@@ -31,7 +31,7 @@ struct StartRound: Codable, Equatable {
     /// `CourseSelection.trimmed`, JSON, gzipped.
     let course: Data
     let displayHole: DisplayHole
-    let pins: [PinLocation]
+    let pins: [PinLocation?]
     let strokes: StrokesSnapshot
     /// The first stream index for the round: nonzero when an ended round is resumed.
     let streamBase: Int
@@ -47,7 +47,7 @@ struct StartRound: Codable, Equatable {
     let greenZone: Double
 
     init(roundID: UUID, date: Date, course: Data, displayHole: DisplayHole,
-         pins: [PinLocation], strokes: StrokesSnapshot, streamBase: Int, version: String,
+         pins: [PinLocation?], strokes: StrokesSnapshot, streamBase: Int, version: String,
          logBase: Int = 0, debugLogging: Bool = false, puttLab: Bool = true,
          greenZone: Double = HoleShape.chipZoneMargin) {
         self.roundID = roundID
@@ -76,7 +76,7 @@ extension StartRound {
         date = try values.decode(Date.self, forKey: .date)
         course = try values.decode(Data.self, forKey: .course)
         displayHole = try values.decode(DisplayHole.self, forKey: .displayHole)
-        pins = try values.decode([PinLocation].self, forKey: .pins)
+        pins = try values.decode([PinLocation?].self, forKey: .pins)
         strokes = try values.decode(StrokesSnapshot.self, forKey: .strokes)
         streamBase = try values.decode(Int.self, forKey: .streamBase)
         version = try values.decodeIfPresent(String.self, forKey: .version) ?? ""
@@ -206,10 +206,10 @@ struct DisplayHoleMessage: Codable, Equatable {
     let displayHole: DisplayHole
 }
 
-/// Both ways. Every pin in the round; per hole, the later one wins.
+/// Both ways. Each hole's pin by play index, as in `Round.pins`; per hole, `PinLocation.isReplaced(by:)` picks.
 struct PinsMessage: Codable, Equatable {
     let roundID: UUID
-    let pins: [PinLocation]
+    let pins: [PinLocation?]
 }
 
 /// Phone → watch. Every stroke in the round. The watch keeps the highest version.

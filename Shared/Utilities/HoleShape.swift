@@ -22,10 +22,10 @@ struct HoleShape {
         tees = hole?.tees.values.compactMap { id in
             guard let feature = course.findFeature(id: id), feature.type == .tee,
                   !feature.polygon.isEmpty else { return nil }
-            return feature.polygon
+            return Array(feature.polygon)
         } ?? []
-        green = hole?.green(from: course.features).map(\.polygon).flatMap { $0.isEmpty ? nil : $0 }
-        centerline = hole?.centerline ?? []
+        green = hole?.green(from: course.features).flatMap { $0.polygon.isEmpty ? nil : Array($0.polygon) }
+        centerline = hole.map { Array($0.centerline) } ?? []
     }
 
     func metersToTee(_ point: Coordinate) -> CLLocationDistance? {
@@ -38,17 +38,17 @@ struct HoleShape {
     }
 
     func metersToCenterline(_ point: Coordinate) -> Double? {
-        LocalDistance.meters(fromLat: point.latitude, lon: point.longitude,
-                             toPolyline: centerline.map { ($0.latitude, $0.longitude) })
+        LocalDistance.meters(fromLat: point.lat, lon: point.lon,
+                             toPolyline: centerline.map { ($0.lat, $0.lon) })
     }
 
     /// Meters from a point to a polygon's nearest edge: zero inside it.
     static func distance(from point: Coordinate, to polygon: [Coordinate]) -> CLLocationDistance {
         guard !polygon.isEmpty else { return .infinity }
         if PolygonGeometry.contains(point, in: polygon) { return 0 }
-        let ring = (polygon + [polygon[0]]).map { (latitude: $0.latitude, longitude: $0.longitude) }
-        return LocalDistance.meters(fromLat: point.latitude, lon: point.longitude, toPolyline: ring)
-            ?? LocalDistance.meters(fromLat: point.latitude, lon: point.longitude,
-                                    toLat: polygon[0].latitude, lon: polygon[0].longitude)
+        let ring = (polygon + [polygon[0]]).map { (latitude: $0.lat, longitude: $0.lon) }
+        return LocalDistance.meters(fromLat: point.lat, lon: point.lon, toPolyline: ring)
+            ?? LocalDistance.meters(fromLat: point.lat, lon: point.lon,
+                                    toLat: polygon[0].lat, lon: polygon[0].lon)
     }
 }

@@ -144,8 +144,9 @@ final class GreenViewStateTests: XCTestCase {
         let round = Round(courseSelection: PathCourse.selection)
 
         XCTAssertEqual(round.metersOffGreen(PathCourse.coordinate(north: 300, east: 0).clCoordinate, holeIndex: 0), 0)
+        // Course outlines are kept to about 30 cm
         XCTAssertEqual(try XCTUnwrap(round.metersOffGreen(PathCourse.coordinate(north: 255, east: 0).clCoordinate,
-                                                          holeIndex: 0)), 30, accuracy: 0.1)
+                                                          holeIndex: 0)), 30, accuracy: 0.3)
         XCTAssertNil(Round(courseSelection: .test).metersOffGreen(PathCourse.coordinate(north: 0, east: 0).clCoordinate,
                                                                    holeIndex: 0))
     }

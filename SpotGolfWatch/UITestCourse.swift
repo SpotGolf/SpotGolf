@@ -8,7 +8,7 @@ extension CourseSelection {
             name: "UI Test Course",
             clubName: "UI Test Club",
             location: CourseLocation(address: "", city: "", state: "", country: "US",
-                                     coordinate: Coordinate(latitude: 0, longitude: 0)),
+                                     coordinate: Coordinate(lat: 0, lon: 0)),
             subCourses: [
                 SubCourse(name: "Front", holes: (1...9).map { Hole(number: $0, par: 4) }),
                 SubCourse(name: "Back", holes: (1...9).map { Hole(number: $0, par: 4) })

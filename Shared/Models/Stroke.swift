@@ -64,41 +64,4 @@ struct Stroke: Identifiable, Codable, Equatable {
     var location: CLLocation {
         CLLocation(latitude: latitude, longitude: longitude)
     }
-
-    // MARK: - Codable
-
-    private enum CodingKeys: String, CodingKey {
-        case id, latitude, longitude, penaltyStrokes, quality, clubID, origin, hitAt
-        /// Strokes saved before penalty strokes were counted: regular, penalty or outOfBounds.
-        case type
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        id = try values.decode(UUID.self, forKey: .id)
-        latitude = try values.decode(Double.self, forKey: .latitude)
-        longitude = try values.decode(Double.self, forKey: .longitude)
-        clubID = try values.decodeIfPresent(String.self, forKey: .clubID)
-        origin = try values.decode(StrokeOrigin.self, forKey: .origin)
-        hitAt = try values.decodeIfPresent(Date.self, forKey: .hitAt)
-        quality = try values.decodeIfPresent(ShotQuality.self, forKey: .quality) ?? .unrated
-        if let count = try values.decodeIfPresent(Int.self, forKey: .penaltyStrokes) {
-            penaltyStrokes = Self.clamped(penaltyStrokes: count)
-        } else {
-            let type = try values.decodeIfPresent(String.self, forKey: .type)
-            penaltyStrokes = type == nil || type == "regular" ? 0 : 1
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var values = encoder.container(keyedBy: CodingKeys.self)
-        try values.encode(id, forKey: .id)
-        try values.encode(latitude, forKey: .latitude)
-        try values.encode(longitude, forKey: .longitude)
-        try values.encode(penaltyStrokes, forKey: .penaltyStrokes)
-        try values.encode(quality, forKey: .quality)
-        try values.encodeIfPresent(clubID, forKey: .clubID)
-        try values.encode(origin, forKey: .origin)
-        try values.encodeIfPresent(hitAt, forKey: .hitAt)
-    }
 }

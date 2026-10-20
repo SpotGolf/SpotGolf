@@ -121,7 +121,7 @@ final class LogStore {
         do {
             let entries = try context.fetch(oldest)
             for entry in entries {
-                let key = LineKey(roundID: nil, device: LogDevice(rawValue: entry.device) ?? .phone)
+                let key = LineKey(roundID: nil, device: entry.device)
                 counts[key] = count(for: key) - 1
                 context.delete(entry)
             }
@@ -136,10 +136,9 @@ final class LogStore {
     /// what came just before the round is read with it.
     func moveRecentLines(into roundID: UUID, device: LogDevice = Log.device,
                          age: TimeInterval = LogStore.preRoundAge, now: Date = Date()) {
-        let deviceName = device.rawValue
         let since = now.addingTimeInterval(-age)
         let recent = FetchDescriptor<LogEntry>(
-            predicate: #Predicate { $0.roundID == nil && $0.device == deviceName && $0.timestamp >= since },
+            predicate: #Predicate { $0.roundID == nil && $0.device == device && $0.timestamp >= since },
             sortBy: [SortDescriptor(\.seq)])
         let entries: [LogEntry]
         do {
@@ -209,7 +208,7 @@ final class LogStore {
     private func count(for key: LineKey) -> Int {
         if let cached = counts[key] { return cached }
         let id = key.roundID
-        let device = key.device.rawValue
+        let device = key.device
         let descriptor = FetchDescriptor<LogEntry>(predicate: #Predicate { $0.roundID == id && $0.device == device })
         let count = (try? context.fetchCount(descriptor)) ?? 0
         counts[key] = count
@@ -221,7 +220,7 @@ final class LogStore {
     private func nextSeq(for key: LineKey) -> Int {
         if let cached = nextSeqs[key] { return cached }
         let id = key.roundID
-        let device = key.device.rawValue
+        let device = key.device
         var last = FetchDescriptor<LogEntry>(predicate: #Predicate { $0.roundID == id && $0.device == device },
                                              sortBy: [SortDescriptor(\.seq, order: .reverse)])
         last.fetchLimit = 1
@@ -247,9 +246,8 @@ final class LogStore {
     /// about `maxBytes` of text, in order. For the watch's batches.
     func lines(for roundID: UUID, device: LogDevice, from start: Int, limit: Int, maxBytes: Int) -> [LogLine] {
         let id: UUID? = roundID
-        let deviceName = device.rawValue
         var descriptor = FetchDescriptor<LogEntry>(
-            predicate: #Predicate { $0.roundID == id && $0.device == deviceName && $0.seq >= start },
+            predicate: #Predicate { $0.roundID == id && $0.device == device && $0.seq >= start },
             sortBy: [SortDescriptor(\.seq)])
         descriptor.fetchLimit = limit
         let entries: [LogEntry]

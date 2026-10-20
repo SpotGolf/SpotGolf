@@ -35,7 +35,7 @@ final class MapGeometryTests: XCTestCase {
         // from the green's middle toward the tee, to the west
         XCTAssertGreaterThan(camera.distance, 30)
         let green = PathCourse.coordinate(north: 300, east: 360)
-        XCTAssertLessThan(camera.centerCoordinate.longitude, green.longitude)
+        XCTAssertLessThan(camera.centerCoordinate.longitude, green.lon)
         XCTAssertNil(MapGeometry.holeCamera(Round(courseSelection: .test), holeIndex: 0))
     }
 

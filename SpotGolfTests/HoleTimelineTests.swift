@@ -55,10 +55,3 @@ final class HoleTimelineTests: XCTestCase {
         XCTAssertTrue(HoleTimeline.fits(holeIndex: 2, at: start.addingTimeInterval(5 * 60), in: starts))
     }
 }
-
-extension Round {
-    /// The play indexes of the holes with a start, in order.
-    var startedHoles: [Int] {
-        holeStarts.indices.filter { holeStarts[$0] != nil }
-    }
-}

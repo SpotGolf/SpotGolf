@@ -136,7 +136,7 @@ class RoundStore {
 
     /// Adds other golfers' pins, by the merge rules. Reported like a pin set here, so the other
     /// device gets them too.
-    func addSharedPins(_ pins: [PinLocation], roundID: UUID) {
+    func addSharedPins(_ pins: [PinLocation?], roundID: UUID) {
         changePins(roundID) { $0.mergePins(pins) }
     }
 
@@ -148,7 +148,7 @@ class RoundStore {
 
     /// Takes the other device's pins that replace this one's. Returns true if any changed.
     @discardableResult
-    func mergePins(_ pins: [PinLocation], roundID: UUID) -> Bool {
+    func mergePins(_ pins: [PinLocation?], roundID: UUID) -> Bool {
         guard let round = round(roundID), round.mergePins(pins) else { return false }
         changed()
         return true

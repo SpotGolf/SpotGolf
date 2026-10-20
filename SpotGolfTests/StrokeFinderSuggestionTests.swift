@@ -59,7 +59,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
         mutating func addFix(north: Double? = nil) {
             let point = PathCourse.coordinate(north: north ?? self.north, east: east)
-            points.append(TrackPoint(timestamp: now, latitude: point.latitude, longitude: point.longitude, altitude: nil))
+            points.append(TrackPoint(timestamp: now, latitude: point.lat, longitude: point.lon, altitude: nil))
             seconds += 1
         }
     }
@@ -92,7 +92,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
         let found = suggestions(track, [practice, stroke, after])
         XCTAssertEqual(found.map(\.timestamp), [stroke.timestamp])
-        XCTAssertEqual(found.first?.latitude ?? 0, PathCourse.coordinate(north: 150, east: 0).latitude, accuracy: 1e-6)
+        XCTAssertEqual(found.first?.latitude ?? 0, PathCourse.coordinate(north: 150, east: 0).lat, accuracy: 1e-6)
         XCTAssertEqual(found.first?.kind, .swing(peakG: 24))
     }
 
@@ -182,7 +182,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
         let found = suggestions(track, [practice, stroke])
         XCTAssertEqual(found.map(\.timestamp), [stroke.timestamp])
-        XCTAssertEqual(found.first?.longitude ?? 0, PathCourse.coordinate(north: 0, east: 7).longitude, accuracy: 1e-5)
+        XCTAssertEqual(found.first?.longitude ?? 0, PathCourse.coordinate(north: 0, east: 7).lon, accuracy: 1e-5)
     }
 
     func testReTeeIsASecondStroke() {
@@ -664,7 +664,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         let there = track.now.addingTimeInterval(-1)
         track.walk(north: 250)
         let point = PathCourse.coordinate(north: 150, east: 2)
-        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: point.latitude, longitude: point.longitude))
+        let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: point.lat, longitude: point.lon))
 
         XCTAssertEqual(StrokeFinder.estimatedTime(of: stroke, in: track.points), there)
         XCTAssertNil(StrokeFinder.estimatedTime(of: stroke, in: []))

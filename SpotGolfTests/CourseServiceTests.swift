@@ -53,7 +53,7 @@ final class CourseServiceTests: XCTestCase {
             name: "Test Course",
             clubName: "Test Club",
             location: CourseLocation(address: "123 Main St", city: "Phoenix", state: "AZ", country: "US",
-                                     coordinate: Coordinate(latitude: 33.45, longitude: -112.07)),
+                                     coordinate: Coordinate(lat: 33.45, lon: -112.07)),
             subCourses: [SubCourse(name: "Front", holes: [Hole(number: 1, par: 4)])]
         )
         let data = try JSONEncoder().encode(course)
@@ -117,7 +117,7 @@ final class CourseServiceTests: XCTestCase {
             name: "Cached Course",
             clubName: "Test Club",
             location: CourseLocation(address: "123 Main St", city: "Phoenix", state: "AZ", country: "US",
-                                     coordinate: Coordinate(latitude: 33.45, longitude: -112.07)),
+                                     coordinate: Coordinate(lat: 33.45, lon: -112.07)),
             subCourses: []
         )
         let path = "us/az/cached.json.gz"

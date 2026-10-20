@@ -10,7 +10,7 @@ final class HoleStatsTests: XCTestCase {
     /// `PathCourse` with a 30 m fairway 200 m up hole 1, and hole 1 as a par `par`.
     private func selection(par: Int = 4) -> CourseSelection {
         var course = PathCourse.selection.course
-        let fairway = Feature(id: 300, type: .fairway, polygon: PathCourse.square(north: 200, east: 0, half: 15))
+        let fairway = Feature(id: 300, type: .fairway, polygon: CoordinatePath(PathCourse.square(north: 200, east: 0, half: 15)))
         course.features.append(fairway)
         course.subCourses[0].holes[0].features.append(fairway.id)
         course.subCourses[0].holes[0].par = par
@@ -19,7 +19,7 @@ final class HoleStatsTests: XCTestCase {
 
     private func stroke(north: Double, east: Double = 0, penaltyStrokes: Int = 0) -> Stroke {
         let coordinate = PathCourse.coordinate(north: north, east: east)
-        return Stroke(coordinate: CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude),
+        return Stroke(coordinate: CLLocationCoordinate2D(latitude: coordinate.lat, longitude: coordinate.lon),
                       penaltyStrokes: penaltyStrokes)
     }
 
@@ -100,8 +100,8 @@ final class HoleStatsTests: XCTestCase {
         XCTAssertEqual(round.holes[0].stats?.fairway, false)
 
         let fairwayCoordinate = PathCourse.coordinate(north: 200, east: 0)
-        store.moveStroke(approach, to: CLLocationCoordinate2D(latitude: fairwayCoordinate.latitude,
-                                                              longitude: fairwayCoordinate.longitude), in: round.id)
+        store.moveStroke(approach, to: CLLocationCoordinate2D(latitude: fairwayCoordinate.lat,
+                                                              longitude: fairwayCoordinate.lon), in: round.id)
         XCTAssertEqual(round.holes[0].stats?.fairway, true)
 
         store.setPenaltyStrokes(1, strokeID: approach.id, in: round.id)

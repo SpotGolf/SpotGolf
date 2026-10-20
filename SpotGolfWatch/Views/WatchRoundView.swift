@@ -99,7 +99,7 @@ struct WatchRoundView: View {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
                     // Mid is to the pin once it is known; the center pin is the green's center
                     let pin = round.targetCoordinate(holeIndex: round.displayHoleIndex)
-                        .map { Coordinate(latitude: $0.latitude, longitude: $0.longitude) }
+                        .map { Coordinate(lat: $0.latitude, lon: $0.longitude) }
                     let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction, middle: pin)
 
                     // Numbered through the round, as the phone does: the first hole of a second
@@ -325,8 +325,8 @@ struct WatchRoundView: View {
     private func courseDirection(hole: Hole, green: Feature, location: CLLocation, course: Course) -> Vector2D {
         hole.vector(for: green.id, from: course.features)
             ?? Vector2D(
-                dx: green.center.latitude - location.coordinate.latitude,
-                dy: green.center.longitude - location.coordinate.longitude
+                dx: green.center.lat - location.coordinate.latitude,
+                dy: green.center.lon - location.coordinate.longitude
             ).normalized()
     }
 

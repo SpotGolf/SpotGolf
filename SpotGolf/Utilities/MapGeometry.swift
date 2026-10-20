@@ -13,9 +13,9 @@ enum MapGeometry {
 
     /// Degrees clockwise from north, from `start` to `end`.
     static func bearing(from start: Coordinate, to end: Coordinate) -> Double {
-        let lat1 = start.latitude * .pi / 180
-        let lat2 = end.latitude * .pi / 180
-        let dLon = (end.longitude - start.longitude) * .pi / 180
+        let lat1 = start.lat * .pi / 180
+        let lat2 = end.lat * .pi / 180
+        let dLon = (end.lon - start.lon) * .pi / 180
         let y = sin(dLon) * cos(lat2)
         let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
         return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
@@ -66,10 +66,10 @@ enum MapGeometry {
         let allCoords = course.features(for: courseHole).flatMap(\.polygon)
         guard !allCoords.isEmpty else { return nil }
 
-        let minLat = allCoords.map(\.latitude).min()!
-        let maxLat = allCoords.map(\.latitude).max()!
-        let minLon = allCoords.map(\.longitude).min()!
-        let maxLon = allCoords.map(\.longitude).max()!
+        let minLat = allCoords.map(\.lat).min()!
+        let maxLat = allCoords.map(\.lat).max()!
+        let minLon = allCoords.map(\.lon).min()!
+        let maxLon = allCoords.map(\.lon).max()!
         let midLat = (minLat + maxLat) / 2
         let midLon = (minLon + maxLon) / 2
 
@@ -79,7 +79,7 @@ enum MapGeometry {
            let teeFeature = course.findFeature(id: firstTeeID) {
             teeCenter = teeFeature.center
         } else {
-            teeCenter = Coordinate(latitude: midLat, longitude: midLon)
+            teeCenter = Coordinate(lat: midLat, lon: midLon)
         }
         let heading = bearing(from: teeCenter, to: green.center)
 

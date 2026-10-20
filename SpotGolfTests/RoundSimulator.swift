@@ -63,17 +63,17 @@ struct LocalPlane {
 
     init(origin: Coordinate) {
         self.origin = origin
-        metersPerDegreeLongitude = 111_320 * cos(origin.latitude * .pi / 180)
+        metersPerDegreeLongitude = 111_320 * cos(origin.lat * .pi / 180)
     }
 
     func point(_ coordinate: Coordinate) -> Vec {
-        Vec(x: (coordinate.longitude - origin.longitude) * metersPerDegreeLongitude,
-            y: (coordinate.latitude - origin.latitude) * Self.metersPerDegreeLatitude)
+        Vec(x: (coordinate.lon - origin.lon) * metersPerDegreeLongitude,
+            y: (coordinate.lat - origin.lat) * Self.metersPerDegreeLatitude)
     }
 
     func coordinate(_ point: Vec) -> Coordinate {
-        Coordinate(latitude: origin.latitude + point.y / Self.metersPerDegreeLatitude,
-                   longitude: origin.longitude + point.x / metersPerDegreeLongitude)
+        Coordinate(lat: origin.lat + point.y / Self.metersPerDegreeLatitude,
+                   lon: origin.lon + point.x / metersPerDegreeLongitude)
     }
 }
 

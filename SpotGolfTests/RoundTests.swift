@@ -456,17 +456,17 @@ final class RoundTests: XCTestCase {
 
     private func makeCourseSelection() -> CourseSelection {
         let greenFeature = Feature(id: 1, type: .green, polygon: [
-            Coordinate(latitude: 33.0, longitude: -112.0),
-            Coordinate(latitude: 33.0, longitude: -112.002),
-            Coordinate(latitude: 33.002, longitude: -112.002),
-            Coordinate(latitude: 33.002, longitude: -112.0),
-            Coordinate(latitude: 33.0, longitude: -112.0),
+            Coordinate(lat: 33.0, lon: -112.0),
+            Coordinate(lat: 33.0, lon: -112.002),
+            Coordinate(lat: 33.002, lon: -112.002),
+            Coordinate(lat: 33.002, lon: -112.0),
+            Coordinate(lat: 33.0, lon: -112.0),
         ])
         let hole1 = Hole(number: 1, par: 4, features: [1], tees: [:], centerline: [])
         let hole2 = Hole(number: 2, par: 3, features: [1], tees: [:], centerline: [])
         let subCourse = SubCourse(name: "Front", holes: [hole1, hole2])
         let location = CourseLocation(address: "", city: "Phoenix", state: "AZ", country: "US",
-                                      coordinate: Coordinate(latitude: 33.0, longitude: -112.0))
+                                      coordinate: Coordinate(lat: 33.0, lon: -112.0))
         let course = Course(name: "Test Course", clubName: "Test Club",
                             location: location, features: [greenFeature], subCourses: [subCourse])
         return CourseSelection(course: course, selectedSubCourseIndices: [0])
@@ -508,6 +508,27 @@ final class RoundTests: XCTestCase {
         XCTAssertFalse(round.setDisplayHole(2, at: round.date.addingTimeInterval(1200)))
         XCTAssertFalse(round.startHole(2, at: round.date.addingTimeInterval(1200)))
         XCTAssertNil(round.courseHole(at: 2))
+    }
+
+    /// `@Query` reads the change history after each save. SwiftData crashes reading it for an
+    /// optional value inside a struct it splits into columns, so every stored value is changed here.
+    func testChangeHistoryReadsAfterEveryValueChanges() throws {
+        let context = ModelContext(Storage.inMemoryContainer())
+        let round = Round(courseSelection: PathCourse.selection.with(tee: "Blue"))
+        context.insert(round)
+        try context.save()
+
+        round.status = .ended
+        round.endedAt = round.date.addingTimeInterval(3600)
+        round.courseSelection = PathCourse.selection
+        round.setDisplayHole(1, at: round.date.addingTimeInterval(600))
+        round.addCenterPins()
+        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0),
+                               hitAt: round.date.addingTimeInterval(700)), toHoleIndex: 1)
+        round.strokeHit(onHole: 1, at: round.date.addingTimeInterval(700))
+        try context.save()
+
+        XCTAssertEqual(try context.fetchHistory(HistoryDescriptor<DefaultHistoryTransaction>()).count, 2)
     }
 
     func testRoundWithMultipleHolesSurvivesSaving() throws {
@@ -610,7 +631,7 @@ final class RoundTests: XCTestCase {
 
         XCTAssertTrue(round.setPin(onGreen(1, north: 5), onHole: 1, at: when))
 
-        XCTAssertEqual(round.pin(onHole: 1), PinLocation(holeIndex: 1, coordinate: onGreen(1, north: 5), setAt: when))
+        XCTAssertEqual(round.pin(onHole: 1), PinLocation(coordinate: onGreen(1, north: 5), setAt: when))
         XCTAssertNil(round.pin(onHole: 0))
     }
 
@@ -621,7 +642,7 @@ final class RoundTests: XCTestCase {
         XCTAssertFalse(round.setPin(onGreen(1, north: 35), onHole: 1, at: round.date))
         // On another hole's green
         XCTAssertFalse(round.setPin(onGreen(0), onHole: 1, at: round.date))
-        XCTAssertTrue(round.pins.isEmpty)
+        XCTAssertEqual(round.pins, [nil, nil, nil])
     }
 
     func testSetPinWithoutAGreenIsRefused() {
@@ -636,7 +657,7 @@ final class RoundTests: XCTestCase {
 
         round.setPin(onGreen(0, east: 10), onHole: 0, at: round.date.addingTimeInterval(60))
 
-        XCTAssertEqual(round.pins.count, 1)
+        XCTAssertEqual(round.pins.compactMap { $0 }.count, 1)
         XCTAssertEqual(round.pin(onHole: 0)?.coordinate.longitude, onGreen(0, east: 10).longitude)
     }
 
@@ -644,17 +665,17 @@ final class RoundTests: XCTestCase {
         var round = Round(courseSelection: PathCourse.selection)
         let now = round.date
         round.setPin(onGreen(0), onHole: 0, at: now.addingTimeInterval(100))
-        let older = PinLocation(holeIndex: 0, coordinate: onGreen(0, east: 5), setAt: now.addingTimeInterval(50))
-        let newHole = PinLocation(holeIndex: 2, coordinate: onGreen(2), setAt: now)
+        let older = PinLocation(coordinate: onGreen(0, east: 5), setAt: now.addingTimeInterval(50))
+        let newHole = PinLocation(coordinate: onGreen(2), setAt: now)
 
-        XCTAssertTrue(round.mergePins([older, newHole]))
+        XCTAssertTrue(round.mergePins(round.pinsByHole([0: older, 2: newHole])))
 
         XCTAssertEqual(round.pin(onHole: 0)?.setAt, now.addingTimeInterval(100))
         XCTAssertEqual(round.pin(onHole: 2), newHole)
         XCTAssertFalse(round.mergePins(round.pins))
 
-        let later = PinLocation(holeIndex: 0, coordinate: onGreen(0, east: 5), setAt: now.addingTimeInterval(200))
-        XCTAssertTrue(round.mergePins([later]))
+        let later = PinLocation(coordinate: onGreen(0, east: 5), setAt: now.addingTimeInterval(200))
+        XCTAssertTrue(round.mergePins(round.pinsByHole([0: later])))
         XCTAssertEqual(round.pin(onHole: 0), later)
     }
 
@@ -671,7 +692,7 @@ final class RoundTests: XCTestCase {
         let at = Date(timeIntervalSince1970: 1_700_000_000)
         let spot = CLLocationCoordinate2D(latitude: 40, longitude: -105)
         func pin(_ source: PinSource, _ offset: TimeInterval = 0) -> PinLocation {
-            PinLocation(holeIndex: 0, coordinate: spot, setAt: at.addingTimeInterval(offset), source: source)
+            PinLocation(coordinate: spot, setAt: at.addingTimeInterval(offset), source: source)
         }
 
         // A center pin never replaces anything
@@ -697,7 +718,7 @@ final class RoundTests: XCTestCase {
 
         XCTAssertTrue(round.addCenterPins())
 
-        XCTAssertEqual(round.pins.count, 3)
+        XCTAssertEqual(round.pins.compactMap { $0 }.count, 3)
         XCTAssertEqual(round.pin(onHole: 0)?.source, .center)
         XCTAssertEqual(round.pin(onHole: 0)?.latitude ?? 0, onGreen(0).latitude, accuracy: 1e-6)
         XCTAssertEqual(round.pin(onHole: 1)?.source, .set)
@@ -716,7 +737,7 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.targetCoordinate(holeIndex: 0)?.latitude, onGreen(0, north: 8).latitude)
         XCTAssertTrue(round.hasKnownPin(holeIndex: 0))
 
-        round.mergePins([PinLocation(holeIndex: 1, coordinate: onGreen(1), setAt: round.date, source: .shared)])
+        round.mergePins(round.pinsByHole([1: PinLocation(coordinate: onGreen(1), setAt: round.date, source: .shared)]))
         XCTAssertTrue(round.hasKnownPin(holeIndex: 1))
         XCTAssertNil(Round(courseSelection: .test).targetCoordinate(holeIndex: 0))
     }
@@ -728,7 +749,7 @@ final class RoundTests: XCTestCase {
         round.addCenterPins()
         XCTAssertFalse(round.hasSetPin(holeIndex: 0))
 
-        round.mergePins([PinLocation(holeIndex: 0, coordinate: onGreen(0), setAt: round.date, source: .shared)])
+        round.mergePins(round.pinsByHole([0: PinLocation(coordinate: onGreen(0), setAt: round.date, source: .shared)]))
         XCTAssertFalse(round.hasSetPin(holeIndex: 0))
 
         round.setPin(onGreen(0, north: 8), onHole: 0, at: round.date.addingTimeInterval(60))
@@ -740,7 +761,7 @@ final class RoundTests: XCTestCase {
         var round = Round(courseSelection: .test)
 
         XCTAssertFalse(round.addCenterPins())
-        XCTAssertTrue(round.pins.isEmpty)
+        XCTAssertTrue(round.pins.allSatisfy { $0 == nil })
     }
 
     func testHoleKeyAndIndexFollowTheNinesPicked() {

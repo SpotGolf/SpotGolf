@@ -32,21 +32,25 @@ struct SharedPin: Equatable {
 }
 
 extension Round {
-    /// A pin set on this round, as shared with other golfers, or nil when its hole is not on the course.
-    func sharedPin(for pin: PinLocation) -> SharedPin? {
-        guard let key = courseSelection.holeKey(at: pin.holeIndex) else { return nil }
+    /// The pin on hole `index`, as shared with other golfers, or nil when the hole is not on the course.
+    func sharedPin(for pin: PinLocation, holeIndex index: Int) -> SharedPin? {
+        guard let key = courseSelection.holeKey(at: index) else { return nil }
         return SharedPin(courseID: course.id, subCourse: key.subCourse, holeNumber: key.number,
                          courseDate: SharedPin.courseDate(for: pin.setAt),
                          latitude: pin.latitude, longitude: pin.longitude, setAt: pin.setAt)
     }
 
-    /// Other golfers' pins as this round's pins, leaving out holes the round does not play and
-    /// pins not on their hole's green.
-    func pins(from shared: [SharedPin]) -> [PinLocation] {
-        shared.compactMap { pin in
+    /// Other golfers' pins by play index, like `pins`, leaving out holes the round does not play
+    /// and pins not on their hole's green. The latest pin wins when a hole has more than one.
+    func pins(from shared: [SharedPin]) -> [PinLocation?] {
+        var result = [PinLocation?](repeating: nil, count: pins.count)
+        for pin in shared {
             guard let index = courseSelection.holeIndex(subCourse: pin.subCourse, number: pin.holeNumber),
-                  isOnGreen(pin.coordinate, holeIndex: index) else { return nil }
-            return PinLocation(holeIndex: index, coordinate: pin.coordinate, setAt: pin.setAt, source: .shared)
+                  result.indices.contains(index), isOnGreen(pin.coordinate, holeIndex: index) else { continue }
+            let incoming = PinLocation(coordinate: pin.coordinate, setAt: pin.setAt, source: .shared)
+            if let current = result[index], current.setAt >= incoming.setAt { continue }
+            result[index] = incoming
         }
+        return result
     }
 }

@@ -16,7 +16,7 @@ final class CourseTests: XCTestCase {
         "location": {
             "address": "1 Pine Valley Rd",
             "city": "Pine Valley",
-            "coordinates": [39.7879, -74.9681],
+            "coordinate": { "lat": 39.7879, "lon": -74.9681 },
             "country": "US",
             "state": "NJ"
         },
@@ -24,28 +24,21 @@ final class CourseTests: XCTestCase {
             { "name": "blue", "color": "#0000FF" },
             { "name": "white", "color": "#FFFFFF" }
         ],
+        "comboTees": [],
         "features": [
             {
                 "id": 10,
                 "type": "bunker",
-                "polygon": [
-                    [39.7877, -74.9683],
-                    [39.7877, -74.9682],
-                    [39.7878, -74.9682],
-                    [39.7878, -74.9683],
-                    [39.7877, -74.9683]
-                ]
+                "polygon": {
+                    "values": [14522511, -27363430, null, 0, 37, null, 36, 0, null, 0, -37, null, -36, 0, null]
+                }
             },
             {
                 "id": 11,
                 "type": "green",
-                "polygon": [
-                    [39.7880, -74.9681],
-                    [39.7880, -74.9679],
-                    [39.7882, -74.9679],
-                    [39.7882, -74.9681],
-                    [39.7880, -74.9681]
-                ]
+                "polygon": {
+                    "values": [14522620, -27363357, null, 0, 73, null, 73, 0, null, 0, -73, null, -73, 0, null]
+                }
             }
         ],
         "subCourses": [
@@ -67,10 +60,12 @@ final class CourseTests: XCTestCase {
                             "blue": 12,
                             "white": 13
                         },
-                        "centerline": []
+                        "comboTees": {},
+                        "centerline": { "values": [] }
                     }
                 ],
-                "tees": {}
+                "tees": {},
+                "comboTees": {}
             },
             {
                 "id": "00000000-0000-0000-0000-000000000011",
@@ -88,10 +83,12 @@ final class CourseTests: XCTestCase {
                         "tees": {
                             "blue": 14
                         },
-                        "centerline": []
+                        "comboTees": {},
+                        "centerline": { "values": [] }
                     }
                 ],
-                "tees": {}
+                "tees": {},
+                "comboTees": {}
             }
         ]
     }
@@ -118,8 +115,8 @@ final class CourseTests: XCTestCase {
         XCTAssertEqual(course.location.state, "NJ")
         XCTAssertEqual(course.location.country, "US")
         XCTAssertEqual(course.location.address, "1 Pine Valley Rd")
-        XCTAssertEqual(course.location.coordinate.latitude, 39.7879, accuracy: 0.0001)
-        XCTAssertEqual(course.location.coordinate.longitude, -74.9681, accuracy: 0.0001)
+        XCTAssertEqual(course.location.coordinate.lat, 39.7879, accuracy: 0.0001)
+        XCTAssertEqual(course.location.coordinate.lon, -74.9681, accuracy: 0.0001)
         XCTAssertEqual(course.subCourses.count, 2)
 
         let hole = course.subCourses[0].holes[0]

@@ -185,13 +185,13 @@ final class TrackRecordingTests: XCTestCase {
     private func attach(_ round: SimulatedRound) {
         let fixes = zip(round.fixes, round.truePath).map { fix, truth in
             [fix.coordinate.latitude, fix.coordinate.longitude, fix.altitude, fix.horizontalAccuracy,
-             truth.latitude, truth.longitude]
+             truth.lat, truth.lon]
         }
         let shots = round.shots.map { shot in
             ["hole": shot.holeNumber, "stroke": shot.stroke, "second": Int(shot.time.timeIntervalSince(start)),
-             "player": [shot.player.latitude, shot.player.longitude],
-             "ball": [shot.ball.latitude, shot.ball.longitude],
-             "landing": [shot.landing.latitude, shot.landing.longitude]] as [String: Any]
+             "player": [shot.player.lat, shot.player.lon],
+             "ball": [shot.ball.lat, shot.ball.lon],
+             "landing": [shot.landing.lat, shot.landing.lon]] as [String: Any]
         }
         let export: [String: Any] = ["secondsPerHole": Self.secondsPerHole, "fixes": fixes, "shots": shots]
         guard let data = try? JSONSerialization.data(withJSONObject: export) else { return }

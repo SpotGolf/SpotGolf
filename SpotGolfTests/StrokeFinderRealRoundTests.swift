@@ -66,7 +66,7 @@ final class StrokeFinderRealRoundTests: XCTestCase {
         let teeTwo = HoleShape(hole: walnut.round.courseHole(at: 1), course: walnut.round.course)
 
         for suggestion in walnut.suggestions(onHole: 0) {
-            let spot = Coordinate(latitude: suggestion.latitude ?? 0, longitude: suggestion.longitude ?? 0)
+            let spot = Coordinate(lat: suggestion.latitude ?? 0, lon: suggestion.longitude ?? 0)
             XCTAssertGreaterThan(teeTwo.metersToTee(spot) ?? 0, 20, "\(suggestion.timestamp) is at hole 2's tee")
         }
     }
@@ -111,7 +111,7 @@ final class StrokeFinderRealRoundTests: XCTestCase {
         XCTAssertEqual(strokes[0].timestamp.timeIntervalSince(drive), 0, accuracy: 1)
         XCTAssertEqual(strokes[1].timestamp.timeIntervalSince(wedge), 0, accuracy: 1)
         XCTAssertEqual(strokes.map(\.peakG).map { ($0 ?? 0).rounded() }, [18, 24])
-        let wedgeSpot = Coordinate(latitude: strokes[1].latitude ?? 0, longitude: strokes[1].longitude ?? 0)
+        let wedgeSpot = Coordinate(lat: strokes[1].latitude ?? 0, lon: strokes[1].longitude ?? 0)
         XCTAssertEqual(holeOne.metersToGreen(wedgeSpot) ?? 0, 84, accuracy: 5)
     }
 }

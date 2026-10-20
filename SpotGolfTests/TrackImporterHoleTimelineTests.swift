@@ -36,7 +36,7 @@ final class TrackImporterHoleTimelineTests: XCTestCase {
 
         private mutating func addFix() {
             let point = PathCourse.coordinate(north: north, east: east)
-            points.append(TrackPoint(timestamp: now, latitude: point.latitude, longitude: point.longitude, altitude: nil))
+            points.append(TrackPoint(timestamp: now, latitude: point.lat, longitude: point.lon, altitude: nil))
         }
     }
 

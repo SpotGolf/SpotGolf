@@ -43,9 +43,9 @@ final class SyncCodecTests: XCTestCase {
     }
 
     func testPinsRoundTrip() throws {
-        let pin = PinLocation(holeIndex: 3, coordinate: .init(latitude: 39.9, longitude: -105.1),
+        let pin = PinLocation(coordinate: .init(latitude: 39.9, longitude: -105.1),
                               setAt: Date(timeIntervalSince1970: 1_700_000_000))
-        let message = SyncMessage.pins(PinsMessage(roundID: roundID, pins: [pin]))
+        let message = SyncMessage.pins(PinsMessage(roundID: roundID, pins: [nil, nil, nil, pin]))
 
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }

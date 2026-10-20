@@ -16,11 +16,11 @@ final class HoleAdvancerTests: XCTestCase {
         let id = nextFeatureID
         nextFeatureID += 1
         return Feature(id: id, type: .tee, polygon: [
-            Coordinate(latitude: latitude - 0.00005, longitude: longitude - 0.00005),
-            Coordinate(latitude: latitude - 0.00005, longitude: longitude + 0.00005),
-            Coordinate(latitude: latitude + 0.00005, longitude: longitude + 0.00005),
-            Coordinate(latitude: latitude + 0.00005, longitude: longitude - 0.00005),
-            Coordinate(latitude: latitude - 0.00005, longitude: longitude - 0.00005),
+            Coordinate(lat: latitude - 0.00005, lon: longitude - 0.00005),
+            Coordinate(lat: latitude - 0.00005, lon: longitude + 0.00005),
+            Coordinate(lat: latitude + 0.00005, lon: longitude + 0.00005),
+            Coordinate(lat: latitude + 0.00005, lon: longitude - 0.00005),
+            Coordinate(lat: latitude - 0.00005, lon: longitude - 0.00005),
         ])
     }
 
@@ -28,11 +28,11 @@ final class HoleAdvancerTests: XCTestCase {
         let id = nextFeatureID
         nextFeatureID += 1
         return Feature(id: id, type: .green, polygon: [
-            Coordinate(latitude: latitude - 0.0001, longitude: longitude - 0.0001),
-            Coordinate(latitude: latitude - 0.0001, longitude: longitude + 0.0001),
-            Coordinate(latitude: latitude + 0.0001, longitude: longitude + 0.0001),
-            Coordinate(latitude: latitude + 0.0001, longitude: longitude - 0.0001),
-            Coordinate(latitude: latitude - 0.0001, longitude: longitude - 0.0001),
+            Coordinate(lat: latitude - 0.0001, lon: longitude - 0.0001),
+            Coordinate(lat: latitude - 0.0001, lon: longitude + 0.0001),
+            Coordinate(lat: latitude + 0.0001, lon: longitude + 0.0001),
+            Coordinate(lat: latitude + 0.0001, lon: longitude - 0.0001),
+            Coordinate(lat: latitude - 0.0001, lon: longitude - 0.0001),
         ])
     }
 
@@ -41,7 +41,7 @@ final class HoleAdvancerTests: XCTestCase {
         let course = Course(
             name: "Test Course", clubName: "Test Club",
             location: CourseLocation(address: "", city: "Test", state: "TX", country: "US",
-                                     coordinate: Coordinate(latitude: 0, longitude: 0)),
+                                     coordinate: Coordinate(lat: 0, lon: 0)),
             features: features, subCourses: [subCourse]
         )
         return CourseSelection(course: course, selectedSubCourseIndices: [0])
@@ -148,7 +148,7 @@ final class HoleAdvancerTests: XCTestCase {
         let course = Course(
             name: "Test Course", clubName: "Test Club",
             location: CourseLocation(address: "", city: "Test", state: "TX", country: "US",
-                                     coordinate: Coordinate(latitude: 0, longitude: 0)),
+                                     coordinate: Coordinate(lat: 0, lon: 0)),
             features: frontTees + backTees,
             subCourses: [SubCourse(name: "Front", holes: frontHoles), SubCourse(name: "Back", holes: backHoles)]
         )
@@ -156,7 +156,7 @@ final class HoleAdvancerTests: XCTestCase {
     }
 
     private func standing(on tee: Feature) -> CLLocation {
-        CLLocation(latitude: tee.center.latitude, longitude: tee.center.longitude)
+        CLLocation(latitude: tee.center.lat, longitude: tee.center.lon)
     }
 
     func testDoesNotJumpToAdjacentHoleFromTheOtherNine() {

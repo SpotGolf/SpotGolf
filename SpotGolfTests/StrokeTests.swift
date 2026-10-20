@@ -52,19 +52,12 @@ final class StrokeTests: XCTestCase {
         XCTAssertEqual(decoded.longitude, stroke.longitude)
     }
 
-    func testClubRoundTripsAndOldStrokesDecodeWithoutOne() throws {
+    func testClubRoundTrips() throws {
         let stroke = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07), club: Club.named("7i"))
 
         let decoded = try JSONDecoder().decode(Stroke.self, from: JSONEncoder().encode(stroke))
         XCTAssertEqual(decoded.club?.id, "7i")
         XCTAssertEqual(decoded, stroke)
-
-        let old = """
-        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"origin":{"manual":{}},"type":"regular"}
-        """
-        let oldStroke = try JSONDecoder().decode(Stroke.self, from: Data(old.utf8))
-        XCTAssertNil(oldStroke.club)
-        XCTAssertNil(oldStroke.clubID)
     }
 
     func testOriginAndHitTimeRoundTrip() throws {
@@ -136,20 +129,7 @@ final class StrokeTests: XCTestCase {
         XCTAssertEqual(decoded, stroke)
     }
 
-    func testOldStrokesDecodeTheirTypeAsPenaltyStrokes() throws {
-        func decode(type: String) throws -> Stroke {
-            let json = """
-            {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"origin":{"manual":{}},"type":"\(type)"}
-            """
-            return try JSONDecoder().decode(Stroke.self, from: Data(json.utf8))
-        }
-
-        XCTAssertEqual(try decode(type: "regular").penaltyStrokes, 0)
-        XCTAssertEqual(try decode(type: "penalty").penaltyStrokes, 1)
-        XCTAssertEqual(try decode(type: "outOfBounds").penaltyStrokes, 1)
-    }
-
-    func testQualityRoundTripsAndOldStrokesAreUnrated() throws {
+    func testQualityRoundTrips() throws {
         let coord = CLLocationCoordinate2D(latitude: 33.45, longitude: -112.07)
         XCTAssertEqual(Stroke(coordinate: coord).quality, .good)
 
@@ -157,11 +137,6 @@ final class StrokeTests: XCTestCase {
         let decoded = try JSONDecoder().decode(Stroke.self, from: JSONEncoder().encode(stroke))
         XCTAssertEqual(decoded.quality, .okay)
         XCTAssertEqual(decoded, stroke)
-
-        let old = """
-        {"id":"\(UUID().uuidString)","latitude":33.45,"longitude":-112.07,"origin":{"manual":{}},"penaltyStrokes":1}
-        """
-        XCTAssertEqual(try JSONDecoder().decode(Stroke.self, from: Data(old.utf8)).quality, .unrated)
     }
 
     func testNotEqualWithDifferentPenaltyStrokes() {

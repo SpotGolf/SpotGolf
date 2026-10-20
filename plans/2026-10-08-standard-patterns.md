@@ -104,12 +104,11 @@ Breaking change: rounds saved by earlier builds are not read. Old JSON files are
 
 | Model | Fields | Replaces |
 |---|---|---|
-| `@Model final class Round` | `@Attribute(.unique) id`, `date`, `status`, `endedAt`, `resumedFromEnd`, `strokesVersion`, `streamBase`, `lastSeq`, `endConfirmed`, `hiddenSuggestionIDs: [UUID]` (phone only). `holes`, `holeTimeline`, `displayHole`, `courseSelection` and `pins` are saved as encoded JSON data, decoded once when first read | `struct Round` in `rounds.json` |
+| `@Model final class Round` | `@Attribute(.unique) id`, `date`, `status`, `endedAt`, `resumedFromEnd`, `strokesVersion`, `streamBase`, `lastSeq`, `endConfirmed`, `hiddenSuggestionIDs: [UUID]` (phone only). `holes`, `holeTimeline`, `displayHole`, `courseSelection` and `pins` were saved as encoded JSON data. Superseded: see plans/2026-10-19-swiftdata-models.md | `struct Round` in `rounds.json` |
 | `@Model final class StreamEntry` | `roundID`, `index`, `record: Data` (the 25-byte record, as the watch sends it) | `streams/<id>_watch.stream` |
 | Hidden suggestions | `Round.hiddenSuggestionIDs` | `suggestions.json`, `SuggestionStore` |
 
-- `RoundHole`, `Stroke`, `HoleStart`, `DisplayHole`, `PinLocation` and `CourseSelection` stay `Codable` structs. They are saved as encoded data, not as SwiftData's own nested values: `CourseSelection` holds the whole course, and SwiftData's support for deeply nested structs is unreliable.
-- Reading one of those values also reads its saved data, so views and observers see it change.
+- `RoundHole`, `Stroke`, `HoleStart`, `DisplayHole`, `PinLocation` and `CourseSelection` stay `Codable` structs. Superseded: they are now stored directly by SwiftData, see plans/2026-10-19-swiftdata-models.md.
 - `Round` keeps its computed properties and methods. Its `mutating` methods become plain methods.
 - `SuggestionStore` is deleted. Hiding a suggestion is `RoundStore.hideSuggestion`.
 
