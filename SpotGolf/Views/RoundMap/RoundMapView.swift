@@ -8,6 +8,7 @@ struct RoundMapView: View {
     let roundID: UUID
     @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
     @AppStorage(SettingsKey.greenZone) private var greenZone: Double = HoleShape.chipZoneMargin
 
@@ -20,10 +21,10 @@ struct RoundMapView: View {
     /// The hole shown in a past round. An active round shows its display hole, which the watch's
     /// GPS and the user move.
     @State private var pastHoleIndex = 0
-    @State private var isEditing = false
-    /// The hole held on screen while editing. The watch's GPS can move the display hole on when
-    /// the player reaches the next tee, but an edit in progress stays on its hole until Done.
-    @State private var editingHoleIndex: Int?
+    /// Keeps an active round's map on its hole while a spot is edited.
+    @State private var hold = HoleHold()
+    /// A spot on the map is being dragged.
+    @State private var isDraggingSpot = false
     /// The whole round's GPS, and the part of it on the hole shown.
     @State private var roundTrack: [TrackPoint] = []
     @State private var holeTrack: [TrackPoint] = []
@@ -34,8 +35,6 @@ struct RoundMapView: View {
     @State private var suggestions: [StrokeSuggestion] = []
     @State private var showLog = false
     @State private var showScorecard = false
-    /// The scorecard's edit button picked another hole: edit mode starts once the map shows it.
-    @State private var editsAfterHoleChange = false
     /// A point the player tapped on the map, to see how far it is.
     @State private var target: CLLocationCoordinate2D?
     /// How the map draws the ground. Read from the settings when the map opens, and kept there
@@ -43,6 +42,8 @@ struct RoundMapView: View {
     @State private var mapStyle = MapStyleChoice.standard
     @State private var showMapStyles = false
     @State private var greenView = GreenViewState()
+    /// The lines and distances between the shown hole's strokes, which the ruler button turns on and off.
+    @State private var showsStrokeLines = false
 
     var body: some View {
         Group {
@@ -88,12 +89,11 @@ struct RoundMapView: View {
             // A stroke change can move its hole's start, which changes the hole's track
             filterTrack()
         }
-        .onChange(of: round.map(shownHoleIndex)) { _, shown in
-            // A hole the user picked, or the display hole catching up after Done. The watch's
-            // hole changes are held off while editing, so they do not land here until then.
-            isEditing = editsAfterHoleChange
-            editsAfterHoleChange = false
-            editingHoleIndex = isEditing ? shown : nil
+        .onChange(of: isEditing) { _, editing in
+            guard let round else { return }
+            hold.editChanged(isEditing: editing, shownHoleIndex: shownHoleIndex(round))
+        }
+        .onChange(of: round.map(shownHoleIndex)) {
             target = nil
             withAnimation(.easeInOut(duration: 0.2)) {
                 greenView.holeChanged()
@@ -101,31 +101,28 @@ struct RoundMapView: View {
             panToHole()
             filterTrack()
         }
-        .onChange(of: greenView.isShown) { _, shown in
-            // Green View is for marking putts, so it is always in edit mode. Its X ends editing; a
-            // hole change sets editing itself.
-            if shown {
-                isEditing = true
-            }
-        }
-        .onChange(of: isEditing) {
-            editingHoleIndex = isEditing ? round.map(shownHoleIndex) : nil
-            refreshSuggestions()
-        }
         .onChange(of: services.streamStore.revision) {
             // Records arrived from the watch
             reloadTrack()
         }
+        .onChange(of: scenePhase) { _, phase in
+            // Stream records and round changes that arrived in the background
+            if phase == .active {
+                reloadTrack()
+            }
+        }
     }
 
     /// The hole the map, header, and distances describe: an active round's display hole, which
-    /// the watch shows too, or the hole being edited while an edit holds it. A past round opens
-    /// on its first hole.
+    /// the watch shows too, or the hole `hold` keeps. A past round opens on its first hole.
     private func shownHoleIndex(_ round: Round) -> Int {
-        if let editingHoleIndex, editingHoleIndex <= round.lastHoleIndex {
-            return editingHoleIndex
-        }
-        return round.isActive ? round.displayHoleIndex : pastHoleIndex
+        guard round.isActive else { return pastHoleIndex }
+        return hold.holeIndex(lastHoleIndex: round.lastHoleIndex) ?? round.displayHoleIndex
+    }
+
+    /// A spot's sheet is open, a spot is being dragged, or Green View is open.
+    private var isEditing: Bool {
+        spot.stroke != nil || isDraggingSpot || greenView.isShown
     }
 
     private var shownHoleHeading: Double? {
@@ -140,8 +137,8 @@ struct RoundMapView: View {
                            openScorecard: { showScorecard = true })
             RoundSyncBanner(round: round)
             ZStack(alignment: .top) {
-                RoundMapLayer(round: round, shownHoleIndex: holeIndex, isEditing: isEditing,
-                              trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
+                RoundMapLayer(round: round, shownHoleIndex: holeIndex, showsStrokeLines: showsStrokeLines,
+                              isDraggingSpot: $isDraggingSpot, trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
                               suggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
                 if greenView.isShown {
                     // Over the map rather than in place of it, so the map keeps its camera
@@ -151,7 +148,6 @@ struct RoundMapView: View {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             greenView.close()
                         }
-                        isEditing = false
                     }
                     .transition(.opacity)
                 }
@@ -160,7 +156,7 @@ struct RoundMapView: View {
                         MapInfoOverlay(round: round, shownHoleIndex: holeIndex, target: $target)
                     }
                     Spacer()
-                    MapButtonBar(round: round, shownHoleIndex: holeIndex, isEditing: $isEditing,
+                    MapButtonBar(round: round, shownHoleIndex: holeIndex, showsStrokeLines: $showsStrokeLines,
                                  showLog: $showLog,
                                  followsUserLocation: camera.followsUserLocation,
                                  followUserLocation: followUserLocation,
@@ -182,7 +178,7 @@ struct RoundMapView: View {
             MapStyleSheet(selected: mapStyle, center: previewCenter(round, holeIndex: holeIndex), select: selectMapStyle)
         }
         .fullScreenCover(isPresented: $showScorecard) {
-            ScorecardView(roundID: round.id) { editHole($0, round) }
+            ScorecardView(roundID: round.id) { showHoleFromScorecard($0, round) }
         }
         // The header has its own back button, so the bar is hidden
         .toolbar(.hidden, for: .navigationBar)
@@ -218,7 +214,7 @@ struct RoundMapView: View {
             return
         }
         // The user's own choice of hole ends any hold
-        editingHoleIndex = nil
+        hold.release()
         if round.isActive {
             services.roundStore.setDisplayHole(index, roundID: round.id)
         } else {
@@ -226,15 +222,10 @@ struct RoundMapView: View {
         }
     }
 
-    /// Shows hole `index` in edit mode, from the scorecard.
-    private func editHole(_ index: Int, _ round: Round) {
+    /// Shows hole `index`, picked on the scorecard.
+    private func showHoleFromScorecard(_ index: Int, _ round: Round) {
         showScorecard = false
-        if index == shownHoleIndex(round) {
-            isEditing = true
-        } else {
-            editsAfterHoleChange = true
-            selectHole(index, round)
-        }
+        selectHole(index, round)
     }
 
     /// The style sheet's pick, kept in the settings for the next time the map opens.
@@ -265,8 +256,10 @@ struct RoundMapView: View {
 
     // MARK: - Track and suggestions
 
-    /// Loads the watch's GPS track and picks out the hole shown.
+    /// Loads the watch's GPS track and picks out the hole shown. Waits while the app is not
+    /// active: returning to it loads everything that changed.
     private func reloadTrack() {
+        guard scenePhase == .active else { return }
         guard let round else {
             roundTrack = []
             holeTrack = []
@@ -279,9 +272,10 @@ struct RoundMapView: View {
         filterTrack()
     }
 
-    /// Picks out the track on the hole shown and works out the suggestions again.
+    /// Picks out the track on the hole shown and works out the suggestions again. Waits while
+    /// the app is not active, as `reloadTrack` does.
     private func filterTrack() {
-        guard let round else { return }
+        guard scenePhase == .active, let round else { return }
         holeTrack = HoleTrack.points(roundTrack, in: round, holeIndex: shownHoleIndex(round))
         startWindow = HoleTrack.startWindow(roundTrack, in: round, holeIndex: shownHoleIndex(round))
         trackLine = TrackLine.coordinates(of: holeTrack)
@@ -289,7 +283,7 @@ struct RoundMapView: View {
     }
 
     private func refreshSuggestions() {
-        guard let round, isEditing else {
+        guard let round else {
             suggestions = []
             return
         }

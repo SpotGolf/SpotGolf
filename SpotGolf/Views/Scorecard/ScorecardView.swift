@@ -5,8 +5,8 @@ import SwiftUI
 /// nine ends in a subtotal, "Out" then "In". See plans/2026-10-09-scorecard.md.
 struct ScorecardView: View {
     let roundID: UUID
-    /// The edit button under a hole: the map edits that hole.
-    let editHole: (Int) -> Void
+    /// A tap on a hole's column: the map closes the scorecard and shows that hole.
+    let showHole: (Int) -> Void
 
     @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
@@ -116,10 +116,15 @@ struct ScorecardView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(nines.enumerated()), id: \.offset) { nine, holes in
                         ForEach(holes, id: \.self) { index in
-                            column(rows, width: Self.holeWidth) { row in
-                                holeCell(row, index: index, round: round)
+                            Button {
+                                showHole(index)
+                            } label: {
+                                column(rows, width: Self.holeWidth) { row in
+                                    holeCell(row, index: index, round: round)
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .accessibilityElement(children: .contain)
+                            .buttonStyle(.plain)
                             .accessibilityIdentifier("ScorecardHole-\(round.holeNumber(at: index))")
                         }
                         column(rows, width: Self.subtotalWidth, isHeader: true) { row in
@@ -207,19 +212,6 @@ struct ScorecardView: View {
             if let green = hole.stats?.green {
                 checkbox(green)
             }
-        case .edit:
-            Button {
-                dismiss()
-                editHole(index)
-            } label: {
-                Image(systemName: "square.and.pencil")
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Edit hole \(round.holeNumber(at: index))")
-            .accessibilityIdentifier("ScorecardEdit-\(round.holeNumber(at: index))")
         }
     }
 
@@ -268,15 +260,13 @@ struct ScorecardView: View {
             Text(stats.isEmpty ? "" : "\(stats.filter(\.green).count)/\(stats.count)")
                 .font(.caption)
                 .fontWeight(.semibold)
-        case .edit:
-            Color.clear
         }
     }
 }
 
 /// The scorecard's rows, top to bottom.
 private enum ScorecardRow: CaseIterable {
-    case hole, yards, par, score, putts, fairway, green, edit
+    case hole, yards, par, score, putts, fairway, green
 
     var title: LocalizedStringKey {
         switch self {
@@ -287,7 +277,6 @@ private enum ScorecardRow: CaseIterable {
         case .putts: "Putts"
         case .fairway: "Fairway"
         case .green: "Green"
-        case .edit: "Edit"
         }
     }
 }

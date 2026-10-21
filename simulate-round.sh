@@ -3,7 +3,8 @@
 # track row, at the same pace the fixes were recorded.
 #
 # Usage: simulate-round.sh <csv-file> [first-line] [last-line]
-#   csv-file:    Round export (header: type,timestamp,latitude,longitude,...,peakG)
+#   csv-file:    Round export (header starts type,timestamp,latitude,longitude,...,peakG; later
+#                exports add more columns after it)
 #   first-line:  Optional file line number to start from (the header is line 1)
 #   last-line:   Optional file line number to stop after (defaults to the end of the file)
 #
@@ -34,10 +35,10 @@ fi
 
 header=$(head -1 "$csv" | tr -d '\r')
 expected="type,timestamp,latitude,longitude,altitude,horizontalAccuracy,source,hole,stroke,strokeType,peakG"
-if [ "$header" != "$expected" ]; then
+if [ "$header" != "$expected" ] && [[ "$header" != "$expected",* ]]; then
     echo "Unexpected header in $csv"
     echo "  found:    $header"
-    echo "  expected: $expected"
+    echo "  expected: $expected, then any other columns"
     exit 1
 fi
 
@@ -82,13 +83,15 @@ echo "Replaying $count fixes over $(awk -v s="$duration" 'BEGIN { printf "%dh %0
 start_wall=$(perl -MTime::HiRes=time -e 'printf "%.3f", time')
 
 while read -r line offset lat lon ts; do
-    # Sleep until this fix is due, then print how late it is (0 when on time).
+    # Sleep until this fix is due, then print how late it is (0 when on time). A long gap
+    # between fixes is announced on stderr first, so it does not look like the replay stopped.
     late=$(perl -MTime::HiRes=time,sleep -e '
         my $due = $ARGV[0] + $ARGV[1];
         my $wait = $due - time;
+        printf STDERR "Waiting %.0fs for the next fix (line %s, %s)\n", $wait, $ARGV[2], $ARGV[3] if $wait > 5;
         sleep($wait) if $wait > 0;
         printf "%.1f", time - $due;
-    ' "$start_wall" "$offset")
+    ' "$start_wall" "$offset" "$line" "$ts")
 
     echo "[line $line] $ts +${offset}s ($lat, $lon) late ${late}s"
     xcrun simctl location "SpotGolf Phone" set "$lat,$lon" &

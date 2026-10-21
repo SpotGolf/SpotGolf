@@ -74,9 +74,31 @@ struct SpotSelection {
     }
 }
 
-/// Whether Green View shows in place of the map, and the rule that opens it by itself. Green View
-/// is always in edit mode, and only its X or a hole change closes it. See
-/// plans/2026-10-17-green-view.md.
+/// Keeps an active round's map on the hole an edit started on when the watch's GPS moves the
+/// display hole on, until the edit ends.
+struct HoleHold {
+    /// The hole shown when the edit started.
+    private(set) var editedHoleIndex: Int?
+
+    /// The hole to show instead of the display hole, if any. A hole past the round's last is dropped.
+    func holeIndex(lastHoleIndex: Int) -> Int? {
+        editedHoleIndex.flatMap { $0 <= lastHoleIndex ? $0 : nil }
+    }
+
+    /// An edit started or ended on hole `shownHoleIndex`.
+    mutating func editChanged(isEditing: Bool, shownHoleIndex: Int) {
+        editedHoleIndex = isEditing ? shownHoleIndex : nil
+    }
+
+    /// The user picked a hole, so the hold no longer applies.
+    mutating func release() {
+        editedHoleIndex = nil
+    }
+}
+
+/// Whether Green View shows in place of the map, and the rule that opens it by itself. Only its X
+/// or a hole change closes it. Green View holds the map's hole like any edit (see `HoleHold`), so
+/// the display hole moving on does not close it. See plans/2026-10-17-green-view.md.
 struct GreenViewState {
     private(set) var isShown = false
     /// The player closed it with X on the hole shown, so it does not open by itself again there.
@@ -95,8 +117,7 @@ struct GreenViewState {
         closedOnHole = true
     }
 
-    /// The shown hole changed. Green View edits, and the map holds an edited hole, so the display
-    /// hole moving on does not land here until Green View is closed.
+    /// The shown hole changed.
     mutating func holeChanged() {
         isShown = false
         closedOnHole = false

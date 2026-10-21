@@ -1,7 +1,7 @@
 import XCTest
 
 /// A past round opens on the same screen as a round in play: the holes along the top,
-/// one hole at a time on the map, and the same editing.
+/// one hole at a time on the map, and the same stroke editing.
 @MainActor
 final class PastRoundUITests: XCTestCase {
 
@@ -49,37 +49,11 @@ final class PastRoundUITests: XCTestCase {
         XCTAssertTrue(app.buttons["New Round"].waitForExistence(timeout: 5), "Back should return to the round list")
     }
 
-    // MARK: - Stroke lines
-
-    func testTappingAStrokeTogglesTheLinesBetweenStrokes() throws {
-        createPastRound()
-        openPastRound()
-
-        let first = app.buttons["Stroke_1"]
-        XCTAssertTrue(first.waitForExistence(timeout: 5), "Stroke 1 should be on the map")
-        let firstDistance = element("StrokeDistance_1")
-        XCTAssertFalse(firstDistance.exists, "No distances before a stroke is tapped")
-
-        // Hole 1 has three strokes, so two lines
-        first.tap()
-        XCTAssertTrue(firstDistance.waitForExistence(timeout: 5), "Tapping a stroke should show the yards between strokes")
-        XCTAssertTrue(element("StrokeDistance_2").exists, "There should be a line from stroke 2 to stroke 3")
-        XCTAssertFalse(element("StrokeDistance_3").exists, "There should be no line past the last stroke")
-        XCTAssertNotNil(Int(firstDistance.label.split(separator: " ").first ?? ""), "The label should be yards")
-        XCTAssertFalse(app.navigationBars["Edit Spot"].exists, "Tapping outside editing should not open the spot")
-
-        // Tapping a stroke again hides them
-        app.buttons["Stroke_2"].tap()
-        XCTAssertTrue(firstDistance.waitForNonExistence(timeout: 5), "Tapping a stroke again should hide the lines")
-    }
-
     // MARK: - Editing
 
     func testPastRoundCanBeEdited() throws {
         createPastRound()
         openPastRound()
-
-        app.startEditing()
 
         // Move stroke 1 by dragging it. Stroke 2 stays put: the map must not pan under the drag,
         // which would move every stroke on screen and leave stroke 1 where it was
@@ -134,7 +108,6 @@ final class PastRoundUITests: XCTestCase {
 
         app.goToHole(3)
         assertStrokeCount(2, onHole: 3)
-        app.startEditing()
         openStroke(1)
         let penaltyStrokes = app.staticTexts["PenaltyStrokes"]
         XCTAssertTrue(penaltyStrokes.waitForExistence(timeout: 5))
@@ -168,17 +141,16 @@ final class PastRoundUITests: XCTestCase {
         attachScreenshot("Scorecard portrait")
 
         XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertTrue(element("ScorecardEdit-12").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ScorecardHole-12").waitForExistence(timeout: 5))
         attachScreenshot("Scorecard landscape")
         XCUIDevice.shared.orientation = .portrait
 
-        // Edit on hole 2 shows hole 2 in edit mode
-        let editHole2 = app.buttons["ScorecardEdit-2"]
-        XCTAssertTrue(editHole2.waitForExistence(timeout: 5))
-        editHole2.tap()
-        XCTAssertTrue(total.waitForNonExistence(timeout: 5), "Edit should close the scorecard")
-        XCTAssertTrue(app.waitForShownHole(2), "Edit should show hole 2")
-        XCTAssertEqual(app.buttons["EditHole"].label, "Done", "Hole 2 should be in edit mode")
+        // A tap on hole 2's column shows hole 2
+        let hole2 = element("ScorecardHole-2")
+        XCTAssertTrue(hole2.waitForExistence(timeout: 5))
+        hole2.tap()
+        XCTAssertTrue(total.waitForNonExistence(timeout: 5), "A tap on a hole should close the scorecard")
+        XCTAssertTrue(app.waitForShownHole(2), "A tap on hole 2 should show hole 2")
 
         // Close goes back to the map
         scoreBox.tap()
@@ -254,9 +226,8 @@ final class PastRoundUITests: XCTestCase {
         XCTAssertTrue(app.holeButton(1).waitForExistence(timeout: 5), "The past round should open")
     }
 
-    /// Taps a stroke in edit mode, which opens its edit sheet.
+    /// Taps a stroke, which opens its edit sheet.
     private func openStroke(_ number: Int, file: StaticString = #filePath, line: UInt = #line) {
-        app.startEditing()
         let stroke = app.buttons["Stroke_\(number)"]
         XCTAssertTrue(stroke.waitForExistence(timeout: 5), "Stroke \(number) should exist", file: file, line: line)
         stroke.tap()

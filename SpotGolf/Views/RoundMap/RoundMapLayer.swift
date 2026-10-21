@@ -2,13 +2,15 @@ import MapKit
 import SwiftUI
 
 /// The map of the shown hole: the player, the pin, the spots, the GPS track, the tapped target
-/// and its lines, hazard distances, and stroke suggestions while editing. Tapping a spot shows
-/// or hides the lines between the hole's strokes, with the yards along each. A long press adds
-/// a spot while editing, and a spot can be lifted and dragged to move it.
+/// and its lines, hazard distances, stroke suggestions, and the lines between the hole's strokes
+/// with the yards along each when they are turned on. Tapping a spot opens it, a long press adds
+/// a spot, and a spot can be lifted and dragged to move it.
 struct RoundMapLayer: View {
     let round: Round
     let shownHoleIndex: Int
-    let isEditing: Bool
+    let showsStrokeLines: Bool
+    /// Set while a spot is being dragged, so the map holds its hole.
+    @Binding var isDraggingSpot: Bool
     /// The hole's track as the map draws it, and all of its fixes.
     let trackLine: [CLLocationCoordinate2D]
     let holeTrack: [TrackPoint]
@@ -25,8 +27,6 @@ struct RoundMapLayer: View {
     @State private var dragOffset: CGSize = .zero
     /// A dragged spot lands this far above the finger, where a thumb does not hide it.
     private static let dropLift: CGFloat = 70
-    /// The lines between the strokes are shown. Tapping a spot outside editing turns them on and off.
-    @State private var showsStrokeLines = false
 
     var body: some View {
         let strokesToShow = round.hole(at: shownHoleIndex).strokes
@@ -61,14 +61,12 @@ struct RoundMapLayer: View {
                         TargetMarker()
                     }
                 }
-                if isEditing {
-                    ForEach(suggestions) { suggestion in
-                        if let coordinate = suggestion.coordinate {
-                            Annotation("", coordinate: coordinate, anchor: .bottom) {
-                                SuggestionPin(kind: suggestion.kind) {
-                                    SpotActions.takeSuggestion(suggestion, round: round, holeIndex: shownHoleIndex,
-                                                               holeTrack: holeTrack, services: services, spot: &spot)
-                                }
+                ForEach(suggestions) { suggestion in
+                    if let coordinate = suggestion.coordinate {
+                        Annotation("", coordinate: coordinate, anchor: .bottom) {
+                            SuggestionPin(kind: suggestion.kind) {
+                                SpotActions.takeSuggestion(suggestion, round: round, holeIndex: shownHoleIndex,
+                                                           holeTrack: holeTrack, services: services, spot: &spot)
                             }
                         }
                     }
@@ -77,11 +75,10 @@ struct RoundMapLayer: View {
                     // Last, so the flag is drawn over the spots and suggestions, not under them.
                     // The base of the pole sits on the pin. Taps on the pole go through to a pin
                     // under it.
-                    let shownSuggestions = isEditing ? suggestions : []
                     Annotation("", coordinate: pin.coordinate, anchor: PinFlag.base) {
                         PinFlag(source: pin.source, scale: MapGeometry.flagScale(metersPerPoint: camera.metersPerPoint),
                                 raised: MapGeometry.hasPinsOnGreen(round, holeIndex: shownHoleIndex,
-                                                                   suggestions: shownSuggestions))
+                                                                   suggestions: suggestions))
                             .allowsHitTesting(false)
                     }
                 }
@@ -112,8 +109,8 @@ struct RoundMapLayer: View {
                 camera.mapMoved(to: context.camera, ended: true)
             }
             .onTapGesture(coordinateSpace: .local) { point in
-                // Distances come from the player's location, and taps while editing are for spots
-                guard round.isActive, !isEditing,
+                // Distances come from the player's location
+                guard round.isActive,
                       let coordinate = proxy.convert(point, from: .local) else { return }
                 target = coordinate
             }
@@ -123,7 +120,7 @@ struct RoundMapLayer: View {
                     .onEnded { value in
                         switch value {
                         case .second(true, let drag):
-                            guard isEditing, let drag,
+                            guard let drag,
                                   let coordinate = proxy.convert(drag.location, from: .global) else { return }
                             SpotActions.addSpot(at: coordinate, round: round, holeIndex: shownHoleIndex,
                                                 startWindow: startWindow, services: services, spot: &spot)
@@ -137,10 +134,6 @@ struct RoundMapLayer: View {
 
     private func spotMarker(index: Int, stroke: Stroke, proxy: MapProxy) -> some View {
         SpotPin(number: index + 1, stroke: stroke, isDragging: draggingStroke?.id == stroke.id) {
-            guard isEditing else {
-                showsStrokeLines.toggle()
-                return
-            }
             if let holeIdx = round.holeIndex(containing: stroke.id),
                let strokeIdx = round.holes[holeIdx].strokes.firstIndex(where: { $0.id == stroke.id }) {
                 spot.newIndex = strokeIdx
@@ -153,12 +146,12 @@ struct RoundMapLayer: View {
                 // The drag reports from the first movement, so the pin tracks the finger at once
                 .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                 .onChanged { value in
-                    guard isEditing else { return }
                     switch value {
                     case .second(true, let drag):
                         if draggingStroke == nil {
                             withAnimation(.easeOut(duration: 0.15)) {
                                 draggingStroke = stroke
+                                isDraggingSpot = true
                                 // The finger is on the head, so the spot rises to the drop point
                                 // above it before the finger moves
                                 dragOffset = CGSize(width: 0, height: -(PinMetrics.headCenter + Self.dropLift))
@@ -177,7 +170,6 @@ struct RoundMapLayer: View {
                     }
                 }
                 .onEnded { value in
-                    guard isEditing else { return }
                     switch value {
                     case .second(true, _):
                         // Lands where the pin's dot is shown, which is above the finger even
@@ -192,6 +184,7 @@ struct RoundMapLayer: View {
                         break
                     }
                     draggingStroke = nil
+                    isDraggingSpot = false
                     dragOffset = .zero
                 }
         )

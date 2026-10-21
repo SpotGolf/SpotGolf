@@ -4,8 +4,8 @@ import SwiftUI
 
 /// The shown hole's green, drawn by the app so it can zoom in past the map's limit, for putts:
 /// the green and the bunkers and water near it, the GPS track, the spots, the pin and the player,
-/// with feet between the strokes. It is always in edit mode: the spots are edited with the map's
-/// editing gestures, and the pin can be dragged. Unlike the map, a tap does not drop a target.
+/// with feet between the strokes. The spots are added, moved and opened here, and the pin can be
+/// dragged. Unlike the map, a tap does not drop a target.
 /// See plans/2026-10-17-green-view.md.
 struct GreenView: View {
     let round: Round

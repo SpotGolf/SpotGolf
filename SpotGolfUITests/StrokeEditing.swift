@@ -9,18 +9,8 @@ extension XCUIApplication {
         [0.2, 0.4, 0.6, 0.8].map { x in CGVector(dx: x, dy: y) }
     }
 
-    /// Turns on edit mode if it is off.
-    func startEditing() {
-        let editButton = buttons["EditHole"]
-        if editButton.waitForExistence(timeout: 5), editButton.label == "Edit" {
-            editButton.tap()
-        }
-    }
-
     /// Long-presses the map, which adds a stroke there and opens its edit sheet.
-    /// Strokes can only be added in edit mode, so enter it first when needed.
     func addStroke(at point: CGVector) {
-        startEditing()
         let start = coordinate(withNormalizedOffset: point)
         // The map only reports the press once the finger has moved
         start.press(forDuration: 1.0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 4)))

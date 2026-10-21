@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Green View over Edit at the bottom left, the map buttons at the right, and in the middle
-/// setting the pin, or the suggestion pins' legend while editing. Green View hides both capsules:
-/// it is always in edit mode, and its X closes it.
+/// Green View over the ruler at the bottom left, the map buttons at the right, and in the middle
+/// the suggestion pins' legend, with setting the pin above it. Green View hides both capsules,
+/// and its X closes it.
 struct MapButtonBar: View {
     let round: Round
     let shownHoleIndex: Int
-    @Binding var isEditing: Bool
+    /// The ruler button: shows and hides the lines and distances between the hole's strokes.
+    @Binding var showsStrokeLines: Bool
     @Binding var showLog: Bool
     let followsUserLocation: Bool
     /// The location button: the camera goes back to following the player.
@@ -16,7 +17,7 @@ struct MapButtonBar: View {
     let pickMapStyle: () -> Void
     /// Green View is showing in place of the map, so the map's own buttons are hidden.
     let showsGreenView: Bool
-    /// The Green View button, which also starts editing. Nil when the hole has no green outline to draw.
+    /// The Green View button. Nil when the hole has no green outline to draw.
     let openGreenView: (() -> Void)?
 
     @Environment(PhoneServices.self) private var services
@@ -26,10 +27,9 @@ struct MapButtonBar: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            // One capsule, as the map buttons on the right. Not in Green View, which is always
-            // in edit mode and closes with its X.
+            // One capsule, as the map buttons on the right. Not in Green View, which closes with its X.
             if !showsGreenView {
-                editCapsule
+                leftCapsule
             }
 
             Spacer(minLength: 0)
@@ -37,18 +37,17 @@ struct MapButtonBar: View {
             mapButtons
         }
         .overlay(alignment: .bottom) {
-            if isEditing {
-                SuggestionLegend()
-            } else {
+            VStack(spacing: 10) {
                 setPinButton
+                SuggestionLegend()
             }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 32)
     }
 
-    /// Green View over Edit, in one capsule.
-    private var editCapsule: some View {
+    /// Green View over the ruler, in one capsule.
+    private var leftCapsule: some View {
         VStack(spacing: 0) {
             if let openGreenView {
                 Button(action: openGreenView) {
@@ -62,15 +61,16 @@ struct MapButtonBar: View {
             }
 
             Button {
-                isEditing.toggle()
+                showsStrokeLines.toggle()
             } label: {
-                Image(systemName: isEditing ? "checkmark" : "square.and.pencil")
+                Image(systemName: "ruler")
                     .font(.title3)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(showsStrokeLines ? Color.blue : Color.secondary)
                     .frame(width: Self.buttonSize, height: Self.buttonSize)
             }
-            .accessibilityLabel(isEditing ? "Done" : "Edit")
-            .accessibilityIdentifier("EditHole")
+            .accessibilityLabel("Distances")
+            .accessibilityAddTraits(showsStrokeLines ? .isSelected : [])
+            .accessibilityIdentifier("StrokeLines")
         }
         .background(.thickMaterial)
         .clipShape(Capsule())
@@ -101,25 +101,22 @@ struct MapButtonBar: View {
         }
     }
 
-    /// The round's log (only while editing), then the map's style and, during a round, following
-    /// the player's location, together in one capsule as Apple Maps has them.
-    /// The capsule is not in Green View.
+    /// The round's log, then the map's style and, during a round, following the player's
+    /// location, together in one capsule as Apple Maps has them. The capsule is not in Green View.
     private var mapButtons: some View {
         VStack(spacing: 8) {
-            if isEditing {
-                Button {
-                    showLog = true
-                } label: {
-                    Image(systemName: "doc.text")
-                }
-                .accessibilityLabel("Log")
-                .accessibilityIdentifier("RoundLog")
-                .font(.title3)
-                .frame(width: Self.buttonSize, height: Self.buttonSize)
-                .background(.thickMaterial)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            Button {
+                showLog = true
+            } label: {
+                Image(systemName: "doc.text")
             }
+            .accessibilityLabel("Log")
+            .accessibilityIdentifier("RoundLog")
+            .font(.title3)
+            .frame(width: Self.buttonSize, height: Self.buttonSize)
+            .background(.thickMaterial)
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
 
             if !showsGreenView {
                 mapCapsule

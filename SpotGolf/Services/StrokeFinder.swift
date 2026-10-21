@@ -308,9 +308,21 @@ enum StrokeFinder {
         }?.timestamp
     }
 
-    /// The fix nearest in time to `date`, within `swingFixWindow`.
+    /// The fix nearest in time to `date`, within `swingFixWindow`. `points` must be in time order.
     static func nearestFix(to date: Date, in points: [TrackPoint]) -> TrackPoint? {
-        let nearest = points.min { abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date)) }
+        // The first fix at or after `date`; the nearest is it or the one before it
+        var low = 0
+        var high = points.count
+        while low < high {
+            let middle = (low + high) / 2
+            if points[middle].timestamp < date {
+                low = middle + 1
+            } else {
+                high = middle
+            }
+        }
+        let nearest = [low - 1, low].filter(points.indices.contains).map { points[$0] }
+            .min { abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date)) }
         guard let nearest, abs(nearest.timestamp.timeIntervalSince(date)) <= swingFixWindow else { return nil }
         return nearest
     }
@@ -342,14 +354,16 @@ enum StrokeFinder {
         var first = 0
         while first < points.count {
             var members = [first]
+            var center = Coordinate(lat: points[first].latitude, lon: points[first].longitude)
             var misses = 0
             var next = first + 1
             while next < points.count {
-                let center = median(members.suffix(centerWindow).map { points[$0] })
                 let point = points[next]
                 if LocalDistance.meters(fromLat: center.lat, lon: center.lon,
                                         toLat: point.latitude, lon: point.longitude) <= stopRadius {
                     members.append(next)
+                    // The center changes only when a fix joins
+                    center = median(members.suffix(centerWindow).map { points[$0] })
                     misses = 0
                 } else {
                     misses += 1

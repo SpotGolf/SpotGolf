@@ -63,11 +63,8 @@ final class LogUITests: XCTestCase {
         dismissLocationAlert()
         app.startRoundWithCourse()
 
-        let edit = app.buttons["EditHole"]
-        XCTAssertTrue(edit.waitForExistence(timeout: 5), "The map should have an Edit button")
-        edit.tap()
         let log = app.buttons["RoundLog"]
-        XCTAssertTrue(log.waitForExistence(timeout: 5), "Editing should offer the round's log")
+        XCTAssertTrue(log.waitForExistence(timeout: 5), "The map should offer the round's log")
         log.tap()
 
         XCTAssertTrue(app.navigationBars["Round Log"].waitForExistence(timeout: 5), "The round's log should open")

@@ -81,18 +81,23 @@ final class MapTargetUITests: XCTestCase {
         XCTAssertFalse(clearButton.exists, "The clear button should go away with the target")
     }
 
-    func testTapWhileEditingDoesNotShowTarget() throws {
+    func testTapOnASpotOpensItAndShowsNoTarget() throws {
         LocationTestHelper.setSimulatorLocation(latitude: 39.95545, longitude: -105.04220)
         app.launch()
         dismissLocationAlert()
         app.startRoundWithCourse()
 
-        app.buttons["EditHole"].tap()
-        tapMap()
+        app.addStroke(at: XCUIApplication.strokePressPoints[0])
+        let save = app.buttons["Save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "A long press should add a spot and open it")
+        save.tap()
+        XCTAssertTrue(app.navigationBars["Edit Spot"].waitForNonExistence(timeout: 5))
 
-        // Give a target time to show, if it wrongly would
-        XCTAssertFalse(target.waitForExistence(timeout: 2), "Taps while editing are for spots, not targets")
-        XCTAssertFalse(distanceToTarget.exists)
-        XCTAssertFalse(clearButton.exists)
+        let stroke = app.buttons["Stroke_1"]
+        XCTAssertTrue(stroke.waitForExistence(timeout: 5))
+        stroke.tap()
+        XCTAssertTrue(app.navigationBars["Edit Spot"].waitForExistence(timeout: 5), "A tap on a spot should open it")
+        XCTAssertFalse(target.exists, "A tap on a spot should not drop a target")
+        app.buttons["Cancel"].tap()
     }
 }

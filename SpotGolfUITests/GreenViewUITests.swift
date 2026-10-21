@@ -56,8 +56,6 @@ final class GreenViewUITests: XCTestCase {
         XCTAssertTrue(closeButton.exists, "Green View should have an X")
         XCTAssertFalse(app.buttons["MapStyle"].exists, "The map's buttons should be hidden in Green View")
         XCTAssertTrue(element("GreenViewPinDistance").exists, "The feet to the pin should show during a round")
-        XCTAssertTrue(app.buttons["RoundLog"].exists, "Green View should be in edit mode")
-        XCTAssertFalse(app.buttons["EditHole"].exists, "Green View is always in edit mode, so it has no Edit button")
         XCTAssertFalse(greenViewButton.exists, "The Green View button should be hidden in Green View")
 
         // A tap on the ground drops no target, as it would on the map
@@ -67,8 +65,6 @@ final class GreenViewUITests: XCTestCase {
 
         closeButton.tap()
         XCTAssertTrue(title.waitForNonExistence(timeout: 5), "X should close Green View")
-        XCTAssertTrue(app.buttons["EditHole"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["EditHole"].label, "Edit", "X should end editing")
         XCTAssertTrue(greenViewButton.waitForExistence(timeout: 5), "The map's buttons should come back")
         XCTAssertTrue(app.maps.firstMatch.exists, "The map should show again")
     }
@@ -78,12 +74,12 @@ final class GreenViewUITests: XCTestCase {
         XCTAssertTrue(greenViewButton.waitForExistence(timeout: 5))
         greenViewButton.tap()
         let ground = element("GreenViewGround")
-        XCTAssertTrue(ground.waitForExistence(timeout: 5), "Green View should open while editing")
+        XCTAssertTrue(ground.waitForExistence(timeout: 5), "Green View should open")
 
         let press = ground.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
         press.press(forDuration: 1.0)
         XCTAssertTrue(app.navigationBars["Edit Spot"].waitForExistence(timeout: 5),
-                      "A long press while editing should add a spot and open it")
+                      "A long press should add a spot and open it")
         app.buttons["Save"].tap()
         XCTAssertTrue(app.navigationBars["Edit Spot"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Stroke_1"].waitForExistence(timeout: 5), "The spot should show in Green View")
