@@ -248,12 +248,12 @@
     "Out of bounds" : {},
     "Par" : {},
     "Par %lld" : {},
-    "Par %lld - %lld yds" : {
+    "Par %lld - %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Par %1$lld - %2$lld yds"
+            "value" : "Par %1$lld - %2$@"
           }
         }
       }

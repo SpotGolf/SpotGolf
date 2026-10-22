@@ -50,14 +50,14 @@ enum HoleOverview {
         diff == 0 ? String(localized: "E", comment: "Even par") : diff > 0 ? "+\(diff)" : "\(diff)"
     }
 
-    /// "Par 4 - 156 yds", or whichever part is known. Nil past the course's last hole. A past
-    /// round shows the par only, since the yards are from the player's location.
-    static func summary(_ round: Round, holeIndex: Int, from location: CLLocation?) -> String? {
+    /// "Par 4 - Blue", with the tee played on the hole, or "Par 4" without a tee. Nil past the
+    /// course's last hole.
+    static func summary(_ round: Round, holeIndex: Int) -> String? {
         guard let courseHole = round.courseHole(at: holeIndex) else { return nil }
-        guard round.isActive, let yards = yardsToPin(round, holeIndex: holeIndex, from: location) else {
+        guard let tee = round.courseSelection.teeName(holeIndex: holeIndex) else {
             return String(localized: "Par \(courseHole.par)")
         }
-        return String(localized: "Par \(courseHole.par) - \(yards) yds")
+        return String(localized: "Par \(courseHole.par) - \(tee)")
     }
 
     /// "3 strokes · 1 putt" for the hole's score so far, penalty strokes included, or nil before

@@ -40,6 +40,14 @@ struct CourseSelection: Codable, Equatable, Sendable {
         return Self.yards(of: holes[index], tee: teeName)
     }
 
+    /// The tee played on the hole at `index`: the picked tee, or for a combo tee the tee the hole
+    /// names for it. Nil without a tee.
+    func teeName(holeIndex index: Int) -> String? {
+        let holes = orderedHoles
+        guard let teeName, index >= 0, index < holes.count else { return nil }
+        return holes[index].comboTees[teeName] ?? teeName
+    }
+
     /// The color of `tee` as "#RRGGBB". A combo tee has the color of its first tee.
     func teeColor(_ tee: String) -> String {
         let name = course.comboTees.first { $0.name == tee }?.tees.first ?? tee

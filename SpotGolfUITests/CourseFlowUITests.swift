@@ -94,11 +94,10 @@ final class CourseFlowUITests: XCTestCase {
         // Wait for location to register
         sleep(3)
 
-        // Under the hole circles: par, then yards to the center of the green
+        // Under the hole circles: par, then the tee picked
         let summary = app.staticTexts["HoleSummary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 10), "Par and distance should appear under the hole circles")
-        XCTAssertNotNil(summary.label.range(of: #"^Par 4 - \d+ yds$"#, options: .regularExpression),
-                        "Header line was '\(summary.label)'")
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), "Par and tee should appear under the hole circles")
+        XCTAssertEqual(summary.label, "Par 4 - Gold")
 
         // Key information boxes on the right of the map
         let distance = app.descendants(matching: .any).matching(identifier: "DistanceToCenter").firstMatch
@@ -160,9 +159,8 @@ final class CourseFlowUITests: XCTestCase {
 
         // Should show Par 4 for hole 1
         let summary = app.staticTexts["HoleSummary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 5), "Par and distance should appear for hole 1")
-        XCTAssertTrue(summary.label.hasPrefix("Par 4"), "Header line was '\(summary.label)'")
-        let hole1Summary = summary.label
+        XCTAssertTrue(summary.waitForExistence(timeout: 5), "Par and tee should appear for hole 1")
+        XCTAssertEqual(summary.label, "Par 4 - Gold")
 
         // Show hole 2, then move the location there
         app.goToHole(2)
@@ -171,9 +169,8 @@ final class CourseFlowUITests: XCTestCase {
         setLocationToHole2Tee()
         sleep(3)
 
-        // Hole 2 is also par 4 in test data, but its green is a different distance away
-        XCTAssertTrue(summary.label.hasPrefix("Par 4"), "Header line was '\(summary.label)'")
-        XCTAssertNotEqual(summary.label, hole1Summary, "Distance should change on hole 2")
+        // Hole 2 is also par 4 from the Gold tee in test data
+        XCTAssertEqual(summary.label, "Par 4 - Gold")
 
         // Hole 2 has bunkers between the tee and the green: each gets a yardage bubble on the map
         let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Hazard in '")).firstMatch

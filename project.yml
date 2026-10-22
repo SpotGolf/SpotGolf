@@ -163,6 +163,30 @@ targets:
         WKApplication: true
         WKCompanionAppBundleIdentifier: golf.spot.SpotGolf
         WKWatchOnly: false
+    # A simulator build grants every permission simctl can, so deleting the apps or erasing a
+    # simulator never leaves them missing. The watch simulator never shows the motion prompt.
+    # Health is left to the apps' permissions screens, since simctl can't grant it.
+    # TARGET_DEVICE_IDENTIFIER is the phone; the watch is the one paired with it. simctl only
+    # grants on a booted simulator.
+    postBuildScripts:
+      - name: Grant permissions on the simulators
+        basedOnDependencyAnalysis: false
+        script: |
+          [ "$PLATFORM_NAME" = watchsimulator ] && [ -n "$TARGET_DEVICE_IDENTIFIER" ] || exit 0
+          phone=$TARGET_DEVICE_IDENTIFIER
+          watch=$(xcrun simctl list pairs -j | /usr/bin/python3 -I -c '
+          import json, sys
+          for pair in json.load(sys.stdin)["pairs"].values():
+              if pair["phone"]["udid"] == sys.argv[1]:
+                  print(pair["watch"]["udid"])' "$phone")
+          for service in location-always motion; do
+            xcrun simctl privacy "$phone" grant "$service" golf.spot.SpotGolf || true
+          done
+          if [ -n "$watch" ]; then
+            for service in location-always motion microphone; do
+              xcrun simctl privacy "$watch" grant "$service" golf.spot.SpotGolf.watchkitapp || true
+            done
+          fi
     dependencies:
       - sdk: WatchConnectivity.framework
       - sdk: HealthKit.framework

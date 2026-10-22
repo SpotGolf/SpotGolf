@@ -28,10 +28,10 @@ final class PastRoundUITests: XCTestCase {
         XCTAssertTrue((scoreBox.value as? String)?.contains(",") == true,
                       "Score box should compare every played hole to par, not leave one out as current")
 
-        // No live location, so the par shows without yards, and there are no distance boxes
+        // The par and tee show, and with no live location there are no distance boxes
         let summary = app.staticTexts["HoleSummary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 5), "Par should appear under the hole circles")
-        XCTAssertEqual(summary.label, "Par 4")
+        XCTAssertEqual(summary.label, "Par 4 - Gold")
         XCTAssertFalse(element("DistanceToCenter").exists, "A past round has no distance to the green")
         XCTAssertFalse(element("ElevationChange").exists, "A past round has no elevation change")
 

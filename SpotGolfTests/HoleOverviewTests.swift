@@ -108,16 +108,27 @@ final class HoleOverviewTests: XCTestCase {
         XCTAssertEqual(HoleOverview.previousYards(strokes: strokes(1), from: nil), 0)
     }
 
-    func testSummaryShowsParAndYardsDuringARound() {
+    func testSummaryShowsParAndTheHoleTee() {
+        var course = CourseSelection.test.course
+        course.tees = [TeeDefinition(name: "Blue", color: "#0000FF"), TeeDefinition(name: "White", color: "#FFFFFF")]
+        course.comboTees = [ComboTeeDefinition(name: "Blue/White", tees: ["Blue", "White"])]
+        course.subCourses[0].holes[0].comboTees = ["Blue/White": "White"]
+        course.subCourses[0].holes[1].comboTees = ["Blue/White": "Blue"]
+        let par = { (index: Int) in CourseSelection.test.orderedHoles[index].par }
+
+        let combo = Round(courseSelection: CourseSelection(course: course, selectedSubCourseIndices: [0, 1], teeName: "Blue/White"))
+        XCTAssertEqual(HoleOverview.summary(combo, holeIndex: 0), "Par \(par(0)) - White")
+        XCTAssertEqual(HoleOverview.summary(combo, holeIndex: 1), "Par \(par(1)) - Blue")
+
+        let blue = Round(courseSelection: CourseSelection(course: course, selectedSubCourseIndices: [0, 1], teeName: "Blue"))
+        XCTAssertEqual(HoleOverview.summary(blue, holeIndex: 0), "Par \(par(0)) - Blue")
+    }
+
+    func testSummaryWithoutATeeIsParOnly() {
         let round = Round(courseSelection: PathCourse.selection)
-        let tee = PathCourse.coordinate(north: 0, east: 0)
 
-        let location = CLLocation(latitude: tee.lat, longitude: tee.lon)
-        let yards = HoleOverview.yardsToPin(round, holeIndex: 0, from: location)
-
-        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: location), "Par 4 - \(yards ?? 0) yds")
-        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: nil), "Par 4")
-        XCTAssertNil(HoleOverview.summary(round, holeIndex: 5, from: nil))
+        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0), "Par 4")
+        XCTAssertNil(HoleOverview.summary(round, holeIndex: 5))
     }
 
     func testStrokeSummaryCountsTheHoleStrokesAndPutts() {
@@ -145,15 +156,6 @@ final class HoleOverviewTests: XCTestCase {
 
         // The stroke is off the test course's green
         XCTAssertEqual(HoleOverview.strokeSummary(round, holeIndex: 0), "1 stroke · 0 putts")
-    }
-
-    func testSummaryOfAPastRoundIsParOnly() {
-        let round = Round(courseSelection: PathCourse.selection)
-        round.end(at: round.date.addingTimeInterval(3600))
-        let tee = PathCourse.coordinate(north: 0, east: 0)
-
-        XCTAssertEqual(HoleOverview.summary(round, holeIndex: 0, from: CLLocation(latitude: tee.lat, longitude: tee.lon)),
-                       "Par 4")
     }
 
     func testFeetToGreenCenterNeedsAnElevation() {

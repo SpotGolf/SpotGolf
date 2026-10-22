@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Every hole as a circle, with a back button and the score box on top at each end. The score
 /// box opens the scorecard.
-/// The shown hole's par and distance sit underneath, with its strokes and putts once it has a stroke.
+/// The shown hole's par and tee sit underneath, with its strokes and putts once it has a stroke.
 struct HoleHeaderView: View {
     let round: Round
     let shownHoleIndex: Int
@@ -10,7 +10,6 @@ struct HoleHeaderView: View {
     let selectHole: (Int) -> Void
     let openScorecard: () -> Void
 
-    @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -61,8 +60,8 @@ struct HoleHeaderView: View {
                     .padding(.trailing, 12)
             }
 
-            // Par and yards, then the hole's strokes and putts once it has a stroke
-            let summary = HoleOverview.summary(round, holeIndex: shownHoleIndex, from: services.locationManager.lastLocation)
+            // Par and tee, then the hole's strokes and putts once it has a stroke
+            let summary = HoleOverview.summary(round, holeIndex: shownHoleIndex)
             let strokes = HoleOverview.strokeSummary(round, holeIndex: shownHoleIndex)
             if summary != nil || strokes != nil {
                 HStack(spacing: 6) {
