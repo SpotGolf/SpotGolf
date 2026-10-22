@@ -52,40 +52,48 @@ struct GreenView: View {
         VStack(spacing: 0) {
             topBar
             ground
+                .overlay(alignment: .topTrailing) {
+                    pinDistance
+                }
         }
         .onAppear(perform: loadHazards)
     }
 
     // MARK: - Top bar
 
+    /// The title in the middle and the X on the right.
     private var topBar: some View {
-        HStack(spacing: 8) {
-            Text("Green View")
-                .font(.headline)
-                .accessibilityIdentifier("GreenViewTitle")
-            if let feet = feetToPin {
-                Text(round.hasKnownPin(holeIndex: shownHoleIndex) ? "\(feet) ft to pin" : "\(feet) ft to center")
-                    .font(.subheadline)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("GreenViewPinDistance")
+        Text("Green View")
+            .font(.headline)
+            .accessibilityIdentifier("GreenViewTitle")
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .trailing) {
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .frame(width: 36, height: 36)
+                        .background(.regularMaterial)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close Green View")
+                .accessibilityIdentifier("CloseGreenView")
             }
-            Spacer(minLength: 0)
-            Button(action: close) {
-                Image(systemName: "xmark")
-                    .font(.headline)
-                    .frame(width: 36, height: 36)
-                    .background(.regularMaterial)
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close Green View")
-            .accessibilityIdentifier("CloseGreenView")
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.thickMaterial)
+    }
+
+    /// The feet to the pin in the box where the map shows the yards to it, during a round only.
+    @ViewBuilder
+    private var pinDistance: some View {
+        if let feet = feetToPin {
+            InformationBox(value: "\(feet)",
+                           caption: round.hasKnownPin(holeIndex: shownHoleIndex) ? "ft to pin" : "ft to center",
+                           identifier: "GreenViewPinDistance")
+                .padding(.trailing, 12)
+                .padding(.top, 12)
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 10)
-        .padding(.vertical, 6)
-        .background(.thickMaterial)
     }
 
     /// Feet from the player to the pin, or to the green's center without one. Nil outside a round.

@@ -78,8 +78,8 @@ struct MapInfoOverlay: View {
     }
 }
 
-/// A number with its caption under it, in a small box over the map.
-private struct InformationBox: View {
+/// A number with its caption under it, in a small box over the map or Green View.
+struct InformationBox: View {
     let value: String
     let caption: LocalizedStringKey
     let identifier: String

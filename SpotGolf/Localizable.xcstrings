@@ -29,8 +29,6 @@
     "%lld Wood" : {},
     "%lld feet" : {},
     "%lld ft" : {},
-    "%lld ft to center" : {},
-    "%lld ft to pin" : {},
     "%lld holes" : {
       "localizations" : {
         "en" : {
@@ -334,6 +332,8 @@
     "Yards" : {},
     "Your location" : {},
     "ft elevation" : {},
+    "ft to center" : {},
+    "ft to pin" : {},
     "the course address is not valid" : {},
     "the course data is missing" : {},
     "the course index version is not valid" : {},
