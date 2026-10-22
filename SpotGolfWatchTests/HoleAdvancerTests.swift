@@ -62,9 +62,9 @@ final class HoleAdvancerTests: XCTestCase {
         let green3 = makeGreenFeature(latitude: 33.007, longitude: -97.0)
 
         let holes = [
-            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
-            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
-            Hole(number: 3, par: 4, features: [tee3.id, green3.id], tees: ["Blue": tee3.id], centerline: []),
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id]),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id]),
+            Hole(number: 3, par: 4, features: [tee3.id, green3.id]),
         ]
         let features = [tee1, green1, tee2, green2, tee3, green3]
         let selection = makeSelection(holes: holes, features: features)
@@ -84,9 +84,9 @@ final class HoleAdvancerTests: XCTestCase {
         let green3 = makeGreenFeature(latitude: 33.007, longitude: -97.0)
 
         let holes = [
-            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
-            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
-            Hole(number: 3, par: 4, features: [tee3.id, green3.id], tees: ["Blue": tee3.id], centerline: []),
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id]),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id]),
+            Hole(number: 3, par: 4, features: [tee3.id, green3.id]),
         ]
         let features = [tee1, green1, tee2, green2, tee3, green3]
         let selection = makeSelection(holes: holes, features: features)
@@ -104,8 +104,8 @@ final class HoleAdvancerTests: XCTestCase {
         let green2 = makeGreenFeature(latitude: 33.006, longitude: -97.0)
 
         let holes = [
-            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
-            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id]),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id]),
         ]
         let features = [tee1, green1, tee2, green2]
         let selection = makeSelection(holes: holes, features: features)
@@ -123,8 +123,8 @@ final class HoleAdvancerTests: XCTestCase {
         let green2 = makeGreenFeature(latitude: 33.006, longitude: -97.0)
 
         let holes = [
-            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
-            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id]),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id]),
         ]
         let features = [tee1, green1, tee2, green2]
         let selection = makeSelection(holes: holes, features: features)
@@ -140,10 +140,10 @@ final class HoleAdvancerTests: XCTestCase {
         let frontTees = (0..<9).map { makeTeeFeature(latitude: 33.0 + Double($0) * 0.001, longitude: -97.0) }
         let backTees = (0..<9).map { makeTeeFeature(latitude: 33.0 + Double($0) * 0.001, longitude: -97.01) }
         let frontHoles = frontOrder.map { number in
-            Hole(number: number, par: 4, features: [frontTees[number - 1].id], tees: ["Blue": frontTees[number - 1].id], centerline: [])
+            Hole(number: number, par: 4, features: [frontTees[number - 1].id])
         }
         let backHoles = (1...9).map { number in
-            Hole(number: number, par: 4, features: [backTees[number - 1].id], tees: ["Blue": backTees[number - 1].id], centerline: [])
+            Hole(number: number, par: 4, features: [backTees[number - 1].id])
         }
         let course = Course(
             name: "Test Course", clubName: "Test Club",
@@ -222,9 +222,9 @@ final class HoleAdvancerTests: XCTestCase {
         let tee3 = makeTeeFeature(latitude: 33.011, longitude: -97.0)
         let green3 = makeGreenFeature(latitude: 33.015, longitude: -97.0)
         let holes = [
-            Hole(number: 1, par: 4, features: [tee1.id, green1.id], tees: ["Blue": tee1.id], centerline: []),
-            Hole(number: 2, par: 4, features: [tee2.id, green2.id], tees: ["Blue": tee2.id], centerline: []),
-            Hole(number: 3, par: 4, features: [tee3.id, green3.id], tees: ["Blue": tee3.id], centerline: []),
+            Hole(number: 1, par: 4, features: [tee1.id, green1.id]),
+            Hole(number: 2, par: 4, features: [tee2.id, green2.id]),
+            Hole(number: 3, par: 4, features: [tee3.id, green3.id]),
         ]
         return makeSelection(holes: holes, features: [tee1, green1, tee2, green2, tee3, green3])
     }

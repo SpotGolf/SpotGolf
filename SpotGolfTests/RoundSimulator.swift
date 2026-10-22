@@ -153,16 +153,14 @@ struct SimulatedRound {
 struct RoundSimulator {
     let course: Course
     let holes: [Hole]
-    let teeName: String
 
     private let plane: LocalPlane
     private let ponds: [Pond]
     private var random: SeededGenerator
 
-    init(course: Course, subCourseIndex: Int, teeName: String, seed: UInt64) {
+    init(course: Course, subCourseIndex: Int, seed: UInt64) {
         self.course = course
         self.holes = course.subCourses[subCourseIndex].holes
-        self.teeName = teeName
         let plane = LocalPlane(origin: course.location.coordinate)
         self.plane = plane
         ponds = course.features.filter { $0.type == .water }.map { Pond(polygon: $0.polygon.map(plane.point)) }
@@ -234,8 +232,8 @@ struct RoundSimulator {
     }
 
     private mutating func makeLayout(_ hole: Hole) -> HoleLayout {
-        let teeFeature = hole.tees[teeName].flatMap { course.findFeature(id: $0) }
-        let centerline = hole.centerline.map(plane.point)
+        let teeFeature = hole.teeBoxes(from: course.features).first
+        let centerline = (hole.centerline(from: course.features)?.polygon ?? []).map(plane.point)
         let tee = teeFeature.map { plane.point(PolygonGeometry.centroid(of: $0.polygon)) } ?? centerline[0]
 
         // The pin is somewhere on the green, not always in the middle

@@ -41,9 +41,9 @@ final class TrackRecordingTests: XCTestCase {
         try await super.tearDown()
     }
 
-    /// The same round on every run: Front nine, Blue tees.
+    /// The same round on every run: Front nine, from each hole's first tee box.
     private func playRound(seed: UInt64 = 2026) -> SimulatedRound {
-        var simulator = RoundSimulator(course: course, subCourseIndex: 0, teeName: "Blue", seed: seed)
+        var simulator = RoundSimulator(course: course, subCourseIndex: 0, seed: seed)
         return simulator.play(holeNumbers: Self.holeNumbers, start: start, secondsPerHole: Self.secondsPerHole)
     }
 
@@ -107,10 +107,10 @@ final class TrackRecordingTests: XCTestCase {
         for number in Self.holeNumbers {
             let hole = try XCTUnwrap(holes.first { $0.number == number })
             let shots = round.shots.filter { $0.holeNumber == number }
-            let tee = try XCTUnwrap(hole.tees["Blue"].flatMap { course.findFeature(id: $0) })
+            let tee = try XCTUnwrap(hole.teeBoxes(from: course.features).first)
 
             let first = try XCTUnwrap(shots.first), last = try XCTUnwrap(shots.last)
-            XCTAssertTrue(PolygonGeometry.contains(first.ball, in: tee.polygon), "Hole \(number) should start on the Blue tee box")
+            XCTAssertTrue(PolygonGeometry.contains(first.ball, in: tee.polygon), "Hole \(number) should start on its first tee box")
             XCTAssertTrue(hole.onGreen(last.landing, from: course.features), "Hole \(number) should end in the hole on its green")
             XCTAssertTrue((hole.par - 1...hole.par + 3).contains(shots.count), "Hole \(number) took \(shots.count) strokes")
 

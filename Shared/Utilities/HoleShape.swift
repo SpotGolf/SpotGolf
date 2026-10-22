@@ -19,13 +19,11 @@ struct HoleShape {
     }
 
     init(hole: Hole?, course: Course) {
-        tees = hole?.tees.values.compactMap { id in
-            guard let feature = course.findFeature(id: id), feature.type == .tee,
-                  !feature.polygon.isEmpty else { return nil }
-            return Array(feature.polygon)
+        tees = hole?.teeBoxes(from: course.features).compactMap {
+            $0.polygon.isEmpty ? nil : Array($0.polygon)
         } ?? []
         green = hole?.green(from: course.features).flatMap { $0.polygon.isEmpty ? nil : Array($0.polygon) }
-        centerline = hole.map { Array($0.centerline) } ?? []
+        centerline = hole?.centerline(from: course.features).map { Array($0.polygon) } ?? []
     }
 
     func metersToTee(_ point: Coordinate) -> CLLocationDistance? {

@@ -46,10 +46,11 @@ enum PathCourse {
             let tee = Feature(id: 100 + index, type: .tee, polygon: CoordinatePath(square(north: tees[index].north, east: tees[index].east, half: 5)))
             let green = Feature(id: 200 + index, type: .green,
                                 polygon: CoordinatePath(square(north: greens[index].north, east: greens[index].east, half: 15)))
-            features += [tee, green]
-            holes.append(Hole(number: index + 1, par: 4, features: [green.id], tees: ["Blue": tee.id],
-                              centerline: [coordinate(north: tees[index].north, east: tees[index].east),
-                                           coordinate(north: greens[index].north, east: greens[index].east)]))
+            let centerline = Feature(id: 300 + index, type: .centerline,
+                                     polygon: [coordinate(north: tees[index].north, east: tees[index].east),
+                                               coordinate(north: greens[index].north, east: greens[index].east)])
+            features += [tee, green, centerline]
+            holes.append(Hole(number: index + 1, par: 4, features: [tee.id, green.id], centerline: centerline.id))
         }
         return CourseSelection(
             course: Course(name: "Path Course",

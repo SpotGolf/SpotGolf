@@ -4,8 +4,7 @@ import CourseDataSwift
 
 /// Runs `StrokeFinder` on real rounds exported from the app, to catch changes that make its
 /// suggestions, or the imported hole starts, worse. The rounds live in the git-ignored `Data`
-/// folder and the courses in the sibling CourseData checkout, so this is skipped wherever they
-/// are missing.
+/// folder, so this is skipped wherever they are missing. The courses are in `TestFixtures`.
 final class StrokeFinderRealRoundTests: XCTestCase {
 
     private static let projectDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -24,9 +23,8 @@ final class StrokeFinderRealRoundTests: XCTestCase {
     /// A round imported the way the app imports it.
     private func realRound(csv: String, course: String) throws -> RealRound {
         let roundURL = Self.projectDirectory.appendingPathComponent("Data/\(csv)")
-        let courseURL = Self.projectDirectory.appendingPathComponent("../CourseData/Data/US/CO/\(course)")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: roundURL.path) &&
-                          FileManager.default.fileExists(atPath: courseURL.path), "The real round is not on this machine")
+        let courseURL = Self.projectDirectory.appendingPathComponent("TestFixtures/\(course)")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: roundURL.path), "The real round is not on this machine")
 
         let course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: courseURL).gzipDecompressed())
         let selection = CourseSelection(course: course, selectedSubCourseIndices: Array(course.subCourses.indices))
@@ -37,13 +35,13 @@ final class StrokeFinderRealRoundTests: XCTestCase {
 
     /// Walnut Creek, 2026-09-25. Recorded when the watch only reported swings of 10 g or more.
     private func walnutCreek() throws -> RealRound {
-        try realRound(csv: "walnut-creek-2026-09-25.csv", course: "Westminster/Walnut-Creek-Golf-Preserve.json.gz")
+        try realRound(csv: "walnut-creek-2026-09-25.csv", course: "Walnut-Creek-Golf-Preserve.json.gz")
     }
 
     /// Coal Creek, 2026-10-02. The first round recorded with the watch's 3 g threshold, so most of
     /// its 698 swings are the small movements of waiting, walking and putting.
     private func coalCreek() throws -> RealRound {
-        try realRound(csv: "coal-creek-2026-10-02.csv", course: "Louisville/Coal-Creek-Golf-Course.json.gz")
+        try realRound(csv: "coal-creek-2026-10-02.csv", course: "Coal-Creek-Golf-Course.json.gz")
     }
 
     private func isFullSwing(_ suggestion: StrokeSuggestion) -> Bool {

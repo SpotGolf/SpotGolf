@@ -26,8 +26,7 @@ enum MapGeometry {
     static func heading(of round: Round, holeIndex index: Int) -> Double? {
         guard let courseHole = round.courseHole(at: index),
               let green = courseHole.green(from: round.course.features),
-              let firstTeeID = courseHole.tees.values.first,
-              let teeFeature = round.course.findFeature(id: firstTeeID) else { return nil }
+              let teeFeature = courseHole.teeBoxes(from: round.course.features).first else { return nil }
         return bearing(from: teeFeature.center, to: green.center)
     }
 
@@ -75,8 +74,7 @@ enum MapGeometry {
 
         // Bearing from tee to green → heading so green is at top
         let teeCenter: Coordinate
-        if let firstTeeID = courseHole.tees.values.first,
-           let teeFeature = course.findFeature(id: firstTeeID) {
+        if let teeFeature = courseHole.teeBoxes(from: course.features).first {
             teeCenter = teeFeature.center
         } else {
             teeCenter = Coordinate(lat: midLat, lon: midLon)

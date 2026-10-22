@@ -21,7 +21,7 @@ fileGroups:
 packages:
   CourseDataSwift:
     url: https://github.com/SpotGolf/CourseDataSwift
-    exactVersion: "0.4.0"
+    exactVersion: "0.7.0"
 
 schemes:
   SpotGolf:

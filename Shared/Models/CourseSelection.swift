@@ -121,7 +121,7 @@ struct CourseSelection: Codable, Equatable, Sendable {
         }
         let usedFeatureIDs = Set(
             selectedSubCourses.flatMap { $0.holes.flatMap { $0.features } } +
-            selectedSubCourses.flatMap { $0.holes.flatMap { $0.tees.values } }
+            selectedSubCourses.flatMap { $0.holes.compactMap(\.centerline) }
         )
         let trimmedCourse = Course(
             id: course.id,

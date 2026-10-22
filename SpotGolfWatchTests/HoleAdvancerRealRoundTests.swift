@@ -4,8 +4,8 @@ import CourseDataSwift
 @testable import SpotGolfWatch
 
 /// Replays a real round through `HoleAdvancer`, the way the watch feeds it. The round lives in
-/// the git-ignored `Data` folder and the course in the sibling CourseData checkout, so this is
-/// skipped wherever they are missing.
+/// the git-ignored `Data` folder, so this is skipped wherever it is missing. The course is in
+/// `TestFixtures`.
 final class HoleAdvancerRealRoundTests: XCTestCase {
 
     private static let projectDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -14,9 +14,8 @@ final class HoleAdvancerRealRoundTests: XCTestCase {
     private func flatirons() throws -> (selection: CourseSelection, fixes: [CLLocation]) {
         let roundURL = Self.projectDirectory.appendingPathComponent("Data/flatirons-2026-10-01.csv")
         let courseURL = Self.projectDirectory
-            .appendingPathComponent("../CourseData/Data/US/CO/Boulder/Flatirons-Golf-Course.json.gz")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: roundURL.path) &&
-                          FileManager.default.fileExists(atPath: courseURL.path), "The real round is not on this machine")
+            .appendingPathComponent("TestFixtures/Flatirons-Golf-Course.json.gz")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: roundURL.path), "The real round is not on this machine")
 
         let course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: courseURL).gzipDecompressed())
         let selection = CourseSelection(course: course, selectedSubCourseIndices: Array(course.subCourses.indices))

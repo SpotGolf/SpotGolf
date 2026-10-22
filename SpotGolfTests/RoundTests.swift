@@ -462,8 +462,8 @@ final class RoundTests: XCTestCase {
             Coordinate(lat: 33.002, lon: -112.0),
             Coordinate(lat: 33.0, lon: -112.0),
         ])
-        let hole1 = Hole(number: 1, par: 4, features: [1], tees: [:], centerline: [])
-        let hole2 = Hole(number: 2, par: 3, features: [1], tees: [:], centerline: [])
+        let hole1 = Hole(number: 1, par: 4, features: [1])
+        let hole2 = Hole(number: 2, par: 3, features: [1])
         let subCourse = SubCourse(name: "Front", holes: [hole1, hole2])
         let location = CourseLocation(address: "", city: "Phoenix", state: "AZ", country: "US",
                                       coordinate: Coordinate(lat: 33.0, lon: -112.0))

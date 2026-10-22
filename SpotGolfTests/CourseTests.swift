@@ -56,12 +56,7 @@ final class CourseTests: XCTestCase {
                             "white": 400
                         },
                         "features": [10, 11],
-                        "tees": {
-                            "blue": 12,
-                            "white": 13
-                        },
-                        "comboTees": {},
-                        "centerline": { "values": [] }
+                        "comboTees": {}
                     }
                 ],
                 "tees": {},
@@ -80,11 +75,7 @@ final class CourseTests: XCTestCase {
                             "blue": 550
                         },
                         "features": [11],
-                        "tees": {
-                            "blue": 14
-                        },
-                        "comboTees": {},
-                        "centerline": { "values": [] }
+                        "comboTees": {}
                     }
                 ],
                 "tees": {},
