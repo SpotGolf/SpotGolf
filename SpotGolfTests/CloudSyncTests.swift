@@ -4,6 +4,11 @@ import SwiftData
 import XCTest
 @testable import SpotGolf
 
+/// Set while a fake engine event is handled, as `CKSyncEngine` marks its delegate callbacks.
+private enum EngineCallback {
+    @TaskLocal static var isInside = false
+}
+
 /// Records what `CloudSync` asks of the engine, in place of `CKSyncEngine`.
 @MainActor
 private final class FakeEngine: CloudSyncEngine {
@@ -14,6 +19,7 @@ private final class FakeEngine: CloudSyncEngine {
     var fetches = 0
     /// Fetches fail, as with no iCloud account.
     var failsFetches = false
+    var fetchesFromInsideCallbacks = 0
 
     init(startState: Data?) {
         self.startState = startState
@@ -31,6 +37,10 @@ private final class FakeEngine: CloudSyncEngine {
     func addZone() { zoneAdds += 1 }
     func fetchChanges() async throws {
         fetches += 1
+        // CKSyncEngine traps this: "Cannot await a call into CKSyncEngine from within a delegate callback"
+        if EngineCallback.isInside {
+            fetchesFromInsideCallbacks += 1
+        }
         if failsFetches {
             throw CKError(.notAuthenticated)
         }
@@ -466,5 +476,23 @@ final class CloudSyncTests: XCTestCase {
 
         XCTAssertEqual(engines.count, engineCount, "The same engine fetches again, no fresh start")
         XCTAssertTrue(engine.saves.contains(CloudSync.settingsRecordID))
+    }
+
+    // MARK: - Engine callbacks
+
+    func testAFetchAskedForInAnEngineEventIsNotPartOfIt() async throws {
+        sync.setEnabled(true)
+        engine.failsFetches = true
+        await sync.fetchTask?.value
+        engine.failsFetches = false
+
+        // The engine reports the account it starts with as a sign-in, from inside its delegate
+        EngineCallback.$isInside.withValue(true) {
+            sync.accountChanged(signedIn: true)
+        }
+        await sync.fetchTask?.value
+
+        XCTAssertEqual(engine.fetchesFromInsideCallbacks, 0, "CloudKit traps an await into the engine from its callback")
+        XCTAssertTrue(engine.saves.contains(CloudSync.settingsRecordID), "The fetch still finishes the first fetch")
     }
 }

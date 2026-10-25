@@ -10,7 +10,7 @@ enum CloudSyncChange: Hashable, Sendable {
 
 /// What `CloudSync` needs from `CKSyncEngine`, so tests can run it without iCloud.
 @MainActor
-protocol CloudSyncEngine: AnyObject {
+protocol CloudSyncEngine: AnyObject, Sendable {
     /// Adds changes to send. The engine asks `CloudSync.record(for:)` for each save as it sends.
     func add(_ changes: [CloudSyncChange])
     /// Makes the `Rounds` zone in iCloud, before any record is saved.
@@ -132,7 +132,11 @@ final class CloudSync {
         guard let engine else { return }
         fetchTask = Task { [weak self] in
             do {
-                try await engine.fetchChanges()
+                // Detached, so the call is not part of an engine event this may be called from: a
+                // task made inside the engine's delegate callback carries the callback's task-local
+                // values, and CloudKit traps an await into the engine from one ("BUG IN CLIENT OF
+                // CLOUDKIT: Cannot await a call into CKSyncEngine from within a delegate callback")
+                try await Task.detached { try await engine.fetchChanges() }.value
                 guard let self, engine === self.engine else { return }
                 if !state.hasFetchedOnce {
                     firstFetchSucceeded()
