@@ -22,6 +22,10 @@ packages:
   CourseDataSwift:
     url: https://github.com/SpotGolf/CourseDataSwift
     exactVersion: "0.7.0"
+  # The watch's sensor sources, live and mock
+  SensorSources:
+    url: https://github.com/SpotGolf/SensorSources
+    exactVersion: "0.1.0"
 
 schemes:
   SpotGolf:
@@ -191,6 +195,7 @@ targets:
       - sdk: WatchConnectivity.framework
       - sdk: HealthKit.framework
       - package: CourseDataSwift
+      - package: SensorSources
 
   SpotGolfTests:
     type: bundle.unit-test
@@ -247,6 +252,7 @@ targets:
     dependencies:
       - target: SpotGolfWatch
       - package: CourseDataSwift
+      - package: SensorSources
 
   SpotGolfWatchUITests:
     type: bundle.ui-testing

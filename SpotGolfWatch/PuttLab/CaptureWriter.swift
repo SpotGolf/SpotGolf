@@ -1,6 +1,6 @@
 import AVFAudio
 import CoreLocation
-import CoreMotion
+import SensorSources
 import Foundation
 import os
 
@@ -77,7 +77,7 @@ final class CaptureWriter: @unchecked Sendable {
 
     // MARK: - Sensor data, on the sensors' threads
 
-    func add(accelerometer batch: [CMAccelerometerData]) {
+    func add(accelerometer batch: [AccelerometerSample]) {
         let count = batch.count
         guard savesData else {
             io.async { self.accelCount += count }
@@ -96,7 +96,7 @@ final class CaptureWriter: @unchecked Sendable {
         }
     }
 
-    func add(motion batch: [CMDeviceMotion]) {
+    func add(motion batch: [DeviceMotionSample]) {
         let count = batch.count
         guard savesData else {
             io.async { self.motionCount += count }
@@ -104,7 +104,7 @@ final class CaptureWriter: @unchecked Sendable {
         }
         var data = Data(capacity: count * PuttCapture.MotionSample.size)
         for motion in batch {
-            let r = motion.rotationRate, u = motion.userAcceleration, g = motion.gravity, q = motion.attitude.quaternion
+            let r = motion.rotationRate, u = motion.userAcceleration, g = motion.gravity, q = motion.attitude
             PuttCapture.MotionSample(t: motion.timestamp - startUptime, values: [
                 Float(r.x), Float(r.y), Float(r.z),
                 Float(u.x), Float(u.y), Float(u.z),
@@ -119,9 +119,9 @@ final class CaptureWriter: @unchecked Sendable {
         }
     }
 
-    func add(audio buffer: AVReadOnlyAudioPCMBuffer, hostSeconds: Double) {
-        guard let audio, let first = audio.write(buffer, hostSeconds: hostSeconds) else { return }
-        let line = "\(hostSeconds - startUptime),\(buffer.frameLength),\(first)\n"
+    func add(audio buffer: AudioSample) {
+        guard let audio, let first = audio.write(buffer) else { return }
+        let line = "\(buffer.hostTime - startUptime),\(buffer.samples.count),\(first)\n"
         io.async {
             self.write(Data(line.utf8), to: self.audioBuffersHandle, name: "audio buffers")
         }

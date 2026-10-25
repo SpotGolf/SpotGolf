@@ -1,6 +1,7 @@
 import AVFAudio
 import Foundation
 import os
+import SensorSources
 
 /// Writes a capture's microphone buffers to a WAV file, mono 16-bit PCM at the mic's own
 /// rate, and works out the capture time of the first sample from the first buffer's host
@@ -35,18 +36,18 @@ final class CaptureAudioWriter: @unchecked Sendable {
 
     /// Writes the buffer and returns the index of its first frame in the file, or nil once closed.
     @discardableResult
-    func write(_ buffer: AVReadOnlyAudioPCMBuffer, hostSeconds: Double) -> Int? {
+    func write(_ buffer: AudioSample) -> Int? {
         lock.lock()
         defer { lock.unlock() }
         guard !closed else { return nil }
         if info == nil {
-            info = PuttCapture.Audio(sampleRate: buffer.format.sampleRate, channels: Int(buffer.format.channelCount),
-                                     startTime: hostSeconds - captureStartUptime, startHostTime: hostSeconds,
+            info = PuttCapture.Audio(sampleRate: buffer.sampleRate, channels: 1,
+                                     startTime: buffer.hostTime - captureStartUptime, startHostTime: buffer.hostTime,
                                      startUptime: Uptime.now)
             if let url {
                 do {
-                    file = try AVAudioFile(forWriting: url, settings: Self.settings(for: buffer.format),
-                                           commonFormat: buffer.format.commonFormat, interleaved: buffer.format.isInterleaved)
+                    file = try AVAudioFile(forWriting: url, settings: Self.settings(sampleRate: buffer.sampleRate),
+                                           commonFormat: .pcmFormatFloat32, interleaved: false)
                 } catch {
                     Log.puttLab.error("Could not create the audio file: \(String(describing: error))")
                 }
@@ -54,14 +55,29 @@ final class CaptureAudioWriter: @unchecked Sendable {
         }
         if let file {
             do {
-                try file.write(from: buffer)
+                try file.write(from: Self.pcmBuffer(buffer))
             } catch {
                 Log.puttLab.error("Audio write failed: \(String(describing: error))")
             }
         }
         let first = frames
-        frames += Int(buffer.frameLength)
+        frames += buffer.samples.count
         return first
+    }
+
+    /// The buffer's samples as the mono float buffer `AVAudioFile` writes.
+    private static func pcmBuffer(_ buffer: AudioSample) throws -> AVAudioPCMBuffer {
+        guard !buffer.samples.isEmpty,
+              let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: buffer.sampleRate, channels: 1, interleaved: false),
+              let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(buffer.samples.count)),
+              let channel = pcm.floatChannelData?[0] else {
+            throw CaptureAudioError.noBuffer
+        }
+        pcm.frameLength = AVAudioFrameCount(buffer.samples.count)
+        buffer.samples.withUnsafeBufferPointer { samples in
+            channel.update(from: samples.baseAddress!, count: samples.count)
+        }
+        return pcm
     }
 
     func close() {
@@ -71,15 +87,19 @@ final class CaptureAudioWriter: @unchecked Sendable {
         lock.unlock()
     }
 
-    private static func settings(for format: AVAudioFormat) -> [String: Any] {
+    private static func settings(sampleRate: Double) -> [String: Any] {
         [
             AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: format.sampleRate,
-            AVNumberOfChannelsKey: format.channelCount,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: 1,
             AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false,
             AVLinearPCMIsBigEndianKey: false,
             AVLinearPCMIsNonInterleaved: false
         ]
     }
+}
+
+enum CaptureAudioError: Error {
+    case noBuffer
 }

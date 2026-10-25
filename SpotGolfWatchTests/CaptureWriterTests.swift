@@ -1,5 +1,6 @@
 import AVFAudio
 import CoreLocation
+import SensorSources
 import XCTest
 @testable import SpotGolfWatch
 
@@ -165,16 +166,16 @@ final class CaptureWriterTests: XCTestCase {
     func testAudioBuffersAreListedWithTheirFirstFrame() throws {
         let directory = root.appendingPathComponent("segment")
         let writer = try CaptureWriter(directory: directory, meta: meta(), savesData: true, microphone: true)
-        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1))
-        let pcm = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096))
-        pcm.frameLength = 4096
-        let buffer = AVReadOnlyAudioPCMBuffer(copying: pcm)
+        let samples = [Float](repeating: 0.25, count: 4096)
 
-        writer.add(audio: buffer, hostSeconds: writer.startUptime + 1)
-        writer.add(audio: buffer, hostSeconds: writer.startUptime + 2)
+        writer.add(audio: AudioSample(hostTime: writer.startUptime + 1, sampleRate: 48_000, samples: samples))
+        writer.add(audio: AudioSample(hostTime: writer.startUptime + 2, sampleRate: 48_000, samples: samples))
         let meta = finish(writer, reason: .stopped)
 
         XCTAssertEqual(meta.audioFrames, 8192)
+        let file = try AVAudioFile(forReading: directory.appendingPathComponent(PuttCapture.audioFile))
+        XCTAssertEqual(file.length, 8192)
+        XCTAssertEqual(file.fileFormat.sampleRate, 48_000)
         XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent(PuttCapture.audioBuffersFile), encoding: .utf8),
                        "t,frames,firstFrame\n1.0,4096,0\n2.0,4096,4096\n")
     }

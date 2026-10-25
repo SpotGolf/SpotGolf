@@ -1,4 +1,4 @@
-import CoreMotion
+import SensorSources
 import Foundation
 import os
 
@@ -77,7 +77,7 @@ final class ContactRunner: @unchecked Sendable {
         }
     }
 
-    func addMotion(_ batch: [CMDeviceMotion]) {
+    func addMotion(_ batch: [DeviceMotionSample]) {
         guard isActive else { return }
         let samples = batch.map { motion in
             let r = motion.rotationRate, g = motion.gravity
@@ -89,7 +89,7 @@ final class ContactRunner: @unchecked Sendable {
     }
 
     /// Accelerometer readings, then an evaluation: contacts of strokes that are over are reported.
-    func addAccelerometer(_ batch: [CMAccelerometerData]) {
+    func addAccelerometer(_ batch: [AccelerometerSample]) {
         guard isActive else { return }
         let readings = batch.compactMap { data -> ContactDetector.Reading? in
             guard !taps.covers(uptime: data.timestamp) else { return nil }

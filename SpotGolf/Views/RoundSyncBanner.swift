@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Shows a round that is waiting on the watch: starting (with Retry and Cancel after a timeout
-/// or a refusal for missing permissions or a watch app on another version) or ending (with
-/// Force end). Shows nothing for an active or ended round.
+/// or a refusal for missing permissions, failed pre-round checks or a watch app on another
+/// version) or ending (with Force end). Shows nothing for an active or ended round.
 struct RoundSyncBanner: View {
     let round: Round
     @Environment(PhoneServices.self) private var services
@@ -33,6 +33,18 @@ struct RoundSyncBanner: View {
                 banner(Text("Install SpotGolf \(phoneVersion) on your Apple Watch. The watch has \(watchVersion).")) {
                     Button("Retry") { services.phoneSync.retryStart(round.id) }
                         .accessibilityIdentifier("RetryStart")
+                    Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
+                        .accessibilityIdentifier("CancelStart")
+                }
+            } else if case .checksFailed(let failures) = services.phoneSync.startStates[round.id] {
+                banner(Text(checksFailedText(failures))) {
+                    Button("Retry") { services.phoneSync.retryStart(round.id) }
+                        .accessibilityIdentifier("RetryStart")
+                    Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
+                        .accessibilityIdentifier("CancelStart")
+                }
+            } else if services.phoneSync.startStates[round.id] == .checking {
+                banner(Text("Checking the watch…"), showsProgress: true) {
                     Button("Cancel", role: .destructive) { services.phoneSync.cancelStart(round.id) }
                         .accessibilityIdentifier("CancelStart")
                 }
@@ -75,6 +87,11 @@ struct RoundSyncBanner: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(.bar)
+    }
+
+    /// What the watch's pre-round checks found, one failure a line.
+    private func checksFailedText(_ failures: [CheckFailure]) -> String {
+        ([String(localized: "The watch can't record the round:")] + failures.map(\.text)).joined(separator: "\n")
     }
 
     /// Where each missing permission is granted: the microphone on the watch, the rest here.

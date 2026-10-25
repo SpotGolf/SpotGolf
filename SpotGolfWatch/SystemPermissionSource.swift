@@ -13,13 +13,13 @@ final class SystemPermissionSource: PermissionSource {
         case .location: location.state
         case .motion: motion.state
         case .health: health.state
-        case .microphone: MicrophoneInput.permission
+        case .microphone: MicrophonePermission.state
         }
     }
 
     func request(_ permission: AppPermission) async {
         guard permission == .microphone else { return }
-        await MicrophoneInput.requestPermission()
+        await MicrophonePermission.request()
     }
 
     func observe(_ changed: @escaping () -> Void) {

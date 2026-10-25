@@ -15,8 +15,16 @@ final class WatchSync {
     let sender: StreamSender
     let snapshots: SnapshotSync
 
-    /// Permissions the watch needs and does not have. A new round is refused until there are none.
-    @ObservationIgnored var missingPermissions: () -> [AppPermission] = { [] }
+    /// Where the pre-round checks are for a round. A new round starts only once they pass.
+    /// Without checks set, as in tests of other flows, every round passes.
+    @ObservationIgnored var preRoundCheck: (UUID) -> PreRoundCheckState = { _ in .passed }
+
+    /// Starts the pre-round checks for a round. Whoever runs them calls
+    /// `preRoundChecksFinished` when they end.
+    @ObservationIgnored var runPreRoundChecks: (UUID) -> Void = { _ in }
+
+    /// The latest start for each round whose checks are running, finished once they end.
+    @ObservationIgnored private var checkingStarts: [UUID: StartRound] = [:]
 
     /// Called on the main actor with the phone's settings each time they arrive for the active
     /// round: with the start, when the round is opened on the phone, and in the context.
@@ -196,26 +204,57 @@ final class WatchSync {
         case .settings(let settings):
             apply(settings)
             return nil
-        case .startRoundAck, .startRoundRefused, .endRound, .streamBatch, .chunk:
+        case .startRoundAck, .startRoundRefused, .startRoundChecking, .endRound, .streamBatch, .chunk:
             return nil
         }
     }
 
-    /// Takes the round the phone started, or refuses it while the phone app is another version
-    /// or permissions are missing. A repeat of the same start for a round already recording
-    /// just confirms again.
+    /// Takes the round the phone started once the pre-round checks pass, or refuses it while
+    /// the phone app is another version or the checks failed. While the checks run, the reply
+    /// says so, and the ack or refusal follows as its own message. A failed check runs again on
+    /// the next start, which is the phone's Retry. A repeat of the same start for a round
+    /// already recording just confirms again.
     private func startRound(_ start: StartRound) -> SyncMessage? {
         guard start.version == version else {
             Log.rounds.error("Round \(start.roundID) refused: the phone app is version \(start.version), this watch app \(self.version)")
             return .startRoundRefused(StartRoundRefused(roundID: start.roundID, reason: .versionMismatch(watchVersion: version)))
         }
         if rounds.round(start.roundID)?.isActive != true {
-            let missing = missingPermissions()
-            guard missing.isEmpty else {
-                Log.rounds.error("Round \(start.roundID) refused: missing \(missing.map(\.rawValue).joined(separator: ", "))")
-                return .startRoundRefused(StartRoundRefused(roundID: start.roundID, reason: .missingPermissions(missing)))
+            switch preRoundCheck(start.roundID) {
+            case .passed:
+                break
+            case .running:
+                checkingStarts[start.roundID] = start
+                return .startRoundChecking(StartRoundChecking(roundID: start.roundID))
+            case .notRun, .failed:
+                Log.rounds.notice("Round \(start.roundID): running the pre-round checks")
+                checkingStarts[start.roundID] = start
+                runPreRoundChecks(start.roundID)
+                // Checks that end at once have already answered
+                guard checkingStarts[start.roundID] != nil else { return nil }
+                return .startRoundChecking(StartRoundChecking(roundID: start.roundID))
             }
         }
+        return beginRound(start)
+    }
+
+    /// The pre-round checks for a round ended: the round starts and the phone hears the ack, or
+    /// the phone hears why it was refused.
+    func preRoundChecksFinished(_ roundID: UUID) {
+        guard let start = checkingStarts.removeValue(forKey: roundID) else { return }
+        switch preRoundCheck(roundID) {
+        case .passed:
+            _ = beginRound(start)
+        case .failed(let reason):
+            Log.rounds.error("Round \(roundID) refused: the pre-round checks failed")
+            sync.send(.startRoundRefused(StartRoundRefused(roundID: roundID, reason: reason)))
+        case .notRun, .running:
+            checkingStarts[roundID] = start
+        }
+    }
+
+    /// Starts recording the round, and confirms it to the phone.
+    private func beginRound(_ start: StartRound) -> SyncMessage? {
 
         let selection: CourseSelection
         do {

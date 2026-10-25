@@ -57,6 +57,11 @@ struct StreamEvent: Equatable {
 
         /// The user restarted every sensor, location updates and the workout by hand.
         case hardRestart = 50
+
+        /// The watch's pre-round checks passed, just before it took the round.
+        case preRoundChecksPassed = 60
+        /// The watch's pre-round checks failed; the value is how many things failed.
+        case preRoundChecksFailed = 61
     }
 
     let timestamp: Date

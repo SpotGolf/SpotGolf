@@ -20,6 +20,12 @@ final class PhoneSync {
         /// The watch app is on another version: the user installs this version on the watch,
         /// then retries, or cancels.
         case needsWatchUpdate(watchVersion: String)
+        /// The watch is running its pre-round checks. The phone keeps sending the start, whose
+        /// reply brings the result; there is no timeout while the watch is checking.
+        case checking
+        /// The watch's pre-round checks found these would not work: the user can retry, which
+        /// runs the checks again, or cancel.
+        case checksFailed([CheckFailure])
     }
 
     /// Rounds that are starting, and whether they are still waiting.
@@ -29,8 +35,8 @@ final class PhoneSync {
     /// for the user instead.
     private func isSendingStart(_ roundID: UUID) -> Bool {
         switch startStates[roundID] {
-        case .waiting, .timedOut: true
-        case .needsPermissions, .needsWatchUpdate, nil: false
+        case .waiting, .timedOut, .checking: true
+        case .needsPermissions, .needsWatchUpdate, .checksFailed, nil: false
         }
     }
 
@@ -211,6 +217,7 @@ final class PhoneSync {
             switch reply {
             case .startRoundAck(let ack): self?.started(ack.roundID)
             case .startRoundRefused(let refused): self?.refused(refused)
+            case .startRoundChecking(let checking): self?.checking(checking.roundID)
             default: break
             }
         }, failure: { [weak self] _ in
@@ -255,6 +262,18 @@ final class PhoneSync {
         }
     }
 
+    /// The watch is checking that it can record the round. The start goes again every
+    /// `retryDelay`, and its reply brings the result.
+    private func checking(_ roundID: UUID) {
+        guard rounds.round(roundID)?.status == .starting, isSendingStart(roundID) else { return }
+        startTimers.removeValue(forKey: roundID)?.invalidate()
+        if startStates[roundID] != .checking {
+            Log.rounds.notice("Round \(roundID): watch is running its pre-round checks")
+            startStates[roundID] = .checking
+        }
+        retryLater(roundID)
+    }
+
     /// The watch refused the round. It waits for the user to retry or cancel.
     private func refused(_ refused: StartRoundRefused) {
         guard rounds.round(refused.roundID)?.status == .starting else { return }
@@ -266,6 +285,9 @@ final class PhoneSync {
         case .versionMismatch(let watchVersion):
             Log.rounds.error("Round \(refused.roundID): watch app is version \(watchVersion), this app \(self.version)")
             startStates[refused.roundID] = .needsWatchUpdate(watchVersion: watchVersion)
+        case .checksFailed(let failures):
+            Log.rounds.error("Round \(refused.roundID): watch pre-round checks failed: \(failures.map(\.text).joined(separator: ", "))")
+            startStates[refused.roundID] = .checksFailed(failures)
         }
     }
 
@@ -389,6 +411,9 @@ final class PhoneSync {
             return nil
         case .startRoundRefused(let refused):
             self.refused(refused)
+            return nil
+        case .startRoundChecking(let checking):
+            self.checking(checking.roundID)
             return nil
         case .endAck(let ack):
             watchEnded(ack.roundID, lastSeq: ack.lastSeq)

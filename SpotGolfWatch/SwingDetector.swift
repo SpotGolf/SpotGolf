@@ -1,6 +1,6 @@
-import CoreMotion
 import Foundation
 import os
+import SensorSources
 
 /// Detects swings from the wrist accelerometer batches `SensorInputs` delivers, about once a
 /// second and only during a workout, which a round always has.
@@ -31,9 +31,7 @@ final class SwingDetector {
         subscription = sensors.subscribeAccelerometer { [weak self] batch in
             let readings = batch.compactMap { data -> SwingPeakFinder.Reading? in
                 guard !taps.covers(uptime: data.timestamp) else { return nil }
-                let a = data.acceleration
-                return SwingPeakFinder.Reading(timestamp: Uptime.date(at: data.timestamp),
-                                               magnitude: (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot())
+                return SwingPeakFinder.Reading(timestamp: Uptime.date(at: data.timestamp), magnitude: data.acceleration.magnitude)
             }
             Task { @MainActor in
                 guard let self, self.subscription != nil else { return }

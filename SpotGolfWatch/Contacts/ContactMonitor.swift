@@ -166,8 +166,8 @@ final class ContactMonitor {
         subscriptions = [
             sensors.subscribeAccelerometer { runner.addAccelerometer($0) },
             sensors.subscribeDeviceMotion { runner.addMotion($0) },
-            sensors.subscribeMicrophone { buffer, hostSeconds in
-                runner.addAudio(MicrophoneInput.samples(buffer), hostSeconds: hostSeconds, sampleRate: buffer.format.sampleRate)
+            sensors.subscribeMicrophone { buffer in
+                runner.addAudio(buffer.samples, hostSeconds: buffer.hostTime, sampleRate: buffer.sampleRate)
             }
         ]
         let hole = holeIndex == nil ? 0 : holeNumber

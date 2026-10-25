@@ -12,6 +12,8 @@
         }
       }
     },
+    "%@ did not start" : {},
+    "%@ is not working" : {},
     "%@ on %@" : {
       "comment" : "A round's title: the course and the day it was played",
       "localizations" : {
@@ -23,6 +25,7 @@
         }
       }
     },
+    "%@ sent no data" : {},
     "%lld" : {},
     "%lld Hybrid" : {},
     "%lld Iron" : {},
@@ -132,6 +135,7 @@
     "%llds stop" : {},
     "%lld° Wedge" : {},
     "About" : {},
+    "Accelerometer" : {},
     "Active" : {},
     "Active Round" : {},
     "Add a penalty stroke" : {},
@@ -144,6 +148,7 @@
     "Back" : {},
     "Bad shot" : {},
     "Cancel" : {},
+    "Checking the watch…" : {},
     "Clear penalty" : {},
     "Clear target" : {},
     "Close" : {},
@@ -183,6 +188,7 @@
     "Green Zone" : {},
     "Green center" : {},
     "Guess types" : {},
+    "Gyroscope" : {},
     "Hazard in %lld yards" : {},
     "Health" : {},
     "Hit" : {},
@@ -231,6 +237,7 @@
     "Nearby Courses" : {},
     "New Round" : {},
     "Next" : {},
+    "No GPS fix" : {},
     "No Log Lines" : {},
     "No courses found" : {},
     "No courses nearby" : {},
@@ -311,10 +318,12 @@
     "Tap a club to add it to your bag or take it out. A bag holds at most %lld clubs." : {},
     "Target" : {},
     "The clubs you carry, up to %lld." : {},
+    "The watch can't record the round:" : {},
     "The watch did not respond." : {},
     "The watch has not responded yet. Still trying." : {},
     "The watch is missing %@ permission." : {},
     "The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. A change reaches the watch when you open the round." : {},
+    "The workout did not start" : {},
     "To green" : {},
     "To pin" : {},
     "To point" : {},

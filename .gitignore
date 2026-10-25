@@ -17,7 +17,7 @@ build/
 
 # Swift Package Manager
 .build/
-Packages/
+.swiftpm/
 
 # Export
 ExportOptions.plist

@@ -201,17 +201,18 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertNil(pair.phone.startStates[id])
     }
 
-    func testVersionIsCheckedBeforePermissions() {
+    func testVersionIsCheckedBeforeTheChecks() {
         pair.watch.version = "0.4.0"
-        pair.watch.missingPermissions = { [.motion] }
+        let checks = FakeChecks(on: pair.watch, result: .failed(.missingPermissions([.motion])))
 
         let id = pair.startRound()
 
         XCTAssertEqual(pair.phone.startStates[id], .needsWatchUpdate(watchVersion: "0.4.0"))
+        XCTAssertEqual(checks.runs, 0)
     }
 
     func testWatchMissingPermissionsRefusesTheRound() {
-        pair.watch.missingPermissions = { [.motion, .health] }
+        _ = FakeChecks(on: pair.watch, result: .failed(.missingPermissions([.motion, .health])))
 
         let id = pair.startRound()
 
@@ -222,12 +223,12 @@ final class SyncFlowTests: XCTestCase {
     }
 
     func testRetryAfterGrantingPermissionsStartsTheRound() {
-        pair.watch.missingPermissions = { [.location] }
+        let checks = FakeChecks(on: pair.watch, result: .failed(.missingPermissions([.location])))
         let id = pair.startRound()
         XCTAssertEqual(pair.phone.startStates[id], .needsPermissions([.location]))
 
         // A refused round waits for the user, even when the watch comes back in range
-        pair.watch.missingPermissions = { [] }
+        checks.result = .passed
         pair.setReachable(false)
         pair.setReachable(true)
         XCTAssertEqual(phoneRound(id)?.status, .starting)
@@ -242,34 +243,107 @@ final class SyncFlowTests: XCTestCase {
     func testRefusedStartDoesNotTimeOut() {
         pair.cleanUp()
         pair = SyncPair(startTimeout: 0.05)
-        pair.watch.missingPermissions = { [.motion] }
+        _ = FakeChecks(on: pair.watch, result: .failed(.missingPermissions([.motion])))
         let id = pair.startRound()
 
-        let waited = expectation(description: "past the start timeout")
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(150))
-            waited.fulfill()
-        }
-        wait(for: [waited], timeout: 2)
+        waitPast(0.15)
 
         XCTAssertEqual(pair.phone.startStates[id], .needsPermissions([.motion]))
     }
 
-    func testRoundAlreadyRecordingIsConfirmedWithoutAPermissionCheck() {
+    func testRoundAlreadyRecordingIsConfirmedWithoutChecks() {
         let id = pair.startRound()
         XCTAssertEqual(watchRound(id)?.status, .active)
-        var checks = 0
-        pair.watch.missingPermissions = {
-            checks += 1
-            return [.motion]
-        }
+        let checks = FakeChecks(on: pair.watch, result: .failed(.missingPermissions([.motion])))
 
         // A repeat of the same start, after its confirmation was lost
         pair.phoneRounds.update(id) { $0.status = .starting }
         pair.phone.retryStart(id)
 
-        XCTAssertEqual(checks, 0)
+        XCTAssertEqual(checks.runs, 0)
         XCTAssertEqual(phoneRound(id)?.status, .active)
+    }
+
+    // MARK: - Pre-round checks
+
+    func testRoundStartsOnceTheChecksPass() {
+        let checks = FakeChecks(on: pair.watch)
+
+        let id = pair.startRound()
+
+        XCTAssertEqual(pair.phone.startStates[id], .checking)
+        XCTAssertNil(watchRound(id), "the watch takes the round only once the checks pass")
+        XCTAssertEqual(checks.runs, 1)
+
+        checks.finish(id, .passed)
+
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertNil(pair.phone.startStates[id])
+    }
+
+    func testFailedChecksRefuseWithWhatFailedAndRetryRunsThemAgain() {
+        let checks = FakeChecks(on: pair.watch)
+        let id = pair.startRound()
+        let failures: [CheckFailure] = [.sensor("microphone", .notReal), .noLocation]
+
+        checks.finish(id, .failed(.checksFailed(failures)))
+
+        XCTAssertEqual(pair.phone.startStates[id], .checksFailed(failures))
+        XCTAssertEqual(phoneRound(id)?.status, .starting)
+        XCTAssertNil(watchRound(id))
+
+        checks.result = .passed
+        pair.phone.retryStart(id)
+
+        XCTAssertEqual(checks.runs, 2)
+        XCTAssertEqual(phoneRound(id)?.status, .active)
+    }
+
+    func testCheckingKeepsSendingTheStartWithoutTimingOut() {
+        pair.cleanUp()
+        pair = SyncPair(startTimeout: 0.05, retryDelay: 0.02)
+        let checks = FakeChecks(on: pair.watch)
+        let id = pair.startRound()
+
+        waitPast(0.15)
+
+        XCTAssertEqual(pair.phone.startStates[id], .checking)
+        let starts = pair.phoneTransport.sentMessages { if case .startRound = $0 { return true } else { return nil } }.count
+        XCTAssertGreaterThan(starts, 2)
+        XCTAssertEqual(checks.runs, 1, "a start while the checks run does not start them again")
+    }
+
+    func testLostAckIsPickedUpByTheNextStart() {
+        pair.cleanUp()
+        pair = SyncPair(startTimeout: 0.05, retryDelay: 0.02)
+        let checks = FakeChecks(on: pair.watch)
+        let id = pair.startRound()
+
+        pair.watchTransport.dropsSends = true
+        checks.finish(id, .passed)
+        pair.watchTransport.dropsSends = false
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertEqual(pair.phone.startStates[id], .checking)
+
+        let active = expectation(description: "round active")
+        Task { @MainActor in
+            while phoneRound(id)?.status != .active {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            active.fulfill()
+        }
+        wait(for: [active], timeout: 2)
+        XCTAssertEqual(checks.runs, 1)
+    }
+
+    private func waitPast(_ seconds: TimeInterval) {
+        let waited = expectation(description: "waited")
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(seconds))
+            waited.fulfill()
+        }
+        wait(for: [waited], timeout: 2)
     }
 
     /// The watch starts the round, but both its reply and its own confirmation are lost.
@@ -1267,5 +1341,33 @@ final class SyncFlowTests: XCTestCase {
 
         XCTAssertNil(phoneRound(round.id))
         XCTAssertFalse(pair.phoneStreams.hasStream(for: round.id))
+    }
+}
+
+/// The watch's pre-round checks, ending when the test says, or at once with `result`. The
+/// watch's closures keep it alive.
+@MainActor
+private final class FakeChecks {
+    var result: PreRoundCheckState?
+    private(set) var runs = 0
+    private var states: [UUID: PreRoundCheckState] = [:]
+    private weak var watch: WatchSync?
+
+    init(on watch: WatchSync, result: PreRoundCheckState? = nil) {
+        self.watch = watch
+        self.result = result
+        watch.preRoundCheck = { self.states[$0] ?? .notRun }
+        watch.runPreRoundChecks = { id in
+            self.runs += 1
+            self.states[id] = .running
+            if let result = self.result {
+                self.finish(id, result)
+            }
+        }
+    }
+
+    func finish(_ id: UUID, _ state: PreRoundCheckState) {
+        states[id] = state
+        watch?.preRoundChecksFinished(id)
     }
 }

@@ -6,6 +6,8 @@ enum SyncMessage: Codable, Equatable {
     case startRound(StartRound)
     case startRoundAck(StartRoundAck)
     case startRoundRefused(StartRoundRefused)
+    /// Watch → phone, in reply to a start: the watch is running its pre-round checks.
+    case startRoundChecking(StartRoundChecking)
     case cancelRound(CancelRound)
     case endRequest(EndRequest)
     case endRound(EndRound)
@@ -23,8 +25,9 @@ enum SyncMessage: Codable, Equatable {
     case chunk(SyncChunk)
 }
 
-/// Phone → watch. The watch replies `StartRoundAck` once the round is active, or
-/// `StartRoundRefused` when its app is not `version` or it is missing permissions.
+/// Phone → watch. The watch replies `StartRoundAck` once the round is active,
+/// `StartRoundChecking` while its pre-round checks run, or `StartRoundRefused` when its app is
+/// not `version` or the checks failed.
 struct StartRound: Codable, Equatable {
     let roundID: UUID
     let date: Date
@@ -91,6 +94,12 @@ struct StartRoundAck: Codable, Equatable {
     let roundID: UUID
 }
 
+/// Watch → phone, in reply to a start while the pre-round checks run. The ack or refusal
+/// follows as its own message, and as the reply to a later start.
+struct StartRoundChecking: Codable, Equatable {
+    let roundID: UUID
+}
+
 /// Watch → phone, in place of `StartRoundAck`. The watch can't record the round.
 struct StartRoundRefused: Codable, Equatable {
     enum Reason: Equatable {
@@ -98,6 +107,8 @@ struct StartRoundRefused: Codable, Equatable {
         case missingPermissions([AppPermission])
         /// The watch app is not the phone app's version: the watch app must be updated first.
         case versionMismatch(watchVersion: String)
+        /// The watch's pre-round checks found something that would not work during the round.
+        case checksFailed([CheckFailure])
     }
 
     let roundID: UUID
@@ -109,7 +120,7 @@ struct StartRoundRefused: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case roundID, missing, watchVersion
+        case roundID, missing, watchVersion, failures
     }
 
     /// A refusal from before versions were checked has only `missing`. A permission this build
@@ -120,6 +131,8 @@ struct StartRoundRefused: Codable, Equatable {
         roundID = try values.decode(UUID.self, forKey: .roundID)
         if let watchVersion = try values.decodeIfPresent(String.self, forKey: .watchVersion) {
             reason = .versionMismatch(watchVersion: watchVersion)
+        } else if let failures = try values.decodeIfPresent([CheckFailure].self, forKey: .failures) {
+            reason = .checksFailed(failures)
         } else {
             let names = try values.decodeIfPresent([String].self, forKey: .missing) ?? []
             reason = .missingPermissions(names.compactMap(AppPermission.init(rawValue:)))
@@ -136,6 +149,9 @@ struct StartRoundRefused: Codable, Equatable {
         case .versionMismatch(let watchVersion):
             try values.encode([AppPermission](), forKey: .missing)
             try values.encode(watchVersion, forKey: .watchVersion)
+        case .checksFailed(let failures):
+            try values.encode([AppPermission](), forKey: .missing)
+            try values.encode(failures, forKey: .failures)
         }
     }
 }
@@ -261,6 +277,7 @@ extension SyncMessage {
         case .startRound: "startRound"
         case .startRoundAck: "startRoundAck"
         case .startRoundRefused: "startRoundRefused"
+        case .startRoundChecking: "startRoundChecking"
         case .cancelRound: "cancelRound"
         case .endRequest: "endRequest"
         case .endRound: "endRound"

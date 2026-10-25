@@ -1,5 +1,5 @@
 import CoreLocation
-import CoreMotion
+import SensorSources
 import Foundation
 import Observation
 import os
@@ -26,7 +26,7 @@ final class PuttCaptureRecorder {
     private(set) var state = State.idle
     /// What went wrong with the files, for the screen. The sensors report their own problems.
     private(set) var problems: [String] = []
-    private(set) var micPermission = MicrophoneInput.permission
+    private(set) var micPermission = MicrophonePermission.state
     /// Record sound. Off to measure the sensors' battery cost alone.
     var microphone = true
     /// Write readings and audio. Off for a battery test: the sensors and the scoring math run,
@@ -103,8 +103,8 @@ final class PuttCaptureRecorder {
     func start() async {
         guard state == .idle, !isRoundActive() else { return }
         if micPermission == .notAsked {
-            await MicrophoneInput.requestPermission()
-            micPermission = MicrophoneInput.permission
+            await MicrophonePermission.request()
+            micPermission = MicrophonePermission.state
         }
         state = .starting
         problems = []
@@ -290,9 +290,9 @@ final class PuttCaptureRecorder {
             }
         ]
         if microphone {
-            subscriptions.append(sensors.subscribeMicrophone { buffer, hostSeconds in
-                runner?.addAudio(MicrophoneInput.samples(buffer), hostSeconds: hostSeconds, sampleRate: buffer.format.sampleRate)
-                writer.add(audio: buffer, hostSeconds: hostSeconds)
+            subscriptions.append(sensors.subscribeMicrophone { buffer in
+                runner?.addAudio(buffer.samples, hostSeconds: buffer.hostTime, sampleRate: buffer.sampleRate)
+                writer.add(audio: buffer)
             })
         }
     }

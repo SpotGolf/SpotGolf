@@ -26,6 +26,19 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }
 
+    func testChecksFailedRefusalRoundTrips() throws {
+        let failures: [CheckFailure] = [.workoutNotRunning, .sensor("microphone", .notReal), .sensor("deviceMotion", .noData), .noLocation]
+        let message = SyncMessage.startRoundRefused(StartRoundRefused(roundID: roundID, reason: .checksFailed(failures)))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+    }
+
+    func testStartRoundCheckingRoundTrips() throws {
+        let message = SyncMessage.startRoundChecking(StartRoundChecking(roundID: roundID))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+    }
+
     func testRefusalWithOnlyMissingPermissionsIsReadAsBeforeVersionsWereChecked() throws {
         let json = #"{"roundID":"\#(roundID.uuidString)","missing":["motion"]}"#
 

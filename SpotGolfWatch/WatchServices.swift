@@ -2,6 +2,7 @@ import CoreLocation
 import Foundation
 import Observation
 import os
+import SensorSources
 import SwiftData
 
 /// Every service the watch app runs, built and wired together once at launch. Owned by the app
@@ -26,6 +27,8 @@ final class WatchServices {
     let watchSync: WatchSync
     let puttCapture: PuttCaptureRecorder
     let permissions: PermissionChecker
+    /// What must work before the watch takes a round.
+    let preRoundChecks: PreRoundChecks
     /// Shows the workout's status, which UI tests read to check recovery after a relaunch.
     let showsWorkoutStatus: Bool
     @ObservationIgnored private let swingDetector: SwingDetector
@@ -67,20 +70,35 @@ final class WatchServices {
         puttCapture = PuttCaptureRecorder(sensors: inputs, workouts: workouts) {
             rounds.activeRound != nil
         }
+        preRoundChecks = PreRoundChecks(sensors: inputs, permissions: permissions, workout: workouts, location: locationManager)
     }
 
     /// Starts recording and syncing. Called once the app has launched.
     func start() {
         let sync = watchSync
-        // Rounds from the phone are refused until every permission is granted
-        let checker = permissions
-        sync.missingPermissions = {
-            checker.refresh()
-            return checker.missing
+        // The sensor sources' own lines, such as the microphone starting, go into the round's log
+        SensorLog.handler = { level, message in
+            switch level {
+            case .notice: Log.sensors.notice("\(message)")
+            case .error: Log.sensors.error("\(message)")
+            }
+        }
+        // Rounds from the phone start only once the pre-round checks pass. Once the round has
+        // started and its detectors have subscribed, the checks let go of the sensors.
+        let checks = preRoundChecks
+        sync.preRoundCheck = { checks.state(for: $0) }
+        sync.runPreRoundChecks = { checks.run(roundID: $0) }
+        checks.onFinished = { [weak self] roundID in
+            guard let self else { return }
+            self.watchSync.preRoundChecksFinished(roundID)
+            if self.roundStore.activeRound?.id == roundID {
+                checks.releaseSensors()
+            }
         }
         locationManager.setUpdatesInBackground()
         locationManager.onRawLocations = { [weak self] locations in
             sync.record(locations)
+            self?.preRoundChecks.received(locations)
             self?.puttCapture.record(locations)
             // Every fix, so leaving the green is seen over its whole time window
             for location in locations {
@@ -112,6 +130,7 @@ final class WatchServices {
             self?.puttCapture.record(event)
         }
         workoutManager.onEvent = record
+        preRoundChecks.onEvent = record
         sensors.onEvent = record
         swingDetector.onEvent = record
         contactMonitor.onEvent = record
