@@ -51,6 +51,9 @@ final class Round {
     @Attribute(.codable) var courseSelection: CourseSelection
     /// Where each hole's pin is, or nil for a hole without one. See plans/2026-10-06-pin-location.md.
     var pins: [PinLocation?]
+    /// When the round last changed on this phone, or the change it was downloaded with from iCloud.
+    /// The newer of two copies of a round wins. See plans/2026-10-22-cloudkit-sync.md.
+    var changedAt: Date = Date.distantPast
 
     static let maxHoles = 18
 
@@ -69,6 +72,7 @@ final class Round {
         self.displayHole = DisplayHole(holeIndex: 0, changedAt: date)
         self.courseSelection = courseSelection
         self.pins = Array(repeating: nil, count: holeCount)
+        self.changedAt = date
     }
 
     /// Recording and syncing.

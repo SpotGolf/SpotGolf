@@ -17,10 +17,15 @@ enum SettingsKey {
     static let mapStyle = "mapStyle"
     /// Set once `GolfBagStore` has put the standard bag in the store.
     static let bagSeeded = GolfBagStore.seededKey
+    /// Saves rounds and the synced settings to iCloud. Stays on this phone.
+    static let iCloudSync = "iCloudSync"
+    /// When the synced settings last changed on this phone, or the change they were downloaded
+    /// with. Not set until they first change or download.
+    static let settingsChangedAt = "settingsChangedAt"
 
     static var defaults: [String: Any] {
         [stationaryThreshold: 30.0, greenZone: HoleShape.chipZoneMargin, sharePins: true, debugLogging: false,
-         puttLabInRounds: true, mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false]
+         puttLabInRounds: true, mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false, iCloudSync: true]
     }
 
     /// Gives code outside views the same defaults `@AppStorage` uses.
@@ -33,5 +38,6 @@ enum SettingsKey {
         for key in defaults.keys {
             store.removeObject(forKey: key)
         }
+        store.removeObject(forKey: settingsChangedAt)
     }
 }

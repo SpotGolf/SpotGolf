@@ -15,6 +15,9 @@ final class GolfBagStore {
     /// The bag as saved. Read again after every change, so views redraw.
     private(set) var bag = GolfBag(clubs: [])
 
+    /// Called after each change the player makes, not after `replace(with:)`.
+    @ObservationIgnored var onChange: (() -> Void)?
+
     /// Puts the standard bag in an empty store the first time it runs. `defaults` remembers that
     /// it has, so a bag the player emptied stays empty.
     init(context: ModelContext, defaults: UserDefaults = .standard) {
@@ -43,12 +46,34 @@ final class GolfBagStore {
         }
         save()
         reload()
+        onChange?()
     }
 
     /// Changes how far the player hits a club in the bag. The putter has no distance.
     func setDistance(_ yards: Int, for club: Club) {
         guard club.kind != .putter, let row = row(for: club) else { return }
         row.distance = yards
+        save()
+        reload()
+        onChange?()
+    }
+
+    /// Every club and its distance, as saved, including rows whose ID is not a club this build
+    /// knows, so a copy of the bag keeps them.
+    var entries: [(clubID: String, distance: Int?)] {
+        rows().map { ($0.clubID, $0.distance) }.sorted { $0.clubID < $1.clubID }
+    }
+
+    /// Makes the bag the clubs in `entries`, such as a copy from iCloud.
+    func replace(with entries: [(clubID: String, distance: Int?)]) {
+        for row in rows() {
+            context.delete(row)
+        }
+        // Saved first, so a club in both bags is not inserted while its old row has the same unique ID
+        save()
+        for entry in entries {
+            context.insert(CarriedClub(clubID: entry.clubID, distance: entry.distance))
+        }
         save()
         reload()
     }

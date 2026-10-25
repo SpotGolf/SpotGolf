@@ -44,6 +44,7 @@ private struct PhoneRootView: View {
             if phase == .active {
                 services.permissions.refresh()
                 services.roundTracker.appBecameActive()
+                services.cloudSync.appBecameActive()
             }
         }
     }

@@ -16,6 +16,12 @@ final class CarriedClub {
         distance = club.defaultDistance
     }
 
+    /// A club at the distance a copy of the bag gave it, such as one from iCloud.
+    init(clubID: String, distance: Int?) {
+        self.clubID = clubID
+        self.distance = distance
+    }
+
     /// Nil for a row whose ID is not a club.
     var club: Club? {
         Club.named(clubID)

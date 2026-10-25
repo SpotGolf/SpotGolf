@@ -102,6 +102,14 @@ final class StreamStore {
         return records.count
     }
 
+    /// Swaps the round's whole stream for `data`, encoded records such as a copy from iCloud.
+    func replace(_ roundID: UUID, with data: Data) {
+        if hasStream(for: roundID) {
+            delete(roundID)
+        }
+        appendData(data, roundID: roundID)
+    }
+
     func delete(_ roundID: UUID) {
         do {
             try context.delete(model: StreamEntry.self, where: #Predicate { $0.roundID == roundID })

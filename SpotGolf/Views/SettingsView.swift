@@ -16,13 +16,22 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
     @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
     @AppStorage(SettingsKey.puttLabInRounds) private var puttLabInRounds = true
+    @AppStorage(SettingsKey.iCloudSync) private var iCloudSync = true
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
     private let zoneOptions = stride(from: 5, through: 50, by: 5).map { $0 }
 
+    private var iCloudFooter: String {
+        let footer = String(localized: "Saves your rounds, clubs and settings to your iCloud account, and keeps them the same on every iPhone signed in to it. Turning it off keeps them on this iPhone only; what is already in iCloud stays there.")
+        // No iCloud account on the phone
+        guard iCloudSync, FileManager.default.ubiquityIdentityToken == nil else { return footer }
+        return footer + " " + String(localized: "Sign in to iCloud in the Settings app to use it.")
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                UpdateNoticeSection()
                 Section {
                     Picker("Stationary Threshold", selection: $stationaryThreshold) {
                         ForEach(thresholdOptions, id: \.self) { seconds in
@@ -61,6 +70,14 @@ struct SettingsView: View {
                     Text("Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts.")
                 }
                 Section {
+                    Toggle("iCloud Sync", isOn: $iCloudSync)
+                        .accessibilityIdentifier("iCloudSync")
+                } header: {
+                    Text("iCloud")
+                } footer: {
+                    Text(iCloudFooter)
+                }
+                Section {
                     Toggle("Putt Lab During Rounds", isOn: $puttLabInRounds)
                         .accessibilityIdentifier("PuttLabInRounds")
                 } header: {
@@ -92,6 +109,9 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: debugLogging) { _, enabled in
                 Log.isDebugEnabled = enabled
+            }
+            .onChange(of: iCloudSync) { _, enabled in
+                services.setCloudSync(enabled)
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

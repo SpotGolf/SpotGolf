@@ -80,6 +80,9 @@ targets:
           - iCloud.golf.spot.SpotGolf
         com.apple.developer.icloud-services:
           - CloudKit
+        # CloudKit's silent pushes tell iCloud sync about changes from other phones.
+        # Exporting for the App Store sets it to production
+        aps-environment: development
     info:
       path: SpotGolf/Info.plist
       properties:
@@ -95,9 +98,11 @@ targets:
         NSMotionUsageDescription: "SpotGolf uses wrist motion on your Apple Watch to detect your swings."
         # Shows the current hole on the Lock Screen during a round
         NSSupportsLiveActivities: true
-        # Keeps the yards and hole changes going with the phone locked during a round
+        # Keeps the yards and hole changes going with the phone locked during a round, and lets
+        # iCloud sync's silent pushes wake the app
         UIBackgroundModes:
           - location
+          - remote-notification
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -213,6 +218,9 @@ targets:
       - path: LiveActivity
       - path: SpotGolfWatch/Sync
       - path: TestFixtures/Broadlands-Golf-Course.json.gz
+        buildPhase: resources
+      # A whole round's stream, for the iCloud stream encoding
+      - path: Data/broadlands-2026-10-12.csv
         buildPhase: resources
     settings:
       base:

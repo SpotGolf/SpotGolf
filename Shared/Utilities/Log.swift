@@ -17,6 +17,7 @@ enum Log {
     static let contacts = LogCategory("contacts")
     static let courses = LogCategory("courses")
     static let export = LogCategory("export")
+    static let iCloud = LogCategory("iCloud")
     static let liveActivity = LogCategory("liveActivity")
     static let location = LogCategory("location")
     static let permissions = LogCategory("permissions")

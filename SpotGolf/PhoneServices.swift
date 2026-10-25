@@ -3,6 +3,7 @@ import HealthKit
 import Observation
 import os
 import SwiftData
+import UIKit
 
 /// Every service the phone app runs, built and wired together once at launch. Views read it
 /// from the environment and use the services they need.
@@ -20,6 +21,7 @@ final class PhoneServices {
     let golfBag: GolfBagStore
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
+    let cloudSync: CloudSync
     /// Where rounds and streams are saved. UI tests start each run empty.
     let container: ModelContainer
     /// A round can only start with a paired watch that has the app. UI tests run without one.
@@ -46,7 +48,8 @@ final class PhoneServices {
         syncService = sync
         streamStore = streams
         logStore = logs
-        golfBag = GolfBagStore(context: container.mainContext)
+        let bag = GolfBagStore(context: container.mainContext)
+        golfBag = bag
         courseService = CourseService()
 
         // Without a watch, rounds start and end on the phone alone
@@ -64,10 +67,33 @@ final class PhoneServices {
             rounds: rounds,
             sharing: isUITesting ? NoPinSharing() : CloudKitPinSharing(),
             sharesPins: { UserDefaults.standard.bool(forKey: SettingsKey.sharePins) })
+        // UI tests run without iCloud, so their rounds never reach a real account
+        cloudSync = CloudSync(rounds: rounds, streams: streams, logs: logs, bag: bag) { state, sync in
+            CloudKitSyncEngine(state: state, sync: sync)
+        }
+        allowsCloudSync = !isUITesting
+
         // UI tests run on simulators, where permissions are not the point
         permissions = PermissionChecker(
             source: isUITesting ? GrantedPermissionSource() : PhonePermissionSource(),
             required: PhonePermissionSource.required)
+        if options.needsAppUpdate {
+            cloudSync.showUpdateNotice()
+        }
+        setCloudSync(UserDefaults.standard.bool(forKey: SettingsKey.iCloudSync))
+    }
+
+    /// Off in UI tests.
+    private let allowsCloudSync: Bool
+
+    /// Starts or stops iCloud sync, for the iCloud Sync setting.
+    func setCloudSync(_ enabled: Bool) {
+        guard allowsCloudSync else { return }
+        if enabled {
+            // CloudKit tells the engine about changes from other phones with a silent push
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+        cloudSync.setEnabled(enabled)
     }
 
     private static let healthStore = HKHealthStore()

@@ -9,17 +9,21 @@ struct LaunchOptions {
     var keepsRounds = false
     /// `--start-round` (watch): starts a round on the watch alone.
     var startsRound = false
+    /// `--needs-app-update` (phone): shows the update notice, as when iCloud has a newer format.
+    var needsAppUpdate = false
 
-    init(isUITesting: Bool = false, keepsRounds: Bool = false, startsRound: Bool = false) {
+    init(isUITesting: Bool = false, keepsRounds: Bool = false, startsRound: Bool = false, needsAppUpdate: Bool = false) {
         self.isUITesting = isUITesting
         self.keepsRounds = keepsRounds
         self.startsRound = startsRound
+        self.needsAppUpdate = needsAppUpdate
     }
 
     init(arguments: [String]) {
         isUITesting = arguments.contains("--ui-testing")
         keepsRounds = arguments.contains("--keep-rounds")
         startsRound = arguments.contains("--start-round")
+        needsAppUpdate = arguments.contains("--needs-app-update")
     }
 
     static let current = LaunchOptions(arguments: CommandLine.arguments)

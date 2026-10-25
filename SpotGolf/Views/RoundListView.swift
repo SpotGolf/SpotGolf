@@ -77,6 +77,7 @@ struct RoundListView: View {
             }
         }
         .navigationTitle("SpotGolf")
+        .modifier(UpdateNoticeAlert())
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {

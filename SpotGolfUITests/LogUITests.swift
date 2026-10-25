@@ -18,7 +18,12 @@ final class LogUITests: XCTestCase {
         app.launch()
 
         openSettings()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        // The Log section is below the fold: Settings only makes the rows on screen
         let openLog = app.buttons["OpenLog"]
+        for _ in 0..<8 where !openLog.exists {
+            app.swipeUp()
+        }
         XCTAssertTrue(openLog.waitForExistence(timeout: 5), "Settings should have a Log link")
         openLog.tap()
         XCTAssertTrue(app.navigationBars["Log"].waitForExistence(timeout: 5), "The log should open")

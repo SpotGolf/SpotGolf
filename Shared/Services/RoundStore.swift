@@ -69,7 +69,7 @@ class RoundStore {
     func update(_ id: UUID, _ change: (Round) -> Void) {
         guard let round = round(id) else { return }
         change(round)
-        changed()
+        changed(round)
     }
 
     // MARK: - Rounds
@@ -88,7 +88,16 @@ class RoundStore {
     func add(_ round: Round) {
         guard self.round(round.id) == nil else { return }
         context.insert(round)
-        rounds.insert(round, at: 0)
+        // Newest first: a round from an export or iCloud can be older than the others
+        rounds.insert(round, at: rounds.firstIndex { $0.date < round.date } ?? rounds.count)
+        changed()
+    }
+
+    /// Changes a round to match its copy from iCloud. Unlike `update`, it keeps the
+    /// `changedAt` the change sets, since the change was not made on this phone.
+    func replace(_ id: UUID, _ change: (Round) -> Void) {
+        guard let round = round(id) else { return }
+        change(round)
         changed()
     }
 
@@ -105,7 +114,7 @@ class RoundStore {
     func setDisplayHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date()) {
         guard let id = roundID ?? activeRound?.id, let round = round(id),
               round.setDisplayHole(index, at: date) else { return }
-        changed()
+        changed(round)
         report(.displayHoleChanged(round))
     }
 
@@ -113,7 +122,7 @@ class RoundStore {
     @discardableResult
     func mergeDisplayHole(_ displayHole: DisplayHole, roundID: UUID) -> Bool {
         guard let round = round(roundID), round.mergeDisplayHole(displayHole) else { return false }
-        changed()
+        changed(round)
         return true
     }
 
@@ -124,7 +133,7 @@ class RoundStore {
     func setPin(_ coordinate: CLLocationCoordinate2D, holeIndex: Int, roundID: UUID? = nil, at date: Date = Date()) {
         guard let id = roundID ?? activeRound?.id, let round = round(id),
               round.setPin(coordinate, onHole: holeIndex, at: date) else { return }
-        changed()
+        changed(round)
         report(.pinsChanged(round))
     }
 
@@ -142,7 +151,7 @@ class RoundStore {
 
     private func changePins(_ roundID: UUID, _ change: (Round) -> Bool) {
         guard let round = round(roundID), change(round) else { return }
-        changed()
+        changed(round)
         report(.pinsChanged(round))
     }
 
@@ -150,7 +159,7 @@ class RoundStore {
     @discardableResult
     func mergePins(_ pins: [PinLocation?], roundID: UUID) -> Bool {
         guard let round = round(roundID), round.mergePins(pins) else { return false }
-        changed()
+        changed(round)
         return true
     }
 
@@ -168,7 +177,7 @@ class RoundStore {
         }
         guard added, let hitAt = stroke.hitAt, let round = round(roundID),
               round.strokeHit(onHole: holeIndex, at: hitAt) else { return }
-        changed()
+        changed(round)
     }
 
     /// Moves a stroke. A manual stroke was hit where it is now, so `estimatedTime` works out its
@@ -189,7 +198,7 @@ class RoundStore {
         let movedBack = replacement.hitAt.map { round.strokeHit(onHole: holeIndex, at: $0) } ?? false
         let restarted = round.restartHole(holeIndex) { $0.hitAt ?? estimatedTime($0) }
         if movedBack || restarted {
-            changed()
+            changed(round)
         }
     }
 
@@ -231,7 +240,7 @@ class RoundStore {
         }
         guard let removedFrom, let round = round(roundID),
               round.restartHole(removedFrom, hitTime: { $0.hitAt ?? estimatedTime($0) }) else { return }
-        changed()
+        changed(round)
     }
 
     /// Applies the phone's strokes on the watch when the snapshot is newer than the last one applied.
@@ -245,7 +254,7 @@ class RoundStore {
         round.holes = holes
         round.updateStats()
         round.strokesVersion = snapshot.version
-        changed()
+        changed(round)
         return true
     }
 
@@ -264,7 +273,7 @@ class RoundStore {
         guard let round = round(roundID), change(round) else { return }
         round.updateStats()
         round.strokesVersion += 1
-        changed()
+        changed(round)
         report(.strokesChanged(round))
     }
 
@@ -285,8 +294,10 @@ class RoundStore {
         }
     }
 
-    /// Saves, and tells views and listeners that a round changed.
-    private func changed() {
+    /// Saves, and tells views and listeners that a round changed. `round`, when given, is the
+    /// round changed on this phone, which takes the time as its `changedAt`.
+    private func changed(_ round: Round? = nil) {
+        round?.changedAt = Date()
         do {
             try context.save()
         } catch {
