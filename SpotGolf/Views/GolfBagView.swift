@@ -33,5 +33,13 @@ struct GolfBagView: View {
         }
         .navigationTitle("Golf Bag")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink("Distances") {
+                    ClubDistancesView()
+                }
+                .accessibilityIdentifier("EditDistances")
+            }
+        }
     }
 }

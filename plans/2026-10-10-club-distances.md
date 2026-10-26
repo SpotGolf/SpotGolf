@@ -10,7 +10,7 @@ Each club in the bag stores how far the player hits it. Today that is one number
 | Migration | None. The settings bag is not in any release (`0.7.0` is the last tag), so the key is simply dropped |
 | Units | Yards, whole numbers, like every other distance in the app |
 | Putter | Carried, but has no distance |
-| Screens | None change. The Golf Bag screen does not show or edit distances yet |
+| Screens | None change. Editing distances came later: plans/2026-10-26-edit-club-distances.md |
 | Watch | Nothing on the watch reads the bag. The model is in `Shared`, so the watch's store has the table, empty |
 
 ## Default distances

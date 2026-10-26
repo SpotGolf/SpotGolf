@@ -153,6 +153,7 @@
     "Clear target" : {},
     "Close" : {},
     "Close Green View" : {},
+    "Club Distances" : {},
     "Clubs" : {},
     "Could not open SpotGolf on the watch (%@). Open it on the watch, then tap Retry." : {},
     "Could not send the round to the watch." : {},
@@ -194,6 +195,7 @@
     "Hit" : {},
     "Hole" : {},
     "Hole %lld" : {},
+    "How far you hit each club, in yards, from 1 to %lld." : {},
     "How long you must stand still on or near the green, with no swing, before a chip or putt is suggested, and how far from the green's edge still counts as on it. The watch listens for putts in the same zone; a change reaches it when you open the round." : {},
     "Hybrid" : {},
     "Hybrids" : {},
@@ -356,6 +358,7 @@
     "the course index version is not valid" : {},
     "the data is corrupt" : {},
     "the server returned status %lld" : {},
+    "yd" : {},
     "yds to center" : {},
     "yds to pin" : {},
     "·" : {}

@@ -48,4 +48,32 @@ final class GolfBagUITests: XCTestCase {
         XCTAssertTrue(openBag.label.contains("14 clubs"), "Settings should show the new count, not '\(openBag.label)'")
     }
 
+    func testEditDistance() throws {
+        app.launch()
+
+        app.buttons["Settings"].tap()
+        let openBag = app.buttons["OpenGolfBag"]
+        XCTAssertTrue(openBag.waitForExistence(timeout: 5), "Settings should have a Golf Bag link")
+        openBag.tap()
+        let editDistances = app.buttons["EditDistances"]
+        XCTAssertTrue(editDistances.waitForExistence(timeout: 5), "The bag should have a Distances button")
+        editDistances.tap()
+        XCTAssertTrue(app.navigationBars["Club Distances"].waitForExistence(timeout: 5), "The distances should open")
+
+        let driver = app.textFields["Distance-dr"]
+        XCTAssertEqual(driver.value as? String, "230", "The driver starts at its default")
+        XCTAssertFalse(app.textFields["Distance-pu"].exists, "The putter has no distance")
+
+        // The field empties on focus, so typing replaces the distance
+        driver.tap()
+        driver.typeText("245")
+        XCTAssertEqual(driver.value as? String, "245")
+        app.navigationBars["Club Distances"].buttons["Done"].tap()
+
+        app.navigationBars["Club Distances"].buttons.firstMatch.tap()
+        XCTAssertTrue(editDistances.waitForExistence(timeout: 5), "The bag should show again")
+        editDistances.tap()
+        XCTAssertEqual(app.textFields["Distance-dr"].value as? String, "245", "The new distance should be saved")
+    }
+
 }
