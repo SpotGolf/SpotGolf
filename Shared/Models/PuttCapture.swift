@@ -47,6 +47,7 @@ enum PuttCapture {
         /// Stop on the Putt Lab page.
         case stopped
         case leftGreen
+        /// Captures from before contacts ran on every green: the display hole changed.
         case holeAdvanced
         case workoutStopped
         case roundEnded
@@ -123,7 +124,7 @@ enum PuttCapture {
         var captureID: UUID?
         /// The round the capture was recorded in. Absent outside a round.
         var roundID: UUID?
-        /// The display hole when the segment started, 1-based; 0 outside a round.
+        /// The number of the hole whose green the segment was recorded at, 1-based; 0 outside a round.
         var hole: Int?
         /// The segment's number in its capture, from 1.
         var segment: Int?

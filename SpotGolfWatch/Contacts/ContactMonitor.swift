@@ -4,30 +4,26 @@ import Foundation
 import Observation
 import os
 
-/// Detects ball contact during a round while the watch is within `zoneMargin` of the display
-/// hole's green: there it subscribes to the accelerometer, device motion and the microphone
-/// from `SensorInputs` and feeds them to a `ContactRunner`. It stops 10 s after the watch
-/// leaves the zone, when the display hole changes, when the workout stops, and when the round
-/// ends. See `plans/2026-10-06-putt-detection.md`.
+/// Detects ball contact during a round while the watch is within `zoneMargin` of any hole's
+/// green, whichever hole is shown: there it subscribes to the accelerometer, device motion and
+/// the microphone from `SensorInputs` and feeds them to a `ContactRunner`. It stops 10 s after
+/// the watch leaves the zone, when the workout stops, and when the round ends. See
+/// `plans/2026-10-06-putt-detection.md`.
 @MainActor
 @Observable
 final class ContactMonitor {
     /// Meters from the green's edge the detector runs within: the zone the phone suggests putts
     /// in. The phone's Green Zone setting sets it for each round.
     var zoneMargin = HoleShape.chipZoneMargin
-    /// Fixes beyond the zone for this long stop the detector.
-    static let exitDelay: TimeInterval = 10
 
     /// Why a session on a green ended.
     enum StopReason: Equatable {
-        case holeAdvanced
         case workoutStopped
         case leftGreen
         case roundEnded
 
         var text: String {
             switch self {
-            case .holeAdvanced: "the display hole changed"
             case .workoutStopped: "the workout stopped"
             case .leftGreen: "left the green"
             case .roundEnded: "the round ended"
@@ -36,7 +32,6 @@ final class ContactMonitor {
 
         var endReason: PuttCapture.EndReason {
             switch self {
-            case .holeAdvanced: .holeAdvanced
             case .workoutStopped: .workoutStopped
             case .leftGreen: .leftGreen
             case .roundEnded: .roundEnded
@@ -75,11 +70,9 @@ final class ContactMonitor {
     @ObservationIgnored private let sensors: SensorInputs
     @ObservationIgnored private let runner: ContactRunner
     @ObservationIgnored private var subscriptions: [SensorInputs.Subscription] = []
-    @ObservationIgnored private var holeIndex: Int?
-    /// The display hole's number, which differs from its index + 1 after a shotgun start.
-    @ObservationIgnored private var holeNumber = 0
-    @ObservationIgnored private var green = HoleShape()
-    @ObservationIgnored private var outsideSince: Date?
+    /// The round the greens are for; another round gets new ones.
+    @ObservationIgnored private var roundID: UUID?
+    @ObservationIgnored private var greens = GreenTracker()
     @ObservationIgnored private var startedAt: Date?
     /// The accelerometer only runs with the workout, and nothing is scored without it.
     @ObservationIgnored private let isWorkoutRunning: () -> Bool
@@ -108,36 +101,29 @@ final class ContactMonitor {
 
     /// Every GPS fix of the active round.
     func update(location: CLLocation, round: Round) {
-        if holeIndex != round.displayHoleIndex {
-            holeIndex = round.displayHoleIndex
-            holeNumber = round.displayHoleNumber
-            green = HoleShape(hole: round.displayCourseHole, course: round.course)
-            outsideSince = nil
-            if isRunning {
-                stop(reason: .holeAdvanced)
-            }
+        if roundID != round.id {
+            roundID = round.id
+            greens = GreenTracker(courseSelection: round.courseSelection)
         }
-        let point = Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude)
-        guard let toGreen = green.metersToGreen(point) else { return }
         guard isWorkoutRunning() else {
+            // Back on a green once the workout runs again
+            greens.leave()
             if isRunning {
                 stop(reason: .workoutStopped)
             }
             return
         }
-        if toGreen <= zoneMargin {
-            outsideSince = nil
+        switch greens.update(location: location, zoneMargin: zoneMargin) {
+        case .entered(let holeIndex):
             if !isRunning {
-                start()
+                start(hole: round.holeNumber(at: holeIndex))
             }
-        } else if isRunning {
-            if let outsideSince {
-                if location.timestamp.timeIntervalSince(outsideSince) >= Self.exitDelay {
-                    stop(reason: .leftGreen)
-                }
-            } else {
-                outsideSince = location.timestamp
+        case .left:
+            if isRunning {
+                stop(reason: .leftGreen)
             }
+        case nil:
+            break
         }
     }
 
@@ -152,13 +138,16 @@ final class ContactMonitor {
     }
 
     func roundEnded() {
-        holeIndex = nil
+        roundID = nil
+        greens = GreenTracker()
         if isRunning {
             stop(reason: .roundEnded)
         }
     }
 
-    private func start() {
+    /// Starts at the green of the hole numbered `hole`: its number, which differs from its
+    /// index + 1 after a shotgun start.
+    private func start(hole: Int) {
         isRunning = true
         startedAt = Date()
         runner.start(recordingCandidates: recordsCandidates())
@@ -170,7 +159,6 @@ final class ContactMonitor {
                 runner.addAudio(buffer.samples, hostSeconds: buffer.hostTime, sampleRate: buffer.sampleRate)
             }
         ]
-        let hole = holeIndex == nil ? 0 : holeNumber
         Log.contacts.notice("Contact detection on at hole \(hole)")
         onEvent?(StreamEvent(code: .contactsOn, value: Float(hole)))
         // After a stop still flushing, so Putt Lab closes the last segment before it opens the next

@@ -39,13 +39,14 @@ New project, not yet scaffolded.
       done
   ```
 - The template pair, `SpotGolf Template Phone` and `SpotGolf Template Watch`, is set up once and then left shut down: `simctl clone` refuses a booted source. A clone copies the template's data, including the permissions it was granted, so Health access granted once on the template carries over.
-- After booting the clones and installing the apps, run the `simctl privacy` grants below on them again. They are quick, and they make sure location and motion are granted even if the template's grants did not carry over.
+- After booting the clones and installing the apps, run the `simctl privacy` grants below on them again. They are quick, and they make sure location, motion and the watch's microphone are granted even if the template's grants did not carry over.
 - Set the template up with every permission granted to the phone app (`golf.spot.SpotGolf`) and the watch app (`golf.spot.SpotGolf.watchkitapp`):
 
   | Permission | Phone | Watch | How |
   |---|---|---|---|
   | Location, always | Yes | Yes | `xcrun simctl privacy <device> grant location-always <bundle id>` |
   | Motion | Yes | Yes | `xcrun simctl privacy <device> grant motion <bundle id>` |
+  | Microphone | No | Yes | `xcrun simctl privacy <device> grant microphone <bundle id>`. Without it the watch never starts even its mock microphone, and `PreRoundChecksTests` fail |
   | Health (workouts) | Yes | Yes | Not supported by `simctl privacy`. Install and launch the app, and allow it on the app's permissions screen |
 
 ## Project generation
