@@ -6,7 +6,6 @@ MapKit stops zooming before putts can be told apart: a 6 ft putt is a few points
 
 ```
           Map ──[⛳ button]──────────────► Green View
-           ▲  ──[player walks onto green]─►    │
            │                                    │
            └────[X in the top bar]──────────────┤
            └────[hole changes]──────────────────┘
@@ -15,11 +14,10 @@ MapKit stops zooming before putts can be told apart: a 6 ft putt is a few points
 | Way | When |
 |---|---|
 | **⛳ button** (`flag`) above the Edit button, bottom left | Shown when the shown hole has a green outline. Past rounds too. |
-| **Opens by itself** | Active round, the shown hole's green, and the player's location goes from off to on the green (`Round.isOnGreen`). Not again on that hole once the player closed it with X. |
 | **X** in the top bar | Always. Also turns off edit mode. |
 | **Hole changes** | Closes. A hole picked in the header, or the scorecard's edit button. |
 
-**Green View is always in edit mode**, since it is for marking putts. Opening it, by the button or by itself, turns on edit mode, and it has no Edit or Done button: only its X closes it and ends editing. Walking off the green does not close it. The map holds the edited hole on screen while editing (`editingHoleIndex`), so the display hole moving on does not close Green View either; after X, the map moves on to the display hole.
+**Green View is always in edit mode**, since it is for marking putts. Opening it turns on edit mode, and it has no Edit or Done button: only its X closes it and ends editing. The map holds the edited hole on screen while editing (`editingHoleIndex`), so the display hole moving on does not close Green View either; after X, the map moves on to the display hole.
 
 The top bar sits under the hole header, the same material as the map buttons: **"Green View"** on the left, **X** on the right (`accessibilityIdentifier("CloseGreenView")`). It makes it plain which view is showing and how to leave.
 
@@ -98,7 +96,7 @@ Phone only. No saved data or watch messages change. `feat`, MINOR.
 ## Checks
 
 - Unit: `GreenProjection` round trip (ground to screen to ground within 1 cm), fit to green, zoom limits, turned by heading.
-- Unit: open and close rules (opens on walking onto the green, walking off keeps it open, closed with X stays closed on that hole, hole change closes).
+- Unit: open and close rules (button opens, X closes, hole change closes; walking onto the green does not open it).
 - UI test: ⛳ opens Green View in edit mode with no Edit button, X closes it and ends edit mode, the map keeps its camera.
 - UI test: in edit mode, long press adds a spot in Green View, and it shows on the map after closing.
-- By hand on a real round (simulator clone with a round replayed by `replay-round.py`): walk onto a green, Green View opens; putts read in feet; dragging the pin off the green springs back.
+- By hand on a real round (simulator clone with a round replayed by `replay-round.py`): walk onto a green, Green View stays closed; putts read in feet; dragging the pin off the green springs back.

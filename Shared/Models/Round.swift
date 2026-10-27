@@ -195,17 +195,6 @@ final class Round {
                                         in: green.polygon)
     }
 
-    /// Meters from `coordinate` to the edge of hole `index`'s green: 0 on the green, nil
-    /// without a green.
-    func metersOffGreen(_ coordinate: CLLocationCoordinate2D, holeIndex index: Int) -> Double? {
-        guard let green = green(holeIndex: index) else { return nil }
-        if isOnGreen(coordinate, holeIndex: index) { return 0 }
-        let outline = (green.polygon + [green.polygon[0]]).map { (latitude: $0.lat, longitude: $0.lon) }
-        return LocalDistance.meters(fromLat: coordinate.latitude, lon: coordinate.longitude, toPolyline: outline)
-            ?? LocalDistance.meters(fromLat: coordinate.latitude, lon: coordinate.longitude,
-                                    toLat: green.center.lat, lon: green.center.lon)
-    }
-
     /// Sets the player's pin on hole `index`, replacing any earlier one. Returns false when the
     /// point is not on that hole's green.
     @discardableResult

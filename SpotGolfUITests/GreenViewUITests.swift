@@ -92,20 +92,12 @@ final class GreenViewUITests: XCTestCase {
         XCTAssertTrue(summary.label.contains("1 stroke"), "The hole should count the spot: \(summary.label)")
     }
 
-    func testOpensWhenThePlayerWalksOntoTheGreen() throws {
+    func testStaysClosedWhenThePlayerWalksOntoTheGreen() throws {
         startRound()
         XCTAssertFalse(title.exists, "Green View should not show off the green")
 
         LocationTestHelper.setSimulatorLocation(latitude: Self.holeOneGreen.latitude, longitude: Self.holeOneGreen.longitude)
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "Walking onto the green should open Green View")
-
-        // Closed with X, it stays closed on this hole
-        closeButton.tap()
-        XCTAssertTrue(title.waitForNonExistence(timeout: 5))
-        LocationTestHelper.setSimulatorLocation(latitude: Self.start.latitude, longitude: Self.start.longitude)
-        sleep(2)
-        LocationTestHelper.setSimulatorLocation(latitude: Self.holeOneGreen.latitude, longitude: Self.holeOneGreen.longitude)
         sleep(3)
-        XCTAssertFalse(title.exists, "Green View closed with X should not open again on the same hole")
+        XCTAssertFalse(title.exists, "Only the Green View button should open Green View")
     }
 }

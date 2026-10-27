@@ -90,45 +90,15 @@ final class GreenProjectionTests: XCTestCase {
 }
 
 final class GreenViewStateTests: XCTestCase {
-    func testOpensWhenThePlayerWalksOntoTheGreen() {
+    func testButtonOpensAndXCloses() {
         var state = GreenViewState()
-
-        state.playerMoved(metersOffGreen: 30)
         XCTAssertFalse(state.isShown)
 
-        state.playerMoved(metersOffGreen: 0)
+        state.open()
         XCTAssertTrue(state.isShown)
-    }
 
-    func testDoesNotOpenWithoutAGreen() {
-        var state = GreenViewState()
-
-        state.playerMoved(metersOffGreen: nil)
-
-        XCTAssertFalse(state.isShown)
-    }
-
-    func testWalkingOffTheGreenKeepsItOpen() {
-        var state = GreenViewState()
-        state.playerMoved(metersOffGreen: 0)
-
-        state.playerMoved(metersOffGreen: 50)
-
-        XCTAssertTrue(state.isShown, "Only X or a hole change closes Green View")
-    }
-
-    func testClosedWithXStaysClosedOnThatHole() {
-        var state = GreenViewState()
-        state.playerMoved(metersOffGreen: 0)
         state.close()
-
-        state.playerMoved(metersOffGreen: 20)
-        state.playerMoved(metersOffGreen: 0)
         XCTAssertFalse(state.isShown)
-
-        state.holeChanged()
-        state.playerMoved(metersOffGreen: 0)
-        XCTAssertTrue(state.isShown)
     }
 
     func testHoleChangeCloses() {
@@ -138,16 +108,5 @@ final class GreenViewStateTests: XCTestCase {
         state.holeChanged()
 
         XCTAssertFalse(state.isShown)
-    }
-
-    func testMetersOffGreen() {
-        let round = Round(courseSelection: PathCourse.selection)
-
-        XCTAssertEqual(round.metersOffGreen(PathCourse.coordinate(north: 300, east: 0).clCoordinate, holeIndex: 0), 0)
-        // Course outlines are kept to about 30 cm
-        XCTAssertEqual(try XCTUnwrap(round.metersOffGreen(PathCourse.coordinate(north: 255, east: 0).clCoordinate,
-                                                          holeIndex: 0)), 30, accuracy: 0.3)
-        XCTAssertNil(Round(courseSelection: .test).metersOffGreen(PathCourse.coordinate(north: 0, east: 0).clCoordinate,
-                                                                   holeIndex: 0))
     }
 }

@@ -96,15 +96,11 @@ struct HoleHold {
     }
 }
 
-/// Whether Green View shows in place of the map, and the rule that opens it by itself. Only its X
-/// or a hole change closes it. Green View holds the map's hole like any edit (see `HoleHold`), so
+/// Whether Green View shows in place of the map. Only its button opens it, and only its X or a
+/// hole change closes it. Green View holds the map's hole like any edit (see `HoleHold`), so
 /// the display hole moving on does not close it. See plans/2026-10-17-green-view.md.
 struct GreenViewState {
     private(set) var isShown = false
-    /// The player closed it with X on the hole shown, so it does not open by itself again there.
-    private(set) var closedOnHole = false
-    /// The player's last location was on the shown hole's green.
-    private var wasOnGreen = false
 
     /// The Green View button.
     mutating func open() {
@@ -114,24 +110,10 @@ struct GreenViewState {
     /// The X in the top bar.
     mutating func close() {
         isShown = false
-        closedOnHole = true
     }
 
     /// The shown hole changed.
     mutating func holeChanged() {
         isShown = false
-        closedOnHole = false
-        wasOnGreen = false
-    }
-
-    /// A new location during a round: walking onto the green opens Green View. `metersOffGreen`
-    /// is 0 on the green and nil without one.
-    mutating func playerMoved(metersOffGreen: CLLocationDistance?) {
-        guard let metersOffGreen else { return }
-        let onGreen = metersOffGreen == 0
-        if onGreen, !wasOnGreen, !closedOnHole {
-            isShown = true
-        }
-        wasOnGreen = onGreen
     }
 }

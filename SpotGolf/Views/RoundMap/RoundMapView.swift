@@ -75,12 +75,6 @@ struct RoundMapView: View {
             } else if camera.followsUserLocation, round?.isActive == true, let location {
                 camera.follow(location, heading: shownHoleHeading)
             }
-            if let round, round.isActive, let location {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    greenView.playerMoved(metersOffGreen: round.metersOffGreen(location.coordinate,
-                                                                              holeIndex: shownHoleIndex(round)))
-                }
-            }
         }
         .onChange(of: services.roundStore.revision) {
             if round == nil {
