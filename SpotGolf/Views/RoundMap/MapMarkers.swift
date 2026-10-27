@@ -121,8 +121,8 @@ struct DistanceLabel: View {
     }
 }
 
-/// A pin on a point of the map: a round head on a short arrow, and a small dot on the point
-/// under the arrow's tip. Suggestion pins and spot pins are both drawn with it. Anchor the
+/// A pin on a point of the map: a round head that narrows to a point, and a small dot on the point
+/// under the tip. Suggestion pins and spot pins are both drawn with it. Anchor the
 /// annotation at `.bottom`: the view's bottom edge runs through the dot's center. A lifted pin
 /// rises off the dot on a line, for a spot being dragged.
 struct MapPin<Content: View>: View {
@@ -138,22 +138,19 @@ struct MapPin<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                Circle()
-                    .fill(color)
-                    .frame(width: PinMetrics.head, height: PinMetrics.head)
-                    .overlay { content }
-                    .overlay {
-                        if let outline {
-                            Circle().stroke(outline, lineWidth: 1.5)
-                        }
+            PinShape()
+                .fill(color)
+                .overlay {
+                    if let outline {
+                        PinShape().stroke(outline, lineWidth: 1.5)
                     }
-                BubbleArrow()
-                    .fill(color)
-                    .frame(width: PinMetrics.arrow.width, height: PinMetrics.arrow.height)
-            }
-            .scaleEffect(headScale, anchor: .bottom)
-            .shadow(color: shadow, radius: headScale > 1 ? 8 : 2, y: headScale > 1 ? 2 : 1)
+                }
+                .frame(width: PinMetrics.head, height: PinMetrics.head + PinMetrics.tip)
+                .overlay(alignment: .top) {
+                    content.frame(width: PinMetrics.head, height: PinMetrics.head)
+                }
+                .scaleEffect(headScale, anchor: .bottom)
+                .shadow(color: shadow, radius: headScale > 1 ? 8 : 2, y: headScale > 1 ? 2 : 1)
             if lift > 0 {
                 Rectangle()
                     .fill(color.opacity(0.6))
@@ -166,6 +163,10 @@ struct MapPin<Content: View>: View {
                 .frame(width: PinMetrics.dot, height: PinMetrics.dot)
                 .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
         }
+        // A larger tap area around the head, so a tap that just misses it does not fall through
+        // to the map. None below, so the dot stays on the coordinate.
+        .padding([.top, .horizontal], PinMetrics.tapPadding)
+        .contentShape(Rectangle())
         // Puts the dot's center, not its bottom, on the coordinate
         .offset(y: PinMetrics.dot / 2)
     }
@@ -174,13 +175,16 @@ struct MapPin<Content: View>: View {
 enum PinMetrics {
     /// The head's diameter.
     static let head: CGFloat = 28
-    static let arrow = CGSize(width: 10, height: 7)
+    /// From the bottom of the head's circle down to the tip.
+    static let tip: CGFloat = 10
     /// The dot's diameter.
     static let dot: CGFloat = 8
     /// Between the arrow's tip and the dot.
     static let gap: CGFloat = 2
+    /// Clear space around the head that still takes a tap.
+    static let tapPadding: CGFloat = 10
     /// From the dot's center up to the head's center.
-    static let headCenter: CGFloat = head / 2 + arrow.height + gap + dot / 2
+    static let headCenter: CGFloat = head / 2 + tip + gap + dot / 2
 }
 
 /// How a suggestion looks on the map and in the legend: one color for each way the watch found
@@ -367,6 +371,26 @@ struct BubbleArrow: Shape {
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// A map pin's outline: a circle across the top of the rect, whose sides run straight down to a
+/// point at the bottom center, meeting the circle where they touch it so the head slopes into
+/// the point.
+struct PinShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius = rect.width / 2
+        let center = CGPoint(x: rect.midX, y: rect.minY + radius)
+        let tip = CGPoint(x: rect.midX, y: rect.maxY)
+        // The angle at the center between the line down to the tip and the line out to where a
+        // side touches the circle
+        let touch = acos(min(1, radius / max(tip.y - center.y, radius)))
+        var path = Path()
+        path.move(to: tip)
+        path.addRelativeArc(center: center, radius: radius, startAngle: .radians(.pi / 2 - touch),
+                            delta: .radians(-(2 * .pi - 2 * touch)))
         path.closeSubpath()
         return path
     }
