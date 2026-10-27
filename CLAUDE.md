@@ -17,7 +17,7 @@ New project, not yet scaffolded.
 
 ## Simulators
 
-- `SpotGolf Phone` (iPhone 17 Pro) and `SpotGolf Watch` (Apple Watch Series 9) are a paired set kept for click testing by hand. `simulate-round.sh` and `update-location.sh` set the location on these two by name, which is why they keep those names. Claude sessions must not build to, install on, run tests on, or move the location of these two.
+- `SpotGolf Phone` (iPhone 17 Pro) and `SpotGolf Watch` (Apple Watch Series 9) are a paired set kept for click testing by hand. `replay-round.py` uses these two by name when no simulators are given, which is why they keep those names. Claude sessions must not build to, install on, run tests on, or move the location of these two. The one exception is the `install-on-click-testing-pair` skill, run when the user asks.
 - Each Claude session uses its own phone and watch pair, so parallel sessions never share a device. Claude Desktop only gives a device to the session that boots it; it does not copy a device asked for by name. So a session makes its own pair by cloning the template pair:
 
   ```bash

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pulls the watch's Putt Lab captures to this Mac with devicectl and checks each segment.
 #
-#   ./pull-putt-captures.sh [--watch <UDID>] [--to <folder>]
+#   Scripts/pull-putt-captures.sh [--watch <UDID>] [--to <folder>]
 #
 # Lists Documents/putt-captures in the watch app's container, copies every file that is not
 # already here with the same size into <folder>/<captureID>/<segment>/ (default
@@ -13,7 +13,9 @@
 set -euo pipefail
 
 WATCH=""
-DEST="$(cd "$(dirname "$0")" && pwd)/Data/putt-captures"
+# The repository: this script's folder is Scripts/ inside it
+ROOT="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
+DEST="$ROOT/Data/putt-captures"
 while [ $# -gt 0 ]; do
   case "$1" in
     --watch) WATCH="$2"; shift 2 ;;
@@ -21,6 +23,10 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+# --to as an absolute path: ~ expanded, relative to the current directory
+DEST="${DEST/#\~/$HOME}"
+mkdir -p "$DEST"
+DEST="$(cd "$DEST" && pwd)"
 
 BUNDLE="golf.spot.SpotGolf.watchkitapp"
 REMOTE="Documents/putt-captures"

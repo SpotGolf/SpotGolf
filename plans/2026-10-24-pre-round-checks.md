@@ -139,7 +139,7 @@ Tools/sensor-mock "SpotGolf Watch <session>" golf.spot.SpotGolf.watchkitapp set 
 Tools/sensor-mock "SpotGolf Watch <session>" golf.spot.SpotGolf.watchkitapp reset
 ```
 
-- GPS needs no mock: `simctl location` already moves the simulator, as `simulate-round.sh` does.
+- GPS needs no mock: `simctl location` already moves the simulator, as `replay-round.py` does.
 - Three 4-second clips cut from the Bear Dance capture go in `Examples/`: a putt, a practice stroke and a chip. The capture covers only greens, so it has no full swing; the chip peaks at 13.3 g, which the app counts as a full swing. A one-time script, run from the scratchpad and not checked in, cut them from the capture's Putt Lab files, so the package never reads SpotGolf's capture format. Their audio is from the course and must be listened to for voices before it is committed.
 
 ## Phone

@@ -101,4 +101,4 @@ Phone only. No saved data or watch messages change. `feat`, MINOR.
 - Unit: open and close rules (opens on walking onto the green, walking off keeps it open, closed with X stays closed on that hole, hole change closes).
 - UI test: ⛳ opens Green View in edit mode with no Edit button, X closes it and ends edit mode, the map keeps its camera.
 - UI test: in edit mode, long press adds a spot in Green View, and it shows on the map after closing.
-- By hand on a real round (simulator clone with `simulate-round.sh` style locations): walk onto a green, Green View opens; putts read in feet; dragging the pin off the green springs back.
+- By hand on a real round (simulator clone with a round replayed by `replay-round.py`): walk onto a green, Green View opens; putts read in feet; dragging the pin off the green springs back.

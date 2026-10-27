@@ -222,7 +222,6 @@ Map shows hole k ──► round GPS + hole k's swings (hole range from the time
 | `Shared/Services/RoundStore.swift`, `Shared/Services/Sync/*` | Renames. `StreamReceiver.processSwings` removed. `fixTimeline` uses `StrokeFinder.holeStarts`, at most every 5 s. |
 | `Shared/Services/StreamStore.swift` | `swings(for:)` returns `[StrokeSuggestion]` |
 | `Shared/Utilities/DistanceCalculator.swift`, `TrackExporter.swift`, `TrackImporter.swift` | Renames. The exporter writes stroke rows with a blank time, after the timed rows. The importer reads the new header only, and sets only the round start. |
-| `simulate-round.sh` | Expects the new header |
 | `Data/*.csv` | Converted once to the new header, with `mark` rows renamed `stroke` and their times cleared |
 | `SpotGolf/Views/*`, `SpotGolfWatch/*`, `Info.plist` files | Renames and UI text. `RoundMapView` uses `StrokeFinder.suggestions`. |
 | `SpotGolfWatch/SwingDetector.swift`, `SwingPeakFinder.swift` | Produce `StrokeSuggestion` |

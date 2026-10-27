@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Summarizes a putt capture from the watch's Putt Lab page.
 
-    ./analyze-capture.py <capture.zip or folder> [--window 5] [--after 1] [--events]
+    Scripts/analyze-capture.py <capture.zip or folder> [--window 5] [--after 1] [--events]
 
 Prints the capture's details and the real sample rates, then one row per mark for the
 stroke before it. The window runs from --window seconds before the mark (but after the
@@ -152,9 +152,14 @@ def events(records, value, threshold, gap=1.0):
     return found
 
 
+def path_arg(value):
+    """A path argument as an absolute path: ~ expanded, relative to the current directory."""
+    return os.path.abspath(os.path.expanduser(value))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("capture")
+    parser.add_argument("capture", type=path_arg)
     parser.add_argument("--window", type=float, default=5, help="longest window before a mark to look in")
     parser.add_argument("--after", type=float, default=1, help="seconds before the mark the window ends, to skip the tap")
     parser.add_argument("--events", action="store_true", help="list peaks away from any mark")

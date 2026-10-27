@@ -220,7 +220,7 @@ targets:
       - path: TestFixtures/Broadlands-Golf-Course.json.gz
         buildPhase: resources
       # A whole round's stream, for the iCloud stream encoding
-      - path: Data/broadlands-2026-10-12.csv
+      - path: TestFixtures/broadlands-2026-10-26-stream.bin
         buildPhase: resources
     settings:
       base:

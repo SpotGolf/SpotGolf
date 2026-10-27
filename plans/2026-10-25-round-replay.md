@@ -11,7 +11,7 @@ flowchart LR
     A[Phone: default.store<br/>GPS, swings, contacts, events,<br/>strokes, course, logs] --> E[export-round.py]
     B[Watch: Putt Lab capture<br/>whole round: accel<br/>greens: gyro, audio] --> E
     E --> F[Data/Simulations/&lt;Course&gt;-&lt;date&gt;/]
-    F --> R[simulate-round.sh]
+    F --> R[replay-round.py]
     R --> S[Simulator pair:<br/>GPS + mock sensors]
 ```
 
@@ -21,7 +21,7 @@ flowchart LR
 |---|---|
 | 1 | One round folder holds everything the replay uses, and everything needed to judge it (the strokes the player kept) |
 | 2 | `export-round.py` on the Mac pulls the round from the phone and the watch with `devicectl` and writes the folder |
-| 3 | The player starts the round by hand on the simulator phone, then runs `simulate-round.sh` |
+| 3 | The player starts the round by hand on the simulator phone, then runs `replay-round.py` |
 | 4 | With Putt Lab During Rounds on, the watch records the accelerometer for the whole round, so every swing replays from real data |
 | 5 | Both scripts are written new. Only rounds recorded with this build are exported |
 
@@ -49,8 +49,8 @@ flowchart LR
 Repository root, Python standard library only.
 
 ```bash
-./export-round.py --list                                  # rounds on the phone
-./export-round.py [--round <ID or YYYY-MM-DD>] [--phone <UDID>] [--watch <UDID>] [--to <folder>]
+Scripts/export-round.py --list                                  # rounds on the phone
+Scripts/export-round.py [--round <ID or YYYY-MM-DD>] [--phone <UDID>] [--watch <UDID>] [--to <folder>]
 ```
 
 1. Copies the phone's `default.store` (with `-wal` and `-shm`) with `devicectl`. Picks the round by ID or date; the latest ended round when none is given.
@@ -61,19 +61,19 @@ Repository root, Python standard library only.
 
 The phone and watch default to the first paired iPhone and Apple Watch that `devicectl` lists. Both must be on the same network as the Mac.
 
-## `simulate-round.sh`
+## `replay-round.py`
 
-A wrapper around the package's generic player, `Tools/simulate` in [SensorSources](https://github.com/SpotGolf/SensorSources), which plays `location.csv` through `simctl location` and `clips.csv` through the mock sensors.
+Plays the round folder's GPS fixes through `simctl location`, and its green clips and swings through the watch's mock sensors.
 
 ```bash
-./simulate-round.sh <round folder> [--from MIN] [--to MIN] [--watch <simulator>] [--phone <simulator>]
-./simulate-round.sh <round folder> --list                 # where each green starts
+Scripts/replay-round.py <round folder> [--from MIN] [--to MIN] [--watch <simulator>] [--phone <simulator>]
+Scripts/replay-round.py <round folder> --holes                  # where each hole and green starts
 ```
 
 - Defaults to the click-testing pair, `SpotGolf Watch` and `SpotGolf Phone`; a Claude session passes its own clones.
-- Checks before it starts: both simulators booted, the watch app installed, and a round active on the watch (from the watch's log). It stops with what is missing instead of playing into nothing.
+- Sets both simulators to the first GPS fix, then asks to continue once the round is started on the phone.
 - Plays in real time; `--from` and `--to` pick a part.
-- Prints each green as it starts. Ctrl-C stops it cleanly.
+- Stops at the end of the data, at `--to`, when the phone's round ends, or on Ctrl-C.
 
 The phone picks the course from CourseData as usual, so the round's course must be there.
 

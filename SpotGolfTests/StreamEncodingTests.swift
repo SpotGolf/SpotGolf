@@ -3,18 +3,15 @@ import XCTest
 
 final class StreamEncodingTests: XCTestCase {
 
-    /// The 2026-10-12 Broadlands round, as the 25-byte records the watch sent.
+    /// The 2026-10-26 Broadlands round, as the 25-byte records the watch sent.
     private func broadlandsRecords() throws -> Data {
-        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "broadlands-2026-10-12", withExtension: "csv"))
-        let export = try TrackImporter.read(String(contentsOf: url, encoding: .utf8))
-        let records = export.points.map(StreamRecord.fix) + export.swings.map(StreamRecord.swing)
-            + export.contacts.map(StreamRecord.contact) + export.events.map(StreamRecord.event)
-        return StreamRecord.data(for: records.sorted { $0.timestamp < $1.timestamp })
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "broadlands-2026-10-26-stream", withExtension: "bin"))
+        return try Data(contentsOf: url)
     }
 
     func testAWholeRoundComesBackByteForByte() throws {
         let records = try broadlandsRecords()
-        XCTAssertGreaterThan(records.count / StreamRecord.size, 8_000)
+        XCTAssertGreaterThan(records.count / StreamRecord.size, 7_000)
 
         let encoded = StreamEncoding.encode(records)
 
