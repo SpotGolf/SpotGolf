@@ -130,6 +130,10 @@ struct WatchRoundView: View {
 
                     greenDistancesView(greenDist, toPin: round.hasKnownPin(holeIndex: round.displayHoleIndex))
 
+                    Divider()
+
+                    previousView(round)
+
                     let holeFeatures = course.features(for: courseHole)
                     let features = DistanceCalculator.featuresAhead(from: location, features: holeFeatures, green: green, limit: 7)
                     if !features.isEmpty {
@@ -139,13 +143,14 @@ struct WatchRoundView: View {
 
                     Divider()
 
-                    holeStatsView(round)
+                    strokesView(round)
                 } else {
                     holeTitle("Hole \(round.displayHoleNumber)", round)
 
                     Divider()
 
-                    holeStatsView(round)
+                    previousView(round)
+                    strokesView(round)
                 }
 
                 workoutStatus
@@ -273,8 +278,7 @@ struct WatchRoundView: View {
 
     // MARK: - Shared Components
 
-    @ViewBuilder
-    private func holeStatsView(_ round: Round) -> some View {
+    private func previousView(_ round: Round) -> some View {
         HStack {
             Text("Previous")
                 .font(.caption2)
@@ -284,6 +288,9 @@ struct WatchRoundView: View {
                 .font(.caption2)
                 .fontWeight(.semibold)
         }
+    }
+
+    private func strokesView(_ round: Round) -> some View {
         HStack {
             Text("Strokes")
                 .font(.caption2)
