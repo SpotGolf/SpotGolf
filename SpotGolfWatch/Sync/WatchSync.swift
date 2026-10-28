@@ -30,6 +30,12 @@ final class WatchSync {
     /// round: with the start, when the round is opened on the phone, and in the context.
     @ObservationIgnored var onSettings: ((RoundSettingsMessage) -> Void)?
 
+    /// Called on the main actor when the phone deleted or canceled a round, so its captures go too.
+    @ObservationIgnored var onRoundDeleted: ((UUID) -> Void)?
+
+    /// Called on the main actor when the phone's Putt Data Sharing settings arrive.
+    @ObservationIgnored var onPhoneSettings: ((PhoneSettingsMessage) -> Void)?
+
     /// This app's version. A round from a phone app on any other version is refused, so the two
     /// never record with different code. Tests set it.
     @ObservationIgnored var version = AppVersion.text()
@@ -42,13 +48,21 @@ final class WatchSync {
 
     /// Where the phone's Debug Logging setting is kept, for lines outside a round.
     static let debugLoggingKey = "debugLogging"
-    /// Where the phone's Putt Lab During Rounds setting is kept, for a round resumed after a relaunch.
-    static let puttLabKey = "puttLabInRounds"
+    /// Where the phone's Developer Mode setting is kept, for a round resumed after a relaunch.
+    static let developerModeKey = "developerMode"
 
-    /// The last Putt Lab During Rounds setting the phone sent. On until the phone says otherwise.
-    static var puttLabInRounds: Bool {
-        UserDefaults.standard.object(forKey: puttLabKey) as? Bool ?? true
+    /// The last Developer Mode setting the phone sent. Off until the phone says otherwise.
+    static var developerMode: Bool {
+        UserDefaults.standard.bool(forKey: developerModeKey)
     }
+    /// Where the phone's Putt Data Sharing settings are kept.
+    static let phoneSettingsKey = "puttSharingSettings"
+
+    /// The last Putt Data Sharing settings the phone sent, or nil before any.
+    static var phoneSettings: PhoneSettingsMessage? {
+        UserDefaults.standard.data(forKey: phoneSettingsKey).flatMap { try? JSONDecoder().decode(PhoneSettingsMessage.self, from: $0) }
+    }
+
     /// Where the phone's Green Zone setting is kept, for a round resumed after a relaunch.
     static let greenZoneKey = "greenZone"
 
@@ -79,7 +93,7 @@ final class WatchSync {
         switch event {
         case .displayHoleChanged(let round): snapshots.sendDisplayHole(round)
         case .pinsChanged(let round): snapshots.sendPins(round)
-        case .strokesChanged, .roundsChanged: break
+        case .strokesChanged, .roundsChanged, .roundDeleted: break
         }
     }
 
@@ -176,6 +190,11 @@ final class WatchSync {
             rounds.deleteRound(cancel.roundID)
             streams.delete(cancel.roundID)
             logs.delete(cancel.roundID)
+            onRoundDeleted?(cancel.roundID)
+            return nil
+        case .roundDeleted(let deleted):
+            Log.rounds.notice("Round \(deleted.roundID) deleted on the phone")
+            onRoundDeleted?(deleted.roundID)
             return nil
         case .endRequest(let request):
             return .endAck(endRequested(request))
@@ -204,7 +223,12 @@ final class WatchSync {
         case .settings(let settings):
             apply(settings)
             return nil
-        case .startRoundAck, .startRoundRefused, .startRoundChecking, .endRound, .streamBatch, .chunk:
+        case .phoneSettings(let settings):
+            Log.sync.notice("Putt Data Sharing settings: consent \(settings.consentVersion.map(String.init) ?? "none")")
+            UserDefaults.standard.set(try? JSONEncoder().encode(settings), forKey: Self.phoneSettingsKey)
+            onPhoneSettings?(settings)
+            return nil
+        case .startRoundAck, .startRoundRefused, .startRoundChecking, .endRound, .streamBatch, .chunk, .puttSession:
             return nil
         }
     }
@@ -265,7 +289,7 @@ final class WatchSync {
         }
 
         Log.rounds.notice("Round \(start.roundID) started by the phone")
-        store(RoundSettingsMessage(roundID: start.roundID, debugLogging: start.debugLogging, puttLab: start.puttLab,
+        store(RoundSettingsMessage(roundID: start.roundID, debugLogging: start.debugLogging, developerMode: start.developerMode,
                                    greenZone: start.greenZone))
 
         // Another round still recording ends the usual way first
@@ -323,14 +347,14 @@ final class WatchSync {
     private func store(_ settings: RoundSettingsMessage) {
         Log.isDebugEnabled = settings.debugLogging
         UserDefaults.standard.set(settings.debugLogging, forKey: Self.debugLoggingKey)
-        UserDefaults.standard.set(settings.puttLab, forKey: Self.puttLabKey)
+        UserDefaults.standard.set(settings.developerMode, forKey: Self.developerModeKey)
         UserDefaults.standard.set(settings.greenZone, forKey: Self.greenZoneKey)
     }
 
     /// Settings sent mid-round. Ignored for any round but the active one.
     private func apply(_ settings: RoundSettingsMessage) {
         guard rounds.activeRound?.id == settings.roundID else { return }
-        Log.rounds.notice("Settings for round \(settings.roundID): debug \(settings.debugLogging), Putt Lab \(settings.puttLab), green zone \(settings.greenZone) m")
+        Log.rounds.notice("Settings for round \(settings.roundID): debug \(settings.debugLogging), Developer Mode \(settings.developerMode), green zone \(settings.greenZone) m")
         store(settings)
         onSettings?(settings)
     }

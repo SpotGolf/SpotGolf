@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarizes a putt capture from the watch's Putt Lab page.
+"""Summarizes a putt capture recorded by the watch in Developer Mode.
 
     Scripts/analyze-capture.py <capture.zip or folder> [--window 5] [--after 1] [--events]
 

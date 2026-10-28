@@ -8,8 +8,9 @@ enum SettingsKey {
     static let sharePins = "sharePins"
     /// Saves `debug` log lines, on the phone and the watch.
     static let debugLogging = "debugLogging"
-    /// The watch's Putt Lab records raw sensor data on the greens during a round.
-    static let puttLabInRounds = "puttLabInRounds"
+    /// The watch records raw sensor data on the greens during a round. Hidden in Settings until
+    /// unlocked by tapping the version.
+    static let developerMode = "developerMode"
     /// Meters from the green's edge that count as on the green: where putts and chips are
     /// suggested and the watch listens for contacts.
     static let greenZone = "greenZone"
@@ -23,9 +24,18 @@ enum SettingsKey {
     /// with. Not set until they first change or download.
     static let settingsChangedAt = "settingsChangedAt"
 
+    /// Putt Data Sharing: the consent version the player agreed to, absent before they agree.
+    static let puttSharingConsent = "puttSharingConsent"
+    /// Putt Data Sharing: the random ID shared sessions carry, made at consent.
+    static let puttSharingSharerID = "puttSharingSharerID"
+    /// Putt Data Sharing: the equipment profile, JSON.
+    static let puttSharingEquipment = "puttSharingEquipment"
+    /// Putt Data Sharing: sessions upload over cellular too, not only Wi-Fi.
+    static let puttSharingCellular = "puttSharingCellular"
+
     static var defaults: [String: Any] {
         [stationaryThreshold: 30.0, greenZone: HoleShape.chipZoneMargin, sharePins: true, debugLogging: false,
-         puttLabInRounds: true, mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false, iCloudSync: true]
+         developerMode: false, mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false, iCloudSync: true]
     }
 
     /// Gives code outside views the same defaults `@AppStorage` uses.
@@ -39,5 +49,8 @@ enum SettingsKey {
             store.removeObject(forKey: key)
         }
         store.removeObject(forKey: settingsChangedAt)
+        for key in [puttSharingConsent, puttSharingSharerID, puttSharingEquipment, puttSharingCellular] {
+            store.removeObject(forKey: key)
+        }
     }
 }

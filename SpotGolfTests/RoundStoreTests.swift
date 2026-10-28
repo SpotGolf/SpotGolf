@@ -27,7 +27,7 @@ final class RoundStoreTests: XCTestCase {
             case .strokesChanged(let round):
                 self?.strokeChanges.append(round)
                 self?.strokeVersions.append(round.strokesVersion)
-            case .pinsChanged, .roundsChanged: break
+            case .pinsChanged, .roundsChanged, .roundDeleted: break
             }
         }
     }
@@ -754,6 +754,19 @@ final class RoundStoreTests: XCTestCase {
         store.deleteRound(id)
 
         XCTAssertTrue(store.rounds.isEmpty)
+    }
+
+    func testDeleteRoundReportsIt() {
+        let id = startRound()
+        var deleted: [UUID] = []
+        store.addListener { event in
+            if case .roundDeleted(let roundID) = event { deleted.append(roundID) }
+        }
+
+        store.deleteRound(id)
+        store.deleteRound(id)
+
+        XCTAssertEqual(deleted, [id], "Only a round that was there")
     }
 
     func testDeleteRoundLeavesOtherRounds() {

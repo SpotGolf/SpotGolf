@@ -27,9 +27,6 @@
     "%@ sent no data" : {
 
     },
-    "%@ · %lld segment(s) · %@" : {
-
-    },
     "%lld" : {
 
     },
@@ -49,6 +46,15 @@
 
     },
     "%lld° Wedge" : {
+
+    },
+    "10 foot putts with a practice stroke" : {
+
+    },
+    "3 foot putts" : {
+
+    },
+    "30 foot putts" : {
 
     },
     "Accelerometer" : {
@@ -72,28 +78,37 @@
     "Back" : {
 
     },
-    "Battery test: the sensors run and nothing is saved. Leave the watch alone for 20 minutes or more, then stop." : {
-
-    },
     "Bunker" : {
 
     },
     "Cancel" : {
 
     },
-    "Captures" : {
+    "Collect your balls." : {
 
     },
     "Could not create files" : {
 
     },
-    "Delete" : {
+    "Could not pack the session" : {
+
+    },
+    "Developer Mode" : {
 
     },
     "Device motion failed" : {
 
     },
     "Device motion stopped" : {
+
+    },
+    "Done" : {
+
+    },
+    "Drill %lld of %lld" : {
+
+    },
+    "Drill %lld · %lld of %lld" : {
 
     },
     "Driver" : {
@@ -112,6 +127,12 @@
 
     },
     "Health" : {
+
+    },
+    "Hit a 3 foot putt, then tap Done." : {
+
+    },
+    "Hit a 30 foot putt, then tap Done." : {
 
     },
     "Hole %lld" : {
@@ -133,6 +154,9 @@
     "Irons" : {
 
     },
+    "Leave the balls in the cup." : {
+
+    },
     "Lob Wedge" : {
 
     },
@@ -143,9 +167,6 @@
 
     },
     "Microphone failed" : {
-
-    },
-    "Microphone off: allow it in Settings" : {
 
     },
     "Mid" : {
@@ -160,13 +181,16 @@
     "No GPS fix" : {
 
     },
+    "Next: %@" : {
+
+    },
     "No accelerometer" : {
 
     },
     "No active round" : {
 
     },
-    "No captures" : {
+    "No balls needed." : {
 
     },
     "No device motion" : {
@@ -187,10 +211,19 @@
     "OK" : {
 
     },
+    "Open Putt Data Sharing on your iPhone to start." : {
+
+    },
     "Open SpotGolf on your iPhone to allow:" : {
 
     },
     "Over %lld g at" : {
+
+    },
+    "Pick a ball out of the cup, then tap Done." : {
+
+    },
+    "Picking balls out of the cup" : {
 
     },
     "Pin" : {
@@ -205,43 +238,76 @@
     "Practice ground" : {
 
     },
+    "Practice strokes above the grass" : {
+
+    },
+    "Practice strokes that brush the grass" : {
+
+    },
     "Previous" : {
 
     },
     "Previous hole" : {
 
     },
+    "Pull the ball toward you with the putter head, then tap Done." : {
+
+    },
+    "Pulling a ball with the putter" : {
+
+    },
+    "Put 5 balls 1 foot from a hole." : {
+
+    },
+    "Put 5 balls 10 feet from a hole." : {
+
+    },
+    "Put 5 balls 3 feet from a hole." : {
+
+    },
+    "Put 5 balls 30 feet from a hole." : {
+
+    },
+    "Put a ball 2 feet from you." : {
+
+    },
     "Putt" : {
-
-    },
-    "Putt Lab" : {
-
-    },
-    "Putt Lab is off for this round. Turn on Putt Lab During Rounds in Settings on your iPhone before the next round." : {
 
     },
     "Putter" : {
 
     },
-    "Records wrist motion and sound while you putt. Tap a button after each stroke." : {
+    "Putting Drills" : {
+
+    },
+    "Ready" : {
+
+    },
+    "Recording is off for this round. It starts again next round while Developer Mode is on." : {
 
     },
     "Restart Sensors" : {
 
     },
-    "Round" : {
-
-    },
     "Sand Wedge" : {
 
     },
-    "Save data" : {
+    "Saved" : {
+
+    },
+    "Sending to your iPhone…" : {
+
+    },
+    "Sent to your iPhone" : {
 
     },
     "Set pin location" : {
 
     },
-    "Start Capture" : {
+    "Skip Drill" : {
+
+    },
+    "Start" : {
 
     },
     "Start a round on your iPhone" : {
@@ -254,6 +320,21 @@
 
     },
     "Strokes" : {
+
+    },
+    "Take a practice stroke that brushes the grass, then tap Done." : {
+
+    },
+    "Take a practice stroke with the putter above the grass, then tap Done." : {
+
+    },
+    "Take one practice stroke, hit a 10 foot putt, then tap Done." : {
+
+    },
+    "Tap in a 1 foot putt, then tap Done." : {
+
+    },
+    "Tap-ins" : {
 
     },
     "The workout did not start" : {
@@ -271,6 +352,9 @@
     "Waiting for a green" : {
 
     },
+    "Waiting to send earlier sessions to your iPhone" : {
+
+    },
     "Water" : {
 
     },
@@ -278,6 +362,9 @@
 
     },
     "Woods" : {
+
+    },
+    "You need a putter, 5 balls and a practice green." : {
 
     }
   },

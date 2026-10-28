@@ -24,6 +24,12 @@ final class SyncService {
     /// Answers an incoming message. The returned message is the reply.
     @ObservationIgnored var handler: ((SyncMessage) -> SyncMessage?)?
 
+    /// Takes a file the other app sent, with its metadata. The handler owns the file.
+    @ObservationIgnored var fileHandler: ((URL, [String: Any]) -> Void)?
+
+    /// Told when a file this app sent arrived, or failed for good.
+    @ObservationIgnored var fileTransferFinished: (([String: Any], Error?) -> Void)?
+
     @ObservationIgnored private var reachabilityObservers: [() -> Void] = []
     @ObservationIgnored private var assembler = ChunkAssembler()
 
@@ -134,6 +140,19 @@ extension SyncService: SyncTransportDelegate {
     func transport(didReceiveQueued payload: [String: Any]) {
         guard let message = SyncCodec.message(in: payload) else { return }
         _ = receive(message)
+    }
+
+    func transport(didReceiveFile url: URL, metadata: [String: Any]) {
+        guard let fileHandler else {
+            Log.sync.error("Received file \(url.lastPathComponent) with no one to take it")
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        fileHandler(url, metadata)
+    }
+
+    func transport(didFinishFileTransfer metadata: [String: Any], error: Error?) {
+        fileTransferFinished?(metadata, error)
     }
 
     func transportReachabilityChanged() {

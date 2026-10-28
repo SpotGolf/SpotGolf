@@ -3,7 +3,7 @@ import Foundation
 /// Finds ball contact in the watch's sensor streams: an accelerometer burst with a microphone
 /// click just before it, with an instant attack, at the end of a putting stroke that
 /// `StrokeGate` recognizes. Pure arithmetic over the samples, fed in batches as they arrive, so
-/// the same code runs on the watch and in a replay of a Putt Lab capture. See
+/// the same code runs on the watch and in a replay of a Developer Mode capture. See
 /// `plans/2026-10-06-putt-detection.md` and `plans/2026-10-16-bear-dance-putt-analysis.md`.
 ///
 /// Times are seconds on one clock: the watch uses uptime, which `CMAccelerometerData` and
@@ -51,7 +51,7 @@ struct ContactDetector {
     }
 
     /// A candidate with a click that passed the onset test and the score floor, and what the
-    /// gate measured at it. For Putt Lab, which records them all.
+    /// gate measured at it. For Developer Mode, which records them all.
     struct Judged: Equatable {
         let time: Double
         let burst: Double

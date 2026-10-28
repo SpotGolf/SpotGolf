@@ -213,7 +213,7 @@ final class CaptureWriter: @unchecked Sendable {
                 try self.marksHandle?.truncate(atOffset: 0)
                 try self.marksHandle?.write(contentsOf: Data((lines.joined(separator: "\n") + "\n").utf8))
             } catch {
-                Log.puttLab.error("Could not rewrite the marks: \(String(describing: error))")
+                Log.developerMode.error("Could not rewrite the marks: \(String(describing: error))")
             }
         }
     }
@@ -222,7 +222,7 @@ final class CaptureWriter: @unchecked Sendable {
         do {
             try handle?.write(contentsOf: data)
         } catch {
-            Log.puttLab.error("Could not write \(name) data: \(String(describing: error))")
+            Log.developerMode.error("Could not write \(name) data: \(String(describing: error))")
         }
     }
 
@@ -256,11 +256,11 @@ final class CaptureWriter: @unchecked Sendable {
             do {
                 try self.meta.json().write(to: self.directory.appendingPathComponent(PuttCapture.metaFile))
             } catch {
-                Log.puttLab.error("Could not write the segment's details: \(String(describing: error))")
+                Log.developerMode.error("Could not write the segment's details: \(String(describing: error))")
             }
             let meta = self.meta
             let contacts = self.contactCount
-            Log.puttLab.notice("Segment \(meta.segment ?? 0) of capture \(meta.captureID?.uuidString ?? meta.id.uuidString) ended (\(reason.rawValue)) after \(duration) s: \(meta.accelCount) accelerometer, \(meta.motionCount) motion, \(meta.audioFrames) audio frames, \(meta.marks.count) marks, \(contacts) contacts")
+            Log.developerMode.notice("Segment \(meta.segment ?? 0) of capture \(meta.captureID?.uuidString ?? meta.id.uuidString) ended (\(reason.rawValue)) after \(duration) s: \(meta.accelCount) accelerometer, \(meta.motionCount) motion, \(meta.audioFrames) audio frames, \(meta.marks.count) marks, \(contacts) contacts")
             Task { @MainActor in completion(meta) }
         }
     }
@@ -296,9 +296,9 @@ final class CaptureWriter: @unchecked Sendable {
                 meta.endReason = .appTerminated
                 do {
                     try meta.json().write(to: metaURL)
-                    Log.puttLab.notice("Finished segment \(segment.lastPathComponent) of capture \(capture.lastPathComponent) left open by a kill")
+                    Log.developerMode.notice("Finished segment \(segment.lastPathComponent) of capture \(capture.lastPathComponent) left open by a kill")
                 } catch {
-                    Log.puttLab.error("Could not finish segment \(segment.lastPathComponent): \(String(describing: error))")
+                    Log.developerMode.error("Could not finish segment \(segment.lastPathComponent): \(String(describing: error))")
                 }
             }
         }

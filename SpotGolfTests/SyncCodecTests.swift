@@ -33,6 +33,22 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }
 
+    func testPuttSharingMessagesRoundTrip() throws {
+        let settings = SyncMessage.phoneSettings(PhoneSettingsMessage(consentVersion: 1, sharerID: UUID(),
+                                                                      equipment: PuttSharing.Equipment(hand: .left, grip: .claw)))
+        let notice = SyncMessage.puttSession(PuttSessionNotice(sessionID: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000),
+                                                                drillsFinished: 8, size: 80_000_000, hasLocation: true))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(settings)), settings)
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(notice)), notice)
+    }
+
+    func testRoundDeletedRoundTrips() throws {
+        let message = SyncMessage.roundDeleted(RoundDeleted(roundID: roundID))
+
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+    }
+
     func testStartRoundCheckingRoundTrips() throws {
         let message = SyncMessage.startRoundChecking(StartRoundChecking(roundID: roundID))
 
@@ -106,21 +122,21 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(decoded.streamBase, 4)
     }
 
-    func testStartRoundFromBeforePuttLabRanInRoundsHasItOn() throws {
+    func testStartRoundWithNoDeveloperModeHasItOff() throws {
         let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
                                displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
                                pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
-                               streamBase: 0, version: "0.9.0", puttLab: false)
+                               streamBase: 0, version: "0.9.0", developerMode: true)
         var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])
         var inner = try XCTUnwrap((plist["startRound"] as? [String: Any])?["_0"] as? [String: Any])
-        inner.removeValue(forKey: "puttLab")
+        inner.removeValue(forKey: "developerMode")
         plist["startRound"] = ["_0": inner]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
 
         guard case .startRound(let decoded) = try SyncCodec.decode(data) else { return XCTFail("Not a start") }
-        XCTAssertTrue(decoded.puttLab)
+        XCTAssertFalse(decoded.developerMode)
         guard case .startRound(let full) = try SyncCodec.decode(try SyncCodec.encode(.startRound(start))) else { return XCTFail("Not a start") }
-        XCTAssertFalse(full.puttLab)
+        XCTAssertTrue(full.developerMode)
     }
 
     func testStartRoundFromBeforeTheGreenZoneSettingHasTheDefault() throws {

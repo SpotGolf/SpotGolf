@@ -8,13 +8,22 @@ struct WatchRoundView: View {
     enum Page: Hashable {
         case info
         case end
-        case puttLab
+        case developerMode
+    }
+
+    /// The pages with no round, in order.
+    enum NoRoundPage: Hashable {
+        case home
+        case drills
+        /// Skip drill and Stop, while a session records.
+        case drillControls
     }
 
     @Environment(WatchServices.self) private var services
 
     @State private var liveDistance: String?
     @State private var page = Page.info
+    @State private var noRoundPage = NoRoundPage.home
 
     var body: some View {
         Group {
@@ -24,24 +33,31 @@ struct WatchRoundView: View {
                         .tag(Page.info)
                     endRoundPage
                         .tag(Page.end)
-                    PuttLabView()
-                        .tag(Page.puttLab)
-                }
-                .tabViewStyle(.page)
-                // Putt Lab's buttons come to the front on the green and leave with it
-                .onChange(of: services.puttCapture.state) { was, now in
-                    if now == .recording {
-                        page = .puttLab
-                    } else if was == .recording, now == .waiting {
-                        page = .info
+                    if services.developerModeInRound {
+                        DeveloperModeView()
+                            .tag(Page.developerMode)
                     }
                 }
+                .tabViewStyle(.page)
+                .onChange(of: services.developerModeInRound) { _, isOn in
+                    if !isOn, page == .developerMode { page = .info }
+                }
             } else {
-                TabView {
-                    noRoundPage
-                    PuttLabView()
+                TabView(selection: $noRoundPage) {
+                    noRoundHome
+                        .tag(NoRoundPage.home)
+                    PuttingDrillsView()
+                        .tag(NoRoundPage.drills)
+                    if services.drills.state == .recording {
+                        DrillControlsView()
+                            .tag(NoRoundPage.drillControls)
+                    }
                 }
                 .tabViewStyle(.page)
+                // Stop removes the controls page; the drills page shows the session being sent
+                .onChange(of: services.drills.state) { was, now in
+                    if was == .recording, now != .recording { noRoundPage = .drills }
+                }
             }
         }
         .onChange(of: services.locationManager.lastLocation, initial: true) { _, location in
@@ -65,7 +81,7 @@ struct WatchRoundView: View {
         }
     }
 
-    private var noRoundPage: some View {
+    private var noRoundHome: some View {
         VStack(spacing: 12) {
             HStack(spacing: 4) {
                 Image(systemName: services.syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")

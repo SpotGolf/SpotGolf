@@ -22,6 +22,8 @@ final class PhoneServices {
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
     let cloudSync: CloudSync
+    /// Putt Data Sharing's consent, profile and sessions.
+    let puttSharing: PuttSharingStore
     /// Where rounds and streams are saved. UI tests start each run empty.
     let container: ModelContainer
     /// A round can only start with a paired watch that has the app. UI tests run without one.
@@ -58,7 +60,7 @@ final class PhoneServices {
             Self.launchWatchApp(sync: sync)
         }
         phoneSync.debugLogging = { UserDefaults.standard.bool(forKey: SettingsKey.debugLogging) }
-        phoneSync.puttLab = { UserDefaults.standard.bool(forKey: SettingsKey.puttLabInRounds) }
+        phoneSync.developerMode = { UserDefaults.standard.bool(forKey: SettingsKey.developerMode) }
         phoneSync.greenZone = { UserDefaults.standard.double(forKey: SettingsKey.greenZone) }
 
         roundTracker = RoundTracker(rounds: rounds, location: location, showsActivity: !isUITesting)
@@ -72,6 +74,22 @@ final class PhoneServices {
             CloudKitSyncEngine(state: state, sync: sync)
         }
         allowsCloudSync = !isUITesting
+
+        // UI tests run without iCloud, so sessions stay on the phone
+        let sharing = PuttSharingStore(cloud: isUITesting ? NoPuttSharingCloud() : CloudKitPuttSharing())
+        puttSharing = sharing
+        sharing.onSettingsChanged = { sync.queue(.phoneSettings($0)) }
+        phoneSync.onPuttSession = { sharing.noticeArrived($0) }
+        sync.fileHandler = { sharing.fileArrived($0, metadata: $1) }
+        // Once per launch, as soon as the watch can be told, so a watch that lost them gets them again
+        var sentSettings = false
+        sync.onReachabilityChange {
+            guard !sentSettings, sync.hasCounterpart else { return }
+            sentSettings = true
+            sync.queue(.phoneSettings(sharing.settingsMessage))
+        }
+        sharing.uploadNext()
+        sharing.sendDeletions()
 
         // UI tests run on simulators, where permissions are not the point
         permissions = PermissionChecker(

@@ -765,15 +765,15 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertTrue(UserDefaults.standard.bool(forKey: WatchSync.debugLoggingKey))
     }
 
-    func testPuttLabSettingReachesTheWatch() {
+    func testDeveloperModeSettingReachesTheWatch() {
         let pair = SyncPair(startTimeout: 0.05)
-        defer { UserDefaults.standard.removeObject(forKey: WatchSync.puttLabKey) }
-        XCTAssertTrue(WatchSync.puttLabInRounds, "On until the phone says otherwise")
-        pair.phone.puttLab = { false }
+        defer { UserDefaults.standard.removeObject(forKey: WatchSync.developerModeKey) }
+        XCTAssertFalse(WatchSync.developerMode, "Off until the phone says otherwise")
+        pair.phone.developerMode = { true }
 
         pair.startRound()
 
-        XCTAssertFalse(WatchSync.puttLabInRounds)
+        XCTAssertTrue(WatchSync.developerMode)
     }
 
     func testGreenZoneSettingReachesTheWatch() {
@@ -791,20 +791,20 @@ final class SyncFlowTests: XCTestCase {
         let pair = SyncPair(startTimeout: 0.05)
         defer {
             UserDefaults.standard.removeObject(forKey: WatchSync.greenZoneKey)
-            UserDefaults.standard.removeObject(forKey: WatchSync.puttLabKey)
+            UserDefaults.standard.removeObject(forKey: WatchSync.developerModeKey)
         }
         var received: [RoundSettingsMessage] = []
         pair.watch.onSettings = { received.append($0) }
         let id = pair.startRound()
         XCTAssertEqual(WatchSync.greenZone, HoleShape.chipZoneMargin)
         pair.phone.greenZone = { 20 }
-        pair.phone.puttLab = { false }
+        pair.phone.developerMode = { true }
 
         pair.phone.sendSettings()
 
         XCTAssertEqual(WatchSync.greenZone, 20)
-        XCTAssertFalse(WatchSync.puttLabInRounds)
-        XCTAssertEqual(received, [RoundSettingsMessage(roundID: id, debugLogging: false, puttLab: false, greenZone: 20)])
+        XCTAssertTrue(WatchSync.developerMode)
+        XCTAssertEqual(received, [RoundSettingsMessage(roundID: id, debugLogging: false, developerMode: true, greenZone: 20)])
     }
 
     func testSettingsForAnotherRoundAreIgnored() {
@@ -814,7 +814,7 @@ final class SyncFlowTests: XCTestCase {
         pair.watch.onSettings = { _ in received += 1 }
         pair.startRound()
 
-        pair.phoneSync.send(.settings(RoundSettingsMessage(roundID: UUID(), debugLogging: false, puttLab: true, greenZone: 40)))
+        pair.phoneSync.send(.settings(RoundSettingsMessage(roundID: UUID(), debugLogging: false, developerMode: true, greenZone: 40)))
 
         XCTAssertEqual(WatchSync.greenZone, HoleShape.chipZoneMargin)
         XCTAssertEqual(received, 0)
@@ -834,6 +834,100 @@ final class SyncFlowTests: XCTestCase {
 
         XCTAssertFalse(pair.phoneLogs.hasLines(for: id))
         XCTAssertFalse(pair.watchLogs.hasLines(for: id))
+    }
+
+    // MARK: - Putt Data Sharing
+
+    func testPuttSharingSettingsReachTheWatch() throws {
+        let pair = SyncPair()
+        defer { UserDefaults.standard.removeObject(forKey: WatchSync.phoneSettingsKey) }
+        var received: [PhoneSettingsMessage] = []
+        pair.watch.onPhoneSettings = { received.append($0) }
+        let settings = PhoneSettingsMessage(consentVersion: 1, sharerID: UUID(), equipment: PuttSharing.Equipment(ball: .soft))
+
+        pair.phoneSync.queue(.phoneSettings(settings))
+        pair.phoneTransport.deliverQueued()
+
+        XCTAssertEqual(received, [settings])
+        XCTAssertEqual(WatchSync.phoneSettings, settings, "Kept for the next launch")
+    }
+
+    func testAFinishedSessionsNoticeReachesThePhone() {
+        let pair = SyncPair()
+        var received: [PuttSessionNotice] = []
+        pair.phone.onPuttSession = { received.append($0) }
+        let notice = PuttSessionNotice(sessionID: UUID(), date: Date(), drillsFinished: 2, size: 5, hasLocation: false)
+
+        pair.watchSync.queue(.puttSession(notice))
+        pair.watchTransport.deliverQueued()
+
+        XCTAssertEqual(received, [notice])
+    }
+
+    func testAFileReachesThePhoneAndTheWatchHearsItArrived() throws {
+        let pair = SyncPair()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data("session".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        var arrived: [(Data?, String?)] = []
+        var finished: [String?] = []
+        pair.phoneSync.fileHandler = { url, metadata in
+            arrived.append((try? Data(contentsOf: url), metadata[PuttSharing.FileKey.sessionID] as? String))
+        }
+        pair.watchSync.fileTransferFinished = { metadata, error in
+            XCTAssertNil(error)
+            finished.append(metadata[PuttSharing.FileKey.sessionID] as? String)
+        }
+
+        pair.watchSync.transport.transferFile(file, metadata: [PuttSharing.FileKey.sessionID: "abc"])
+        XCTAssertEqual(pair.watchSync.transport.outstandingFileTransfers.count, 1)
+        pair.watchTransport.deliverFiles()
+
+        XCTAssertEqual(arrived.map(\.0), [Data("session".utf8)])
+        XCTAssertEqual(arrived.map(\.1), ["abc"])
+        XCTAssertEqual(finished, ["abc"])
+        XCTAssertEqual(pair.watchSync.transport.outstandingFileTransfers.count, 0)
+    }
+
+    func testRoundDeletedOnThePhoneReachesTheWatch() {
+        let pair = SyncPair(startTimeout: 0.05)
+        let id = pair.startRound()
+        pair.phone.endRound(id)
+        var deleted: [UUID] = []
+        pair.watch.onRoundDeleted = { deleted.append($0) }
+        pair.phoneTransport.isReachable = false
+
+        pair.phoneRounds.deleteRound(id)
+        pair.phoneTransport.isReachable = true
+        pair.phoneTransport.deliverQueued()
+
+        XCTAssertEqual(deleted, [id])
+    }
+
+    func testCancelledRoundReachesTheWatchAsDeleted() {
+        let pair = SyncPair(startTimeout: 0.05)
+        pair.phoneTransport.isReachable = false
+        let id = pair.startRound()
+        var deleted: [UUID] = []
+        pair.watch.onRoundDeleted = { deleted.append($0) }
+
+        pair.phone.cancelStart(id)
+        pair.phoneTransport.isReachable = true
+        pair.phoneTransport.deliverQueued()
+
+        XCTAssertEqual(Set(deleted), [id])
+    }
+
+    func testWatchPruningItsOwnRoundsDeletesNoCapture() {
+        let pair = SyncPair(startTimeout: 0.05)
+        let id = pair.startRound()
+        var deleted: [UUID] = []
+        pair.watch.onRoundDeleted = { deleted.append($0) }
+
+        pair.watchRounds.deleteRound(id)
+        pair.watchTransport.deliverQueued()
+
+        XCTAssertEqual(deleted, [])
     }
 
     // MARK: - Swings

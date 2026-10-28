@@ -15,6 +15,8 @@ enum RoundEvent {
     case pinsChanged(Round)
     /// A stroke change made on this device.
     case strokesChanged(Round)
+    /// A round deleted on this device, by the user, a canceled start or iCloud.
+    case roundDeleted(UUID)
 }
 
 /// Holds every round and saves it with SwiftData. Every change to a round goes through here.
@@ -106,6 +108,7 @@ class RoundStore {
         context.delete(round)
         rounds.removeAll { $0.id == id }
         changed()
+        report(.roundDeleted(id))
     }
 
     // MARK: - Display hole

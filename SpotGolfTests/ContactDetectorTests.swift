@@ -54,7 +54,7 @@ final class ContactDetectorTests: XCTestCase {
         return (found + detector.flush(), judged)
     }
 
-    /// Putt Lab records every candidate the gate judged, with what it measured.
+    /// Developer Mode records every candidate the gate judged, with what it measured.
     func testRecordedCandidatesCarryTheGatesMeasures() throws {
         let putt = run(clickAt: 11.99, burstAt: 12.0, motion: StrokeGateTests.stroke(contactAt: 12.0, seconds: 14),
                        recordingCandidates: true)

@@ -123,6 +123,87 @@ final class WatchRoundFlowUITests: XCTestCase {
         endRound()
     }
 
+    func testDeveloperModePageShowsOnlyWithDeveloperModeOn() throws {
+        // ── Developer Mode off, the default: the end page is the last ──
+        app.launchArguments.append("--start-round")
+        app.launch()
+        dismissHealthAccessAlerts()
+        XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "The round should start on Hole 1")
+        app.swipeLeft()
+        XCTAssertTrue(app.buttons["End Round"].waitForExistence(timeout: 5))
+        app.swipeLeft()
+        XCTAssertFalse(app.staticTexts["Developer Mode"].waitForExistence(timeout: 2), "No Developer Mode page")
+        endRound()
+        app.terminate()
+
+        // ── Developer Mode on, as the phone's last round setting left it ──
+        app.launchArguments = ["--ui-testing", "--start-round", "-developerMode", "YES"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Hole 1"].waitForExistence(timeout: 5), "The round should start on Hole 1")
+        XCTAssertFalse(app.staticTexts["Developer Mode"].exists, "The round opens on its info page")
+        app.swipeLeft()
+        app.swipeLeft()
+        XCTAssertTrue(app.staticTexts["Developer Mode"].waitForExistence(timeout: 5), "The Developer Mode page is last")
+        XCTAssertTrue(app.staticTexts["Waiting for a green"].exists)
+        // Back to the info page, which `endRound` starts from
+        app.swipeRight()
+        app.swipeRight()
+        endRound()
+    }
+
+    func testPuttingDrillsShowOneTaskAtATimeAndSendTheSession() throws {
+        // ── Without consent from the phone, the page says where to give it ──
+        app.launch()
+        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5))
+        app.swipeLeft()
+        XCTAssertTrue(app.staticTexts["Open Putt Data Sharing on your iPhone to start."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["StartDrills"].exists)
+        app.terminate()
+
+        // ── With consent: the start page, then the paused screen before the first drill ──
+        app.launchArguments = ["--ui-testing", "--drill-consent"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["No active round"].waitForExistence(timeout: 5))
+        app.swipeLeft()
+        let start = app.buttons["StartDrills"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+        dismissHealthAccessAlerts()
+        let ready = app.buttons["DrillReady"]
+        XCTAssertTrue(ready.waitForExistence(timeout: 15), "The paused screen shows once the workout runs")
+        XCTAssertTrue(app.staticTexts["Next: 3 foot putts"].exists)
+        XCTAssertFalse(app.staticTexts["Collect your balls."].exists, "Nothing to collect before the first drill")
+
+        // ── One task at a time: Done shows the next at once ──
+        ready.tap()
+        XCTAssertTrue(app.staticTexts["Hit a 3 foot putt, then tap Done."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Drill 1 · 1 of 5"].exists)
+        app.buttons["DrillDone"].tap()
+        let saved = app.descendants(matching: .any)["DrillSaved"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 2), "Done shows Saved over the page")
+        XCTAssertTrue(waitForGone(saved, timeout: 4), "Saved goes away by itself")
+        XCTAssertTrue(app.staticTexts["Drill 1 · 2 of 5"].waitForExistence(timeout: 5))
+
+        // ── Skip and Stop are on the next page ──
+        app.swipeLeft()
+        let skip = app.buttons["SkipDrill"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 5))
+        skip.tap()
+        app.swipeRight()
+        XCTAssertTrue(app.staticTexts["Next: 10 foot putts with a practice stroke"].waitForExistence(timeout: 5))
+        app.swipeLeft()
+        app.buttons["StopDrills"].tap()
+
+        // ── The session is packed and sent; the start page comes back ──
+        XCTAssertTrue(app.staticTexts["Sent to your iPhone"].waitForExistence(timeout: 30))
+        // Quitting before the workout is saved makes the system relaunch the app to recover it
+        app.swipeRight()
+        let workoutStatus = app.staticTexts["workoutStatus"]
+        XCTAssertTrue(workoutStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["ended"]),
+                      "The workout should be saved, but was \(workoutStatus.label)")
+    }
+
     // MARK: - Helpers
 
     /// Ends the round from its last page and waits for the workout to be saved. Quitting
@@ -138,6 +219,12 @@ final class WatchRoundFlowUITests: XCTestCase {
         let workoutStatus = app.staticTexts["workoutStatus"]
         XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["ended"]),
                       "The workout should be saved, but was \(workoutStatus.label)")
+    }
+
+    /// Waits for an element to go away.
+    private func waitForGone(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
     /// Waits for an element's label to become one of the expected texts.

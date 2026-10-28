@@ -1,9 +1,10 @@
 import Foundation
 
-/// A putt capture: raw sensor data recorded by the watch's Putt Lab, to study what a real putt
-/// looks like. A capture is a folder of segments, one per green visit in a round or a single
-/// one outside a round; each segment holds the files below. See `plans/2026-10-06-putt-capture.md`
-/// for the files and their layout and `plans/2026-10-12-putt-lab-in-rounds.md` for segments.
+/// A putt capture: raw sensor data recorded by the watch in Developer Mode, to study what a real
+/// putt looks like. A capture is a folder of segments, one per green visit in a round (older
+/// captures made outside a round have a single one); each segment holds the files below. See
+/// `plans/2026-10-06-putt-capture.md` for the files and their layout,
+/// `plans/2026-10-12-putt-lab-in-rounds.md` for segments and `plans/2026-10-27-developer-mode.md`.
 enum PuttCapture {
     static let version = 3
 
@@ -44,7 +45,7 @@ enum PuttCapture {
 
     /// Why a segment ended.
     enum EndReason: String, Codable {
-        /// Stop on the Putt Lab page.
+        /// Stop on the Developer Mode page.
         case stopped
         case leftGreen
         /// Captures from before contacts ran on every green: the display hole changed.

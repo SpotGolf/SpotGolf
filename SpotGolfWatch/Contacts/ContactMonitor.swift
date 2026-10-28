@@ -53,7 +53,7 @@ final class ContactMonitor {
     /// Called on the main actor with each contact as the detector reported it, at its uptime.
     @ObservationIgnored var onDetectorContact: ((ContactDetector.Contact) -> Void)?
 
-    /// Called on the main actor as the detector goes on and off, for Putt Lab's segments. In
+    /// Called on the main actor as the detector goes on and off, for Developer Mode's segments. In
     /// order with the contacts: a stop comes after the contact the detector flushes on stopping.
     @ObservationIgnored var onSession: ((SessionChange) -> Void)?
 
@@ -61,7 +61,7 @@ final class ContactMonitor {
     /// `recordsCandidates` said so when the session started.
     @ObservationIgnored var onDetectorCandidate: ((ContactDetector.Judged) -> Void)?
 
-    /// Whether a session starting now records its candidates: while Putt Lab records the round.
+    /// Whether a session starting now records its candidates: while Developer Mode records the round.
     @ObservationIgnored var recordsCandidates: () -> Bool = { false }
 
     /// Called with each start and stop, for the round's stream.
@@ -161,7 +161,7 @@ final class ContactMonitor {
         ]
         Log.contacts.notice("Contact detection on at hole \(hole)")
         onEvent?(StreamEvent(code: .contactsOn, value: Float(hole)))
-        // After a stop still flushing, so Putt Lab closes the last segment before it opens the next
+        // After a stop still flushing, so Developer Mode closes the last segment before it opens the next
         runner.afterQueued { [weak self] in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.onSession?(.started(hole: hole)) }
@@ -175,7 +175,7 @@ final class ContactMonitor {
             subscription.cancel()
         }
         subscriptions = []
-        // Putt Lab hears of the stop after the contact the detector flushes, so the contact reaches the segment
+        // Developer Mode hears of the stop after the contact the detector flushes, so the contact reaches the segment
         runner.stop { [weak self] in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.onSession?(.stopped(reason: reason)) }

@@ -69,6 +69,27 @@ final class FakeTransport: SyncTransport {
         context = payload
     }
 
+    /// Files sent with `transferFile`, waiting for `deliverFiles()`.
+    private(set) var files: [(url: URL, metadata: [String: Any])] = []
+
+    func transferFile(_ url: URL, metadata: [String: Any]) {
+        files.append((url, metadata))
+    }
+
+    var outstandingFileTransfers: [[String: Any]] { files.map(\.metadata) }
+
+    /// Delivers every file sent: the other side gets a copy, and this side hears it arrived.
+    func deliverFiles() {
+        let sending = files
+        files = []
+        for file in sending {
+            let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try? FileManager.default.copyItem(at: file.url, to: copy)
+            peer?.delegate?.transport(didReceiveFile: copy, metadata: file.metadata)
+            delegate?.transport(didFinishFileTransfer: file.metadata, error: nil)
+        }
+    }
+
     /// Delivers held sends, in order or reversed.
     func releaseHeld(reversed: Bool = false) {
         let deliveries = reversed ? held.reversed() : held

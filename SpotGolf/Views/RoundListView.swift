@@ -7,6 +7,9 @@ struct RoundListView: View {
     @Environment(PhoneServices.self) private var services
     @State private var showCourseSelection = false
     @State private var showSettings = false
+    @State private var showPuttSharing = false
+    /// The golfer symbol is taller than the gear beside it; this is the gear's height.
+    @ScaledMetric(relativeTo: .body) private var toolbarIconHeight: CGFloat = 22
     @Query(sort: \Round.date, order: .reverse) private var rounds: [Round]
     /// Its ID and title, since the alert can still show while the deleted round goes away.
     @State private var roundToDelete: (id: UUID, title: String)?
@@ -87,6 +90,17 @@ struct RoundListView: View {
                 }
                 .accessibilityLabel("Settings")
             }
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showPuttSharing = true
+                } label: {
+                    Image(systemName: "figure.golf")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: toolbarIconHeight)
+                }
+                .accessibilityLabel("Putt Data Sharing")
+            }
             // A status, not a button, so it has no glass background of its own
             watchStatusItem
                 .sharedBackgroundVisibility(.hidden)
@@ -130,6 +144,9 @@ struct RoundListView: View {
             CourseSelectionView(onRoundStarted: { roundID in
                 navigationPath.append(roundID)
             })
+        }
+        .sheet(isPresented: $showPuttSharing) {
+            PuttDataSharingView()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()

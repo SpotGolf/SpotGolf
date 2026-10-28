@@ -1,7 +1,7 @@
 import XCTest
 @testable import SpotGolf
 
-/// Replays Putt Lab captures through `ContactDetector`, fed the way the watch feeds it, and
+/// Replays Developer Mode captures through `ContactDetector`, fed the way the watch feeds it, and
 /// checks the strokes it finds against the player's marks and labels. The captures live in the
 /// git-ignored `Data` folder, so these are skipped where they are missing.
 final class ContactDetectorReplayTests: XCTestCase {

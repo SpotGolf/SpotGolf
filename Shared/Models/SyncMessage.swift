@@ -9,6 +9,8 @@ enum SyncMessage: Codable, Equatable {
     /// Watch → phone, in reply to a start: the watch is running its pre-round checks.
     case startRoundChecking(StartRoundChecking)
     case cancelRound(CancelRound)
+    /// Phone → watch: the round was deleted on the phone, so the watch deletes its capture.
+    case roundDeleted(RoundDeleted)
     case endRequest(EndRequest)
     case endRound(EndRound)
     case endAck(EndAck)
@@ -23,6 +25,10 @@ enum SyncMessage: Codable, Equatable {
     case context(SyncContext)
     /// Part of a message too large for one send.
     case chunk(SyncChunk)
+    /// Phone → watch, queued: consent and the equipment profile for Putt Data Sharing.
+    case phoneSettings(PhoneSettingsMessage)
+    /// Watch → phone, queued: a drill session finished and its file is on its way.
+    case puttSession(PuttSessionNotice)
 }
 
 /// Phone → watch. The watch replies `StartRoundAck` once the round is active,
@@ -44,14 +50,14 @@ struct StartRound: Codable, Equatable {
     let logBase: Int
     /// The phone's Debug Logging setting, which the watch follows.
     let debugLogging: Bool
-    /// The phone's Putt Lab During Rounds setting: the watch records a capture on the greens.
-    let puttLab: Bool
+    /// The phone's Developer Mode setting: the watch records a capture on the greens.
+    let developerMode: Bool
     /// The phone's Green Zone setting: meters from the green's edge the watch listens for contacts in.
     let greenZone: Double
 
     init(roundID: UUID, date: Date, course: Data, displayHole: DisplayHole,
          pins: [PinLocation?], strokes: StrokesSnapshot, streamBase: Int, version: String,
-         logBase: Int = 0, debugLogging: Bool = false, puttLab: Bool = true,
+         logBase: Int = 0, debugLogging: Bool = false, developerMode: Bool = false,
          greenZone: Double = HoleShape.chipZoneMargin) {
         self.roundID = roundID
         self.date = date
@@ -63,16 +69,15 @@ struct StartRound: Codable, Equatable {
         self.version = version
         self.logBase = logBase
         self.debugLogging = debugLogging
-        self.puttLab = puttLab
+        self.developerMode = developerMode
         self.greenZone = greenZone
     }
 }
 
 extension StartRound {
     /// A phone from before versions were checked sends none; it is never the watch's. One from
-    /// before the app log sends no log base or debug setting, and one from before Putt Lab ran
-    /// in rounds sends no Putt Lab setting, which is on, and none before the Green Zone setting
-    /// sends a zone, which is the default.
+    /// before the app log sends no log base or debug setting, one with no Developer Mode setting
+    /// has it off, and none before the Green Zone setting sends a zone, which is the default.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         roundID = try values.decode(UUID.self, forKey: .roundID)
@@ -85,7 +90,7 @@ extension StartRound {
         version = try values.decodeIfPresent(String.self, forKey: .version) ?? ""
         logBase = try values.decodeIfPresent(Int.self, forKey: .logBase) ?? 0
         debugLogging = try values.decodeIfPresent(Bool.self, forKey: .debugLogging) ?? false
-        puttLab = try values.decodeIfPresent(Bool.self, forKey: .puttLab) ?? true
+        developerMode = try values.decodeIfPresent(Bool.self, forKey: .developerMode) ?? false
         greenZone = try values.decodeIfPresent(Double.self, forKey: .greenZone) ?? HoleShape.chipZoneMargin
     }
 }
@@ -158,6 +163,11 @@ struct StartRoundRefused: Codable, Equatable {
 
 /// Phone → watch. The phone gave up starting the round.
 struct CancelRound: Codable, Equatable {
+    let roundID: UUID
+}
+
+/// Phone → watch. The round was deleted on the phone; the watch deletes its capture.
+struct RoundDeleted: Codable, Equatable {
     let roundID: UUID
 }
 
@@ -242,7 +252,7 @@ struct StrokesSnapshot: Codable, Equatable {
 struct RoundSettingsMessage: Codable, Equatable {
     let roundID: UUID
     let debugLogging: Bool
-    let puttLab: Bool
+    let developerMode: Bool
     /// Meters from the green's edge the watch listens for contacts in.
     let greenZone: Double
 }
@@ -279,6 +289,7 @@ extension SyncMessage {
         case .startRoundRefused: "startRoundRefused"
         case .startRoundChecking: "startRoundChecking"
         case .cancelRound: "cancelRound"
+        case .roundDeleted: "roundDeleted"
         case .endRequest: "endRequest"
         case .endRound: "endRound"
         case .endAck: "endAck"
@@ -290,6 +301,8 @@ extension SyncMessage {
         case .settings: "settings"
         case .context: "context"
         case .chunk: "chunk"
+        case .phoneSettings: "phoneSettings"
+        case .puttSession: "puttSession"
         }
     }
 }

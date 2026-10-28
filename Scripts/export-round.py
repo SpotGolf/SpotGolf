@@ -6,6 +6,8 @@
 
 The round defaults to the latest one on the phone. The phone and watch default to the first
 physical iPhone and Apple Watch `devicectl` lists. Nothing on the devices is changed.
+The watch records a round's capture, and so its sensor clips, only when Developer Mode was on
+in the phone's Settings for that round. It keeps captures for its last 5 rounds.
 
 Every time in the folder is `t`, seconds since the round started (the round's date on the phone).
 Sensor clips use the mock sensors' format from SensorSources, with `t` from the clip's start, and
@@ -440,7 +442,7 @@ def export(args):
             fail(f"{out} exists; pass --force to replace it")
         shutil.rmtree(out)
 
-    # Every other file on both devices, except Putt Lab captures of other rounds
+    # Every other file on both devices, except captures of other rounds
     copied = {STORE, STORE + "-wal", STORE + "-shm"}
     for path, size in phone_files:
         if path not in copied and not skipped(path):
@@ -585,7 +587,7 @@ def build(out, raw_phone, raw_watch, rid, devices):
     write_csv(os.path.join(timeline, "holes.csv"),
               ["t", "holeIndex", "hole", "nine", "par", "pinLat", "pinLon", "pinSource", "pinSetT"], hole_rows)
 
-    # Putt Lab: each green's segment as a mock sensor clip, and its CSVs on the round's clock
+    # Developer Mode: each green's segment as a mock sensor clip, and its CSVs on the round's clock
     greens = []
     clip_rows = []
     merged = {name: [] for name in ("contacts", "candidates", "events", "locations", "marks")}
@@ -637,7 +639,7 @@ def build(out, raw_phone, raw_watch, rid, devices):
                 write_csv(os.path.join(timeline, f"green-{kind}.csv"),
                           [headers[kind][0], "segment", "hole", *headers[kind][1:]], rows)
     else:
-        warn("the watch has no Putt Lab capture for this round, so there are no sensor clips")
+        warn("the watch has no capture for this round (Developer Mode was off), so there are no sensor clips")
     counts["clips"] = len(segments)
 
     # The rest of the round: course, bag, settings
@@ -724,13 +726,13 @@ if __name__ == "__main__":
 #
 # Data/Simulations/<course>-<date>/
 #   round.json          The round: ID, course, tee, start, end, counts, settings on both devices, club
-#                       distances, each green's clip with its Putt Lab meta, and every stored round field
+#                       distances, each green's clip with its capture meta, and every stored round field
 #                       from the phone (round) and the watch (watchRound)
 #   course.json         The round's CourseSelection, with the whole course
 #   stream.bin          The watch's stream as the phone stores it: 25-byte StreamRecords in index order
 #   clips.csv           t,duration,clip,...: when each green's sensor clip starts
 #   clips/NNN-holeH.clip/
-#                       A Putt Lab segment in the mock sensors' format: accelerometer.csv (800 Hz),
+#                       A Developer Mode segment in the mock sensors' format: accelerometer.csv (800 Hz),
 #                       motion.csv (200 Hz), audio.wav (48 kHz mono, mic gaps as silence)
 #   timeline/           Everything else on the round's clock, `t` first
 #     fixes.csv         GPS fixes (1 Hz) from the stream: what a replay sends to both simulators
@@ -740,7 +742,7 @@ if __name__ == "__main__":
 #     strokes.csv       The strokes the player kept
 #     holes.csv         Each hole's start, par and pin
 #     log.csv           Log lines from both devices
-#     green-*.csv       The Putt Lab segments' contacts, candidates, events, GPS fixes and marks
+#     green-*.csv       The Developer Mode segments' contacts, candidates, events, GPS fixes and marks
 #   raw/phone, raw/watch
 #                       Every file copied from the apps' containers, untouched (stores, settings, course
-#                       cache, this round's Putt Lab capture)
+#                       cache, this round's Developer Mode capture)

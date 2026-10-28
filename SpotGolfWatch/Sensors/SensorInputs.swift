@@ -9,7 +9,7 @@ import SensorSources
 ///
 /// Every input is watched: one that errors, goes quiet for `RestartWatchdog.interval`, or sends
 /// only data that is not real (`SensorHealth`) for that long, is started again from scratch,
-/// so a round and a Putt Lab capture recover from a stall the same way. An input restarted
+/// so a round and a Developer Mode capture recover from a stall the same way. An input restarted
 /// `RestartWatchdog.stallRestarts` times in a row with no real data is stalled, and `onStalled`
 /// is called: for a batched sensor the workout probably needs a new session, which only
 /// `WorkoutManager` can give it.

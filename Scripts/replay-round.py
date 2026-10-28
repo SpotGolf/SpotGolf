@@ -4,14 +4,14 @@
     Scripts/replay-round.py <round folder> [--phone SIMULATOR] [--watch SIMULATOR] [--from MIN] [--to MIN]
     Scripts/replay-round.py <round folder> --holes          when each hole and green starts
 
-1. Sets the round's settings (stationary threshold, green zone, Putt Lab in rounds) on the
+1. Sets the round's settings (stationary threshold, green zone, Developer Mode) on the
    phone simulator and relaunches the phone app.
 2. Puts both simulators at the round's first GPS fix and asks to continue. Start the round by
    hand on the phone, on the round's course and tee, then answer y (n exits). A round already
    running is used as it is.
 3. From the round's start, plays in real time:
    - every GPS fix to both simulators
-   - each green's Putt Lab clip to the watch's mock sensors
+   - each green's Developer Mode clip to the watch's mock sensors
    - each swing the watch detected away from the greens, as a short accelerometer clip that peaks
      at the swing's force at the swing's time
 4. Stops at the end of the round, at --to, when the phone's round ends, or on Ctrl-C.
@@ -44,7 +44,7 @@ CLIP_LEAD = 20.0
 ACCEL_RATE = 800
 SWING_CLIP = 0.25
 SWING_AT = 0.1
-SETTINGS = {"stationaryThreshold": "-float", "greenZone": "-float", "puttLabInRounds": "-bool"}
+SETTINGS = {"stationaryThreshold": "-float", "greenZone": "-float", "developerMode": "-bool"}
 
 
 def fail(message):

@@ -1,41 +1,27 @@
 import SwiftUI
 
-/// Records raw sensor data for putting detection work. Outside a round a capture is started by
-/// hand; in a round the round starts it, and the page records on each green.
-struct PuttLabView: View {
+/// The round's Developer Mode page: the round records raw sensor data on each green, and the
+/// page marks strokes while it does. Shown only in a round with Developer Mode on.
+struct DeveloperModeView: View {
     @Environment(WatchServices.self) private var services
 
     /// The mark just made, shown with Undo until it is accepted or `confirmationTime` passes.
     @State private var lastMark: PuttCapture.MarkLabel?
     @State private var confirmationTask: Task<Void, Never>?
-    @State private var showsCaptures = false
 
     private static let confirmationTime: Duration = .seconds(4)
 
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
-                Text("Putt Lab")
+                Text("Developer Mode")
                     .font(.headline)
 
                 switch services.puttCapture.state {
                 case .idle:
-                    if services.roundStore.activeRound != nil {
-                        offForRound
-                    } else {
-                        idle
-                    }
+                    off
                 case .waiting:
                     waiting
-                case .starting:
-                    ProgressView()
-                    Text("Starting workout…")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(verbatim: services.workoutManager.stateText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Button("Cancel") { services.puttCapture.stop() }
                 case .recording:
                     if let lastMark {
                         confirmation(lastMark)
@@ -54,49 +40,15 @@ struct PuttLabView: View {
         }
     }
 
-    @ViewBuilder
-    private var idle: some View {
-        @Bindable var recorder = services.puttCapture
-        VStack(spacing: 8) {
-            Text("Records wrist motion and sound while you putt. Tap a button after each stroke.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Start Capture") {
-                Task { await services.puttCapture.start() }
-            }
-            .tint(.green)
-            Toggle("Microphone", isOn: $recorder.microphone)
-                .font(.caption2)
-            Toggle("Save data", isOn: $recorder.savesData)
-                .font(.caption2)
-            if !services.puttCapture.savesData {
-                Text("Battery test: the sensors run and nothing is saved. Leave the watch alone for 20 minutes or more, then stop.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            if services.puttCapture.micPermission == .denied {
-                Text("Microphone off: allow it in Settings")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            }
-            Button("Captures") { showsCaptures = true }
-                .sheet(isPresented: $showsCaptures) {
-                    NavigationStack { CapturesView() }
-                }
-        }
-    }
-
-    /// In a round with Putt Lab off, or stopped on this page.
-    private var offForRound: some View {
-        Text("Putt Lab is off for this round. Turn on Putt Lab During Rounds in Settings on your iPhone before the next round.")
+    /// Stopped on this page.
+    private var off: some View {
+        Text("Recording is off for this round. It starts again next round while Developer Mode is on.")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
     }
 
-    /// In a round, between greens.
+    /// Between greens.
     private var waiting: some View {
         VStack(spacing: 8) {
             Text("Hole \(services.roundStore.activeRound?.displayHoleNumber ?? 0)")
@@ -119,7 +71,7 @@ struct PuttLabView: View {
             Button(PuttCapture.MarkLabel.ground.title) { mark(.ground) }
                 .tint(.brown)
             Button("Stop", role: .destructive) { services.puttCapture.stop() }
-            // Changes only when a contact is found, with a haptic
+            // Changes only when a contact is found
             Text("\(services.puttCapture.contactCount) contacts")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -159,5 +111,4 @@ struct PuttLabView: View {
         confirmationTask = nil
         lastMark = nil
     }
-
 }

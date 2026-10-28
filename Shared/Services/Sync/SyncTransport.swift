@@ -23,6 +23,13 @@ protocol SyncTransport: AnyObject {
 
     /// Replaces the latest state the other app receives.
     func updateContext(_ payload: [String: Any])
+
+    /// Sends a file in the background, even if either app quits first. The file must stay
+    /// where it is until the transfer finishes.
+    func transferFile(_ url: URL, metadata: [String: Any])
+
+    /// The metadata of files still being sent.
+    var outstandingFileTransfers: [[String: Any]] { get }
 }
 
 @MainActor
@@ -32,6 +39,10 @@ protocol SyncTransportDelegate: AnyObject {
     /// A payload from `queue` or `updateContext`. No reply.
     func transport(didReceiveQueued payload: [String: Any])
     func transportReachabilityChanged()
+    /// A file from `transferFile`, moved to `url`, which the delegate now owns.
+    func transport(didReceiveFile url: URL, metadata: [String: Any])
+    /// A file this app sent arrived, or failed for good with `error`.
+    func transport(didFinishFileTransfer metadata: [String: Any], error: Error?)
 }
 
 /// `SyncTransport` over the default `WCSession`.
@@ -157,6 +168,24 @@ final class WatchConnectivityTransport: NSObject, SyncTransport {
             Log.sync.error("Could not update application context: \(String(describing: error))")
         }
     }
+
+    func transferFile(_ url: URL, metadata: [String: Any]) {
+        guard let session, isActivated else {
+            Log.sync.error("File transfer of \(url.lastPathComponent) dropped: WCSession not activated")
+            return
+        }
+        session.transferFile(url, metadata: metadata)
+    }
+
+    var outstandingFileTransfers: [[String: Any]] {
+        guard let session, isActivated else { return [] }
+        return session.outstandingFileTransfers.map { $0.file.metadata ?? [:] }
+    }
+
+    /// Where received files are moved, since WatchConnectivity deletes them once its callback returns.
+    nonisolated static var receivedFilesDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("received-files", isDirectory: true)
+    }
 }
 
 enum SyncTransportError: Error {
@@ -218,12 +247,39 @@ extension WatchConnectivityTransport: WCSessionDelegate {
         let payload = SendablePayload(applicationContext)
         Task { @MainActor in self.delegate?.transport(didReceiveQueued: payload.value) }
     }
+
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        // The file is deleted when this returns, so it is moved before then
+        let directory = Self.receivedFilesDirectory
+        let url = directory.appendingPathComponent("\(UUID().uuidString)-\(file.fileURL.lastPathComponent)")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.moveItem(at: file.fileURL, to: url)
+        } catch {
+            Log.sync.error("Could not keep the received file \(file.fileURL.lastPathComponent): \(String(describing: error))")
+            return
+        }
+        let metadata = SendablePayload(file.metadata ?? [:])
+        Task { @MainActor in self.delegate?.transport(didReceiveFile: url, metadata: metadata.value) }
+    }
+
+    nonisolated func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        let metadata = SendablePayload(fileTransfer.file.metadata ?? [:])
+        let failure = error.map { SendableError($0) }
+        Task { @MainActor in self.delegate?.transport(didFinishFileTransfer: metadata.value, error: failure?.error) }
+    }
 }
 
 // WatchConnectivity payloads hold only property-list values, which are safe to pass between threads
 private struct SendablePayload: @unchecked Sendable {
     let value: [String: Any]
     init(_ value: [String: Any]) { self.value = value }
+}
+
+// An error from WatchConnectivity, only read on the main actor
+private struct SendableError: @unchecked Sendable {
+    let error: Error
+    init(_ error: Error) { self.error = error }
 }
 
 // Only ever called on the main actor

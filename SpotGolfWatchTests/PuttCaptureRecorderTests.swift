@@ -12,7 +12,7 @@ final class PuttCaptureRecorderTests: XCTestCase {
     override func setUp() {
         super.setUp()
         root = FileManager.default.temporaryDirectory.appendingPathComponent("recorder-tests-\(UUID().uuidString)", isDirectory: true)
-        recorder = PuttCaptureRecorder(sensors: SensorInputs(), workouts: WorkoutManager(), root: root) { true }
+        recorder = PuttCaptureRecorder(sensors: SensorInputs(), root: root)
         // The simulator has no mic to ask about
         recorder.microphone = false
     }
@@ -173,6 +173,73 @@ final class PuttCaptureRecorderTests: XCTestCase {
 
         XCTAssertEqual(recorder.state, .idle)
         XCTAssertEqual(recorder.contactCount, 0)
+        XCTAssertEqual(captureFolders.count, 0)
+    }
+
+    // MARK: - Keeping captures
+
+    /// A finished capture of `round` that started at `date`, as a recorded segment leaves it.
+    @discardableResult
+    private func makeCapture(round: UUID?, date: Date) throws -> URL {
+        let capture = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let segment = capture.appendingPathComponent(PuttCapture.segmentFolder(1, hole: 1), isDirectory: true)
+        try FileManager.default.createDirectory(at: segment, withIntermediateDirectories: true)
+        var meta = PuttCapture.Meta(startDate: date, startUptime: 0)
+        meta.roundID = round
+        meta.endDate = date.addingTimeInterval(60)
+        try meta.json().write(to: segment.appendingPathComponent(PuttCapture.metaFile))
+        return capture
+    }
+
+    func testRoundStartKeepsTheLastRoundsCaptures() throws {
+        let rounds = (0..<6).map { _ in UUID() }
+        var kept: [URL] = []
+        for (index, round) in rounds.enumerated() {
+            let capture = try makeCapture(round: round, date: Date(timeIntervalSince1970: 1_700_000_000 + Double(index) * 86_400))
+            if index >= 2 { kept.append(capture) }
+        }
+        // A round resumed later has two captures, and both stay
+        kept.append(try makeCapture(round: rounds[5], date: Date(timeIntervalSince1970: 1_700_600_000)))
+        // From outside a round, before Developer Mode
+        try makeCapture(round: nil, date: Date(timeIntervalSince1970: 1_700_900_000))
+
+        recorder.pruneCaptures(keeping: roundID)
+
+        XCTAssertEqual(Set(captureFolders.map(\.lastPathComponent)), Set(kept.map(\.lastPathComponent)))
+    }
+
+    func testRoundStartKeepsTheStartingRoundsOwnCaptures() throws {
+        let own = try makeCapture(round: roundID, date: Date(timeIntervalSince1970: 1_600_000_000))
+        for index in 0..<5 {
+            try makeCapture(round: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)))
+        }
+
+        recorder.pruneCaptures(keeping: roundID)
+
+        XCTAssertEqual(captureFolders.count, PuttCaptureRecorder.keptRounds)
+        XCTAssertTrue(captureFolders.contains(where: { $0.lastPathComponent == own.lastPathComponent }))
+    }
+
+    func testDeletingARoundDeletesOnlyItsCaptures() throws {
+        let other = try makeCapture(round: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000))
+        try makeCapture(round: roundID, date: Date(timeIntervalSince1970: 1_700_100_000))
+
+        recorder.deleteCaptures(roundID: roundID)
+
+        XCTAssertEqual(captureFolders.map(\.lastPathComponent), [other.lastPathComponent])
+    }
+
+    func testDeletingTheRecordingRoundEndsAndDeletesItsCapture() async throws {
+        recorder.startInRound(roundID: roundID)
+        recorder.sessionChanged(.started(hole: 1))
+        XCTAssertEqual(captureFolders.count, 1)
+
+        recorder.deleteCaptures(roundID: roundID)
+
+        XCTAssertEqual(recorder.state, .idle)
+        for _ in 0..<50 where !captureFolders.isEmpty {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         XCTAssertEqual(captureFolders.count, 0)
     }
 

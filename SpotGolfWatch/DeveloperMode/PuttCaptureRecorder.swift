@@ -5,20 +5,18 @@ import Observation
 import os
 import WatchKit
 
-/// Records a putt capture: raw accelerometer, device motion and microphone data from
-/// `SensorInputs`, with the player's marks and the contacts found live, one `CaptureWriter`
-/// per segment. Outside a round a capture is one segment from Start Capture to Stop, with a
-/// workout of its own and its own `ContactRunner`. In a round the round starts the capture,
-/// and a segment is written for each of `ContactMonitor`'s sessions on a green, with the
-/// contacts the monitor finds, so one detector runs. See `plans/2026-10-12-putt-lab-in-rounds.md`.
+/// Records a round's putt capture in Developer Mode: raw accelerometer, device motion and
+/// microphone data from `SensorInputs`, with the player's marks and the contacts found live.
+/// The round starts the capture, and a `CaptureWriter` segment is written for each of
+/// `ContactMonitor`'s sessions on a green, with the contacts the monitor finds. Captures are
+/// kept for the last `keptRounds` rounds and deleted with their round. See
+/// `plans/2026-10-12-putt-lab-in-rounds.md` and `plans/2026-10-27-developer-mode.md`.
 @MainActor
 @Observable
 final class PuttCaptureRecorder {
     enum State: Equatable {
         case idle
-        /// Outside a round: waiting for the workout to run.
-        case starting
-        /// In a round: between greens, with no segment open.
+        /// Between greens, with no segment open.
         case waiting
         case recording
     }
@@ -26,21 +24,19 @@ final class PuttCaptureRecorder {
     private(set) var state = State.idle
     /// What went wrong with the files, for the screen. The sensors report their own problems.
     private(set) var problems: [String] = []
-    private(set) var micPermission = MicrophonePermission.state
-    /// Record sound. Off to measure the sensors' battery cost alone.
+    /// Record sound. Off in tests: the simulator has no mic.
     var microphone = true
-    /// Write readings and audio. Off for a battery test: the sensors and the scoring math run,
-    /// nothing is written, and the capture keeps only its counts and battery levels.
-    var savesData = true
     /// Contacts found in the open segment so far, shown live.
     private(set) var contactCount = 0
-    /// The hole of the open or last segment, 1-based; 0 outside a round.
+    /// The hole of the open or last segment, 1-based.
     private(set) var hole = 0
     /// Segments written in the capture so far.
     private(set) var segmentCount = 0
     /// The user stopped the capture during the active round, so the round records no more.
     private(set) var stoppedInRound = false
 
+    /// Captures are kept for this many rounds, the one starting among them.
+    static let keptRounds = 5
     /// A segment does not start with less than this free on the watch.
     static let minFreeSpace: Int64 = 2_000_000_000
     /// Bytes free on the watch, or nil when it does not say. Tests set it.
@@ -51,40 +47,16 @@ final class PuttCaptureRecorder {
     @ObservationIgnored var greenZone: () -> Double? = { nil }
 
     @ObservationIgnored private let sensors: SensorInputs
-    @ObservationIgnored private let workouts: WorkoutManager
-    /// A round is recording: its workout must be left running, and it owns the capture.
-    @ObservationIgnored private let isRoundActive: () -> Bool
     @ObservationIgnored private var captureID: UUID?
     @ObservationIgnored private var roundID: UUID?
     @ObservationIgnored private var captureDirectory: URL?
     @ObservationIgnored private var writer: CaptureWriter?
     @ObservationIgnored private var subscriptions: [SensorInputs.Subscription] = []
-    // Outside a round, the same detector a round runs, so the page shows what a round would record
-    @ObservationIgnored private let runner: ContactRunner
     @ObservationIgnored private var inRound = false
 
-    init(sensors: SensorInputs, workouts: WorkoutManager, root: URL = PuttCaptureRecorder.directory,
-         isRoundActive: @escaping () -> Bool) {
+    init(sensors: SensorInputs, root: URL = PuttCaptureRecorder.directory) {
         self.sensors = sensors
-        self.workouts = workouts
         self.root = root
-        self.isRoundActive = isRoundActive
-        runner = ContactRunner(taps: sensors.taps)
-        // The main queue keeps contacts and candidates ahead of the segment's close, which follows them
-        runner.onContact = { [weak self] contact in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.found(contact) }
-            }
-        }
-        runner.onCandidate = { [weak self] candidate in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.writer?.add(candidate: candidate) }
-            }
-        }
-        // Batched sensor data only arrives once the workout runs, which is some time after `start`
-        workouts.addRunningListener { [weak self] isRunning in
-            if isRunning { self?.beginStandalone() }
-        }
     }
 
     /// The root folder captures are recorded into.
@@ -98,37 +70,9 @@ final class PuttCaptureRecorder {
         CaptureWriter.finishUnfinished(under: root)
     }
 
-    // MARK: - Outside a round
-
-    func start() async {
-        guard state == .idle, !isRoundActive() else { return }
-        if micPermission == .notAsked {
-            await MicrophonePermission.request()
-            micPermission = MicrophonePermission.state
-        }
-        state = .starting
-        problems = []
-        Log.puttLab.notice("Putt capture starting; waiting for the workout")
-        workouts.start()
-        if workouts.isRunning {
-            beginStandalone()
-        }
-    }
-
-    private func beginStandalone() {
-        guard state == .starting else { return }
-        inRound = false
-        roundID = nil
-        guard beginCapture() else { return }
-        openSegment(hole: 0)
-        if state != .recording {
-            endCapture(endWorkout: true)
-        }
-    }
-
     // MARK: - In a round
 
-    /// The round started with Putt Lab on: a capture that records a segment per green.
+    /// The round started with Developer Mode on: a capture that records a segment per green.
     func startInRound(roundID: UUID) {
         stop()
         guard state == .idle else { return }
@@ -138,7 +82,7 @@ final class PuttCaptureRecorder {
         problems = []
         guard beginCapture() else { return }
         state = .waiting
-        Log.puttLab.notice("Putt capture \(self.captureID?.uuidString ?? "") waiting for a green in round \(roundID)")
+        Log.developerMode.notice("Putt capture \(self.captureID?.uuidString ?? "") waiting for a green in round \(roundID)")
     }
 
     /// The contact monitor went on or off on a green.
@@ -170,7 +114,7 @@ final class PuttCaptureRecorder {
     /// The round the capture is recording, or nil.
     var captureRoundID: UUID? { inRound ? roundID : nil }
 
-    /// Putt Lab is recording the round, so the monitor's sessions should record their candidates.
+    /// Developer Mode is recording the round, so the monitor's sessions should record their candidates.
     var recordsRound: Bool { inRound && state != .idle }
 
     // MARK: - Events and locations
@@ -202,7 +146,77 @@ final class PuttCaptureRecorder {
         if state == .recording {
             closeSegment(reason: .roundEnded)
         }
-        endCapture(endWorkout: false)
+        endCapture()
+    }
+
+    // MARK: - Keeping captures
+
+    /// Deletes every capture but those of the `keptRounds - 1` most recent rounds other than
+    /// `roundID`, which is starting, and every capture with no round. Called as a round starts,
+    /// before its own capture is made.
+    func pruneCaptures(keeping roundID: UUID) {
+        var latest: [UUID: Date] = [:]
+        let captures = Self.captures(in: root)
+        for capture in captures {
+            guard let round = capture.roundID, round != roundID else { continue }
+            latest[round] = max(latest[round] ?? .distantPast, capture.date)
+        }
+        let kept = Set(latest.sorted { $0.value > $1.value }.prefix(Self.keptRounds - 1).map(\.key) + [roundID])
+        for capture in captures where capture.roundID.map({ !kept.contains($0) }) ?? true {
+            delete(capture.url)
+        }
+    }
+
+    /// Deletes the round's captures. One still recording is closed first and deleted once its
+    /// files are.
+    func deleteCaptures(roundID: UUID) {
+        let open = inRound && self.roundID == roundID ? captureDirectory : nil
+        if let open {
+            if state == .recording {
+                closeSegment(reason: .roundEnded) { [weak self] in self?.delete(open) }
+            } else {
+                delete(open)
+            }
+            endCapture()
+        }
+        for capture in Self.captures(in: root) where capture.roundID == roundID && capture.url != open {
+            delete(capture.url)
+        }
+    }
+
+    private func delete(_ capture: URL) {
+        do {
+            try FileManager.default.removeItem(at: capture)
+            Log.developerMode.notice("Deleted capture \(capture.lastPathComponent)")
+        } catch {
+            Log.developerMode.error("Could not delete capture \(capture.lastPathComponent): \(String(describing: error))")
+        }
+    }
+
+    /// A capture folder, its round and its date: the first segment's, or the folder's creation
+    /// when no segment has details yet.
+    struct Capture: Equatable {
+        let url: URL
+        let roundID: UUID?
+        let date: Date
+    }
+
+    /// The capture folders under `root`.
+    static func captures(in root: URL) -> [Capture] {
+        let manager = FileManager.default
+        let folders = (try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey])) ?? []
+        return folders.filter(\.isDirectory).map { folder in
+            var date = (try? folder.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            var roundID: UUID?
+            let segments = (try? manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
+            if let first = segments.filter(\.isDirectory).min(by: { $0.lastPathComponent < $1.lastPathComponent }),
+               let data = try? Data(contentsOf: first.appendingPathComponent(PuttCapture.metaFile)),
+               let meta = try? PuttCapture.Meta(json: data) {
+                date = meta.startDate
+                roundID = meta.roundID
+            }
+            return Capture(url: folder, roundID: roundID, date: date)
+        }
     }
 
     // MARK: - Capture
@@ -214,7 +228,7 @@ final class PuttCaptureRecorder {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         } catch {
-            Log.puttLab.error("Could not create the capture folder: \(String(describing: error))")
+            Log.developerMode.error("Could not create the capture folder: \(String(describing: error))")
             problems.append(String(localized: "Could not create files"))
             state = .idle
             inRound = false
@@ -226,15 +240,12 @@ final class PuttCaptureRecorder {
         return true
     }
 
-    private func endCapture(endWorkout: Bool) {
+    private func endCapture() {
         captureID = nil
         captureDirectory = nil
         roundID = nil
         inRound = false
         state = .idle
-        if endWorkout {
-            workouts.stop()
-        }
     }
 
     // MARK: - Segments
@@ -242,7 +253,7 @@ final class PuttCaptureRecorder {
     private func openSegment(hole: Int) {
         guard let captureID, let captureDirectory else { return }
         if let free = freeSpace(), free < Self.minFreeSpace {
-            Log.puttLab.error("No segment: \(free / 1_000_000) MB free on the watch")
+            Log.developerMode.error("No segment: \(free / 1_000_000) MB free on the watch")
             problems = [String(localized: "Not enough free space")]
             return
         }
@@ -251,21 +262,20 @@ final class PuttCaptureRecorder {
         var meta = PuttCapture.Meta(startDate: startDate, startUptime: startUptime)
         meta.startBattery = Self.batteryLevel
         meta.microphone = microphone
-        meta.savesData = savesData
         meta.captureID = captureID
         meta.roundID = roundID
         meta.hole = hole
         meta.segment = segmentCount + 1
-        meta.greenZone = inRound ? greenZone() : nil
+        meta.greenZone = greenZone()
         let device = WKInterfaceDevice.current()
         meta.wristLocation = device.wristLocation == .left ? "left" : "right"
         meta.crownOrientation = device.crownOrientation == .left ? "left" : "right"
         let directory = captureDirectory.appendingPathComponent(PuttCapture.segmentFolder(segmentCount + 1, hole: hole), isDirectory: true)
         let writer: CaptureWriter
         do {
-            writer = try CaptureWriter(directory: directory, meta: meta, savesData: savesData, microphone: microphone)
+            writer = try CaptureWriter(directory: directory, meta: meta, savesData: true, microphone: microphone)
         } catch {
-            Log.puttLab.error("Could not create the segment's files: \(String(describing: error))")
+            Log.developerMode.error("Could not create the segment's files: \(String(describing: error))")
             problems = [String(localized: "Could not create files")]
             return
         }
@@ -275,62 +285,35 @@ final class PuttCaptureRecorder {
         contactCount = 0
         problems = []
         state = .recording
-        Log.puttLab.notice("Segment \(self.segmentCount) of capture \(captureID) recording at hole \(hole); microphone \(self.microphone), saving \(self.savesData)")
+        Log.developerMode.notice("Segment \(self.segmentCount) of capture \(captureID) recording at hole \(hole); microphone \(self.microphone)")
 
-        let runner = inRound ? nil : self.runner
-        runner?.start(recordingCandidates: true)
         subscriptions = [
-            sensors.subscribeAccelerometer { batch in
-                runner?.addAccelerometer(batch)
-                writer.add(accelerometer: batch)
-            },
-            sensors.subscribeDeviceMotion { batch in
-                runner?.addMotion(batch)
-                writer.add(motion: batch)
-            }
+            sensors.subscribeAccelerometer { batch in writer.add(accelerometer: batch) },
+            sensors.subscribeDeviceMotion { batch in writer.add(motion: batch) }
         ]
         if microphone {
-            subscriptions.append(sensors.subscribeMicrophone { buffer in
-                runner?.addAudio(buffer.samples, hostSeconds: buffer.hostTime, sampleRate: buffer.sampleRate)
-                writer.add(audio: buffer)
-            })
+            subscriptions.append(sensors.subscribeMicrophone { buffer in writer.add(audio: buffer) })
         }
     }
 
-    private func closeSegment(reason: PuttCapture.EndReason) {
+    /// Closes the open segment. `then` runs once its files are closed.
+    private func closeSegment(reason: PuttCapture.EndReason, then: @escaping @MainActor () -> Void = {}) {
         guard let writer else { return }
         for subscription in subscriptions {
             subscription.cancel()
         }
         subscriptions = []
-        let battery = Self.batteryLevel
-        if inRound {
-            // The monitor reports a stop after the contact it flushes, so nothing is left to come
-            self.writer = nil
-            writer.finish(reason: reason, battery: battery) { _ in }
-        } else {
-            // The stroke still open in the detector, and its candidates, reach the files first:
-            // the writer stays open until they have come through the main queue
-            runner.stop { [weak self] in
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        if self?.writer === writer { self?.writer = nil }
-                        writer.finish(reason: reason, battery: battery) { _ in }
-                    }
-                }
-            }
-        }
+        // The monitor reports a stop after the contact it flushes, so nothing is left to come
+        self.writer = nil
+        writer.finish(reason: reason, battery: Self.batteryLevel) { _ in then() }
     }
 
     private func found(_ contact: ContactDetector.Contact) {
         guard let writer else { return }
         writer.add(contact: contact)
         contactCount += 1
-        Log.puttLab.notice("Contact at \(contact.time - writer.startUptime) s: score \(contact.score)")
-        // In a round a haptic would only add contacts the phone could suggest
-        if !inRound {
-            sensors.play(.directionUp)
-        }
+        // No haptic: it would only add contacts the phone could suggest
+        Log.developerMode.notice("Contact at \(contact.time - writer.startUptime) s: score \(contact.score)")
     }
 
     // MARK: - Marks
@@ -339,7 +322,7 @@ final class PuttCaptureRecorder {
     func mark(_ label: PuttCapture.MarkLabel) {
         guard state == .recording, let writer else { return }
         let mark = writer.mark(label)
-        Log.puttLab.notice("Mark \(label.rawValue) at \(mark.t) s")
+        Log.developerMode.notice("Mark \(label.rawValue) at \(mark.t) s")
         sensors.play(.success)
     }
 
@@ -347,35 +330,26 @@ final class PuttCaptureRecorder {
     func undoLastMark() {
         guard state == .recording, let writer else { return }
         writer.undoLastMark()
-        Log.puttLab.notice("Undid the last mark")
+        Log.developerMode.notice("Undid the last mark")
         sensors.play(.click)
     }
 
     // MARK: - Stop
 
-    /// Stops the capture. Outside a round this also cancels a start still waiting; in a round
-    /// the round records no more segments.
+    /// Stops the capture: the round records no more segments.
     func stop() {
         switch state {
         case .idle:
             return
-        case .starting:
-            sensors.tapped()
-            Log.puttLab.notice("Putt capture cancelled before recording")
-            endCapture(endWorkout: !isRoundActive())
         case .waiting:
-            Log.puttLab.notice("Putt capture stopped for the rest of the round")
-            stoppedInRound = true
-            endCapture(endWorkout: false)
+            break
         case .recording:
             sensors.tapped()
             closeSegment(reason: .stopped)
-            if inRound {
-                Log.puttLab.notice("Putt capture stopped for the rest of the round")
-                stoppedInRound = true
-            }
-            endCapture(endWorkout: !inRound && !isRoundActive())
         }
+        Log.developerMode.notice("Putt capture stopped for the rest of the round")
+        stoppedInRound = true
+        endCapture()
     }
 
     // MARK: - Device

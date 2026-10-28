@@ -15,8 +15,18 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.greenZone) private var greenZone: Double = HoleShape.chipZoneMargin
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
     @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
-    @AppStorage(SettingsKey.puttLabInRounds) private var puttLabInRounds = true
+    @AppStorage(SettingsKey.developerMode) private var developerMode = false
     @AppStorage(SettingsKey.iCloudSync) private var iCloudSync = true
+
+    /// Taps on Version toward unlocking Developer Mode, and when the last one was.
+    @State private var versionTaps = 0
+    @State private var lastVersionTap = Date.distantPast
+    @State private var showsDeveloperModeOn = false
+
+    /// Taps on Version that turn Developer Mode on.
+    static let developerModeTaps = 7
+    /// A pause longer than this between taps starts the count again.
+    static let developerModeTapGap: TimeInterval = 2
 
     private let thresholdOptions = stride(from: 10, through: 120, by: 5).map { $0 }
     private let zoneOptions = stride(from: 5, through: 50, by: 5).map { $0 }
@@ -78,14 +88,6 @@ struct SettingsView: View {
                     Text(iCloudFooter)
                 }
                 Section {
-                    Toggle("Putt Lab During Rounds", isOn: $puttLabInRounds)
-                        .accessibilityIdentifier("PuttLabInRounds")
-                } header: {
-                    Text("Putt Lab")
-                } footer: {
-                    Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. A change reaches the watch when you open the round.")
-                }
-                Section {
                     NavigationLink("Log") { LogView(scope: .outsideRounds) }
                         .accessibilityIdentifier("OpenLog")
                     Toggle("Debug Logging", isOn: $debugLogging)
@@ -100,9 +102,21 @@ struct SettingsView: View {
                 #endif
                 Section {
                     LabeledContent("Version", value: AppVersion.text())
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: versionTapped)
                         .accessibilityIdentifier("AppVersion")
                 } header: {
                     Text("About")
+                }
+                if developerMode {
+                    Section {
+                        Toggle("Developer Mode", isOn: $developerMode)
+                            .accessibilityIdentifier("DeveloperMode")
+                    } header: {
+                        Text("Developer")
+                    } footer: {
+                        Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Get them with Scripts/export-round.py. A change reaches the watch when you open the round.")
+                    }
                 }
             }
             .navigationTitle("Settings")
@@ -113,6 +127,9 @@ struct SettingsView: View {
             .onChange(of: iCloudSync) { _, enabled in
                 services.setCloudSync(enabled)
             }
+            .alert("Developer Mode On", isPresented: $showsDeveloperModeOn) {
+                Button("OK") {}
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -122,6 +139,18 @@ struct SettingsView: View {
         #if DEBUG
         .modifier(ImportRoundPickers(showCoursePicker: $showImportCoursePicker, message: $importMessage))
         #endif
+    }
+
+    /// Counts taps on Version; the seventh in a row turns Developer Mode on.
+    private func versionTapped() {
+        let now = Date()
+        versionTaps = now.timeIntervalSince(lastVersionTap) > Self.developerModeTapGap ? 1 : versionTaps + 1
+        lastVersionTap = now
+        guard !developerMode, versionTaps >= Self.developerModeTaps else { return }
+        versionTaps = 0
+        developerMode = true
+        showsDeveloperModeOn = true
+        Log.developerMode.notice("Developer Mode turned on")
     }
 }
 

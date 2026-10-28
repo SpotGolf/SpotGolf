@@ -49,7 +49,7 @@ final class CaptureAudioWriter: @unchecked Sendable {
                     file = try AVAudioFile(forWriting: url, settings: Self.settings(sampleRate: buffer.sampleRate),
                                            commonFormat: .pcmFormatFloat32, interleaved: false)
                 } catch {
-                    Log.puttLab.error("Could not create the audio file: \(String(describing: error))")
+                    Log.developerMode.error("Could not create the audio file: \(String(describing: error))")
                 }
             }
         }
@@ -57,7 +57,7 @@ final class CaptureAudioWriter: @unchecked Sendable {
             do {
                 try file.write(from: Self.pcmBuffer(buffer))
             } catch {
-                Log.puttLab.error("Audio write failed: \(String(describing: error))")
+                Log.developerMode.error("Audio write failed: \(String(describing: error))")
             }
         }
         let first = frames
