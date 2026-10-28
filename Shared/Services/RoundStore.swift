@@ -113,18 +113,26 @@ class RoundStore {
 
     // MARK: - Display hole
 
-    /// Shows a hole on both devices. The active round when `roundID` is nil.
-    func setDisplayHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date()) {
+    /// Shows a hole on both devices. The active round when `roundID` is nil. `holds` is for a
+    /// hole the user picked; see `Round.setDisplayHole`.
+    func setDisplayHole(_ index: Int, roundID: UUID? = nil, at date: Date = Date(), holds: Bool = false) {
         guard let id = roundID ?? activeRound?.id, let round = round(id),
-              round.setDisplayHole(index, at: date) else { return }
+              round.setDisplayHole(index, at: date, holds: holds) else { return }
+        changed(round)
+        report(.displayHoleChanged(round))
+    }
+
+    /// Keeps the watch's GPS from moving the display hole on for a while, as the user edits a spot.
+    func holdDisplayHole(roundID: UUID, at date: Date = Date()) {
+        guard let round = round(roundID), round.holdDisplayHole(at: date) else { return }
         changed(round)
         report(.displayHoleChanged(round))
     }
 
     /// Takes the other device's display hole when it is newer. Returns true if it changed.
     @discardableResult
-    func mergeDisplayHole(_ displayHole: DisplayHole, roundID: UUID) -> Bool {
-        guard let round = round(roundID), round.mergeDisplayHole(displayHole) else { return false }
+    func mergeDisplayHole(_ displayHole: DisplayHole, heldUntil: Date = .distantPast, roundID: UUID) -> Bool {
+        guard let round = round(roundID), round.mergeDisplayHole(displayHole, heldUntil: heldUntil) else { return false }
         changed(round)
         return true
     }

@@ -87,6 +87,12 @@ struct RoundMapView: View {
             guard let round else { return }
             hold.editChanged(isEditing: editing, shownHoleIndex: shownHoleIndex(round))
         }
+        .onChange(of: isEditingSpot) {
+            // Starting and ending a spot edit each give the player time before the watch moves on
+            if let round, round.isActive {
+                services.roundStore.holdDisplayHole(roundID: round.id)
+            }
+        }
         .onChange(of: round.map(shownHoleIndex)) {
             target = nil
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -116,7 +122,12 @@ struct RoundMapView: View {
 
     /// A spot's sheet is open, a spot is being dragged, or Green View is open.
     private var isEditing: Bool {
-        spot.stroke != nil || isDraggingSpot || greenView.isShown
+        isEditingSpot || greenView.isShown
+    }
+
+    /// A spot's sheet is open or a spot is being dragged. Taking a suggestion opens its sheet.
+    private var isEditingSpot: Bool {
+        spot.stroke != nil || isDraggingSpot
     }
 
     private var shownHoleHeading: Double? {
@@ -210,7 +221,7 @@ struct RoundMapView: View {
         // The user's own choice of hole ends any hold
         hold.release()
         if round.isActive {
-            services.roundStore.setDisplayHole(index, roundID: round.id)
+            services.roundStore.setDisplayHole(index, roundID: round.id, holds: true)
         } else {
             pastHoleIndex = index
         }

@@ -4,6 +4,10 @@ import Foundation
 /// next hole, and the user can pick any hole on either device. It says nothing about when holes
 /// were played; that is the hole timeline.
 struct DisplayHole: Codable, Equatable {
+    /// How long the watch's GPS leaves the hole alone after the user picks a hole or edits a spot.
+    /// The hold is kept beside the display hole, in `Round.displayHoleHeldUntil`.
+    static let holdTime: TimeInterval = 30
+
     var holeIndex: Int
     /// When it was last set. When both devices set it, the later one wins.
     var changedAt: Date

@@ -179,6 +179,48 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(round.displayHoleIndex, 3)
     }
 
+    func testPickedDisplayHoleIsHeldForTheHoldTime() {
+        var round = Round(courseSelection: .test)
+        let when = round.date.addingTimeInterval(600)
+
+        round.setDisplayHole(1, at: when)
+        XCTAssertFalse(round.isDisplayHoleHeld(at: when))
+
+        round.setDisplayHole(2, at: when, holds: true)
+        XCTAssertTrue(round.isDisplayHoleHeld(at: when.addingTimeInterval(DisplayHole.holdTime - 1)))
+        XCTAssertFalse(round.isDisplayHoleHeld(at: when.addingTimeInterval(DisplayHole.holdTime)))
+    }
+
+    func testHoldDisplayHoleRestartsTheHoldAndKeepsTheHole() {
+        var round = Round(courseSelection: .test)
+        let when = round.date.addingTimeInterval(600)
+        round.setDisplayHole(2, at: when, holds: true)
+        let changedAt = round.displayHole.changedAt
+
+        XCTAssertTrue(round.holdDisplayHole(at: when.addingTimeInterval(20)))
+
+        XCTAssertEqual(round.displayHoleIndex, 2)
+        XCTAssertEqual(round.displayHole.changedAt, changedAt)
+        XCTAssertTrue(round.isDisplayHoleHeld(at: when.addingTimeInterval(DisplayHole.holdTime + 19)))
+        // An earlier time does not shorten it
+        XCTAssertFalse(round.holdDisplayHole(at: when))
+    }
+
+    func testMergeDisplayHoleTakesTheLongerHoldWithoutMovingTheHoleBack() {
+        var round = Round(courseSelection: .test)
+        let when = round.date.addingTimeInterval(600)
+        round.setDisplayHole(3, at: when)
+        let held = when.addingTimeInterval(40)
+
+        // The other device held hole 2 before it heard of hole 3
+        XCTAssertTrue(round.mergeDisplayHole(DisplayHole(holeIndex: 2, changedAt: when.addingTimeInterval(-10)), heldUntil: held))
+
+        XCTAssertEqual(round.displayHoleIndex, 3)
+        XCTAssertEqual(round.displayHoleHeldUntil, held)
+        XCTAssertFalse(round.mergeDisplayHole(DisplayHole(holeIndex: 3, changedAt: when), heldUntil: when))
+        XCTAssertEqual(round.displayHoleHeldUntil, held)
+    }
+
     func testMergeDisplayHoleIgnoresAHoleOffTheCourse() {
         var round = Round(courseSelection: .test)
 

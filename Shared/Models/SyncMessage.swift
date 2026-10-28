@@ -226,10 +226,18 @@ struct StreamAck: Codable, Equatable {
     }
 }
 
-/// Both ways. The hole both devices show; the later change wins.
+/// Both ways. The hole both devices show; the later change wins. The longer hold wins.
 struct DisplayHoleMessage: Codable, Equatable {
     let roundID: UUID
     let displayHole: DisplayHole
+    /// See `Round.displayHoleHeldUntil`.
+    let heldUntil: Date
+
+    init(round: Round) {
+        roundID = round.id
+        displayHole = round.displayHole
+        heldUntil = round.displayHoleHeldUntil
+    }
 }
 
 /// Both ways. Each hole's pin by play index, as in `Round.pins`; per hole, `PinLocation.isReplaced(by:)` picks.

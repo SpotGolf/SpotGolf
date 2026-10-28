@@ -45,6 +45,10 @@ final class Round {
     var holeStarts: [Date?]
     /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
     var displayHole: DisplayHole
+    /// Until when the watch's GPS does not move the display hole on, after the user picked a hole
+    /// or edited a spot. The distant past when not held. Its own attribute with a default, so
+    /// rounds saved before it existed still open.
+    var displayHoleHeldUntil: Date = Date.distantPast
     /// Stored as one encoded column: `Course` comes from CourseDataSwift and has optional values,
     /// and SwiftData crashes reading change history (which `@Query` does) for an optional value
     /// inside a struct it splits into columns. See plans/2026-10-19-swiftdata-models.md.
@@ -156,20 +160,49 @@ final class Round {
 
     /// Shows hole `index` from `date` on. Returns false when it is shown already or is not on the
     /// course. A time before the last change (the two devices' clocks differ slightly) is moved just after it.
+    /// `holds` is for a hole the user picked: the watch's GPS then leaves it alone for `DisplayHole.holdTime`.
     @discardableResult
-    func setDisplayHole(_ index: Int, at date: Date) -> Bool {
+    func setDisplayHole(_ index: Int, at date: Date, holds: Bool = false) -> Bool {
         guard index != displayHoleIndex, index >= 0, index <= lastHoleIndex else { return false }
         let changedAt = date > displayHole.changedAt ? date : displayHole.changedAt.addingTimeInterval(0.001)
         displayHole = DisplayHole(holeIndex: index, changedAt: changedAt)
+        if holds {
+            holdDisplayHole(at: date)
+        }
         return true
     }
 
-    /// Takes the other device's display hole when it was set later. Returns true if it changed.
+    /// Keeps the watch's GPS from moving the display hole on for `DisplayHole.holdTime` from
+    /// `date`. Returns false when it is held that long already.
     @discardableResult
-    func mergeDisplayHole(_ other: DisplayHole) -> Bool {
-        guard displayHole.isOlder(than: other), other.holeIndex >= 0, other.holeIndex <= lastHoleIndex else { return false }
-        displayHole = other
+    func holdDisplayHole(at date: Date) -> Bool {
+        let until = date.addingTimeInterval(DisplayHole.holdTime)
+        guard until > displayHoleHeldUntil else { return false }
+        displayHoleHeldUntil = until
         return true
+    }
+
+    /// True while the watch's GPS must not move the display hole on.
+    func isDisplayHoleHeld(at date: Date) -> Bool {
+        date < displayHoleHeldUntil
+    }
+
+    /// Takes the other device's display hole when it was set later, and its hold when that
+    /// lasts longer. Returns true if either changed.
+    @discardableResult
+    func mergeDisplayHole(_ other: DisplayHole, heldUntil: Date = .distantPast) -> Bool {
+        guard other.holeIndex >= 0, other.holeIndex <= lastHoleIndex else { return false }
+        var changed = false
+        if displayHole.isOlder(than: other) {
+            displayHole = other
+            changed = true
+        }
+        // A hold sent with an older hole still counts, so it never moves the hole back
+        if heldUntil > displayHoleHeldUntil {
+            displayHoleHeldUntil = heldUntil
+            changed = true
+        }
+        return changed
     }
 
     /// The pin on hole `index`, if it has been set.

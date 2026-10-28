@@ -1282,6 +1282,18 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(watchRound(id)?.displayHoleIndex, 3)
     }
 
+    func testHoleHeldOnPhoneIsHeldOnWatch() {
+        let id = pair.startRound()
+        let now = Date()
+
+        pair.phoneRounds.setDisplayHole(3, roundID: id, at: now, holds: true)
+        XCTAssertEqual(watchRound(id)?.displayHoleHeldUntil, now.addingTimeInterval(DisplayHole.holdTime))
+
+        pair.phoneRounds.holdDisplayHole(roundID: id, at: now.addingTimeInterval(10))
+        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 3)
+        XCTAssertEqual(watchRound(id)?.displayHoleHeldUntil, now.addingTimeInterval(DisplayHole.holdTime + 10))
+    }
+
     func testLaterDisplayHoleChangeWinsOnBoth() {
         let id = pair.startRound()
         let now = Date()

@@ -210,11 +210,13 @@ final class WatchServices {
 
     /// Runs here rather than in a view, so it works while watchOS runs the app in the
     /// background and no view is on screen. Only the display hole moves; the timeline is set
-    /// by the strokes added on the phone.
+    /// by the strokes added on the phone. While the user holds the hole, the advancer still sees
+    /// every fix, but its move is dropped.
     private func advanceHole(_ location: CLLocation) {
         guard let round = roundStore.activeRound,
               let next = holeAdvancer.advance(location: location, courseSelection: round.courseSelection,
-                                              displayHoleIndex: round.displayHoleIndex) else { return }
+                                              displayHoleIndex: round.displayHoleIndex),
+              !round.isDisplayHoleHeld(at: location.timestamp) else { return }
         roundStore.setDisplayHole(next)
     }
 

@@ -20,7 +20,7 @@ final class SnapshotSync {
 
     func sendDisplayHole(_ round: Round) {
         guard round.isActive else { return }
-        sync.send(.displayHole(DisplayHoleMessage(roundID: round.id, displayHole: round.displayHole)))
+        sync.send(.displayHole(DisplayHoleMessage(round: round)))
         updateContext(round)
     }
 
@@ -47,7 +47,7 @@ final class SnapshotSync {
     func updateContext(_ round: Round) {
         guard round.isActive else { return }
         sync.updateContext(SyncContext(
-            displayHole: DisplayHoleMessage(roundID: round.id, displayHole: round.displayHole),
+            displayHole: DisplayHoleMessage(round: round),
             pins: PinsMessage(roundID: round.id, pins: round.pins),
             strokes: sendsStrokes ? round.strokesSnapshot : nil,
             settings: roundSettings(round)
@@ -57,7 +57,7 @@ final class SnapshotSync {
     /// Returns true if the display hole changed.
     @discardableResult
     func apply(_ message: DisplayHoleMessage) -> Bool {
-        rounds.mergeDisplayHole(message.displayHole, roundID: message.roundID)
+        rounds.mergeDisplayHole(message.displayHole, heldUntil: message.heldUntil, roundID: message.roundID)
     }
 
     /// Returns true if any pin changed.
