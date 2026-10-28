@@ -67,6 +67,41 @@ extension OutsideRoundUITests {
         closePastRound()
     }
 
+    func testMapShowsTheWholeHoleAfterTheAppReturns() throws {
+        ensurePastRound()
+        openPastRound()
+        XCTAssertTrue(app.waitForShownHole(1), "A past round should open on Hole 1")
+        let first = app.buttons["Stroke_1"]
+        XCTAssertTrue(first.waitToExist(), "Stroke 1 should show")
+        // Moving to hole 1 frames the whole hole, as returning to the app should. The first
+        // open can frame it a little differently, so the test starts from this one.
+        app.goToHole(2)
+        app.goToHole(1)
+        var holeFrame = CGRect.zero
+        XCTAssertTrue(UIWait.until {
+            let frame = first.frame
+            defer { holeFrame = frame }
+            return first.isHittable && distance(frame, holeFrame) < 1
+        }, "The map should settle on the whole hole")
+
+        // Pan the map away from the hole
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.75))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 120, dy: -150)))
+        // A stroke panned off screen leaves the map
+        XCTAssertTrue(UIWait.until { !first.exists || distance(first.frame, holeFrame) > 50 },
+                      "Dragging should pan the map")
+
+        // Leave the app and come back, as locking the phone or switching apps does
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: UIWait.slow), "The app should go to the background")
+        app.activate()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: UIWait.slow), "The app should come back")
+        XCTAssertTrue(UIWait.until { first.exists && distance(first.frame, holeFrame) < 5 },
+                      "The map should show the whole hole again")
+
+        closePastRound()
+    }
+
     // MARK: - Editing
 
     func testPastRoundCanBeEdited() throws {

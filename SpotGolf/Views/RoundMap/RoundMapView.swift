@@ -43,6 +43,8 @@ struct RoundMapView: View {
     @State private var greenView = GreenViewState()
     /// The lines and distances between the shown hole's strokes, which the ruler button turns on and off.
     @State private var showsStrokeLines = false
+    /// The app went to the background, so the map shows the whole hole again when it returns.
+    @State private var wasInBackground = false
 
     var body: some View {
         Group {
@@ -105,9 +107,17 @@ struct RoundMapView: View {
             reloadTrack()
         }
         .onChange(of: scenePhase) { _, phase in
-            // Stream records and round changes that arrived in the background
-            if phase == .active {
+            if phase == .background {
+                wasInBackground = true
+            } else if phase == .active {
+                // Stream records and round changes that arrived in the background
                 reloadTrack()
+                // Locking the phone or switching apps leaves the map wherever it was, so it
+                // starts over on the whole hole
+                if wasInBackground {
+                    wasInBackground = false
+                    panToHole()
+                }
             }
         }
     }
