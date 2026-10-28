@@ -36,6 +36,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PHONE_BUNDLE = "golf.spot.SpotGolf"
 WATCH_BUNDLE = "golf.spot.SpotGolf.watchkitapp"
 STORE = "Library/Application Support/default.store"
+LOGS = "Library/Application Support/Logs"
 CAPTURES = "Documents/putt-captures"
 # SwiftData dates are seconds since 2001
 APPLE_EPOCH = 978307200.0
@@ -126,6 +127,37 @@ def skipped(path):
 
 
 # MARK: - Stores
+
+def log_files(folder):
+    """The app's log files, oldest first: spotgolf.<n>.log down to spotgolf.log, then the watch's
+    chunks not yet sent."""
+    logs = os.path.join(folder, LOGS)
+    if not os.path.isdir(logs):
+        return []
+    numbered = [name for name in os.listdir(logs) if re.fullmatch(r"spotgolf(\.\d+)?\.log", name)]
+    numbered.sort(key=lambda name: -int(name.split(".")[1]) if name.count(".") == 2 else 0)
+    outbox = os.path.join(logs, "outbox")
+    chunks = sorted(os.listdir(outbox)) if os.path.isdir(outbox) else []
+    return [os.path.join(logs, name) for name in numbered] + [os.path.join(outbox, name) for name in chunks]
+
+
+LOG_LINE = re.compile(r"(\S+) (phone|watch) ([DNEF]) (\S+) (\S+) (.*)")
+LOG_LEVELS = {"D": "debug", "N": "notice", "E": "error", "F": "fault"}
+
+
+def parse_log_line(text):
+    """(epoch, device, level, category, round ID or None, message) from a log file line, or None."""
+    match = LOG_LINE.fullmatch(text.rstrip("\n"))
+    if match is None:
+        return None
+    stamp, device, level, category, owner, message = match.groups()
+    try:
+        epoch = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+    message = re.sub(r"\\(.)", lambda m: "\n" if m.group(1) == "n" else m.group(1), message)
+    return epoch, device, LOG_LEVELS[level], category, None if owner == "-" else owner.upper(), message
+
 
 def open_store(folder):
     path = os.path.join(folder, STORE)
@@ -538,24 +570,27 @@ def build(out, raw_phone, raw_watch, rid, devices):
     counts["events"] = write_csv(os.path.join(timeline, "events.csv"), [*when, "code", "name", "value"], events)
     counts["streamRecords"] = len(stream)
 
-    # Log lines of the round from both stores, and lines with no round written while it ran
+    # Log lines of the round from both devices' log files, and lines with no round written while it
+    # ran. The phone's files hold the watch's lines that reached it; the watch's hold the rest.
     logs = {}
     window_end = (end or start) + 300
-    for store, source in ((db, "phone store"), (watch_db, "watch store")):
-        if store is None:
-            continue
-        for device, seq, stamp, level, category, message, owner in store.execute(
-                "SELECT ZDEVICE, ZSEQ, ZTIMESTAMP, ZLEVEL, ZCATEGORY, ZMESSAGE, ZROUNDID FROM ZLOGENTRY"):
-            epoch = apple_to_epoch(stamp)
-            ours = owner == rid_blob
-            if not ours and not (owner is None and start - 300 <= epoch <= window_end):
-                continue
-            logs.setdefault((device, seq, stamp, message),
-                            [t(epoch), iso(epoch), device, seq, level, category, message, "round" if ours else "none",
-                             source])
-    log_rows = sorted(logs.values(), key=lambda r: (float(r[0]), r[2], r[3]))
+    for folder, source in ((raw_phone, "phone log"), (raw_watch, "watch log")):
+        for path in log_files(folder):
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for text in f:
+                    line = parse_log_line(text)
+                    if line is None:
+                        continue
+                    epoch, device, level, category, owner, message = line
+                    ours = owner == rid
+                    if not ours and not (owner is None and start - 300 <= epoch <= window_end):
+                        continue
+                    logs.setdefault((epoch, device, category, message),
+                                    [t(epoch), iso(epoch), device, level, category, message,
+                                     "round" if ours else "none", source])
+    log_rows = sorted(logs.values(), key=lambda r: (float(r[0]), r[2]))
     counts["logLines"] = write_csv(os.path.join(timeline, "log.csv"),
-                                   ["t", "time", "device", "seq", "level", "category", "message", "roundID", "from"],
+                                   ["t", "time", "device", "level", "category", "message", "roundID", "from"],
                                    log_rows)
 
     # Strokes, hole starts and pins
@@ -741,7 +776,7 @@ if __name__ == "__main__":
 #     events.csv        Workout and sensor events, with the StreamEvent.Code name
 #     strokes.csv       The strokes the player kept
 #     holes.csv         Each hole's start, par and pin
-#     log.csv           Log lines from both devices
+#     log.csv           Log lines from both devices, from their log files
 #     green-*.csv       The Developer Mode segments' contacts, candidates, events, GPS fixes and marks
 #   raw/phone, raw/watch
 #                       Every file copied from the apps' containers, untouched (stores, settings, course

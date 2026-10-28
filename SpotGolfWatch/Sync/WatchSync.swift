@@ -11,7 +11,6 @@ final class WatchSync {
     let sync: SyncService
     let rounds: RoundStore
     let streams: StreamStore
-    let logs: LogStore
     let sender: StreamSender
     let snapshots: SnapshotSync
 
@@ -36,6 +35,9 @@ final class WatchSync {
     /// Called on the main actor when the phone's Putt Data Sharing settings arrive.
     @ObservationIgnored var onPhoneSettings: ((PhoneSettingsMessage) -> Void)?
 
+    /// Called on the main actor when the phone asks for the log written so far.
+    @ObservationIgnored var onSendLog: (() -> Void)?
+
     /// This app's version. A round from a phone app on any other version is refused, so the two
     /// never record with different code. Tests set it.
     @ObservationIgnored var version = AppVersion.text()
@@ -46,8 +48,6 @@ final class WatchSync {
     static let pendingEventLimit = 50
     static let pendingEventAge: TimeInterval = 5 * 60
 
-    /// Where the phone's Debug Logging setting is kept, for lines outside a round.
-    static let debugLoggingKey = "debugLogging"
     /// Where the phone's Developer Mode setting is kept, for a round resumed after a relaunch.
     static let developerModeKey = "developerMode"
 
@@ -71,20 +71,17 @@ final class WatchSync {
         UserDefaults.standard.object(forKey: greenZoneKey) as? Double ?? HoleShape.chipZoneMargin
     }
 
-    init(sync: SyncService, rounds: RoundStore, streams: StreamStore, logs: LogStore) {
+    init(sync: SyncService, rounds: RoundStore, streams: StreamStore) {
         self.sync = sync
         self.rounds = rounds
         self.streams = streams
-        self.logs = logs
-        sender = StreamSender(sync: sync, rounds: rounds, streams: streams, logs: logs)
+        sender = StreamSender(sync: sync, rounds: rounds, streams: streams)
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: false)
 
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.addListener { [weak self] event in self?.roundChanged(event) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
         sender.onStreamDeleted = { [weak self] in self?.pruneFinishedRounds() }
-        // New lines go with the next batch
-        logs.onFlush = { [weak self] in self?.sender.pump() }
         pruneFinishedRounds()
     }
 
@@ -189,7 +186,6 @@ final class WatchSync {
             Log.rounds.notice("Round \(cancel.roundID) cancelled by the phone")
             rounds.deleteRound(cancel.roundID)
             streams.delete(cancel.roundID)
-            logs.delete(cancel.roundID)
             onRoundDeleted?(cancel.roundID)
             return nil
         case .roundDeleted(let deleted):
@@ -227,6 +223,9 @@ final class WatchSync {
             Log.sync.notice("Putt Data Sharing settings: consent \(settings.consentVersion.map(String.init) ?? "none")")
             UserDefaults.standard.set(try? JSONEncoder().encode(settings), forKey: Self.phoneSettingsKey)
             onPhoneSettings?(settings)
+            return nil
+        case .sendLog:
+            onSendLog?()
             return nil
         case .startRoundAck, .startRoundRefused, .startRoundChecking, .endRound, .streamBatch, .chunk, .puttSession:
             return nil
@@ -289,7 +288,7 @@ final class WatchSync {
         }
 
         Log.rounds.notice("Round \(start.roundID) started by the phone")
-        store(RoundSettingsMessage(roundID: start.roundID, debugLogging: start.debugLogging, developerMode: start.developerMode,
+        store(RoundSettingsMessage(roundID: start.roundID, developerMode: start.developerMode,
                                    greenZone: start.greenZone))
 
         // Another round still recording ends the usual way first
@@ -321,12 +320,6 @@ final class WatchSync {
         if !streams.hasStream(for: start.roundID) {
             rounds.update(start.roundID) { $0.streamBase = start.streamBase }
         }
-        if logs.count(for: start.roundID, device: .watch) == 0 {
-            rounds.update(start.roundID) { $0.logBase = start.logBase }
-        }
-        // The lines from just before the round, such as the workout launch, are read with it
-        logs.flush()
-        logs.moveRecentLines(into: start.roundID, device: .watch)
         // The workout start that came before the round, and anything else recent
         let recent = pendingEvents.filter { Date().timeIntervalSince($0.timestamp) <= Self.pendingEventAge }
         pendingEvents = []
@@ -342,11 +335,8 @@ final class WatchSync {
         return .startRoundAck(ack)
     }
 
-    /// Keeps the phone's settings, which outlive the round for lines and rounds that come
-    /// before the next start.
+    /// Keeps the phone's settings, which outlive the round for rounds resumed before the next start.
     private func store(_ settings: RoundSettingsMessage) {
-        Log.isDebugEnabled = settings.debugLogging
-        UserDefaults.standard.set(settings.debugLogging, forKey: Self.debugLoggingKey)
         UserDefaults.standard.set(settings.developerMode, forKey: Self.developerModeKey)
         UserDefaults.standard.set(settings.greenZone, forKey: Self.greenZoneKey)
     }
@@ -354,7 +344,7 @@ final class WatchSync {
     /// Settings sent mid-round. Ignored for any round but the active one.
     private func apply(_ settings: RoundSettingsMessage) {
         guard rounds.activeRound?.id == settings.roundID else { return }
-        Log.rounds.notice("Settings for round \(settings.roundID): debug \(settings.debugLogging), Developer Mode \(settings.developerMode), green zone \(settings.greenZone) m")
+        Log.rounds.notice("Settings for round \(settings.roundID): Developer Mode \(settings.developerMode), green zone \(settings.greenZone) m")
         store(settings)
         onSettings?(settings)
     }
@@ -394,7 +384,6 @@ final class WatchSync {
             && (round.endedAt.map { now.timeIntervalSince($0) > Self.finishedRoundKeepTime } ?? true)
             && !streams.hasStream(for: round.id) {
             rounds.deleteRound(round.id)
-            logs.delete(round.id)
         }
     }
 

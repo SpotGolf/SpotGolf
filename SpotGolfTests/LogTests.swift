@@ -2,8 +2,7 @@ import os
 import XCTest
 @testable import SpotGolf
 
-/// `Log` writes every line to its sink, holds lines until a sink is set, and drops debug
-/// lines unless debug logging is on.
+/// `Log` writes every line to its sink, with the round going, and holds lines until a sink is set.
 final class LogTests: XCTestCase {
 
     /// Lines the sink received, from any thread. Only the test's own: the host app logs too.
@@ -20,12 +19,12 @@ final class LogTests: XCTestCase {
     private func text(_ message: String) -> String { Collector.prefix + message }
 
     private var collector: Collector!
-    private var wasDebugEnabled = false
+    private var roundID: UUID?
 
     override func setUp() {
         super.setUp()
-        wasDebugEnabled = Log.isDebugEnabled
-        Log.isDebugEnabled = false
+        roundID = Log.roundID
+        Log.roundID = nil
         collector = Collector()
         let collector = collector!
         Log.setSink { collector.append($0) }
@@ -33,7 +32,7 @@ final class LogTests: XCTestCase {
 
     override func tearDown() {
         Log.setSink(nil)
-        Log.isDebugEnabled = wasDebugEnabled
+        Log.roundID = roundID
         collector = nil
         super.tearDown()
     }
@@ -51,24 +50,22 @@ final class LogTests: XCTestCase {
         XCTAssertLessThan(abs(lines[0].timestamp.timeIntervalSinceNow), 5)
     }
 
-    func testDebugLinesAreDroppedUnlessDebugLoggingIsOn() {
-        var built = 0
-        func detail() -> String {
-            built += 1
-            return text("detail")
-        }
-
-        Log.swings.debug(detail())
-        XCTAssertTrue(collector.all.isEmpty)
-        // The text is not even built
-        XCTAssertEqual(built, 0)
-
-        Log.isDebugEnabled = true
-        Log.swings.debug(detail())
+    func testDebugLinesAreAlwaysWritten() {
+        Log.swings.debug(text("detail"))
 
         XCTAssertEqual(collector.all.map(\.message), [text("detail")])
         XCTAssertEqual(collector.all.map(\.level), [.debug])
-        XCTAssertEqual(built, 1)
+    }
+
+    func testLinesCarryTheRoundGoingWhenWritten() {
+        let id = UUID()
+        Log.rounds.notice(text("before"))
+        Log.roundID = id
+        Log.rounds.notice(text("during"))
+        Log.roundID = nil
+        Log.rounds.notice(text("after"))
+
+        XCTAssertEqual(collector.all.map(\.roundID), [nil, id, nil])
     }
 
     func testLinesWrittenBeforeTheSinkIsSetAreHandedOverFirstInOrder() {
@@ -100,10 +97,26 @@ final class LogTests: XCTestCase {
         XCTAssertFalse(collector.all.contains { $0.message == text("line 0") })
     }
 
-    func testExportedLineFormat() {
-        let line = LogLine(timestamp: Date(timeIntervalSince1970: 1_700_000_000.125), device: .watch,
-                           level: .error, category: "sensors", message: "accelerometer stopped on an error; restarting")
+    func testLineFormatOutsideARound() {
+        let line = LogLine(timestamp: Date(timeIntervalSince1970: 1_700_000_000.125), device: .watch, level: .error,
+                           category: "sensors", roundID: nil, message: "accelerometer stopped on an error; restarting")
 
-        XCTAssertEqual(line.text, "2023-11-14T22:13:20.125Z watch E sensors accelerometer stopped on an error; restarting")
+        XCTAssertEqual(line.text, "2023-11-14T22:13:20.125Z watch E sensors - accelerometer stopped on an error; restarting")
+    }
+
+    func testLineFormatInARound() {
+        let id = UUID(uuidString: "6F1C2B3A-0000-4000-8000-0000000000A2")!
+        let line = LogLine(timestamp: Date(timeIntervalSince1970: 1_700_000_000.125), device: .phone, level: .notice,
+                           category: "sync", roundID: id, message: "Watch reachable")
+
+        XCTAssertEqual(line.text, "2023-11-14T22:13:20.125Z phone N sync 6F1C2B3A-0000-4000-8000-0000000000A2 Watch reachable")
+    }
+
+    func testNewlinesAndBackslashesInAMessageAreEscaped() {
+        let line = LogLine(timestamp: Date(timeIntervalSince1970: 0), device: .phone, level: .error,
+                           category: "sync", roundID: nil, message: "first\nsecond \\ third")
+
+        XCTAssertEqual(line.text, "1970-01-01T00:00:00.000Z phone E sync - first\\nsecond \\\\ third")
+        XCTAssertFalse(line.text.contains("\n"))
     }
 }

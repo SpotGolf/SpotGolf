@@ -14,7 +14,6 @@ struct RoundListView: View {
     /// Its ID and title, since the alert can still show while the deleted round goes away.
     @State private var roundToDelete: (id: UUID, title: String)?
     @State private var export: RoundExport?
-    @State private var logRound: Round?
 
     var body: some View {
         List {
@@ -22,15 +21,6 @@ struct RoundListView: View {
                 Section("Active Round") {
                     NavigationLink(value: current.id) {
                         RoundRow(round: current)
-                    }
-                    .swipeActions(edge: .leading) {
-                        // The log reloads as lines arrive, so a problem can be read mid-round
-                        Button {
-                            logRound = current
-                        } label: {
-                            Label("Log", systemImage: "doc.text")
-                        }
-                        .tint(.gray)
                     }
                     if current.status != .active {
                         RoundSyncBanner(round: current)
@@ -69,12 +59,6 @@ struct RoundListView: View {
                             Label("Export", systemImage: "square.and.arrow.up")
                         }
                         .tint(.blue)
-                        Button {
-                            logRound = round
-                        } label: {
-                            Label("Log", systemImage: "doc.text")
-                        }
-                        .tint(.gray)
                     }
                 }
             }
@@ -126,7 +110,6 @@ struct RoundListView: View {
             Button("Delete", role: .destructive) {
                 services.roundStore.deleteRound(round.id)
                 services.streamStore.delete(round.id)
-                services.logStore.delete(round.id)
             }
             Button("Cancel", role: .cancel) {}
         } message: { round in
@@ -154,9 +137,6 @@ struct RoundListView: View {
         .sheet(item: $export) { export in
             ShareSheet(items: [export.url])
                 .presentationDetents([.medium, .large])
-        }
-        .sheet(item: $logRound) { round in
-            LogSheet(scope: .round(round))
         }
     }
 

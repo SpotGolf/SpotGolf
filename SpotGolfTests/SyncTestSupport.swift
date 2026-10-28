@@ -132,14 +132,12 @@ final class SyncPair {
     let phoneSync: SyncService
     let phoneRounds: RoundStore
     let phoneStreams: StreamStore
-    let phoneLogs: LogStore
     let phone: PhoneSync
 
     let watchTransport = FakeTransport()
     let watchSync: SyncService
     let watchRounds: RoundStore
     let watchStreams: StreamStore
-    let watchLogs: LogStore
     let watch: WatchSync
 
     private(set) var watchAppLaunches = 0
@@ -152,17 +150,15 @@ final class SyncPair {
         phoneSync = SyncService(transport: phoneTransport)
         phoneRounds = RoundStore(context: phoneContainer.mainContext)
         phoneStreams = StreamStore(context: phoneContainer.mainContext)
-        phoneLogs = LogStore(context: phoneContainer.mainContext)
         var launches: (() -> Void)?
-        phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams, logs: phoneLogs,
+        phone = PhoneSync(sync: phoneSync, rounds: phoneRounds, streams: phoneStreams,
                           startTimeout: startTimeout, retryDelay: retryDelay,
                           launchWatchApp: { launches?() })
 
         watchSync = SyncService(transport: watchTransport)
         watchRounds = RoundStore(context: watchContainer.mainContext)
         watchStreams = StreamStore(context: watchContainer.mainContext)
-        watchLogs = LogStore(context: watchContainer.mainContext)
-        watch = WatchSync(sync: watchSync, rounds: watchRounds, streams: watchStreams, logs: watchLogs)
+        watch = WatchSync(sync: watchSync, rounds: watchRounds, streams: watchStreams)
 
         launches = { [weak self] in self?.watchAppLaunches += 1 }
     }

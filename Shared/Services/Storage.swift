@@ -4,7 +4,7 @@ import SwiftData
 
 enum Storage {
     /// The models each app saves.
-    static let models: [any PersistentModel.Type] = [Round.self, StreamEntry.self, LogEntry.self, CarriedClub.self]
+    static let models: [any PersistentModel.Type] = [Round.self, StreamEntry.self, CarriedClub.self]
 
     /// The app's saved data, on this device only: the phone's CloudKit container is for shared
     /// pins, and SwiftData would otherwise sync the store to it.

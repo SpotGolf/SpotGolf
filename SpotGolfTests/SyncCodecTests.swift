@@ -79,47 +79,16 @@ final class SyncCodecTests: XCTestCase {
         XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
     }
 
-    func testStreamBatchWithLogLinesRoundTrips() throws {
-        let line = LogLine(timestamp: Date(timeIntervalSince1970: 1_700_000_000.25), device: .watch,
-                           level: .error, category: "sensors", message: "accelerometer stalled")
-        let message = SyncMessage.streamBatch(StreamBatch(roundID: roundID, from: 3, records: Data([0, 1]),
-                                                          logsFrom: 7, logs: [line]))
+    func testStreamBatchAndAckRoundTrip() throws {
+        let batch = SyncMessage.streamBatch(StreamBatch(roundID: roundID, from: 3, records: Data([0, 1])))
+        let ack = SyncMessage.streamAck(StreamAck(roundID: roundID, have: 3))
 
-        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(batch)), batch)
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(ack)), ack)
     }
 
-    func testStreamAckWithLogsRoundTrips() throws {
-        let message = SyncMessage.streamAck(StreamAck(roundID: roundID, have: 3, haveLogs: 7))
-
-        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(message)), message)
-    }
-
-    func testBatchAndAckFromBeforeTheAppLogHaveNoLogFields() throws {
-        let batch = #"{"streamBatch":{"_0":{"roundID":"\#(roundID.uuidString)","from":2,"records":""}}}"#
-        let ack = #"{"streamAck":{"_0":{"roundID":"\#(roundID.uuidString)","have":2}}}"#
-
-        XCTAssertEqual(try JSONDecoder().decode(SyncMessage.self, from: Data(batch.utf8)),
-                       .streamBatch(StreamBatch(roundID: roundID, from: 2, records: Data())))
-        XCTAssertEqual(try JSONDecoder().decode(SyncMessage.self, from: Data(ack.utf8)),
-                       .streamAck(StreamAck(roundID: roundID, have: 2)))
-    }
-
-    func testStartRoundFromBeforeTheAppLogHasNoLogBaseOrDebugSetting() throws {
-        let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
-                               displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
-                               pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
-                               streamBase: 4, version: "0.5.0", logBase: 9, debugLogging: true)
-        var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])
-        var inner = try XCTUnwrap((plist["startRound"] as? [String: Any])?["_0"] as? [String: Any])
-        inner.removeValue(forKey: "logBase")
-        inner.removeValue(forKey: "debugLogging")
-        plist["startRound"] = ["_0": inner]
-        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
-
-        guard case .startRound(let decoded) = try SyncCodec.decode(data) else { return XCTFail("Not a start") }
-        XCTAssertEqual(decoded.logBase, 0)
-        XCTAssertFalse(decoded.debugLogging)
-        XCTAssertEqual(decoded.streamBase, 4)
+    func testSendLogRoundTrips() throws {
+        XCTAssertEqual(SyncCodec.message(in: try SyncCodec.payload(.sendLog)), .sendLog)
     }
 
     func testStartRoundWithNoDeveloperModeHasItOff() throws {

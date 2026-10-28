@@ -57,29 +57,25 @@ extension OutsideRoundUITests {
         XCTAssertFalse(app.alerts["Update SpotGolf"].exists)
     }
 
-    func testSettingsOpensTheLogAndExportsIt() throws {
+    func testShareLogsShowsTheGzippedLog() throws {
         openSettings()
         // The Log section is below the fold: Settings only makes the rows on screen
-        let openLog = app.buttons["OpenLog"]
-        for _ in 0..<8 where !openLog.exists {
+        let shareLogs = app.buttons["ShareLogs"]
+        for _ in 0..<8 where !shareLogs.exists {
             app.swipeUp()
         }
-        XCTAssertTrue(openLog.waitToExist(), "Settings should have a Log link")
-        openLog.tap()
-        XCTAssertTrue(app.navigationBars["Log"].waitToExist(), "The log should open")
-        // The launch is logged before any round
-        XCTAssertTrue(app.staticTexts["Phone app launched"].waitToExist(), "The launch line should be listed")
+        XCTAssertTrue(shareLogs.waitToExist(), "Settings should have Share logs…")
+        XCTAssertFalse(app.switches["DebugLogging"].exists, "Debug Logging is gone")
 
-        app.buttons["ExportLog"].tap()
+        shareLogs.tap()
         let shareSheet = app.otherElements["ActivityListView"]
         XCTAssertTrue(shareSheet.waitToExist(timeout: UIWait.slow), "The share sheet should open")
         let fileName = shareSheet.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH 'spotgolf-log-'")).firstMatch
+            .matching(NSPredicate(format: "label BEGINSWITH 'SpotGolf-log-'")).firstMatch
         XCTAssertTrue(fileName.waitToExist(timeout: UIWait.slow), "The share sheet should show the log file")
         shareSheet.buttons["Close"].tap()
         XCTAssertTrue(shareSheet.waitToVanish(timeout: UIWait.slow), "The share sheet should close")
 
-        app.navigationBars["Log"].buttons.firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitToExist())
         closeSettings()
     }

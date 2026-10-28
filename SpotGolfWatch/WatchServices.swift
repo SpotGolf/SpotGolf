@@ -19,7 +19,8 @@ final class WatchServices {
     /// The sensors and the microphone, shared by swing detection, contact detection and Developer Mode.
     let sensors = SensorInputs()
     let streamStore: StreamStore
-    let logStore: LogStore
+    /// Sends the watch's log to the phone in chunks.
+    let logChunks: LogChunkSender
     /// Where rounds and streams are saved. UI tests start each run empty, unless a test
     /// relaunches mid-round with --keep-rounds and needs the round it saved.
     let container: ModelContainer
@@ -50,11 +51,13 @@ final class WatchServices {
         container = Storage.container(for: options)
         let rounds = RoundStore(context: container.mainContext)
         streamStore = StreamStore(context: container.mainContext)
-        let logs = LogStore(context: container.mainContext)
-        logs.roundIDForNewLines = { rounds.activeRound?.id }
-        logStore = logs
-        Log.isDebugEnabled = UserDefaults.standard.bool(forKey: WatchSync.debugLoggingKey)
-        Log.setSink { logs.receive($0) }
+        let chunks = LogChunkSender(file: LogFile(maxFileBytes: LogChunkSender.maxFileBytes, keptFiles: 0),
+                                    transport: syncService.transport)
+        logChunks = chunks
+        Log.setSink { line in
+            chunks.file.write(line)
+            Task { @MainActor in chunks.lineWritten() }
+        }
         // Rounds start on the phone, so UI tests pass --start-round to begin one on the watch alone
         if options.isUITesting, options.startsRound {
             rounds.startRound(courseSelection: .uiTestCourse)
@@ -64,12 +67,14 @@ final class WatchServices {
                                         ? GrantedPermissionSource() : SystemPermissionSource())
         showsWorkoutStatus = options.isUITesting
         roundStore = rounds
+        // Each line carries the active round; `recordingInputsChanged` keeps it up to date
+        Log.roundID = rounds.activeRound?.id
 
         let workouts = workoutManager
         let inputs = sensors
         swingDetector = SwingDetector(sensors: inputs)
         contactMonitor = ContactMonitor(sensors: inputs) { workouts.isRunning }
-        watchSync = WatchSync(sync: syncService, rounds: rounds, streams: streamStore, logs: logs)
+        watchSync = WatchSync(sync: syncService, rounds: rounds, streams: streamStore)
         puttCapture = PuttCaptureRecorder(sensors: inputs)
         drills = DrillRecorder(sensors: inputs, workouts: workouts, sync: syncService) {
             rounds.activeRound != nil
@@ -110,7 +115,12 @@ final class WatchServices {
         drills.startLocation = { location.startUpdating(for: "drills") }
         drills.stopLocation = { location.stopUpdating(for: "drills") }
         drills.locationDenied = { [.denied, .restricted].contains(location.authorizationStatus) }
-        syncService.fileTransferFinished = { [weak self] in self?.drills.transferFinished($0, error: $1) }
+        // Files sent are chunks of the log or drill sessions
+        syncService.fileTransferFinished = { [weak self] metadata, error in
+            guard let self, !self.logChunks.transferFinished(metadata, error: error) else { return }
+            self.drills.transferFinished(metadata, error: error)
+        }
+        sync.onSendLog = { [weak self] in self?.logChunks.closeChunk() }
         locationManager.onRawLocations = { [weak self] locations in
             self?.drills.record(locations)
             // Outside a round there is no stream to record them in
@@ -166,6 +176,7 @@ final class WatchServices {
         // Segments left open by a kill
         puttCapture.recoverUnfinished()
         drills.recoverAtLaunch()
+        logChunks.recoverAtLaunch()
 
         roundStore.addListener { [weak self] event in
             guard case .roundsChanged = event, let self else { return }
@@ -248,8 +259,14 @@ final class WatchServices {
         let isFirst = !hasLaunched
         hasLaunched = true
         if isFirst || activeID != activeRoundID {
+            let roundEnded = activeRoundID != nil
             activeRoundID = activeID
+            Log.roundID = activeID
             activeRoundChanged(isActive)
+            // The round's lines go to the phone now, rather than when the chunk fills or ages
+            if roundEnded {
+                logChunks.closeChunk()
+            }
         }
         // Batched accelerometer data only arrives while the workout runs, which is some time
         // after it is asked to start

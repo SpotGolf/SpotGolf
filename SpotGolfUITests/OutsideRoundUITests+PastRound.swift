@@ -191,24 +191,4 @@ extension OutsideRoundUITests {
 
         closePastRound()
     }
-
-    // MARK: - Log
-
-    func testPastRoundHasItsOwnLog() throws {
-        ensurePastRound()
-        broadlandsRow.swipeRight()
-        let log = app.buttons["Log"]
-        XCTAssertTrue(log.waitToExist(), "The row should offer its log")
-        log.tap()
-        XCTAssertTrue(app.navigationBars["Round Log"].waitToExist(), "The round's log should open")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'starting'")).firstMatch.waitToExist(),
-                      "The round's start should be in its log")
-        app.navigationBars["Round Log"].buttons["Done"].tap()
-        XCTAssertTrue(app.navigationBars["Round Log"].waitToVanish(), "The log sheet should close")
-        // A tap on the row closes its swipe actions, if they stayed open
-        if log.exists {
-            broadlandsRow.tap()
-        }
-        XCTAssertTrue(log.waitToVanish(), "The row's actions should close")
-    }
 }

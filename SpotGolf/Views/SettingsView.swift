@@ -14,7 +14,6 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.stationaryThreshold) private var stationaryThreshold: TimeInterval = 30
     @AppStorage(SettingsKey.greenZone) private var greenZone: Double = HoleShape.chipZoneMargin
     @AppStorage(SettingsKey.sharePins) private var sharePins = true
-    @AppStorage(SettingsKey.debugLogging) private var debugLogging = false
     @AppStorage(SettingsKey.developerMode) private var developerMode = false
     @AppStorage(SettingsKey.iCloudSync) private var iCloudSync = true
 
@@ -22,6 +21,11 @@ struct SettingsView: View {
     @State private var versionTaps = 0
     @State private var lastVersionTap = Date.distantPast
     @State private var showsDeveloperModeOn = false
+
+    /// The gzipped log while the share sheet shows it, and whether it is being made.
+    @State private var sharedLog: SharedLog?
+    @State private var isPreparingLog = false
+    @State private var logShareFailed = false
 
     /// Taps on Version that turn Developer Mode on.
     static let developerModeTaps = 7
@@ -88,14 +92,21 @@ struct SettingsView: View {
                     Text(iCloudFooter)
                 }
                 Section {
-                    NavigationLink("Log") { LogView(scope: .outsideRounds) }
-                        .accessibilityIdentifier("OpenLog")
-                    Toggle("Debug Logging", isOn: $debugLogging)
-                        .accessibilityIdentifier("DebugLogging")
+                    Button(action: shareLog) {
+                        HStack {
+                            Text("Share logs…")
+                            if isPreparingLog {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isPreparingLog)
+                    .accessibilityIdentifier("ShareLogs")
                 } header: {
                     Text("Log")
                 } footer: {
-                    Text("What the phone and watch apps recorded outside a round. Each past round has its own log. Debug Logging keeps extra detail on both devices; a change reaches the watch when you open the round.")
+                    Text("What the phone and watch apps recorded, for sending to SpotGolf support if something goes wrong.")
                 }
                 #if DEBUG
                 ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
@@ -121,14 +132,17 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: debugLogging) { _, enabled in
-                Log.isDebugEnabled = enabled
-            }
             .onChange(of: iCloudSync) { _, enabled in
                 services.setCloudSync(enabled)
             }
             .alert("Developer Mode On", isPresented: $showsDeveloperModeOn) {
                 Button("OK") {}
+            }
+            .alert("Could Not Share Logs", isPresented: $logShareFailed) {
+                Button("OK") {}
+            }
+            .sheet(item: $sharedLog) { log in
+                ShareSheet(items: [log.url])
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -139,6 +153,20 @@ struct SettingsView: View {
         #if DEBUG
         .modifier(ImportRoundPickers(showCoursePicker: $showImportCoursePicker, message: $importMessage))
         #endif
+    }
+
+    /// Gzips the log and shows the share sheet with it.
+    private func shareLog() {
+        isPreparingLog = true
+        Task {
+            defer { isPreparingLog = false }
+            do {
+                sharedLog = SharedLog(url: try await services.gzippedLog())
+            } catch {
+                Log.export.error("Could not gzip the log: \(String(describing: error))")
+                logShareFailed = true
+            }
+        }
     }
 
     /// Counts taps on Version; the seventh in a row turns Developer Mode on.
@@ -152,6 +180,12 @@ struct SettingsView: View {
         showsDeveloperModeOn = true
         Log.developerMode.notice("Developer Mode turned on")
     }
+}
+
+/// The gzipped log handed to the share sheet.
+private struct SharedLog: Identifiable {
+    let url: URL
+    var id: URL { url }
 }
 
 #if DEBUG

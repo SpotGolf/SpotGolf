@@ -33,7 +33,6 @@ struct RoundMapView: View {
     /// The hole's track as the map draws it, without the fixes too close together to show.
     @State private var trackLine: [CLLocationCoordinate2D] = []
     @State private var suggestions: [StrokeSuggestion] = []
-    @State private var showLog = false
     @State private var showScorecard = false
     /// A point the player tapped on the map, to see how far it is.
     @State private var target: CLLocationCoordinate2D?
@@ -162,7 +161,6 @@ struct RoundMapView: View {
                     }
                     Spacer()
                     MapButtonBar(round: round, shownHoleIndex: holeIndex, showsStrokeLines: $showsStrokeLines,
-                                 showLog: $showLog,
                                  followsUserLocation: camera.followsUserLocation,
                                  followUserLocation: followUserLocation,
                                  mapStyle: mapStyle, pickMapStyle: { showMapStyles = true },
@@ -175,9 +173,6 @@ struct RoundMapView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
-        }
-        .sheet(isPresented: $showLog) {
-            LogSheet(scope: .round(round))
         }
         .sheet(isPresented: $showMapStyles) {
             MapStyleSheet(selected: mapStyle, center: previewCenter(round, holeIndex: holeIndex), select: selectMapStyle)

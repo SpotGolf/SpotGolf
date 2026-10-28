@@ -46,7 +46,6 @@ final class CloudSync {
 
     @ObservationIgnored private let rounds: RoundStore
     @ObservationIgnored private let streams: StreamStore
-    @ObservationIgnored private let logs: LogStore
     @ObservationIgnored private let bag: GolfBagStore
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let stateURL: URL
@@ -62,14 +61,13 @@ final class CloudSync {
     @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
 
     /// `makeEngine` gets the engine's saved state, nil for a fresh start.
-    init(rounds: RoundStore, streams: StreamStore, logs: LogStore, bag: GolfBagStore,
+    init(rounds: RoundStore, streams: StreamStore, bag: GolfBagStore,
          defaults: UserDefaults = .standard,
          stateURL: URL = URL.applicationSupportDirectory.appending(path: "cloud-sync-state.json"),
          scanDelay: Duration = .seconds(2),
          makeEngine: @escaping (Data?, CloudSync) -> CloudSyncEngine) {
         self.rounds = rounds
         self.streams = streams
-        self.logs = logs
         self.bag = bag
         self.defaults = defaults
         self.stateURL = stateURL
@@ -380,7 +378,6 @@ final class CloudSync {
         guard let round = rounds.round(id), round.status == .ended else { return }
         rounds.deleteRound(id)
         streams.delete(id)
-        logs.delete(id)
         Log.iCloud.notice("Deleted round \(id), deleted in iCloud")
     }
 

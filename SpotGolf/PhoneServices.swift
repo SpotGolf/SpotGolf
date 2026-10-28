@@ -17,7 +17,8 @@ final class PhoneServices {
     let phoneSync: PhoneSync
     let courseService: CourseService
     let streamStore: StreamStore
-    let logStore: LogStore
+    /// The app's log, with the watch's lines added as they arrive.
+    let logFile: LogFile
     let golfBag: GolfBagStore
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
@@ -41,25 +42,25 @@ final class PhoneServices {
         let location = LocationManager()
         let sync = SyncService()
         let streams = StreamStore(context: container.mainContext)
-        let logs = LogStore(context: container.mainContext)
-        logs.roundIDForNewLines = { rounds.currentRound?.id }
-        Log.isDebugEnabled = UserDefaults.standard.bool(forKey: SettingsKey.debugLogging)
-        Log.setSink { logs.receive($0) }
+        let log = LogFile()
+        Log.setSink { log.write($0) }
+        // Each line carries the round in progress
+        Log.roundID = rounds.currentRound?.id
+        rounds.addListener { [weak rounds] _ in Log.roundID = rounds?.currentRound?.id }
         roundStore = rounds
         locationManager = location
         syncService = sync
         streamStore = streams
-        logStore = logs
+        logFile = log
         let bag = GolfBagStore(context: container.mainContext)
         golfBag = bag
         courseService = CourseService()
 
         // Without a watch, rounds start and end on the phone alone
-        phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams, logs: logs,
+        phoneSync = PhoneSync(sync: sync, rounds: rounds, streams: streams,
                               requiresWatch: !isUITesting) {
             Self.launchWatchApp(sync: sync)
         }
-        phoneSync.debugLogging = { UserDefaults.standard.bool(forKey: SettingsKey.debugLogging) }
         phoneSync.developerMode = { UserDefaults.standard.bool(forKey: SettingsKey.developerMode) }
         phoneSync.greenZone = { UserDefaults.standard.double(forKey: SettingsKey.greenZone) }
 
@@ -70,7 +71,7 @@ final class PhoneServices {
             sharing: isUITesting ? NoPinSharing() : CloudKitPinSharing(),
             sharesPins: { UserDefaults.standard.bool(forKey: SettingsKey.sharePins) })
         // UI tests run without iCloud, so their rounds never reach a real account
-        cloudSync = CloudSync(rounds: rounds, streams: streams, logs: logs, bag: bag) { state, sync in
+        cloudSync = CloudSync(rounds: rounds, streams: streams, bag: bag) { state, sync in
             CloudKitSyncEngine(state: state, sync: sync)
         }
         allowsCloudSync = !isUITesting
@@ -80,7 +81,15 @@ final class PhoneServices {
         puttSharing = sharing
         sharing.onSettingsChanged = { sync.queue(.phoneSettings($0)) }
         phoneSync.onPuttSession = { sharing.noticeArrived($0) }
-        sync.fileHandler = { sharing.fileArrived($0, metadata: $1) }
+        // Files from the watch are chunks of its log or Putt Data Sharing sessions
+        let chunks = LogChunkReceiver(file: log)
+        sync.fileHandler = { url, metadata in
+            if let name = metadata[LogChunk.FileKey.chunk] as? String {
+                chunks.receive(url, name: name)
+            } else {
+                sharing.fileArrived(url, metadata: metadata)
+            }
+        }
         // Once per launch, as soon as the watch can be told, so a watch that lost them gets them again
         var sentSettings = false
         sync.onReachabilityChange {
@@ -103,6 +112,14 @@ final class PhoneServices {
 
     /// Off in UI tests.
     private let allowsCloudSync: Bool
+
+    /// The log gzipped into one file, for "Share logs…". Asks the watch for its latest lines
+    /// first, without waiting: lines that arrive later go in the next share.
+    func gzippedLog() async throws -> URL {
+        syncService.queue(.sendLog)
+        let file = logFile
+        return try await Task.detached { try LogShare.gzip(file) }.value
+    }
 
     /// Starts or stops iCloud sync, for the iCloud Sync setting.
     func setCloudSync(_ enabled: Bool) {

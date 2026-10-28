@@ -46,7 +46,6 @@ final class PhoneSync {
     let sync: SyncService
     let rounds: RoundStore
     let streams: StreamStore
-    let logs: LogStore
     let receiver: StreamReceiver
     let snapshots: SnapshotSync
 
@@ -56,8 +55,6 @@ final class PhoneSync {
     private let retryDelay: TimeInterval
     /// Launches the watch app so it can take the round. `HKHealthStore.startWatchApp` in the app.
     private let launchWatchApp: () -> Void
-    /// The Debug Logging setting, sent to the watch with each start. Tests set it.
-    @ObservationIgnored var debugLogging: () -> Bool = { false }
     /// The Developer Mode setting, sent with each round start.
     @ObservationIgnored var developerMode: () -> Bool = { false }
     /// Told when the watch finished a Putt Data Sharing session, before its file arrives.
@@ -67,19 +64,18 @@ final class PhoneSync {
     private var startTimers: [UUID: Timer] = [:]
     private var retryTimers: [UUID: Timer] = [:]
 
-    init(sync: SyncService, rounds: RoundStore, streams: StreamStore, logs: LogStore,
+    init(sync: SyncService, rounds: RoundStore, streams: StreamStore,
          requiresWatch: Bool = true, startTimeout: TimeInterval = SyncService.startTimeout,
          retryDelay: TimeInterval = PhoneSync.defaultRetryDelay,
          launchWatchApp: @escaping () -> Void = {}) {
         self.sync = sync
         self.rounds = rounds
         self.streams = streams
-        self.logs = logs
         self.requiresWatch = requiresWatch
         self.startTimeout = startTimeout
         self.retryDelay = retryDelay
         self.launchWatchApp = launchWatchApp
-        receiver = StreamReceiver(rounds: rounds, streams: streams, logs: logs)
+        receiver = StreamReceiver(rounds: rounds, streams: streams)
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: true)
         snapshots.roundSettings = { [weak self] round in self?.roundSettings(for: round) }
 
@@ -96,7 +92,7 @@ final class PhoneSync {
     /// Sends changes made on the phone to the watch.
     /// The settings the watch follows, as they stand now.
     private func roundSettings(for round: Round) -> RoundSettingsMessage {
-        RoundSettingsMessage(roundID: round.id, debugLogging: debugLogging(), developerMode: developerMode(),
+        RoundSettingsMessage(roundID: round.id, developerMode: developerMode(),
                              greenZone: greenZone())
     }
 
@@ -173,7 +169,6 @@ final class PhoneSync {
         }
         rounds.deleteRound(roundID)
         streams.delete(roundID)
-        logs.delete(roundID)
         let message = SyncMessage.cancelRound(CancelRound(roundID: roundID))
         sync.send(message)
         sync.queue(message)
@@ -215,8 +210,6 @@ final class PhoneSync {
                                strokes: round.strokesSnapshot,
                                streamBase: receiver.have(for: round.id),
                                version: version,
-                               logBase: receiver.haveLogs(for: round.id),
-                               debugLogging: debugLogging(),
                                developerMode: developerMode(),
                                greenZone: greenZone())
         sync.send(.startRound(start), reply: { [weak self] reply in
@@ -427,7 +420,7 @@ final class PhoneSync {
         case .puttSession(let notice):
             onPuttSession?(notice)
             return nil
-        case .startRound, .cancelRound, .roundDeleted, .endRequest, .streamAck, .strokes, .settings, .chunk, .phoneSettings:
+        case .startRound, .cancelRound, .roundDeleted, .endRequest, .streamAck, .strokes, .settings, .chunk, .phoneSettings, .sendLog:
             return nil
         }
     }

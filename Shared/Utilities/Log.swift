@@ -2,11 +2,13 @@ import Foundation
 import os
 
 /// The app's log, one category per area. Every line goes two ways: to Apple's unified log,
-/// where Xcode's console and Console.app show it, and to `sink`, which `LogStore` sets so the
-/// line is saved in the app's own store and read after a round. See plans/2026-10-10-app-log.md.
+/// where Xcode's console and Console.app show it, and to `sink`, which writes it to the app's
+/// `LogFile`. See plans/2026-10-28-unified-log.md.
 ///
 /// - Failures use `error`, key events `notice`, and detail that only helps when something is
-///   being chased `debug`. Debug lines are saved only while `isDebugEnabled` is on.
+///   being chased `debug`. Every level is written.
+/// - A line written while a round is going carries the round's ID, which the app keeps in
+///   `roundID`.
 /// - Lines written before the sink is set, such as the store failing to open, are held and
 ///   handed to the sink when it is set.
 /// - Nothing may log per sensor batch or per GPS fix: a round's log stays small because it
@@ -43,15 +45,15 @@ enum Log {
     private struct State {
         var sink: (@Sendable (LogLine) -> Void)?
         var held: [LogLine] = []
-        var isDebugEnabled = false
+        var roundID: UUID?
     }
 
     private static let state = OSAllocatedUnfairLock(initialState: State())
 
-    /// Whether `debug` lines are written. Set from the Debug Logging setting.
-    static var isDebugEnabled: Bool {
-        get { state.withLock { $0.isDebugEnabled } }
-        set { state.withLock { $0.isDebugEnabled = newValue } }
+    /// The round going now, which each new line carries. The app sets it as rounds start and end.
+    static var roundID: UUID? {
+        get { state.withLock { $0.roundID } }
+        set { state.withLock { $0.roundID = newValue } }
     }
 
     /// Where lines go once the app's store is open. Held lines are handed over first, in order.
@@ -91,11 +93,9 @@ struct LogCategory: Sendable {
         logger = Logger(subsystem: Log.subsystem, category: name)
     }
 
-    /// Detail for chasing a problem. Written only while `Log.isDebugEnabled`; the text is not
-    /// built otherwise.
-    func debug(_ message: @autoclosure () -> String) {
-        guard Log.isDebugEnabled else { return }
-        write(.debug, message())
+    /// Detail for chasing a problem.
+    func debug(_ message: String) {
+        write(.debug, message)
     }
 
     /// A key event.
@@ -115,7 +115,8 @@ struct LogCategory: Sendable {
 
     private func write(_ level: LogLevel, _ message: String) {
         logger.log(level: level.osLogType, "\(message, privacy: .public)")
-        Log.write(LogLine(timestamp: Date(), device: Log.device, level: level, category: name, message: message))
+        Log.write(LogLine(timestamp: Date(), device: Log.device, level: level, category: name,
+                          roundID: Log.roundID, message: message))
     }
 }
 
@@ -140,11 +141,6 @@ enum LogLevel: String, Codable, Equatable, Sendable, CaseIterable {
         case .fault: "F"
         }
     }
-
-    /// An error or a fault.
-    var isFailure: Bool {
-        self == .error || self == .fault
-    }
 }
 
 enum LogDevice: String, Codable, Equatable, Sendable, CaseIterable {
@@ -157,11 +153,17 @@ struct LogLine: Codable, Equatable, Sendable {
     let device: LogDevice
     let level: LogLevel
     let category: String
+    /// The round going when the line was written, or nil outside a round.
+    let roundID: UUID?
     let message: String
 
-    /// The line as exported: `2026-10-09T16:12:33.123Z watch E sensors accelerometer …`.
+    /// The line as written to the log file, with `-` for no round and newlines in the message
+    /// escaped, so every line is one line with the same columns before the message:
+    /// `2026-10-09T16:12:33.123Z watch E sensors 6F1C…A2 accelerometer …`.
     var text: String {
-        "\(timestamp.formatted(Self.timeFormat)) \(device.rawValue) \(level.letter) \(category) \(message)"
+        let round = roundID?.uuidString ?? "-"
+        let escaped = message.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\n", with: "\\n")
+        return "\(timestamp.formatted(Self.timeFormat)) \(device.rawValue) \(level.letter) \(category) \(round) \(escaped)"
     }
 
     static let timeFormat = Date.ISO8601FormatStyle(includingFractionalSeconds: true)

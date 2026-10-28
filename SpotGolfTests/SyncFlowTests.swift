@@ -560,7 +560,7 @@ final class SyncFlowTests: XCTestCase {
 
         let ack = pair.phone.receiver.receive(batch)
 
-        XCTAssertEqual(ack, StreamAck(roundID: id, have: 0, haveLogs: 0))
+        XCTAssertEqual(ack, StreamAck(roundID: id, have: 0))
         XCTAssertEqual(pair.phoneStreams.count(for: id), 0)
     }
 
@@ -569,7 +569,7 @@ final class SyncFlowTests: XCTestCase {
         pair.watch.record(locations(0..<5))
 
         // A relaunch loses the cursor; the empty batch asks the phone for it
-        let relaunched = WatchSync(sync: pair.watchSync, rounds: pair.watchRounds, streams: pair.watchStreams, logs: pair.watchLogs)
+        let relaunched = WatchSync(sync: pair.watchSync, rounds: pair.watchRounds, streams: pair.watchStreams)
         XCTAssertNil(relaunched.sender.cursors[id])
         relaunched.sender.pump()
 
@@ -599,170 +599,109 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertFalse(pair.watchStreams.hasStream(for: id))
     }
 
-    // MARK: - Log lines
+    // MARK: - Log chunks
 
-    private func logLine(_ second: TimeInterval, _ message: String, device: LogDevice = .watch) -> LogLine {
-        LogLine(timestamp: StreamFixtures.start.addingTimeInterval(second), device: device, level: .notice,
-                category: "sensors", message: message)
-    }
+    /// The watch's chunk sender and the phone's receiver, each with its own log in a temporary folder.
+    private struct LogPair {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let watchFile: LogFile
+        let phoneFile: LogFile
+        let sender: LogChunkSender
+        let receiver: LogChunkReceiver
+        let defaults: UserDefaults
 
-    private func logBatches() -> [StreamBatch] {
-        pair.watchTransport.sentMessages { message -> StreamBatch? in
-            if case .streamBatch(let batch) = message, batch.logs?.isEmpty == false { return batch }
-            return nil
+        @MainActor
+        init(_ pair: SyncPair) {
+            watchFile = LogFile(directory: folder.appendingPathComponent("watch"), maxFileBytes: LogChunkSender.maxFileBytes, keptFiles: 0)
+            phoneFile = LogFile(directory: folder.appendingPathComponent("phone"))
+            sender = LogChunkSender(file: watchFile, transport: pair.watchTransport,
+                                    outbox: folder.appendingPathComponent("outbox"))
+            defaults = UserDefaults(suiteName: UUID().uuidString)!
+            let receiver = LogChunkReceiver(file: phoneFile, defaults: defaults)
+            self.receiver = receiver
+            let sender = sender
+            pair.phoneSync.fileHandler = { url, metadata in
+                guard let name = metadata[LogChunk.FileKey.chunk] as? String else { return }
+                receiver.receive(url, name: name)
+            }
+            pair.watchSync.fileTransferFinished = { metadata, error in
+                sender.transferFinished(metadata, error: error)
+            }
+            pair.watch.onSendLog = { sender.closeChunk() }
+        }
+
+        func remove() {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        func line(_ message: String, roundID: UUID? = nil) -> LogLine {
+            LogLine(timestamp: StreamFixtures.start, device: .watch, level: .notice, category: "sensors",
+                    roundID: roundID, message: message)
+        }
+
+        var phoneText: String {
+            String(decoding: phoneFile.allData(), as: UTF8.self)
         }
     }
 
-    func testWatchLogLinesReachThePhoneInOrder() {
-        let id = pair.startRound()
+    func testWatchLogChunkReachesThePhoneLog() {
+        let logs = LogPair(pair)
+        defer { logs.remove() }
+        let id = UUID()
+        logs.watchFile.write(logs.line("outside"))
+        logs.watchFile.write(logs.line("in the round", roundID: id))
 
-        pair.watchLogs.append([logLine(0, "accelerometer on"), logLine(1, "first batch")], roundID: id)
-        pair.watch.sender.pump()
-        pair.watchLogs.append([logLine(2, "swing")], roundID: id)
-        pair.watch.sender.pump()
+        logs.sender.closeChunk()
+        XCTAssertEqual(logs.sender.chunks().count, 1)
+        pair.watchTransport.deliverFiles()
 
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["accelerometer on", "first batch", "swing"])
-        XCTAssertEqual(pair.phoneLogs.lines(for: id), pair.watchLogs.lines(for: id))
-        XCTAssertEqual(pair.watch.sender.logCursors[id], 3)
+        XCTAssertEqual(logs.phoneText, [logs.line("outside"), logs.line("in the round", roundID: id)]
+            .map { $0.text + "\n" }.joined())
+        XCTAssertTrue(logs.sender.chunks().isEmpty, "Deleted once it arrived")
+        XCTAssertEqual(logs.watchFile.currentSize, 0)
     }
 
-    func testLinesGoWithTheNextBatchAfterAFlush() {
-        let id = pair.startRound()
+    func testChunksArriveInTheOrderTheyWereMade() {
+        let logs = LogPair(pair)
+        defer { logs.remove() }
+        logs.watchFile.write(logs.line("first"))
+        logs.sender.closeChunk(now: StreamFixtures.start)
+        logs.watchFile.write(logs.line("second"))
+        logs.sender.closeChunk(now: StreamFixtures.start.addingTimeInterval(60))
 
-        pair.watchLogs.enqueue(logLine(0, "queued"))
-        XCTAssertTrue(pair.phoneLogs.lines(for: id).isEmpty)
-        pair.watchLogs.flush()
+        pair.watchTransport.deliverFiles()
 
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), [])
-        // The flush assigns the round in progress, which the pair's store does not know; a line
-        // for the round goes at once
-        pair.watchLogs.roundIDForNewLines = { id }
-        pair.watchLogs.enqueue(logLine(1, "in the round"))
-        pair.watchLogs.flush()
-
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["in the round"])
+        XCTAssertEqual(logs.phoneText, logs.line("first").text + "\n" + logs.line("second").text + "\n")
     }
 
-    func testLinesSentWhileUnreachableCatchUpOnReconnect() {
-        let id = pair.startRound()
-        pair.setReachable(false)
-        pair.watchLogs.append((0..<500).map { logLine(TimeInterval($0), "line \($0)") }, roundID: id)
-        pair.watch.sender.pump()
-        XCTAssertTrue(pair.phoneLogs.lines(for: id).isEmpty)
+    func testPhoneAskingForTheLogClosesTheWatchChunk() {
+        let logs = LogPair(pair)
+        defer { logs.remove() }
+        logs.watchFile.write(logs.line("waiting"))
 
-        pair.setReachable(true)
+        pair.phoneSync.queue(.sendLog)
+        pair.phoneTransport.deliverQueued()
+        pair.watchTransport.deliverFiles()
 
-        XCTAssertEqual(pair.phoneLogs.count(for: id, device: .watch), 500)
-        XCTAssertEqual(pair.phoneLogs.lines(for: id), pair.watchLogs.lines(for: id))
-        XCTAssertTrue(logBatches().allSatisfy { ($0.logs?.count ?? 0) <= StreamSender.maxBatchLines })
-        XCTAssertGreaterThanOrEqual(logBatches().count, 3)
+        XCTAssertEqual(logs.phoneText, logs.line("waiting").text + "\n")
     }
 
-    func testLostLogReplyIsSentAgainWithoutDuplicates() {
-        let id = pair.startRound()
-        pair.watchLogs.append([logLine(0, "a"), logLine(1, "b")], roundID: id)
-        pair.watch.sender.pump()
-        pair.watchTransport.dropsReplies = true
-        pair.watchLogs.append([logLine(2, "c")], roundID: id)
-        pair.watch.sender.pump()
-        XCTAssertEqual(pair.phoneLogs.count(for: id, device: .watch), 3)
-        XCTAssertEqual(pair.watch.sender.logCursors[id], 2)
+    func testChunkStillInTheOutboxGoesAgainAtLaunchUnlessOnItsWay() {
+        let logs = LogPair(pair)
+        defer { logs.remove() }
+        logs.watchFile.write(logs.line("before the kill"))
+        logs.sender.closeChunk()
+        XCTAssertEqual(pair.watchTransport.outstandingFileTransfers.count, 1)
 
-        pair.watchTransport.dropsReplies = false
-        pair.watchLogs.append([logLine(3, "d")], roundID: id)
-        pair.watch.sender.pump()
+        // The system still has the transfer: it is not sent again
+        LogChunkSender(file: logs.watchFile, transport: pair.watchTransport, outbox: logs.sender.outbox).recoverAtLaunch()
+        XCTAssertEqual(pair.watchTransport.outstandingFileTransfers.count, 1)
 
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["a", "b", "c", "d"])
-    }
-
-    func testLogGapIsDiscardedAndFixedInOneRoundTrip() {
-        let id = pair.startRound()
-        pair.watchLogs.append((0..<5).map { logLine(TimeInterval($0), "line \($0)") }, roundID: id)
-        pair.watch.sender.pump()
-        // The phone loses lines it had already acknowledged
-        pair.phoneLogs.delete(id)
-
-        pair.watchLogs.append([logLine(5, "line 5")], roundID: id)
-        pair.watch.sender.pump()
-
-        XCTAssertEqual(logBatches().suffix(2).map(\.logsFrom), [5, 0])
-        XCTAssertEqual(pair.phoneLogs.lines(for: id), pair.watchLogs.lines(for: id))
-    }
-
-    func testLinesAfterTheLastRecordStillArriveAndTheWatchThenDeletesBoth() {
-        let id = pair.startRound()
-        pair.watch.record(locations(0..<3))
-        pair.watchTransport.dropsSends = true
-        pair.watchLogs.append([logLine(3, "workout ended")], roundID: id)
-        pair.watch.sender.pump()
-
-        pair.phone.endRound(id)
-        XCTAssertEqual(phoneRound(id)?.status, .ended)
-        // Every record is there, but not the line: the watch keeps both until the phone has all
-        XCTAssertTrue(pair.watchLogs.hasLines(for: id))
-        XCTAssertTrue(pair.watchStreams.hasStream(for: id))
-
-        pair.watchTransport.dropsSends = false
-        pair.watch.sender.pump()
-
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["workout ended"])
-        XCTAssertFalse(pair.watchLogs.hasLines(for: id))
-        XCTAssertFalse(pair.watchStreams.hasStream(for: id))
-    }
-
-    func testAckWithoutHaveLogsCountsTheLinesAsComplete() {
-        let id = pair.startRound()
-        pair.watchTransport.dropsSends = true
-        pair.watchLogs.append([logLine(0, "a"), logLine(1, "b")], roundID: id)
-        pair.watch.sender.pump()
-        XCTAssertNil(pair.watch.sender.logCursors[id])
-
-        // A phone from before the app log
-        pair.watch.sender.handle(StreamAck(roundID: id, have: 0))
-
-        XCTAssertEqual(pair.watch.sender.logCursors[id], 2)
-    }
-
-    func testResumedRoundContinuesLogNumbering() {
-        let id = pair.startRound()
-        pair.watchLogs.append([logLine(0, "a"), logLine(1, "b")], roundID: id)
-        pair.watch.sender.pump()
-        pair.phone.endRound(id)
-        XCTAssertFalse(pair.watchLogs.hasLines(for: id))
-
-        pair.phone.resumeRound(id)
-        pair.watchLogs.append([logLine(10, "c")], roundID: id)
-        pair.watch.sender.pump()
-
-        XCTAssertEqual(watchRound(id)?.logBase, 2)
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["a", "b", "c"])
-        XCTAssertEqual(pair.phoneLogs.count(for: id, device: .watch), 3)
-    }
-
-    func testWatchLinesFromJustBeforeTheRoundGoWithIt() {
-        pair.watchLogs.append([LogLine(timestamp: Date().addingTimeInterval(-10 * 60), device: .watch, level: .notice,
-                                       category: "workout", message: "old"),
-                               LogLine(timestamp: Date().addingTimeInterval(-30), device: .watch, level: .notice,
-                                       category: "workout", message: "launched by the phone")], roundID: nil)
-
-        let id = pair.startRound()
-
-        XCTAssertEqual(pair.phoneLogs.lines(for: id).map(\.message), ["launched by the phone"])
-        XCTAssertEqual(pair.watchLogs.lines(for: nil).map(\.message), ["old"])
-    }
-
-    func testDebugLoggingSettingReachesTheWatch() {
-        let was = Log.isDebugEnabled
-        defer {
-            Log.isDebugEnabled = was
-            UserDefaults.standard.removeObject(forKey: WatchSync.debugLoggingKey)
-        }
-        pair.phone.debugLogging = { true }
-
-        pair.startRound()
-
-        XCTAssertTrue(Log.isDebugEnabled)
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: WatchSync.debugLoggingKey))
+        // The system lost it: it goes again
+        let fresh = FakeTransport()
+        LogChunkSender(file: logs.watchFile, transport: fresh, outbox: logs.sender.outbox).recoverAtLaunch()
+        XCTAssertEqual(fresh.outstandingFileTransfers.map { $0[LogChunk.FileKey.chunk] as? String },
+                       [logs.sender.chunks().first?.lastPathComponent])
     }
 
     func testDeveloperModeSettingReachesTheWatch() {
@@ -804,7 +743,7 @@ final class SyncFlowTests: XCTestCase {
 
         XCTAssertEqual(WatchSync.greenZone, 20)
         XCTAssertTrue(WatchSync.developerMode)
-        XCTAssertEqual(received, [RoundSettingsMessage(roundID: id, debugLogging: false, developerMode: true, greenZone: 20)])
+        XCTAssertEqual(received, [RoundSettingsMessage(roundID: id, developerMode: true, greenZone: 20)])
     }
 
     func testSettingsForAnotherRoundAreIgnored() {
@@ -814,26 +753,10 @@ final class SyncFlowTests: XCTestCase {
         pair.watch.onSettings = { _ in received += 1 }
         pair.startRound()
 
-        pair.phoneSync.send(.settings(RoundSettingsMessage(roundID: UUID(), debugLogging: false, developerMode: true, greenZone: 40)))
+        pair.phoneSync.send(.settings(RoundSettingsMessage(roundID: UUID(), developerMode: true, greenZone: 40)))
 
         XCTAssertEqual(WatchSync.greenZone, HoleShape.chipZoneMargin)
         XCTAssertEqual(received, 0)
-    }
-
-    func testCancelledRoundsLinesAreDeletedOnBothDevices() {
-        let pair = SyncPair(startTimeout: 0.05)
-        pair.phoneTransport.isReachable = false
-        let id = pair.startRound()
-        pair.phoneLogs.append([logLine(0, "starting", device: .phone)], roundID: id)
-        // The watch did get a start from an earlier try that the phone never heard back from
-        pair.watchLogs.append([logLine(0, "started")], roundID: id)
-
-        pair.phone.cancelStart(id)
-        pair.phoneTransport.isReachable = true
-        pair.phoneTransport.deliverQueued()
-
-        XCTAssertFalse(pair.phoneLogs.hasLines(for: id))
-        XCTAssertFalse(pair.watchLogs.hasLines(for: id))
     }
 
     // MARK: - Putt Data Sharing

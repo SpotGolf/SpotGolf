@@ -52,7 +52,6 @@ final class CloudSyncTests: XCTestCase {
     private var container: ModelContainer!
     private var rounds: RoundStore!
     private var streams: StreamStore!
-    private var logs: LogStore!
     private var bag: GolfBagStore!
     private var defaults: UserDefaults!
     private var suiteName: String!
@@ -71,7 +70,6 @@ final class CloudSyncTests: XCTestCase {
         SettingsKey.registerDefaults(in: defaults)
         rounds = RoundStore(context: context)
         streams = StreamStore(context: context)
-        logs = LogStore(context: context)
         bag = GolfBagStore(context: context, defaults: defaults)
         stateURL = FileManager.default.temporaryDirectory.appending(path: "\(suiteName!).json")
         engines = []
@@ -87,7 +85,7 @@ final class CloudSyncTests: XCTestCase {
     }
 
     private func makeSync() -> CloudSync {
-        CloudSync(rounds: rounds, streams: streams, logs: logs, bag: bag, defaults: defaults, stateURL: stateURL,
+        CloudSync(rounds: rounds, streams: streams, bag: bag, defaults: defaults, stateURL: stateURL,
                   scanDelay: .milliseconds(50)) { [unowned self] state, _ in
             let engine = FakeEngine(startState: state)
             engines.append(engine)

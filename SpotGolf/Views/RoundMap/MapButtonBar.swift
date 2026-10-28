@@ -8,7 +8,6 @@ struct MapButtonBar: View {
     let shownHoleIndex: Int
     /// The ruler button: shows and hides the lines and distances between the hole's strokes.
     @Binding var showsStrokeLines: Bool
-    @Binding var showLog: Bool
     let followsUserLocation: Bool
     /// The location button: the camera goes back to following the player.
     let followUserLocation: () -> Void
@@ -101,26 +100,12 @@ struct MapButtonBar: View {
         }
     }
 
-    /// The round's log, then the map's style and, during a round, following the player's
-    /// location, together in one capsule as Apple Maps has them. The capsule is not in Green View.
+    /// The map's style and, during a round, following the player's location, together in one
+    /// capsule as Apple Maps has them. Not in Green View.
+    @ViewBuilder
     private var mapButtons: some View {
-        VStack(spacing: 8) {
-            Button {
-                showLog = true
-            } label: {
-                Image(systemName: "doc.text")
-            }
-            .accessibilityLabel("Log")
-            .accessibilityIdentifier("RoundLog")
-            .font(.title3)
-            .frame(width: Self.buttonSize, height: Self.buttonSize)
-            .background(.thickMaterial)
-            .clipShape(Circle())
-            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-
-            if !showsGreenView {
-                mapCapsule
-            }
+        if !showsGreenView {
+            mapCapsule
         }
     }
 

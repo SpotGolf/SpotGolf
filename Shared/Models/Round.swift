@@ -31,9 +31,6 @@ final class Round {
     var strokesVersion: Int
     /// Watch only: the stream index of the first record in this round's stream.
     var streamBase: Int
-    /// The first `seq` of the watch's log lines for the round: nonzero when an ended round is
-    /// resumed, so the phone keeps the lines of both stints. Only the watch uses it.
-    var logBase: Int
     /// The index of the watch's last stream record, once the watch has ended the round.
     /// Nil when the watch recorded nothing.
     var lastSeq: Int?
@@ -69,7 +66,6 @@ final class Round {
         self.status = status
         self.strokesVersion = 0
         self.streamBase = 0
-        self.logBase = 0
         self.endConfirmed = false
         self.holes = holes
         self.holeStarts = [date] + Array(repeating: nil, count: holeCount - 1)

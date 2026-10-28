@@ -6,8 +6,6 @@ enum SettingsKey {
     static let stationaryThreshold = "stationaryThreshold"
     /// Uploads the pins the player sets, for other golfers on the same course.
     static let sharePins = "sharePins"
-    /// Saves `debug` log lines, on the phone and the watch.
-    static let debugLogging = "debugLogging"
     /// The watch records raw sensor data on the greens during a round. Hidden in Settings until
     /// unlocked by tapping the version.
     static let developerMode = "developerMode"
@@ -34,7 +32,7 @@ enum SettingsKey {
     static let puttSharingCellular = "puttSharingCellular"
 
     static var defaults: [String: Any] {
-        [stationaryThreshold: 30.0, greenZone: HoleShape.chipZoneMargin, sharePins: true, debugLogging: false,
+        [stationaryThreshold: 30.0, greenZone: HoleShape.chipZoneMargin, sharePins: true,
          developerMode: false, mapStyle: MapStyleChoice.standard.rawValue, bagSeeded: false, iCloudSync: true]
     }
 

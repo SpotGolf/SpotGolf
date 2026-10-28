@@ -29,6 +29,8 @@ enum SyncMessage: Codable, Equatable {
     case phoneSettings(PhoneSettingsMessage)
     /// Watch → phone, queued: a drill session finished and its file is on its way.
     case puttSession(PuttSessionNotice)
+    /// Phone → watch, queued: send the log written so far, for "Share logs…".
+    case sendLog
 }
 
 /// Phone → watch. The watch replies `StartRoundAck` once the round is active,
@@ -46,10 +48,6 @@ struct StartRound: Codable, Equatable {
     let streamBase: Int
     /// The phone app's version. The watch app must be the same, or it refuses the round.
     let version: String
-    /// The first `seq` for the watch's log lines: the phone's count of them, nonzero on a resume.
-    let logBase: Int
-    /// The phone's Debug Logging setting, which the watch follows.
-    let debugLogging: Bool
     /// The phone's Developer Mode setting: the watch records a capture on the greens.
     let developerMode: Bool
     /// The phone's Green Zone setting: meters from the green's edge the watch listens for contacts in.
@@ -57,7 +55,7 @@ struct StartRound: Codable, Equatable {
 
     init(roundID: UUID, date: Date, course: Data, displayHole: DisplayHole,
          pins: [PinLocation?], strokes: StrokesSnapshot, streamBase: Int, version: String,
-         logBase: Int = 0, debugLogging: Bool = false, developerMode: Bool = false,
+         developerMode: Bool = false,
          greenZone: Double = HoleShape.chipZoneMargin) {
         self.roundID = roundID
         self.date = date
@@ -67,17 +65,14 @@ struct StartRound: Codable, Equatable {
         self.strokes = strokes
         self.streamBase = streamBase
         self.version = version
-        self.logBase = logBase
-        self.debugLogging = debugLogging
         self.developerMode = developerMode
         self.greenZone = greenZone
     }
 }
 
 extension StartRound {
-    /// A phone from before versions were checked sends none; it is never the watch's. One from
-    /// before the app log sends no log base or debug setting, one with no Developer Mode setting
-    /// has it off, and none before the Green Zone setting sends a zone, which is the default.
+    /// A phone from before versions were checked sends none; it is never the watch's. One with
+    /// no Developer Mode setting has it off, and none before the Green Zone setting sends a zone, which is the default.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         roundID = try values.decode(UUID.self, forKey: .roundID)
@@ -88,8 +83,6 @@ extension StartRound {
         strokes = try values.decode(StrokesSnapshot.self, forKey: .strokes)
         streamBase = try values.decode(Int.self, forKey: .streamBase)
         version = try values.decodeIfPresent(String.self, forKey: .version) ?? ""
-        logBase = try values.decodeIfPresent(Int.self, forKey: .logBase) ?? 0
-        debugLogging = try values.decodeIfPresent(Bool.self, forKey: .debugLogging) ?? false
         developerMode = try values.decodeIfPresent(Bool.self, forKey: .developerMode) ?? false
         greenZone = try values.decodeIfPresent(Double.self, forKey: .greenZone) ?? HoleShape.chipZoneMargin
     }
@@ -191,39 +184,19 @@ struct EndAck: Codable, Equatable {
     let lastSeq: Int?
 }
 
-/// Watch → phone. Stream records `from..<from + count`, and the watch's log lines
-/// `logsFrom..<logsFrom + logs.count`. Empty records and logs ask for the phone's `have`
-/// and `haveLogs`. The log fields are optional, so a batch from before the app log decodes.
+/// Watch → phone. Stream records `from..<from + count`. Empty records ask for the phone's `have`.
 struct StreamBatch: Codable, Equatable {
     let roundID: UUID
     let from: Int
     /// `StreamRecord` records back to back.
     let records: Data
-    let logsFrom: Int?
-    let logs: [LogLine]?
-
-    init(roundID: UUID, from: Int, records: Data, logsFrom: Int? = nil, logs: [LogLine]? = nil) {
-        self.roundID = roundID
-        self.from = from
-        self.records = records
-        self.logsFrom = logsFrom
-        self.logs = logs
-    }
 }
 
-/// Phone → watch. The phone holds records `0..<have` and log lines `0..<haveLogs` with no gaps.
+/// Phone → watch. The phone holds records `0..<have` with no gaps.
 struct StreamAck: Codable, Equatable {
     let roundID: UUID
     /// Nil when the phone does not know the round; the watch then deletes its stream.
     let have: Int?
-    /// Nil from a phone from before the app log, which the watch reads as having every line.
-    let haveLogs: Int?
-
-    init(roundID: UUID, have: Int?, haveLogs: Int? = nil) {
-        self.roundID = roundID
-        self.have = have
-        self.haveLogs = haveLogs
-    }
 }
 
 /// Both ways. The hole both devices show; the later change wins. The longer hold wins.
@@ -259,7 +232,6 @@ struct StrokesSnapshot: Codable, Equatable {
 /// reaches the watch without a new round.
 struct RoundSettingsMessage: Codable, Equatable {
     let roundID: UUID
-    let debugLogging: Bool
     let developerMode: Bool
     /// Meters from the green's edge the watch listens for contacts in.
     let greenZone: Double
@@ -311,6 +283,7 @@ extension SyncMessage {
         case .chunk: "chunk"
         case .phoneSettings: "phoneSettings"
         case .puttSession: "puttSession"
+        case .sendLog: "sendLog"
         }
     }
 }
