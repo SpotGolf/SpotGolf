@@ -8,6 +8,12 @@ struct SpotGolfWatchApp: App {
     var body: some Scene {
         WindowGroup {
             WatchRootView()
+                // UI tests run at machine speed: nothing waits for an animation to finish
+                .transaction { transaction in
+                    if LaunchOptions.current.isUITesting {
+                        transaction.disablesAnimations = true
+                    }
+                }
                 .environment(appDelegate.services)
                 .modelContainer(appDelegate.services.container)
         }

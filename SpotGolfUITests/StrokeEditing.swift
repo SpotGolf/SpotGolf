@@ -12,7 +12,8 @@ extension XCUIApplication {
     /// Long-presses the map, which adds a stroke there and opens its edit sheet.
     func addStroke(at point: CGVector) {
         let start = coordinate(withNormalizedOffset: point)
-        // The map only reports the press once the finger has moved
+        // The map only reports the press once the finger has moved. A shorter press also drops a
+        // target where it lands.
         start.press(forDuration: 1.0, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 4)))
     }
 }

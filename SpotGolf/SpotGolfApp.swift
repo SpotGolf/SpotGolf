@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 import os
 
 @main
@@ -8,12 +9,21 @@ struct SpotGolfApp: App {
 
     init() {
         Log.rounds.notice("Phone app launched")
+        // UI tests run at machine speed: nothing waits for an animation to finish
+        if LaunchOptions.current.isUITesting {
+            UIView.setAnimationsEnabled(false)
+        }
         _services = State(initialValue: PhoneServices())
     }
 
     var body: some Scene {
         WindowGroup {
             PhoneRootView()
+                .transaction { transaction in
+                    if LaunchOptions.current.isUITesting {
+                        transaction.disablesAnimations = true
+                    }
+                }
                 .environment(services)
                 .modelContainer(services.container)
                 .onAppear {
