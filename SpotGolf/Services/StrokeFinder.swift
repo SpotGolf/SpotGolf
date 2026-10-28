@@ -101,6 +101,9 @@ enum StrokeFinder {
     /// only the contacts within `fullSwingContactGap` of it, a full swing after a putt in the
     /// same stop is a knock or a shake and not offered, and a stop with no putt is offered only
     /// where the watch was not listening (`events`), or where it has a swing of `chipSwingPeak`.
+    ///
+    /// A full swing on the green is never offered: it is a knock or a shake, so the green has
+    /// only putts and stops.
     static func suggestions(on hole: HoleShape, points: [TrackPoint], swings: [StrokeSuggestion],
                             contacts: [ContactEvent] = [], events: [StreamEvent] = [], minStop: TimeInterval,
                             zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = [],
@@ -135,6 +138,10 @@ enum StrokeFinder {
         let usedContacts = gated ? contacts.filter(\.gated) : contacts
         func inZone(_ stop: Stop) -> Bool {
             hole.metersToGreen(stop.center).map { $0 <= zoneMargin } ?? false
+        }
+        // Nobody makes a full swing on the green: one there is a knock or a shake, never a shot
+        func isShot(_ swing: Placed) -> Bool {
+            swing.peakG >= fullSwingPeak && hole.metersToGreen(swing.spot).map { $0 > 0 } ?? true
         }
 
         // Contacts in the stops they were made in, at the fix nearest each
@@ -180,7 +187,7 @@ enum StrokeFinder {
         func afterPutt(_ swing: Placed) -> Bool {
             gatedPutts[swing.stopIndex]?.contains { $0.contact.timestamp < swing.swing.timestamp } ?? false
         }
-        for full in placed where full.peakG >= fullSwingPeak && !afterPutt(full) {
+        for full in placed where isShot(full) && !afterPutt(full) {
             if let last = atOneSpot.last,
                full.swing.timestamp.timeIntervalSince(last.swing.timestamp) <= sameShotWindow,
                LocalDistance.meters(fromLat: last.spot.lat, lon: last.spot.lon,
@@ -209,14 +216,14 @@ enum StrokeFinder {
                 // A stop the watch listened through and heard nothing in is not a putt, unless a swing says it may be a chip
                 let listened = wasListening(through: stop, in: listening)
                 let chipSwing = stopSwings.contains { $0.peakG >= chipSwingPeak && $0.peakG < fullSwingPeak }
-                if putts.isEmpty, !stopSwings.contains(where: { $0.peakG >= fullSwingPeak }), stop.duration >= minStop,
+                if putts.isEmpty, !stopSwings.contains(where: isShot), stop.duration >= minStop,
                    !listened || chipSwing {
                     shortGame.append(StrokeSuggestion(timestamp: stop.start, kind: .stop(duration: stop.duration),
                                                       coordinate: stop.coordinate, id: StrokeSuggestion.id(at: stop.start)))
                 }
                 continue
             }
-            let lastFullSwing = placed.filter { $0.stopIndex == index && $0.peakG >= fullSwingPeak }
+            let lastFullSwing = placed.filter { $0.stopIndex == index && isShot($0) }
                 .map(\.swing.timestamp).max()
             let stopContacts = placedContacts.filter { contact in
                 contact.stopIndex == index

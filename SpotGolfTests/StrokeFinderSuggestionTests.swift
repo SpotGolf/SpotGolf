@@ -220,6 +220,31 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         XCTAssertEqual(found.map(\.timestamp), [first.timestamp, second.timestamp])
     }
 
+    func testFullSwingOnTheGreenIsNotAStroke() {
+        var track = Track()
+        track.walk(north: 300)
+        track.stand(20)
+        let knock = track.swing()
+        track.stand(20)
+
+        // The stop is still offered: the swing does not count as a shot
+        let found = suggestions(track, [knock])
+        XCTAssertEqual(found.count, 1)
+        XCTAssertEqual(found.first?.isSwing, false)
+        XCTAssertEqual(found.first?.isContact, false)
+    }
+
+    func testFullSwingJustOffTheGreenIsAStroke() {
+        var track = Track()
+        track.walk(north: 280) // 5 m short of the green's edge
+        track.stand(20)
+        let chip = track.swing()
+        track.stand(5)
+        track.walk(north: 300)
+
+        XCTAssertEqual(suggestions(track, [chip]).map(\.timestamp), [chip.timestamp])
+    }
+
     // MARK: - Putts and chips
 
     func testContactOnTheGreenIsAPutt() {
@@ -318,7 +343,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
     func testPuttsAfterAChipFromTheSameSpotCount() {
         var track = Track()
-        track.walk(north: 300)
+        track.walk(north: 280) // A chip from just off the green
         track.stand(20)
         let chip = track.swing(peakG: 15)
         track.stand(2)
@@ -358,7 +383,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
 
     func testStopWithAFullSwingGetsNoPuttSuggestion() {
         var track = Track()
-        track.walk(north: 300)
+        track.walk(north: 280) // A chip from just off the green
         track.stand(20)
         let chip = track.swing(peakG: 13)
         track.stand(10)
@@ -415,7 +440,7 @@ final class StrokeFinderSuggestionTests: XCTestCase {
     /// A chip's own contact is dropped; the putt that follows it from the same spot is not.
     func testFullSwingDropsOnlyTheGatedContactsAroundIt() {
         var track = Track()
-        track.walk(north: 300)
+        track.walk(north: 280) // A chip from just off the green
         track.stand(20)
         let chip = track.swing(peakG: 15)
         track.stand(1)

@@ -156,6 +156,19 @@ enum MapGeometry {
         round.hole(at: index).strokes.contains { round.isOnGreen($0.coordinate, holeIndex: index) }
             || suggestions.contains { $0.coordinate.map { round.isOnGreen($0, holeIndex: index) } ?? false }
     }
+
+    /// `suggestions` in the order the map draws them, back to front: stops, then swings, then
+    /// putts, each oldest first, so the newest of a kind is on top. Strokes go over all of them.
+    static func stacked(_ suggestions: [StrokeSuggestion]) -> [StrokeSuggestion] {
+        func layer(_ suggestion: StrokeSuggestion) -> Int {
+            switch suggestion.kind {
+            case .stop: 0
+            case .swing: 1
+            case .contact: 2
+            }
+        }
+        return suggestions.sorted { (layer($0), $0.timestamp) < (layer($1), $1.timestamp) }
+    }
 }
 
 /// A thin line from one stroke to the next, with the yards between them shown at its middle.

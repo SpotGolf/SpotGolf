@@ -190,7 +190,7 @@ struct GreenView: View {
     private func markers(_ projection: GreenProjection) -> some View {
         ZStack {
             distanceLabels(projection)
-            ForEach(suggestions) { suggestion in
+            ForEach(MapGeometry.stacked(suggestions)) { suggestion in
                 if let coordinate = suggestion.coordinate {
                     SuggestionPin(kind: suggestion.kind) {
                         SpotActions.takeSuggestion(suggestion, round: round, holeIndex: shownHoleIndex,

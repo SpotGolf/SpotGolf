@@ -37,12 +37,6 @@ struct RoundMapLayer: View {
                 if round.isActive {
                     UserAnnotation()
                 }
-                ForEach(Array(strokesToShow.enumerated()), id: \.element.id) { index, stroke in
-                    // The dot under the pin sits on the stroke
-                    Annotation("", coordinate: stroke.coordinate, anchor: .bottom) {
-                        spotMarker(index: index, stroke: stroke, proxy: proxy)
-                    }
-                }
                 if trackLine.count >= 2 {
                     MapPolyline(coordinates: trackLine)
                         .stroke(Color.blue,
@@ -61,7 +55,9 @@ struct RoundMapLayer: View {
                         TargetMarker()
                     }
                 }
-                ForEach(suggestions) { suggestion in
+                // Later annotations are drawn over earlier ones: suggestions, then strokes in the
+                // order they were hit, then the flag
+                ForEach(MapGeometry.stacked(suggestions)) { suggestion in
                     if let coordinate = suggestion.coordinate {
                         Annotation("", coordinate: coordinate, anchor: .bottom) {
                             SuggestionPin(kind: suggestion.kind) {
@@ -69,6 +65,12 @@ struct RoundMapLayer: View {
                                                            holeTrack: holeTrack, services: services, spot: &spot)
                             }
                         }
+                    }
+                }
+                ForEach(Array(strokesToShow.enumerated()), id: \.element.id) { index, stroke in
+                    // The dot under the pin sits on the stroke
+                    Annotation("", coordinate: stroke.coordinate, anchor: .bottom) {
+                        spotMarker(index: index, stroke: stroke, proxy: proxy)
                     }
                 }
                 if let pin = round.pin(onHole: shownHoleIndex) {

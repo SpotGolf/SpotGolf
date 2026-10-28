@@ -145,6 +145,20 @@ final class MapGeometryTests: XCTestCase {
         XCTAssertFalse(MapGeometry.hasPinsOnGreen(round, holeIndex: 0, suggestions: []))
     }
 
+    func testSuggestionsStackStopsThenSwingsThenPuttsWithTheNewestOnTop() {
+        let start = StreamFixtures.start
+        let putt1 = StrokeSuggestion(timestamp: start.addingTimeInterval(10), kind: .contact(score: 5))
+        let putt2 = StrokeSuggestion(timestamp: start.addingTimeInterval(40), kind: .contact(score: 5))
+        let swing1 = StrokeSuggestion(timestamp: start.addingTimeInterval(20), kind: .swing(peakG: 20))
+        let swing2 = StrokeSuggestion(timestamp: start.addingTimeInterval(30), kind: .swing(peakG: 20))
+        let stop1 = StrokeSuggestion(timestamp: start.addingTimeInterval(5), kind: .stop(duration: 30))
+        let stop2 = StrokeSuggestion(timestamp: start.addingTimeInterval(50), kind: .stop(duration: 30))
+
+        // Back to front
+        XCTAssertEqual(MapGeometry.stacked([putt2, swing1, stop2, putt1, swing2, stop1]),
+                       [stop1, stop2, swing1, swing2, putt1, putt2])
+    }
+
     func testHoleTrackKeepsTheFixesOnTheHole() {
         let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
         round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600))
