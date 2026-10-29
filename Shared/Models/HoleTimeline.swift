@@ -21,11 +21,19 @@ enum HoleTimeline {
     /// The holes a moment can be on: the hole being played by the timeline, and the holes after
     /// it with no start yet, up to the next one that has. A hole gets its start from its first
     /// stroke, so until then its GPS reads as the hole before it by time alone.
-    static func possibleHoles(at date: Date, in starts: [Date?], lastHoleIndex: Int) -> ClosedRange<Int> {
+    ///
+    /// A moment after the last stroke on its hole (`lastStrokes`, by play index, nil for a hole
+    /// with none) can also be on the next hole that has a start. That start is only the earliest
+    /// stroke so far: when the second shot is turned into a stroke before the tee shot, the tee
+    /// shot comes before it.
+    static func possibleHoles(at date: Date, in starts: [Date?], lastStrokes: [Date?], lastHoleIndex: Int) -> ClosedRange<Int> {
         let current = holeIndex(at: date, in: starts)
         let next = starts.indices.first { hole in
             hole > current && starts[hole].map { $0 > date } ?? false
         } ?? lastHoleIndex + 1
-        return current...max(current, next - 1)
+        let lastStroke = lastStrokes.indices.contains(current) ? lastStrokes[current] : nil
+        let pastLastStroke = lastStroke.map { date > $0 } ?? true
+        let last = pastLastStroke ? min(next, lastHoleIndex) : next - 1
+        return current...max(current, last)
     }
 }

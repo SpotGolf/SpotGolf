@@ -349,12 +349,37 @@ final class RoundTests: XCTestCase {
 
     func testPossibleHolesReachTheNextStart() {
         var round = Round(courseSelection: .test)
+        round.addStroke(Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0),
+                               hitAt: round.date.addingTimeInterval(300)), toHoleIndex: 0)
         round.startHole(3, at: round.date.addingTimeInterval(600))
 
         // Holes 2 and 3 have no start yet, so a moment before hole 4 can be on holes 1 to 3
         XCTAssertEqual(round.possibleHoles(at: round.date.addingTimeInterval(-10)), 0...2)
-        XCTAssertEqual(round.possibleHoles(at: round.date.addingTimeInterval(599)), 0...2)
+        // After hole 1's last stroke it can also be on hole 4, whose earlier strokes may not be in yet
+        XCTAssertEqual(round.possibleHoles(at: round.date.addingTimeInterval(599)), 0...3)
         XCTAssertEqual(round.possibleHoles(at: round.date.addingTimeInterval(600)), 3...round.lastHoleIndex)
+    }
+
+    func testTheTeeShotStaysOnTheHoleWhenTheSecondShotIsAddedFirst() {
+        let round = Round(courseSelection: .test)
+        let spot = CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0)
+        let putt = round.date.addingTimeInterval(10 * 60)
+        let teeShot = round.date.addingTimeInterval(15 * 60)
+        let secondShot = round.date.addingTimeInterval(20 * 60)
+        round.addStroke(Stroke(coordinate: spot, hitAt: putt), toHoleIndex: 0)
+        round.addStroke(Stroke(coordinate: spot, hitAt: secondShot), toHoleIndex: 1)
+        round.strokeHit(onHole: 1, at: secondShot)
+
+        XCTAssertEqual(round.startOfHole(1), secondShot)
+        XCTAssertEqual(round.possibleHoles(at: putt.addingTimeInterval(-60)), 0...0)
+        XCTAssertEqual(round.possibleHoles(at: teeShot), 0...1)
+
+        // The tee shot added later moves the start back to it
+        round.addStroke(Stroke(coordinate: spot, hitAt: teeShot), toHoleIndex: 1)
+        round.strokeHit(onHole: 1, at: teeShot)
+
+        XCTAssertEqual(round.startOfHole(1), teeShot)
+        XCTAssertEqual(round.possibleHoles(at: teeShot), 1...round.lastHoleIndex)
     }
 
     // MARK: - Starts that follow strokes

@@ -123,7 +123,13 @@ final class Round {
 
     /// The holes a moment can be on. See `HoleTimeline.possibleHoles`.
     func possibleHoles(at date: Date) -> ClosedRange<Int> {
-        HoleTimeline.possibleHoles(at: date, in: holeStarts, lastHoleIndex: lastHoleIndex)
+        HoleTimeline.possibleHoles(at: date, in: holeStarts, lastStrokes: lastStrokeTimes, lastHoleIndex: lastHoleIndex)
+    }
+
+    /// When the last stroke on each hole was hit, by play index, or nil for a hole with no stroke
+    /// of known time.
+    var lastStrokeTimes: [Date?] {
+        holes.map { $0.strokes.compactMap(\.hitAt).max() }
     }
 
     var course: Course {

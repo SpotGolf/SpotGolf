@@ -161,12 +161,28 @@ final class MapGeometryTests: XCTestCase {
 
     func testHoleTrackKeepsTheFixesOnTheHole() {
         let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
+        round.addStroke(Stroke(coordinate: StreamFixtures.location(300).coordinate,
+                               hitAt: StreamFixtures.start.addingTimeInterval(300)), toHoleIndex: 0)
         round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600))
         let early = TrackPoint(location: StreamFixtures.location(60))
         let late = TrackPoint(location: StreamFixtures.location(700))
 
         XCTAssertEqual(HoleTrack.points([early, late], in: round, holeIndex: 0), [early])
         XCTAssertEqual(HoleTrack.points([early, late], in: round, holeIndex: 1), [late])
+    }
+
+    func testHoleTrackKeepsTheFixesBeforeTheHolesFirstStroke() {
+        // Hole 1 started at its second shot, turned into a stroke before its tee shot
+        let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
+        round.addStroke(Stroke(coordinate: StreamFixtures.location(300).coordinate,
+                               hitAt: StreamFixtures.start.addingTimeInterval(300)), toHoleIndex: 0)
+        round.startHole(1, at: StreamFixtures.start.addingTimeInterval(600))
+        let onHole0 = TrackPoint(location: StreamFixtures.location(60))
+        let teeShot = TrackPoint(location: StreamFixtures.location(450))
+        let onHole1 = TrackPoint(location: StreamFixtures.location(700))
+
+        XCTAssertEqual(HoleTrack.points([onHole0, teeShot, onHole1], in: round, holeIndex: 0), [onHole0, teeShot])
+        XCTAssertEqual(HoleTrack.points([onHole0, teeShot, onHole1], in: round, holeIndex: 1), [teeShot, onHole1])
     }
 
     func testStartWindowRunsBetweenTheStartsAroundTheHole() {

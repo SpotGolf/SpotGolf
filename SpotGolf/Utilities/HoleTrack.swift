@@ -2,10 +2,16 @@ import Foundation
 
 /// The part of a round's GPS track on one hole.
 enum HoleTrack {
-    /// The fixes on hole `index`: a fix belongs to the hole the timeline says was being played
-    /// at its time, or to a later hole with no start yet.
+    /// The fixes on hole `index`: the fixes `HoleTimeline.possibleHoles` puts on it.
     static func points(_ track: [TrackPoint], in round: Round, holeIndex index: Int) -> [TrackPoint] {
-        track.filter { round.possibleHoles(at: $0.timestamp).contains(index) }
+        // Read once: a round has thousands of fixes
+        let starts = round.holeStarts
+        let lastStrokes = round.lastStrokeTimes
+        let lastHoleIndex = round.lastHoleIndex
+        return track.filter {
+            HoleTimeline.possibleHoles(at: $0.timestamp, in: starts, lastStrokes: lastStrokes, lastHoleIndex: lastHoleIndex)
+                .contains(index)
+        }
     }
 
     /// The fixes where hole `index` could start: after the start of the closest earlier hole that
