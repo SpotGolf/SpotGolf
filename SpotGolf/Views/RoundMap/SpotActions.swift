@@ -19,6 +19,18 @@ enum SpotActions {
         spot.isNew = true
     }
 
+    /// Adds a tap in, for a short putt the watch did not hear or the group gave: a putt
+    /// `MapGeometry.tapInMeters` past the pin, on the line from the hole's last stroke, as if that
+    /// putt rolled by. It is not opened in the spot sheet, so one tap adds it.
+    static func addTapIn(round: Round, holeIndex: Int, startWindow: [TrackPoint], services: PhoneServices) {
+        guard let pin = round.targetCoordinate(holeIndex: holeIndex) else { return }
+        let coordinate = MapGeometry.tapInCoordinate(pin: pin, previous: round.hole(at: holeIndex).strokes.last?.coordinate,
+                                                     heading: MapGeometry.heading(of: round, holeIndex: holeIndex) ?? 0)
+        var stroke = Stroke(coordinate: coordinate, club: services.golfBag.bag.clubs.first { $0.kind == .putter })
+        stroke.hitAt = StrokeFinder.estimatedTime(of: stroke, in: startWindow)
+        services.roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
+    }
+
     /// Turns a suggestion into a real stroke and opens it in the spot sheet.
     static func takeSuggestion(_ suggestion: StrokeSuggestion, round: Round, holeIndex: Int, holeTrack: [TrackPoint],
                                services: PhoneServices, spot: inout SpotSelection) {

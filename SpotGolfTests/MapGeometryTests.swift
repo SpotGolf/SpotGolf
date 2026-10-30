@@ -90,6 +90,39 @@ final class MapGeometryTests: XCTestCase {
         XCTAssertNil(MapGeometry.lineEnd(at: target, toward: other, gap: 150))
     }
 
+    func testTapInLiesTwoFeetPastThePinFromThePreviousStroke() {
+        let pin = PathCourse.coordinate(north: 300, east: 0).clLocation.coordinate
+        // The last putt came from 6 m south and 3 m east of the pin
+        let previous = PathCourse.coordinate(north: 294, east: 3).clLocation.coordinate
+
+        let tapIn = MapGeometry.tapInCoordinate(pin: pin, previous: previous, heading: 0)
+
+        let pinLocation = CLLocation(latitude: pin.latitude, longitude: pin.longitude)
+        let tapInLocation = CLLocation(latitude: tapIn.latitude, longitude: tapIn.longitude)
+        XCTAssertEqual(tapInLocation.distance(from: pinLocation) * MapGeometry.feetPerMeter, 2, accuracy: 0.01)
+        // Rolled on past the hole, away from where the putt came from
+        let previousToPin = MapGeometry.bearing(from: Coordinate(lat: previous.latitude, lon: previous.longitude),
+                                                to: Coordinate(lat: pin.latitude, lon: pin.longitude))
+        let pinToTapIn = MapGeometry.bearing(from: Coordinate(lat: pin.latitude, lon: pin.longitude),
+                                             to: Coordinate(lat: tapIn.latitude, lon: tapIn.longitude))
+        XCTAssertEqual(pinToTapIn, previousToPin, accuracy: 0.1)
+    }
+
+    func testTapInFollowsTheHeadingWithoutAPreviousStrokeOffThePin() {
+        let pin = PathCourse.coordinate(north: 300, east: 0).clLocation.coordinate
+        let origin = Coordinate(lat: pin.latitude, lon: pin.longitude)
+
+        for previous in [nil, pin] {
+            let tapIn = MapGeometry.tapInCoordinate(pin: pin, previous: previous, heading: 90)
+
+            XCTAssertEqual(CLLocation(latitude: tapIn.latitude, longitude: tapIn.longitude)
+                .distance(from: CLLocation(latitude: pin.latitude, longitude: pin.longitude)) * MapGeometry.feetPerMeter,
+                           2, accuracy: 0.01)
+            XCTAssertEqual(MapGeometry.bearing(from: origin, to: Coordinate(lat: tapIn.latitude, lon: tapIn.longitude)),
+                           90, accuracy: 0.1)
+        }
+    }
+
     func testStrokeLinesJoinEachStrokeToTheNextWithTheirYards() {
         let tee = Stroke(coordinate: PathCourse.coordinate(north: 0, east: 0).clLocation.coordinate)
         let fairway = Stroke(coordinate: PathCourse.coordinate(north: 200, east: 0).clLocation.coordinate)

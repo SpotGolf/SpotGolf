@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Green View over the ruler at the bottom left, the map buttons at the right, and in the middle
-/// the suggestion pins' legend, with setting the pin above it. Green View hides both capsules,
-/// and its X closes it.
+/// the suggestion pins' legend, with setting the pin above it and, in Green View, the tap in above
+/// that. Green View hides both capsules, and its X closes it.
 struct MapButtonBar: View {
     let round: Round
     let shownHoleIndex: Int
@@ -18,6 +18,8 @@ struct MapButtonBar: View {
     let showsGreenView: Bool
     /// The Green View button. Nil when the hole has no green outline to draw.
     let openGreenView: (() -> Void)?
+    /// The Tap in button, which adds the hole's last putt. Nil outside Green View.
+    let tapIn: (() -> Void)?
 
     @Environment(PhoneServices.self) private var services
 
@@ -37,6 +39,7 @@ struct MapButtonBar: View {
         }
         .overlay(alignment: .bottom) {
             VStack(spacing: 10) {
+                tapInButton
                 setPinButton
                 SuggestionLegend()
             }
@@ -74,6 +77,25 @@ struct MapButtonBar: View {
         .background(.thickMaterial)
         .clipShape(Capsule())
         .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+    }
+
+    /// In Green View only: adds a putt 2 ft past the pin, for a tap in the watch did not hear or
+    /// a putt the group gave.
+    @ViewBuilder
+    private var tapInButton: some View {
+        if let tapIn {
+            Button(action: tapIn) {
+                Label("Tap in", systemImage: "hand.tap")
+                    .font(.headline)
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(.thickMaterial)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            }
+            .accessibilityIdentifier("TapIn")
+        }
     }
 
     /// Shown only during a round, while the phone is on the shown hole's green: saves where the

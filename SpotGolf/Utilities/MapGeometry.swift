@@ -126,6 +126,30 @@ enum MapGeometry {
                                       longitude: target.longitude + (other.longitude - target.longitude) * fraction)
     }
 
+    /// How far past the hole a tap in lies: 2 ft.
+    static let tapInMeters: CLLocationDistance = 2 / feetPerMeter
+
+    /// Where a tap in lies: `tapInMeters` past `pin`, on the line from `previous` through it, as
+    /// if the last putt rolled by the hole. Along `heading` when there is no previous stroke or it
+    /// is on the pin.
+    static func tapInCoordinate(pin: CLLocationCoordinate2D, previous: CLLocationCoordinate2D?,
+                                heading: Double) -> CLLocationCoordinate2D {
+        let metersPerLongitude = LocalDistance.metersPerDegree * cos(pin.latitude * .pi / 180)
+        // Meters east and north from the previous stroke to the pin
+        var east = previous.map { (pin.longitude - $0.longitude) * metersPerLongitude } ?? 0
+        var north = previous.map { (pin.latitude - $0.latitude) * LocalDistance.metersPerDegree } ?? 0
+        var length = (east * east + north * north).squareRoot()
+        if length < 0.01 {
+            let radians = heading * .pi / 180
+            east = sin(radians)
+            north = cos(radians)
+            length = 1
+        }
+        let scale = tapInMeters / length
+        return CLLocationCoordinate2D(latitude: pin.latitude + north * scale / LocalDistance.metersPerDegree,
+                                      longitude: pin.longitude + east * scale / metersPerLongitude)
+    }
+
     /// The lines between a hole's strokes in order, one from each stroke to the next, with the
     /// yards along each. None with fewer than two strokes.
     static func strokeLines(_ strokes: [Stroke]) -> [StrokeLine] {

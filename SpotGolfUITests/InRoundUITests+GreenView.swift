@@ -20,6 +20,7 @@ extension InRoundUITests {
         XCTAssertFalse(app.buttons["MapStyle"].exists, "The map's buttons should be hidden in Green View")
         XCTAssertTrue(element("GreenViewPinDistance").exists, "The feet to the pin should show during a round")
         XCTAssertFalse(greenViewButton.exists, "The Green View button should be hidden in Green View")
+        XCTAssertTrue(app.buttons["TapIn"].exists, "Green View should have the Tap in button")
 
         // A tap on the ground drops no target, as it would on the map
         element("GreenViewGround").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
@@ -29,6 +30,7 @@ extension InRoundUITests {
         XCTAssertTrue(greenViewTitle.waitToVanish(), "X should close Green View")
         XCTAssertTrue(greenViewButton.waitToExist(), "The map's buttons should come back")
         XCTAssertTrue(app.maps.firstMatch.exists, "The map should show again")
+        XCTAssertFalse(app.buttons["TapIn"].exists, "Tap in should be in Green View only")
     }
 
     func testSpotAddedInGreenViewShowsOnTheMap() throws {
@@ -48,6 +50,23 @@ extension InRoundUITests {
         let strokes = app.staticTexts["HoleStrokes"]
         XCTAssertTrue(strokes.waitToExist())
         XCTAssertTrue(strokes.label.contains("1 stroke"), "The hole should count the spot: \(strokes.label)")
+    }
+
+    func testTapInAddsAPuttWithoutOpeningIt() throws {
+        _ = freshHole()
+        greenViewButton.tap()
+        let ground = element("GreenViewGround")
+        XCTAssertTrue(ground.waitToExist(), "Green View should open")
+        ground.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55)).press(forDuration: 0.6)
+        XCTAssertTrue(app.navigationBars["Edit Spot"].waitToExist(), "A long press should add a spot and open it")
+        saveInSheet()
+        XCTAssertTrue(app.buttons["Stroke_1"].waitToExist(), "The spot should show in Green View")
+
+        app.buttons["TapIn"].tap()
+        let putt = app.buttons["Stroke_2"].firstMatch
+        XCTAssertTrue(putt.waitToExist(), "Tap in should add the hole's next stroke")
+        XCTAssertTrue(putt.label.contains("Putter"), "A tap in is a putt: \(putt.label)")
+        XCTAssertFalse(app.navigationBars["Edit Spot"].exists, "Tap in should not open the spot sheet")
     }
 
     func testGreenViewStaysClosedWhenThePlayerWalksOntoTheGreen() throws {

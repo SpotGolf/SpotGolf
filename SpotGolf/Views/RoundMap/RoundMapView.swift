@@ -179,6 +179,10 @@ struct RoundMapView: View {
                                      withAnimation(.easeInOut(duration: 0.2)) {
                                          greenView.open()
                                      }
+                                 },
+                                 tapIn: !greenView.isShown ? nil : {
+                                     SpotActions.addTapIn(round: round, holeIndex: holeIndex, startWindow: startWindow,
+                                                          services: services)
                                  })
                 }
             }
