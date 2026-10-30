@@ -33,6 +33,13 @@ class WorkoutManager: NSObject {
     /// Called on the main actor with each event worth keeping in the round's stream.
     @ObservationIgnored var onEvent: ((StreamEvent) -> Void)?
 
+    /// Carries round messages over the running session, mirrored to the phone.
+    @ObservationIgnored var mirror: MirrorTransport?
+    // The channel over the session mirroring last started on
+    @ObservationIgnored private var mirrorChannel: WorkoutSessionChannel?
+    @ObservationIgnored private var isStartingMirroring = false
+    @ObservationIgnored private var mirroringStartedAt: Date?
+
     /// Adds a listener called each time `isRunning` changes. Listeners stay for the manager's life.
     func addRunningListener(_ listener: @escaping (Bool) -> Void) {
         runningListeners.append(listener)
@@ -241,6 +248,7 @@ class WorkoutManager: NSObject {
                 isRunning = running
             }
         }
+        checkMirroring()
         guard watchdog.shouldRestart(at: Date(), isActive: isRunning) else { return }
         Log.workout.error("Workout not running while a round needs it (state \(self.session.map { String($0.state.rawValue) } ?? "none")); restarting")
         report(.workoutRestart, value: 1)
@@ -278,6 +286,65 @@ class WorkoutManager: NSObject {
         }
     }
 
+    /// The phone became reachable over WatchConnectivity, so mirroring may start again sooner.
+    func phoneBecameReachable() {
+        checkMirroring(.phoneReachable)
+    }
+
+    /// Starts mirroring on a running session when `MirrorRestart` says to. Apple suggests
+    /// starting it only once the session runs.
+    private func checkMirroring(_ trigger: MirrorRestart.Trigger = .check) {
+        guard let mirror, let session, session.state == .running, !isStartingMirroring else { return }
+        let isAttached = mirrorChannel?.session === session
+        guard MirrorRestart.shouldStart(trigger, at: Date(), isAttached: isAttached, isConnected: mirror.isConnected,
+                                        startedAt: mirroringStartedAt,
+                                        disconnectedSince: mirror.disconnectedSince) else { return }
+        // Only a restart after mirroring was connected is logged: on simulators it never
+        // connects, and restarts every minute
+        let isReconnect = isAttached && mirror.disconnectedSince != nil
+        if isReconnect {
+            Log.workout.notice("Mirroring down for \(Int(Date().timeIntervalSince(mirror.disconnectedSince ?? Date()))) s; starting it again on the same workout")
+        }
+        isStartingMirroring = true
+        mirroringStartedAt = Date()
+        let box = SendableSession(session)
+        session.startMirroringToCompanionDevice { @Sendable [weak self] success, error in
+            let reason = error.map { String(describing: $0) } ?? "unknown error"
+            Task { @MainActor in
+                guard let self else { return }
+                self.isStartingMirroring = false
+                guard success else {
+                    Log.workout.error("Could not start mirroring: \(reason)")
+                    // The next check tries again
+                    self.mirroringStartedAt = nil
+                    if self.mirrorChannel?.session === box.session {
+                        self.mirrorChannel = nil
+                    }
+                    return
+                }
+                guard box.session === self.session, box.session.state == .running else { return }
+                if self.mirrorChannel?.session !== box.session {
+                    Log.workout.notice("Mirroring started")
+                    let channel = WorkoutSessionChannel(session: box.session)
+                    self.mirrorChannel = channel
+                    self.mirror?.attach(channel)
+                } else {
+                    if isReconnect {
+                        Log.workout.notice("Mirroring started again on the same workout; waiting for the phone")
+                    }
+                    self.mirror?.sayHello()
+                }
+            }
+        }
+    }
+
+    private func detachMirroring(_ finished: HKWorkoutSession) {
+        guard let mirrorChannel, mirrorChannel.session === finished else { return }
+        self.mirrorChannel = nil
+        mirroringStartedAt = nil
+        mirror?.detach()
+    }
+
     private func waitForForeground() {
         guard !waitsForForeground else { return }
         waitsForForeground = true
@@ -310,6 +377,7 @@ class WorkoutManager: NSObject {
     /// the end and say that watchOS refuses a new workout for now.
     private func sessionFinished(_ finished: HKWorkoutSession) async {
         guard finished === session else { return }
+        detachMirroring(finished)
         let builder = self.builder
         session = nil
         self.builder = nil
@@ -347,6 +415,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 self.isRunning = toState == .running
                 if toState == .running {
                     self.refusedRetryDelay = RestartWatchdog.interval
+                    self.checkMirroring()
                 }
             }
             if toState == .ended {
@@ -368,6 +437,34 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
             await self.sessionFinished(workoutSession)
         }
     }
+}
+
+// Data and disconnects of the session mirrored to the phone
+extension WorkoutManager {
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession,
+                                     didReceiveDataFromRemoteWorkoutSession data: [Data]) {
+        let box = SendableSession(workoutSession)
+        Task { @MainActor in
+            guard let channel = self.mirrorChannel, channel.session === box.session else { return }
+            channel.received(data)
+        }
+    }
+
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession,
+                                     didDisconnectFromRemoteDeviceWithError error: Error?) {
+        Log.workout.notice("Mirroring disconnected: \(String(describing: error))")
+        let box = SendableSession(workoutSession)
+        Task { @MainActor in
+            guard let channel = self.mirrorChannel, channel.session === box.session else { return }
+            channel.disconnected()
+        }
+    }
+}
+
+// A session from HealthKit's queue, only compared and used on the main actor
+private struct SendableSession: @unchecked Sendable {
+    let session: HKWorkoutSession
+    init(_ session: HKWorkoutSession) { self.session = session }
 }
 
 extension WorkoutManager: HKLiveWorkoutBuilderDelegate {

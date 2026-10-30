@@ -389,26 +389,6 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertNil(watchRound(id))
     }
 
-    /// Broadlands with 120 extra bunkers of random outline on hole 1, so its start no longer fits in
-    /// one message. Real courses fit since course outlines were stored compactly.
-    private func largeSelection() throws -> CourseSelection {
-        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Broadlands-Golf-Course.json", withExtension: "gz"))
-        var course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: url).gzipDecompressed())
-        var random = SeededGenerator(seed: 7)
-        let center = course.location.coordinate
-        for index in 0..<120 {
-            let polygon = CoordinatePath((0..<200).map { _ in
-                Coordinate(lat: center.lat + random.uniform(-0.01...0.01), lon: center.lon + random.uniform(-0.01...0.01))
-            })
-            let bunker = Feature(id: course.nextFeatureID + index, type: .bunker, polygon: polygon)
-            course.features.append(bunker)
-            course.subCourses[0].holes[0].features.append(bunker.id)
-        }
-        let selection = CourseSelection(course: course, selectedSubCourseIndices: [0, 1])
-        XCTAssertGreaterThan(try JSONEncoder().encode(selection.trimmed).gzipCompressed().count, SyncCodec.maxMessageBytes)
-        return selection
-    }
-
     func testLargeCourseIsSentInChunks() throws {
         let selection = try largeSelection()
 

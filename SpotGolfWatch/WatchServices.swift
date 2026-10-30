@@ -36,6 +36,8 @@ final class WatchServices {
     let showsWorkoutStatus: Bool
     @ObservationIgnored private let swingDetector: SwingDetector
     @ObservationIgnored private var holeAdvancer = HoleAdvancer()
+    /// Keeps the workout, and so mirroring, running after a round ends until the phone has it all.
+    @ObservationIgnored private let workoutEndWait: WorkoutEndWait
 
     // The last values acted on, so only changes are acted on. Swing detection starts off.
     @ObservationIgnored private var hasLaunched = false
@@ -86,6 +88,20 @@ final class WatchServices {
             drills.settings = { hasConsent ? consent : nil }
         }
         preRoundChecks = PreRoundChecks(sensors: inputs, permissions: permissions, workout: workouts, location: locationManager)
+        workoutManager.mirror = syncService.mirror
+        // The phone reachable over WatchConnectivity is likely back in range for mirroring
+        let routing = syncService.transport as? RoutingTransport
+        syncService.onReachabilityChange { [weak routing, weak workouts] in
+            guard let routing, routing.fallback.isReachable else { return }
+            workouts?.phoneBecameReachable()
+        }
+        let drillRecorder = drills
+        // UI tests run without a phone, so nothing would ever get the stream
+        workoutEndWait = WorkoutEndWait(maxWait: options.isUITesting ? 0 : WorkoutEndWait.maxWait) { [weak rounds] in
+            // A new round or a drill session needs the workout now
+            guard rounds?.activeRound == nil, drillRecorder.state == .idle else { return }
+            workouts.stop()
+        }
     }
 
     /// Starts recording and syncing. Called once the app has launched.
@@ -121,6 +137,7 @@ final class WatchServices {
             self.drills.transferFinished(metadata, error: error)
         }
         sync.onSendLog = { [weak self] in self?.logChunks.closeChunk() }
+        sync.onStreamComplete = { [weak self] in self?.workoutEndWait.streamComplete($0) }
         locationManager.onRawLocations = { [weak self] locations in
             self?.drills.record(locations)
             // Outside a round there is no stream to record them in
@@ -259,12 +276,12 @@ final class WatchServices {
         let isFirst = !hasLaunched
         hasLaunched = true
         if isFirst || activeID != activeRoundID {
-            let roundEnded = activeRoundID != nil
+            let endedRoundID = activeRoundID
             activeRoundID = activeID
             Log.roundID = activeID
-            activeRoundChanged(isActive)
+            activeRoundChanged(isActive, endedRoundID: endedRoundID)
             // The round's lines go to the phone now, rather than when the chunk fills or ages
-            if roundEnded {
+            if endedRoundID != nil {
                 logChunks.closeChunk()
             }
         }
@@ -282,8 +299,9 @@ final class WatchServices {
         }
     }
 
-    /// Records while a round is active, and stops everything once it is not.
-    private func activeRoundChanged(_ isActive: Bool) {
+    /// Records while a round is active, and stops everything once it is not. The workout stops
+    /// once the phone has the ended round's stream.
+    private func activeRoundChanged(_ isActive: Bool, endedRoundID: UUID?) {
         Log.rounds.notice("Active round: \(isActive)")
         if isActive, let round = roundStore.activeRound {
             contactMonitor.zoneMargin = WatchSync.greenZone
@@ -298,6 +316,7 @@ final class WatchServices {
                 puttCapture.stop()
             }
             locationManager.startUpdating()
+            workoutEndWait.cancel()
             workoutManager.start()
         } else {
             // The monitor's stop closes the open segment, after the contact it flushes; the capture ends after both
@@ -306,7 +325,11 @@ final class WatchServices {
             let capturedRound = puttCapture.captureRoundID
             contactMonitor.afterPending { [weak self] in self?.puttCapture.roundEnded(roundID: capturedRound) }
             locationManager.stopUpdating()
-            workoutManager.stop()
+            if let endedRoundID {
+                workoutEndWait.roundEnded(endedRoundID, hasStream: streamStore.roundIDs().contains(endedRoundID))
+            } else {
+                workoutManager.stop()
+            }
         }
     }
 }

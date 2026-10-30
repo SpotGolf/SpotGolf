@@ -38,6 +38,9 @@ final class WatchSync {
     /// Called on the main actor when the phone asks for the log written so far.
     @ObservationIgnored var onSendLog: (() -> Void)?
 
+    /// Called on the main actor with an ended round once the phone has its whole stream.
+    @ObservationIgnored var onStreamComplete: ((UUID) -> Void)?
+
     /// This app's version. A round from a phone app on any other version is refused, so the two
     /// never record with different code. Tests set it.
     @ObservationIgnored var version = AppVersion.text()
@@ -81,7 +84,10 @@ final class WatchSync {
         sync.handler = { [weak self] message in self?.handle(message) }
         rounds.addListener { [weak self] event in self?.roundChanged(event) }
         sync.onReachabilityChange { [weak self] in self?.reachabilityChanged() }
-        sender.onStreamDeleted = { [weak self] in self?.pruneFinishedRounds() }
+        sender.onStreamDeleted = { [weak self] roundID in
+            self?.pruneFinishedRounds()
+            self?.onStreamComplete?(roundID)
+        }
         pruneFinishedRounds()
     }
 

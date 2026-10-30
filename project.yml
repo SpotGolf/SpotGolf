@@ -64,6 +64,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf
         SWIFT_VERSION: "6.0"
         DEVELOPMENT_TEAM: 5CRT56YETR
+    # Every build gets a new build instant, so the installed build can be told apart from
+    # others with the same version. See Versioning in CLAUDE.md
+    postBuildScripts:
+      - name: Set the build instant
+        basedOnDependencyAnalysis: false
+        script: plutil -replace SpotGolfBuildInstant -string "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TARGET_BUILD_DIR/$INFOPLIST_PATH"
     dependencies:
       - target: SpotGolfWatch
       - target: SpotGolfLiveActivity
@@ -99,10 +105,12 @@ targets:
         # Shows the current hole on the Lock Screen during a round
         NSSupportsLiveActivities: true
         # Keeps the yards and hole changes going with the phone locked during a round, and lets
-        # iCloud sync's silent pushes wake the app
+        # iCloud sync's silent pushes wake the app. HealthKit hands the phone the watch's
+        # mirrored workout only with workout-processing
         UIBackgroundModes:
           - location
           - remote-notification
+          - workout-processing
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -178,6 +186,9 @@ targets:
     # TARGET_DEVICE_IDENTIFIER is the phone; the watch is the one paired with it. simctl only
     # grants on a booted simulator.
     postBuildScripts:
+      - name: Set the build instant
+        basedOnDependencyAnalysis: false
+        script: plutil -replace SpotGolfBuildInstant -string "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TARGET_BUILD_DIR/$INFOPLIST_PATH"
       - name: Grant permissions on the simulators
         basedOnDependencyAnalysis: false
         script: |

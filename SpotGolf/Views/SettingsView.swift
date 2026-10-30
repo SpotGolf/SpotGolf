@@ -116,6 +116,8 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                         .onTapGesture(perform: versionTapped)
                         .accessibilityIdentifier("AppVersion")
+                    LabeledContent("Built", value: AppVersion.buildInstant())
+                        .accessibilityIdentifier("BuildInstant")
                 } header: {
                     Text("About")
                 }

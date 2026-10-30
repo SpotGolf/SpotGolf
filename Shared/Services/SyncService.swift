@@ -21,6 +21,11 @@ final class SyncService {
 
     let transport: SyncTransport
 
+    /// Workout mirroring, which the workout's session is attached to. Nil for a test transport.
+    var mirror: MirrorTransport? {
+        (transport as? RoutingTransport)?.mirror
+    }
+
     /// Answers an incoming message. The returned message is the reply.
     @ObservationIgnored var handler: ((SyncMessage) -> SyncMessage?)?
 
@@ -34,7 +39,7 @@ final class SyncService {
     @ObservationIgnored private var assembler = ChunkAssembler()
 
     init(transport: SyncTransport? = nil) {
-        self.transport = transport ?? WatchConnectivityTransport()
+        self.transport = transport ?? RoutingTransport(mirror: MirrorTransport(), fallback: WatchConnectivityTransport())
         self.transport.delegate = self
         updateStatus()
     }

@@ -24,8 +24,8 @@ final class StreamSender {
     private var retryTimer: Timer?
     private var lastSendAt: Date?
 
-    /// Called after an ended round's stream is deleted because the phone has all of it.
-    var onStreamDeleted: (() -> Void)?
+    /// Called with the round after an ended round's stream is deleted because the phone has all of it.
+    var onStreamDeleted: ((UUID) -> Void)?
     private var delayedPump: Timer?
 
     init(sync: SyncService, rounds: RoundStore, streams: StreamStore) {
@@ -108,7 +108,7 @@ final class StreamSender {
               let have = cursors[roundID], have >= end(of: round) else { return }
         cursors.removeValue(forKey: roundID)
         streams.delete(roundID)
-        onStreamDeleted?()
+        onStreamDeleted?(roundID)
     }
 
     /// Rounds are sent oldest first. A round with an unknown cursor gets an empty batch,

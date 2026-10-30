@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 import CoreLocation
+import CourseDataSwift
+import XCTest
 @testable import SpotGolf
 
 struct FakeTransportError: Error {}
@@ -122,19 +124,62 @@ final class FakeTransport: SyncTransport {
     }
 }
 
-/// A phone and a watch linked by fake transports, each with its own saved data.
+/// Links two `MirrorTransport`s in memory, as a mirrored workout session does. Data arrives
+/// at once while linked. Unlinked, sends fail, as they do on simulators or out of range.
+@MainActor
+final class FakeMirrorChannel: MirrorChannel {
+    weak var peer: FakeMirrorChannel?
+    var onReceive: ((Data) -> Void)?
+    var onDisconnect: (() -> Void)?
+    var onEnd: (() -> Void)?
+
+    var isLinked = true
+    /// Sends go nowhere and never finish, so a request waits for its timeout.
+    var swallowsSends = false
+
+    /// Every send, including hellos and replies.
+    private(set) var sendCount = 0
+
+    func send(_ data: Data, completion: @escaping (Error?) -> Void) {
+        sendCount += 1
+        guard !swallowsSends else { return }
+        guard isLinked, let peer else {
+            completion(FakeTransportError())
+            return
+        }
+        peer.onReceive?(data)
+        completion(nil)
+    }
+
+    /// Two channels linked to each other.
+    static func pair() -> (FakeMirrorChannel, FakeMirrorChannel) {
+        let a = FakeMirrorChannel()
+        let b = FakeMirrorChannel()
+        a.peer = b
+        b.peer = a
+        return (a, b)
+    }
+}
+
+/// A phone and a watch linked by fake transports, each with its own saved data. Each side
+/// sends through a `RoutingTransport`: over WatchConnectivity's fake until
+/// `connectMirroring()`, then over a fake mirrored session.
 @MainActor
 final class SyncPair {
     let phoneContainer = Storage.inMemoryContainer()
     let watchContainer = Storage.inMemoryContainer()
 
     let phoneTransport = FakeTransport()
+    let phoneMirror = MirrorTransport()
     let phoneSync: SyncService
     let phoneRounds: RoundStore
     let phoneStreams: StreamStore
     let phone: PhoneSync
 
     let watchTransport = FakeTransport()
+    let watchMirror = MirrorTransport()
+    private(set) var phoneChannel: FakeMirrorChannel?
+    private(set) var watchChannel: FakeMirrorChannel?
     let watchSync: SyncService
     let watchRounds: RoundStore
     let watchStreams: StreamStore
@@ -147,7 +192,7 @@ final class SyncPair {
         phoneTransport.peer = watchTransport
         watchTransport.peer = phoneTransport
 
-        phoneSync = SyncService(transport: phoneTransport)
+        phoneSync = SyncService(transport: RoutingTransport(mirror: phoneMirror, fallback: phoneTransport))
         phoneRounds = RoundStore(context: phoneContainer.mainContext)
         phoneStreams = StreamStore(context: phoneContainer.mainContext)
         var launches: (() -> Void)?
@@ -155,7 +200,7 @@ final class SyncPair {
                           startTimeout: startTimeout, retryDelay: retryDelay,
                           launchWatchApp: { launches?() })
 
-        watchSync = SyncService(transport: watchTransport)
+        watchSync = SyncService(transport: RoutingTransport(mirror: watchMirror, fallback: watchTransport))
         watchRounds = RoundStore(context: watchContainer.mainContext)
         watchStreams = StreamStore(context: watchContainer.mainContext)
         watch = WatchSync(sync: watchSync, rounds: watchRounds, streams: watchStreams)
@@ -170,6 +215,23 @@ final class SyncPair {
     func setReachable(_ reachable: Bool) {
         phoneTransport.isReachable = reachable
         watchTransport.isReachable = reachable
+    }
+
+    /// Mirrors a workout session: the watch attaches it, then the phone, and their hellos connect both.
+    func connectMirroring() {
+        let (watch, phone) = FakeMirrorChannel.pair()
+        watchChannel = watch
+        phoneChannel = phone
+        watchMirror.attach(watch)
+        phoneMirror.attach(phone)
+    }
+
+    /// The mirrored session's link drops, and both sides hear it.
+    func dropMirroring() {
+        watchChannel?.isLinked = false
+        phoneChannel?.isLinked = false
+        watchChannel?.onDisconnect?()
+        phoneChannel?.onDisconnect?()
     }
 
     /// Starts a round on the phone and returns its ID.
@@ -200,5 +262,27 @@ enum StreamFixtures {
     /// Fixes one second apart.
     static func fixes(_ seconds: Range<Int>) -> [StreamRecord] {
         seconds.map { fix(TimeInterval($0)) }
+    }
+}
+
+extension XCTestCase {
+    /// Broadlands with 120 extra bunkers of random outline on hole 1, so its start no longer fits in
+    /// one message. Real courses fit since course outlines were stored compactly.
+    func largeSelection() throws -> CourseSelection {
+        let url = try XCTUnwrap(Bundle(for: SyncPair.self).url(forResource: "Broadlands-Golf-Course.json", withExtension: "gz"))
+        var course = try JSONDecoder().decode(Course.self, from: Data(contentsOf: url).gzipDecompressed())
+        var random = SeededGenerator(seed: 7)
+        let center = course.location.coordinate
+        for index in 0..<120 {
+            let polygon = CoordinatePath((0..<200).map { _ in
+                Coordinate(lat: center.lat + random.uniform(-0.01...0.01), lon: center.lon + random.uniform(-0.01...0.01))
+            })
+            let bunker = Feature(id: course.nextFeatureID + index, type: .bunker, polygon: polygon)
+            course.features.append(bunker)
+            course.subCourses[0].holes[0].features.append(bunker.id)
+        }
+        let selection = CourseSelection(course: course, selectedSubCourseIndices: [0, 1])
+        XCTAssertGreaterThan(try JSONEncoder().encode(selection.trimmed).gzipCompressed().count, SyncCodec.maxMessageBytes)
+        return selection
     }
 }

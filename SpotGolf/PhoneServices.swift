@@ -41,6 +41,10 @@ final class PhoneServices {
         let rounds = RoundStore(context: container.mainContext)
         let location = LocationManager()
         let sync = SyncService()
+        // Set at launch, since HealthKit may launch the app in the background to hand it the session
+        if let mirror = sync.mirror {
+            Self.receiveMirroredWorkouts(on: mirror)
+        }
         let streams = StreamStore(context: container.mainContext)
         let log = LogFile()
         Log.setSink { log.write($0) }
@@ -133,6 +137,22 @@ final class PhoneServices {
 
     private static let healthStore = HKHealthStore()
 
+    /// Attaches each workout session the watch mirrors to the phone, replacing the last. The
+    /// watch ends it, never the phone.
+    private static func receiveMirroredWorkouts(on mirror: MirrorTransport) {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        // HealthKit calls this on its own queue, so it must be @Sendable
+        healthStore.workoutSessionMirroringStartHandler = { @Sendable session in
+            let box = MirroredSession(session)
+            Task { @MainActor in
+                Log.workout.notice("Mirrored workout session arrived")
+                let channel = WorkoutSessionChannel(session: box.session)
+                box.session.delegate = channel
+                mirror.attach(channel)
+            }
+        }
+    }
+
     /// Opens the watch app with a golf workout, so it can record the round.
     private static func launchWatchApp(sync: SyncService) {
         guard HKHealthStore.isHealthDataAvailable() else { return }
@@ -151,4 +171,10 @@ final class PhoneServices {
             }
         }
     }
+}
+
+// A session from HealthKit's queue, only used on the main actor
+private struct MirroredSession: @unchecked Sendable {
+    let session: HKWorkoutSession
+    init(_ session: HKWorkoutSession) { self.session = session }
 }
