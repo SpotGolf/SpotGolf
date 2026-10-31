@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Moves a spot in its hole's order, picks its club, counts its penalty strokes, rates the shot,
 /// or deletes it. The club grid shows the bag with the stroke's club selected, or the guess for a
-/// stroke without one. Save applies every change at once; Cancel drops them, and takes out a stroke
-/// added to open the sheet.
+/// stroke without one. With the putter picked, a subtitle under the title says whether the stroke
+/// counts as a putt or a chip, so the sheet's body does not move when it shows. Save applies every
+/// change at once; Cancel drops them, and takes out a stroke added to open the sheet.
 /// See plans/2026-10-11-club-selection.md and plans/2026-10-11-penalty-strokes.md.
 struct SpotEditSheet: View {
     let round: Round
@@ -38,6 +39,15 @@ struct SpotEditSheet: View {
                                         bag: services.golfBag.bag)
     }
 
+    /// With the putter picked, what the stroke counts as: a putt on the green, and a chip off it,
+    /// as the putts are counted. Nil for other clubs, and for a hole with no green in the course data.
+    private var putterNote: LocalizedStringKey? {
+        guard spot.club?.kind == .putter, let stroke = spot.stroke else { return nil }
+        let holeIndex = round.holeIndex(containing: stroke.id) ?? shownHoleIndex
+        guard round.green(holeIndex: holeIndex) != nil else { return nil }
+        return round.isOnGreen(stroke.coordinate, holeIndex: holeIndex)
+            ? "On the green: counts as a putt" : "Off the green: counts as a chip"
+    }
 
     var body: some View {
         NavigationStack {
@@ -116,6 +126,7 @@ struct SpotEditSheet: View {
                 }
             }
             .navigationTitle("Edit Spot")
+            .navigationSubtitle(putterNote.map { Text($0) } ?? Text(verbatim: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

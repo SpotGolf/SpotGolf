@@ -27,11 +27,15 @@ extension XCUIApplication {
             let right = scoreBox.exists ? scoreBox.frame.minX : frame.maxX
             return circle.minX >= left && circle.maxX <= right
         }
-        for _ in 0..<6 where !inView() {
+        for _ in 0..<10 where !inView() {
             let header = coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: button.frame.midY))
-            // Drags the circles toward the one wanted
-            let toward: CGFloat = button.frame.midX < frame.midX ? 150 : -150
-            header.press(forDuration: 0.05, thenDragTo: header.withOffset(CGVector(dx: toward, dy: 0)))
+            // Drags the circle toward the middle, at most 150 points at a time, slowly and holding
+            // before lifting. A drag let go while moving coasts on to about twice its length,
+            // past the gap between the Back button and the score box, so it lands on the other side
+            // each time.
+            let toward = min(max(frame.midX - button.frame.midX, -150), 150)
+            header.press(forDuration: 0.05, thenDragTo: header.withOffset(CGVector(dx: toward, dy: 0)),
+                         withVelocity: .slow, thenHoldForDuration: 0.5)
         }
         XCTAssertTrue(inView(), "Hole \(number) circle should scroll into view", file: file, line: line)
         button.tap()

@@ -87,17 +87,22 @@ extension OutsideRoundUITests {
         // Pan the map away from the hole
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.75))
         start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 120, dy: -150)))
-        // A stroke panned off screen leaves the map
-        XCTAssertTrue(UIWait.until { !first.exists || distance(first.frame, holeFrame) > 50 },
-                      "Dragging should pan the map")
+        // A stroke panned off screen leaves the map. One snapshot per check: the map coasts after
+        // the drag, so the stroke can leave between an `exists` and a `frame`, which fails the test
+        XCTAssertTrue(UIWait.until {
+            guard let frame = try? first.snapshot().frame else { return true }
+            return distance(frame, holeFrame) > 50
+        }, "Dragging should pan the map")
 
         // Leave the app and come back, as locking the phone or switching apps does
         XCUIDevice.shared.press(.home)
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: UIWait.slow), "The app should go to the background")
         app.activate()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: UIWait.slow), "The app should come back")
-        XCTAssertTrue(UIWait.until { first.exists && distance(first.frame, holeFrame) < 5 },
-                      "The map should show the whole hole again")
+        XCTAssertTrue(UIWait.until {
+            guard let frame = try? first.snapshot().frame else { return false }
+            return distance(frame, holeFrame) < 5
+        }, "The map should show the whole hole again")
 
         closePastRound()
     }
@@ -201,18 +206,22 @@ extension OutsideRoundUITests {
         XCTAssertTrue(element("ScorecardHole-12").waitToExist())
         attachScreenshot("Scorecard landscape")
         XCUIDevice.shared.orientation = .portrait
-        // Hole 12's column only fits in landscape, so it leaving the screen means portrait is laid out
+        // Hole 12's column only fits in landscape, so it leaving the screen means portrait is laid
+        // out. One snapshot per check: `isHittable` fails the test on a column caught mid-turn.
         let hole12 = element("ScorecardHole-12")
-        XCTAssertTrue(UIWait.until { !hole12.exists || !hole12.isHittable }, "The scorecard should turn back to portrait")
+        XCTAssertTrue(UIWait.until {
+            guard let frame = try? hole12.snapshot().frame else { return true }
+            return !frame.isEmpty && !app.frame.contains(CGPoint(x: frame.midX, y: frame.midY))
+        }, "The scorecard should turn back to portrait")
 
         // A tap on hole 2's column shows hole 2. A tap aims at where the column was last reported,
-        // which lags the turn back to portrait, so this waits for the column to stay put.
+        // which lags the turn back to portrait, so this waits for the column to stay put on screen.
         let hole2 = element("ScorecardHole-2")
         var lastFrame = CGRect.null
         XCTAssertTrue(UIWait.until(timeout: UIWait.slow) {
-            let frame = hole2.exists ? hole2.frame : .null
+            let frame = (try? hole2.snapshot().frame) ?? .null
             defer { lastFrame = frame }
-            return hole2.isHittable && frame == lastFrame
+            return !frame.isEmpty && app.frame.contains(CGPoint(x: frame.midX, y: frame.midY)) && frame == lastFrame
         }, "Hole 2's column should settle in portrait")
         hole2.tap()
         XCTAssertTrue(total.waitToVanish(), "A tap on a hole should close the scorecard")

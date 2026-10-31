@@ -58,4 +58,29 @@ extension InRoundUITests {
         app.buttons["Cancel"].tap()
         XCTAssertTrue(app.navigationBars["Edit Spot"].waitToVanish())
     }
+
+    func testPutterSubtitleSaysChipOffTheGreenAndPuttOnIt() throws {
+        _ = freshHole()
+        app.addStroke(at: XCUIApplication.strokePressPoints[0])
+        let bar = app.navigationBars["Edit Spot"]
+        XCTAssertTrue(bar.waitToExist(), "The edit sheet should open for the new spot")
+        let chip = bar.staticTexts["Off the green: counts as a chip"]
+        let putt = bar.staticTexts["On the green: counts as a putt"]
+        app.buttons["Club-7i"].tap()
+        XCTAssertFalse(chip.exists || putt.exists, "Only the putter should have the subtitle")
+        app.buttons["Club-pu"].tap()
+        XCTAssertTrue(chip.waitToExist(), "Picking the putter off the green should say it counts as a chip")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(bar.waitToVanish())
+
+        app.buttons["GreenView"].tap()
+        let ground = element("GreenViewGround")
+        XCTAssertTrue(ground.waitToExist(), "Green View should open")
+        ground.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55)).press(forDuration: 0.6)
+        XCTAssertTrue(bar.waitToExist(), "A long press should add a spot and open it")
+        XCTAssertTrue(app.buttons["Club-pu"].isSelected, "The putter should be guessed on the green")
+        XCTAssertTrue(putt.waitToExist(), "The putter on the green should say it counts as a putt")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(bar.waitToVanish())
+    }
 }
