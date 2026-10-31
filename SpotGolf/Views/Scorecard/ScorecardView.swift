@@ -281,7 +281,8 @@ private enum ScorecardRow: CaseIterable {
     }
 }
 
-/// A hole's score marked as on a paper card: a circle under par, a square over it.
+/// A hole's score marked as on a paper card: a green circle for a birdie or better, a square for
+/// a bogey, and two squares for a double bogey or worse.
 private struct ScoreMark: View {
     let score: Int
     let par: Int?
@@ -291,13 +292,26 @@ private struct ScoreMark: View {
         Text("\(score)")
             .font(.subheadline)
             .fontWeight(.semibold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            // A two-digit score shrinks to fit inside the inner square
+            .padding(.horizontal, diff > 1 ? 6 : 0)
             .frame(width: 26, height: 26)
             .overlay {
                 if diff < 0 {
-                    Circle().stroke(Color.red, lineWidth: 1.5)
-                } else if diff > 0 {
-                    Rectangle().stroke(Color.primary.opacity(0.6), lineWidth: 1.5)
+                    Circle().stroke(Color.green, lineWidth: 1.5)
+                } else if diff == 1 {
+                    square
+                } else if diff > 1 {
+                    ZStack {
+                        square
+                        square.padding(3)
+                    }
                 }
             }
+    }
+
+    private var square: some View {
+        Rectangle().stroke(Color.primary.opacity(0.6), lineWidth: 1.5)
     }
 }
