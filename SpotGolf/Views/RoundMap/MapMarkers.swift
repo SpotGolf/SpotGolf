@@ -364,6 +364,15 @@ struct SpotPin: View {
     }
 }
 
+extension View {
+    /// Stands a pin on `point`: its bottom edge, which runs through its dot, on the point.
+    func standing(at point: CGPoint) -> some View {
+        fixedSize()
+            .frame(width: 0, height: 0, alignment: .bottom)
+            .position(point)
+    }
+}
+
 /// A triangle pointing down.
 struct BubbleArrow: Shape {
     func path(in rect: CGRect) -> Path {

@@ -26,10 +26,13 @@ struct GreenView: View {
     /// The pinch's last magnification and the pan's last translation, to apply each change once.
     @State private var lastMagnification: CGFloat = 1
     @State private var lastPan: CGSize = .zero
+    /// The spot a long press holds, and where it is dragged, until the finger lifts.
     @State private var draggingStroke: Stroke?
-    @State private var dragOffset: CGSize = .zero
+    @State private var strokeDrag: SpotDrag?
     /// How far the dragged pin is from where it stands. Nil when it is not being dragged.
     @State private var pinOffset: CGSize?
+    /// The spot a long press is adding, until the finger lifts.
+    @State private var newSpot: SpotDrag?
 
     /// A dragged spot or pin lands this far above the finger, where a thumb does not hide it.
     private static let dropLift: CGFloat = 70
@@ -210,6 +213,13 @@ struct GreenView: View {
                     .position(projection.point(for: location.coordinate))
                     .allowsHitTesting(false)
             }
+            if let newSpot {
+                // Last, so it is drawn over everything while it is placed
+                SpotPin(number: strokes.count + 1, stroke: Stroke(coordinate: projection.coordinate(at: newSpot.dot)),
+                        isDragging: true) {}
+                    .standing(at: newSpot.dot)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -233,32 +243,20 @@ struct GreenView: View {
             spot.newIndex = index
             spot.stroke = stroke
         }
-        .offset(isDragging ? dragOffset : .zero)
+        .offset(isDragging ? strokeDrag.map { CGSize(width: $0.dot.x - dot.x, height: $0.dot.y - dot.y) } ?? .zero : .zero)
         .gesture(
-            LongPressGesture(minimumDuration: 0.3)
-                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space)))
-                .onChanged { value in
-                    guard case .second(true, let drag) = value else { return }
-                    if draggingStroke == nil {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            draggingStroke = stroke
-                            dragOffset = CGSize(width: 0, height: -(PinMetrics.headCenter + Self.dropLift))
-                        }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    }
-                    if let drag {
-                        dragOffset = CGSize(width: drag.location.x - dot.x, height: drag.location.y - Self.dropLift - dot.y)
-                    }
+            SpotPressGesture(minimumDuration: 0.3, space: .named(Self.space), lift: Self.dropLift, dot: { dot }) { drag in
+                draggingStroke = stroke
+                strokeDrag = drag
+            } ended: { drag in
+                // A spot the finger did not move stays where it is
+                if let drag, drag.follows {
+                    SpotActions.move(stroke, to: projection.coordinate(at: drag.dot), round: round,
+                                     startWindow: startWindow, services: services)
                 }
-                .onEnded { value in
-                    if case .second(true, _) = value {
-                        let drop = CGPoint(x: dot.x + dragOffset.width, y: dot.y + dragOffset.height)
-                        SpotActions.move(stroke, to: projection.coordinate(at: drop), round: round,
-                                         startWindow: startWindow, services: services)
-                    }
-                    draggingStroke = nil
-                    dragOffset = .zero
-                }
+                draggingStroke = nil
+                strokeDrag = nil
+            }
         )
         .standing(at: dot)
     }
@@ -330,7 +328,7 @@ struct GreenView: View {
     private var panGesture: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
-                guard draggingStroke == nil, pinOffset == nil else {
+                guard draggingStroke == nil, pinOffset == nil, newSpot == nil else {
                     lastPan = value.translation
                     return
                 }
@@ -356,15 +354,15 @@ struct GreenView: View {
             .onEnded { value in projection?.zoom(by: 2, at: value.location) }
     }
 
-    /// A long press adds a spot there.
-    private var addSpotGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.5)
-            .sequenced(before: DragGesture(minimumDistance: 0))
-            .onEnded { value in
-                guard case .second(true, let drag) = value, let drag, let projection else { return }
-                SpotActions.addSpot(at: projection.coordinate(at: drag.location), round: round, holeIndex: shownHoleIndex,
+    /// A long press adds a spot there, which can be dragged into place before the finger lifts.
+    private var addSpotGesture: some UIGestureRecognizerRepresentable {
+        SpotPressGesture(minimumDuration: 0.5, space: .named(Self.space), lift: Self.dropLift) { newSpot = $0 } ended: { drag in
+            if let drag, let projection {
+                SpotActions.addSpot(at: projection.coordinate(at: drag.dot), round: round, holeIndex: shownHoleIndex,
                                     startWindow: startWindow, services: services, spot: &spot)
             }
+            newSpot = nil
+        }
     }
 }
 
@@ -377,14 +375,5 @@ private struct PlayerDot: View {
             .overlay { Circle().stroke(.white, lineWidth: 3) }
             .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
             .accessibilityLabel("Your location")
-    }
-}
-
-private extension View {
-    /// Stands a pin on `point`: its bottom edge, which runs through its dot, on the point.
-    func standing(at point: CGPoint) -> some View {
-        fixedSize()
-            .frame(width: 0, height: 0, alignment: .bottom)
-            .position(point)
     }
 }

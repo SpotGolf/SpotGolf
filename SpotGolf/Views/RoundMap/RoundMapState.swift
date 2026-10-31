@@ -74,6 +74,39 @@ struct SpotSelection {
     }
 }
 
+/// A spot held by a long press, until the finger lifts. It stays where it is until the finger
+/// moves, then rises above the finger, where a thumb does not hide it, and follows it. A new
+/// spot starts under the finger.
+struct SpotDrag {
+    /// How far the finger moves before the spot follows it, so a still finger's wobble does not.
+    static let slop: CGFloat = 10
+
+    /// Where the spot's dot is shown, and lands if the finger lifts now.
+    private(set) var dot: CGPoint
+    /// The spot has left where it was and follows the finger.
+    private(set) var follows = false
+    private let press: CGPoint
+    private let lift: CGFloat
+
+    /// A long press at `press` on a spot whose dot is at `dot`. Once it follows the finger, the
+    /// spot stays `lift` above it.
+    init(dot: CGPoint, press: CGPoint, lift: CGFloat) {
+        self.dot = dot
+        self.press = press
+        self.lift = lift
+    }
+
+    /// The finger is at `location`. True when this starts the spot following it.
+    @discardableResult
+    mutating func fingerMoved(to location: CGPoint) -> Bool {
+        let starts = !follows && hypot(location.x - press.x, location.y - press.y) >= Self.slop
+        guard follows || starts else { return false }
+        follows = true
+        dot = CGPoint(x: location.x, y: location.y - lift)
+        return starts
+    }
+}
+
 /// Keeps an active round's map on the hole an edit started on when the watch's GPS moves the
 /// display hole on, until the edit ends.
 struct HoleHold {

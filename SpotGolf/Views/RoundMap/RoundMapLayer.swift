@@ -4,12 +4,13 @@ import SwiftUI
 /// The map of the shown hole: the player, the pin, the spots, the GPS track, the tapped target
 /// and its lines, hazard distances, stroke suggestions, and the lines between the hole's strokes
 /// with the yards along each when they are turned on. Tapping a spot opens it, a long press adds
-/// a spot, and a spot can be lifted and dragged to move it.
+/// a spot, and a long press on a spot holds it. A held spot, new or not, can be dragged into
+/// place before the finger lifts.
 struct RoundMapLayer: View {
     let round: Round
     let shownHoleIndex: Int
     let showsStrokeLines: Bool
-    /// Set while a spot is being dragged, so the map holds its hole.
+    /// Set while a spot is held, so the map holds its hole.
     @Binding var isDraggingSpot: Bool
     /// The hole's track as the map draws it, and all of its fixes.
     let trackLine: [CLLocationCoordinate2D]
@@ -23,8 +24,11 @@ struct RoundMapLayer: View {
     @Binding var spot: SpotSelection
 
     @Environment(PhoneServices.self) private var services
+    /// The spot a long press holds, and where it is dragged, until the finger lifts.
     @State private var draggingStroke: Stroke?
-    @State private var dragOffset: CGSize = .zero
+    @State private var strokeDrag: SpotDrag?
+    /// The spot a long press is adding, until the finger lifts.
+    @State private var newSpot: SpotDrag?
     /// A dragged spot lands this far above the finger, where a thumb does not hide it.
     private static let dropLift: CGFloat = 70
 
@@ -33,7 +37,8 @@ struct RoundMapLayer: View {
         MapReader { proxy in
             let targetLines = targetLines
             let strokeLines = showsStrokeLines ? MapGeometry.strokeLines(strokesToShow) : []
-            Map(position: $camera.position) {
+            // The map holds still while a spot is held, or it would pan under the finger
+            Map(position: $camera.position, interactionModes: isHoldingSpot ? [] : .all) {
                 if round.isActive {
                     UserAnnotation()
                 }
@@ -95,6 +100,10 @@ struct RoundMapLayer: View {
             .overlay {
                 distanceLabels(strokeLines, proxy: proxy)
             }
+            .overlay {
+                newSpotMarker(number: strokesToShow.count + 1, proxy: proxy)
+                    .allowsHitTesting(false)
+            }
             .onMapCameraChange(frequency: .continuous) { context in
                 camera.changes &+= 1
                 let metersAcross = context.rect.size.width / MKMapPointsPerMeterAtLatitude(context.region.center.latitude)
@@ -116,85 +125,67 @@ struct RoundMapLayer: View {
                       let coordinate = proxy.convert(point, from: .local) else { return }
                 target = coordinate
             }
+            .onChange(of: isHoldingSpot) { _, holding in
+                isDraggingSpot = holding
+            }
             .gesture(
-                LongPressGesture(minimumDuration: 0.5)
-                    .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
-                    .onEnded { value in
-                        switch value {
-                        case .second(true, let drag):
-                            guard let drag,
-                                  let coordinate = proxy.convert(drag.location, from: .global) else { return }
-                            SpotActions.addSpot(at: coordinate, round: round, holeIndex: shownHoleIndex,
-                                                startWindow: startWindow, services: services, spot: &spot)
-                        default:
-                            break
-                        }
+                SpotPressGesture(minimumDuration: 0.5, space: .local, lift: Self.dropLift) { newSpot = $0 } ended: { drag in
+                    if let drag, let coordinate = proxy.convert(drag.dot, from: .local) {
+                        SpotActions.addSpot(at: coordinate, round: round, holeIndex: shownHoleIndex,
+                                            startWindow: startWindow, services: services, spot: &spot)
                     }
+                    newSpot = nil
+                }
             )
         }
     }
 
+    private var isHoldingSpot: Bool {
+        draggingStroke != nil || newSpot != nil
+    }
+
+    /// The spot a long press is adding, drawn over the map like the hazard bubbles until the
+    /// finger lifts.
+    @ViewBuilder
+    private func newSpotMarker(number: Int, proxy: MapProxy) -> some View {
+        if let newSpot, let coordinate = proxy.convert(newSpot.dot, from: .local) {
+            SpotPin(number: number, stroke: Stroke(coordinate: coordinate), isDragging: true) {}
+                .standing(at: newSpot.dot)
+                .allowsHitTesting(false)
+        }
+    }
+
     private func spotMarker(index: Int, stroke: Stroke, proxy: MapProxy) -> some View {
-        SpotPin(number: index + 1, stroke: stroke, isDragging: draggingStroke?.id == stroke.id) {
+        let isDragging = draggingStroke?.id == stroke.id
+        return SpotPin(number: index + 1, stroke: stroke, isDragging: isDragging) {
             if let holeIdx = round.holeIndex(containing: stroke.id),
                let strokeIdx = round.holes[holeIdx].strokes.firstIndex(where: { $0.id == stroke.id }) {
                 spot.newIndex = strokeIdx
             }
             spot.stroke = stroke
         }
-        .offset(draggingStroke?.id == stroke.id ? dragOffset : .zero)
+        .offset(isDragging ? dragOffset(of: stroke, proxy: proxy) : .zero)
         .gesture(
-            LongPressGesture(minimumDuration: 0.3)
-                // The drag reports from the first movement, so the pin tracks the finger at once
-                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
-                .onChanged { value in
-                    switch value {
-                    case .second(true, let drag):
-                        if draggingStroke == nil {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                draggingStroke = stroke
-                                isDraggingSpot = true
-                                // The finger is on the head, so the spot rises to the drop point
-                                // above it before the finger moves
-                                dragOffset = CGSize(width: 0, height: -(PinMetrics.headCenter + Self.dropLift))
-                            }
-                            #if os(iOS)
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            #endif
-                        }
-                        if let drag, let dot = proxy.convert(stroke.coordinate, to: .global) {
-                            // Puts the pin's dot on the drop point
-                            let drop = dropPoint(under: drag)
-                            dragOffset = CGSize(width: drop.x - dot.x, height: drop.y - dot.y)
-                        }
-                    default:
-                        break
-                    }
+            SpotPressGesture(minimumDuration: 0.3, space: .global, lift: Self.dropLift,
+                             dot: { proxy.convert(stroke.coordinate, to: .global) }) { drag in
+                draggingStroke = stroke
+                strokeDrag = drag
+            } ended: { drag in
+                // A spot the finger did not move stays where it is
+                if let drag, drag.follows, let coordinate = proxy.convert(drag.dot, from: .global) {
+                    SpotActions.move(stroke, to: coordinate, round: round, startWindow: startWindow,
+                                     services: services)
                 }
-                .onEnded { value in
-                    switch value {
-                    case .second(true, _):
-                        // Lands where the pin's dot is shown, which is above the finger even
-                        // when the finger never moved
-                        if let dot = proxy.convert(stroke.coordinate, to: .global),
-                           let coordinate = proxy.convert(CGPoint(x: dot.x + dragOffset.width,
-                                                                  y: dot.y + dragOffset.height), from: .global) {
-                            SpotActions.move(stroke, to: coordinate, round: round, startWindow: startWindow,
-                                             services: services)
-                        }
-                    default:
-                        break
-                    }
-                    draggingStroke = nil
-                    isDraggingSpot = false
-                    dragOffset = .zero
-                }
+                draggingStroke = nil
+                strokeDrag = nil
+            }
         )
     }
 
-    /// Where a dragged spot lands: above the finger, in global coordinates.
-    private func dropPoint(under drag: DragGesture.Value) -> CGPoint {
-        CGPoint(x: drag.location.x, y: drag.location.y - Self.dropLift)
+    /// How far the held spot is shown from where it stands.
+    private func dragOffset(of stroke: Stroke, proxy: MapProxy) -> CGSize {
+        guard let strokeDrag, let dot = proxy.convert(stroke.coordinate, to: .global) else { return .zero }
+        return CGSize(width: strokeDrag.dot.x - dot.x, height: strokeDrag.dot.y - dot.y)
     }
 
     /// The bubbles are drawn over the map rather than as map annotations, because an annotation
