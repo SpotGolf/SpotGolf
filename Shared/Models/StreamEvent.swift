@@ -16,7 +16,7 @@ struct StreamEvent: Equatable {
         /// Value: the retry delay in seconds.
         case workoutRefused = 5
         /// Value: 1 by the watchdog, 2 forced by a stalled sensor, 3 the running flag was
-        /// corrected, 4 forced by the user's hard restart.
+        /// corrected.
         case workoutRestart = 6
         case workoutEnded = 7
 
@@ -54,9 +54,6 @@ struct StreamEvent: Equatable {
         case microphoneRestart = 42
         /// Value: restarts in a row with no data.
         case microphoneStalled = 43
-
-        /// The user restarted every sensor, location updates and the workout by hand.
-        case hardRestart = 50
 
         /// The watch's pre-round checks passed, just before it took the round.
         case preRoundChecksPassed = 60

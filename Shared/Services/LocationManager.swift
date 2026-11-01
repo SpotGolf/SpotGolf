@@ -59,15 +59,6 @@ class LocationManager: NSObject {
         Log.location.notice("Location updates stopped")
         manager.stopUpdatingLocation()
     }
-
-    /// Stops the running updates and starts them again, at the user's request.
-    func restartUpdating() {
-        guard isUpdating else { return }
-        Log.location.notice("Location updates restarted")
-        recentLocations.removeAll()
-        manager.stopUpdatingLocation()
-        manager.startUpdatingLocation()
-    }
 }
 
 extension LocationManager: @preconcurrency CLLocationManagerDelegate {

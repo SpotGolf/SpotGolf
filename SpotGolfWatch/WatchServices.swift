@@ -210,18 +210,6 @@ final class WatchServices {
         recordingInputsChanged()
     }
 
-    /// The user's hard restart, for sensors that die as they did at Legacy Ridge on 2026-10-09
-    /// and stay dead through the repair ladder: every input goes on a fresh manager, location
-    /// updates start over, and the workout session is replaced with no rate limit, which
-    /// starts the inputs again once it runs.
-    func hardRestartSensors() {
-        Log.sensors.error("Hard restart of the sensors, asked for by the user")
-        watchSync.record(StreamEvent(code: .hardRestart))
-        sensors.restartAll(reason: "hard restart")
-        locationManager.restartUpdating()
-        workoutManager.forceRestart(reason: "hard restart")
-    }
-
     /// The phone's settings for the active round, sent mid-round: the zone changes at once, and
     /// Developer Mode starts or stops the capture when it changes.
     private func applyRoundSettings(_ settings: RoundSettingsMessage) {

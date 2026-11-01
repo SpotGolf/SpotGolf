@@ -215,19 +215,6 @@ struct WatchRoundView: View {
     private var endRoundPage: some View {
         ScrollView {
             VStack(spacing: 12) {
-                highGView
-
-                Button {
-                    services.sensors.play(.click)
-                    services.hardRestartSensors()
-                } label: {
-                    Label("Restart Sensors", systemImage: "arrow.clockwise")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                }
-                .accessibilityIdentifier("restartSensors")
-
                 Button("End Round", role: .destructive) {
                     services.watchSync.endRound()
                 }
@@ -235,45 +222,6 @@ struct WatchRoundView: View {
             }
             .padding()
         }
-    }
-
-    /// The last accelerometer reading over 10 g, as the local time of day and its force. A
-    /// swing is well over 10 g, so a stale time on the course means the accelerometer is dead.
-    @ViewBuilder
-    private var highGView: some View {
-        let reading = services.sensors.lastHighG
-        HStack {
-            Text("Over \(Int(SensorInputs.highGThreshold)) g at")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Spacer()
-            if let reading {
-                Text(reading.date, format: .dateTime.hour().minute().second())
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            } else {
-                Text("None")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            }
-        }
-        .accessibilityIdentifier("highGTime")
-        HStack {
-            Text("Force")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Spacer()
-            if let reading {
-                Text("\(reading.magnitude, format: .number.precision(.fractionLength(1))) g")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            } else {
-                Text(verbatim: "—")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-            }
-        }
-        .accessibilityIdentifier("highGForce")
     }
 
     // MARK: - Shared Components
