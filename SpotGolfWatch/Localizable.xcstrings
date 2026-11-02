@@ -117,6 +117,9 @@
     "End Round" : {
 
     },
+    "End Round?" : {
+
+    },
     "Front" : {
 
     },
@@ -149,6 +152,9 @@
 
     },
     "Irons" : {
+
+    },
+    "Keep Playing" : {
 
     },
     "Leave the balls in the cup." : {
@@ -350,6 +356,9 @@
 
     },
     "Woods" : {
+
+    },
+    "You left the last green 5 minutes ago. The round ends by itself in 20 minutes." : {
 
     },
     "You need a putter, 5 balls and a practice green." : {

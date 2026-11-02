@@ -42,6 +42,11 @@ struct WatchRoundView: View {
                 .onChange(of: services.developerModeInRound) { _, isOn in
                     if !isOn, page == .developerMode { page = .info }
                 }
+                .overlay {
+                    if services.asksToEndRound {
+                        endRoundPrompt
+                    }
+                }
             } else {
                 TabView(selection: $noRoundPage) {
                     noRoundHome
@@ -222,6 +227,28 @@ struct WatchRoundView: View {
             }
             .padding()
         }
+    }
+
+    /// Covers the round while the watch asks to end it. Not an alert: an alert's message keeps its
+    /// full size, which pushes Keep Playing off the screen.
+    private var endRoundPrompt: some View {
+        ScrollView {
+            VStack(spacing: 4) {
+                Text("End Round?")
+                    .font(.headline)
+                Text("You left the last green 5 minutes ago. The round ends by itself in 20 minutes.")
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                Button("End Round", role: .destructive) {
+                    services.endRoundFromPrompt()
+                }
+                Button("Keep Playing") {
+                    services.keepPlaying()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
     }
 
     // MARK: - Shared Components

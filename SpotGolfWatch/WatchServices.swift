@@ -36,6 +36,10 @@ final class WatchServices {
     let showsWorkoutStatus: Bool
     @ObservationIgnored private let swingDetector: SwingDetector
     @ObservationIgnored private var holeAdvancer = HoleAdvancer()
+    /// Asks the player to end the active round once they have left its final green.
+    @ObservationIgnored private var roundEndPrompter: RoundEndPrompter?
+    /// Checks the prompter's waits while no fixes come in.
+    @ObservationIgnored private var roundEndTimer: Timer?
     /// Keeps the workout, and so mirroring, running after a round ends until the phone has it all.
     @ObservationIgnored private let workoutEndWait: WorkoutEndWait
 
@@ -48,6 +52,8 @@ final class WatchServices {
     /// The Developer Mode setting the active round runs with, so only a change starts or stops
     /// the capture. The round shows the Developer Mode page while it is on.
     private(set) var developerModeInRound = false
+    /// The round screen shows the end round prompt while this is set.
+    private(set) var asksToEndRound = false
 
     init(options: LaunchOptions = .current) {
         container = Storage.container(for: options)
@@ -149,6 +155,7 @@ final class WatchServices {
             // Every fix, so leaving the green is seen over its whole time window
             for location in locations {
                 self?.advanceHole(location)
+                self?.promptRoundEnd(location)
                 if let self, let round = self.roundStore.activeRound {
                     self.contactMonitor.update(location: location, round: round)
                 }
@@ -236,6 +243,58 @@ final class WatchServices {
         roundStore.setDisplayHole(next)
     }
 
+    /// How often the end round prompt's waits are checked without fixes.
+    static let roundEndCheckInterval: TimeInterval = 30
+
+    /// Asks the player to end the round once they have left the final green, and ends it when
+    /// they don't answer. See plans/2026-11-02-end-round-prompt.md.
+    private func promptRoundEnd(_ location: CLLocation) {
+        guard let change = roundEndPrompter?.update(location: location) else { return }
+        roundEndChanged(change)
+    }
+
+    private func checkRoundEnd() {
+        guard let change = roundEndPrompter?.check(at: Date()) else { return }
+        roundEndChanged(change)
+    }
+
+    private func roundEndChanged(_ change: RoundEndPrompter.Change) {
+        guard let round = roundStore.activeRound else { return }
+        switch change {
+        case .ask:
+            let lastOnGreen = roundEndPrompter?.endTime?.formatted(.iso8601) ?? "unknown"
+            Log.rounds.notice("Round \(round.id) asking to end: left the final green, last on it at \(lastOnGreen)")
+            sensors.play(.notification)
+            asksToEndRound = true
+        case .stopAsking:
+            Log.rounds.notice("Round \(round.id) no longer asking to end: back on the final green")
+            asksToEndRound = false
+        case .end(let date):
+            Log.rounds.notice("Round \(round.id) ended automatically, at the last fix on the final green (\(date.formatted(.iso8601)))")
+            asksToEndRound = false
+            watchSync.endRound(at: date)
+        }
+    }
+
+    /// The prompt's End Round: ends the round at the last fix on the final green.
+    func endRoundFromPrompt() {
+        asksToEndRound = false
+        let endTime = roundEndPrompter?.endTime ?? Date()
+        if let round = roundStore.activeRound {
+            Log.rounds.notice("Round \(round.id) ended from the prompt, at the last fix on the final green (\(endTime.formatted(.iso8601)))")
+        }
+        watchSync.endRound(at: endTime)
+    }
+
+    /// The prompt's Keep Playing: no more asking this round.
+    func keepPlaying() {
+        if let round = roundStore.activeRound {
+            Log.rounds.notice("Round \(round.id) keeps playing: no more asking to end")
+        }
+        asksToEndRound = false
+        roundEndPrompter?.keepPlaying()
+    }
+
     /// How long a workout launched by the phone waits for its round. The phone keeps sending
     /// the start while the user leaves it, and the workout keeps the watch reachable for it.
     static let roundWaitTime: TimeInterval = 3 * 60
@@ -306,10 +365,20 @@ final class WatchServices {
             locationManager.startUpdating()
             workoutEndWait.cancel()
             workoutManager.start()
+            roundEndPrompter = RoundEndPrompter(courseSelection: round.courseSelection, lastHoleIndex: round.lastHoleIndex)
+            asksToEndRound = false
+            roundEndTimer?.invalidate()
+            roundEndTimer = Timer.scheduledTimer(withTimeInterval: Self.roundEndCheckInterval, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.checkRoundEnd() }
+            }
         } else {
             // The monitor's stop closes the open segment, after the contact it flushes; the capture ends after both
             contactMonitor.roundEnded()
             developerModeInRound = false
+            roundEndPrompter = nil
+            asksToEndRound = false
+            roundEndTimer?.invalidate()
+            roundEndTimer = nil
             let capturedRound = puttCapture.captureRoundID
             contactMonitor.afterPending { [weak self] in self?.puttCapture.roundEnded(roundID: capturedRound) }
             locationManager.stopUpdating()

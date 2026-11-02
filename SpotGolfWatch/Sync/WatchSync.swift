@@ -145,12 +145,14 @@ final class WatchSync {
 
     // MARK: - End
 
-    /// The user ended the round on the watch. The watch is done right away; the phone is told
-    /// the last record so it knows when the stream is complete.
-    func endRound() {
+    /// The user ended the round on the watch, or the end round prompt did. Records after an end
+    /// time in the past are dropped. The watch is done right away; the phone is told the last
+    /// record so it knows when the stream is complete.
+    func endRound(at date: Date = Date()) {
         guard let round = rounds.activeRound else { return }
         Log.rounds.notice("Round \(round.id) ended on the watch")
-        end(round.id, at: Date())
+        streams.truncate(round.id, after: date)
+        end(round.id, at: date)
         sendEndRound(round.id)
         if let end = endRoundMessage(round.id) {
             sync.queue(.endRound(end))

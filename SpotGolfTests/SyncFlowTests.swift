@@ -967,6 +967,39 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertFalse(pair.watchStreams.hasStream(for: id))
     }
 
+    func testWatchEndAtAnEarlierTimeDropsTheRecordsAfterIt() {
+        let id = pair.startRound()
+        let now = Date()
+        pair.setReachable(false)
+        pair.watch.record(locations(-10..<0, from: now))
+        let endedAt = now.addingTimeInterval(-5.5)
+
+        pair.watch.endRound(at: endedAt)
+
+        XCTAssertEqual(watchRound(id)?.lastSeq, 4)
+        XCTAssertEqual(watchRound(id)?.endedAt, endedAt)
+        pair.setReachable(true)
+        XCTAssertEqual(phoneRound(id)?.status, .ended)
+        XCTAssertEqual(phoneRound(id)?.endedAt, endedAt)
+        XCTAssertEqual(pair.phoneStreams.count(for: id), 5)
+    }
+
+    func testWatchEndAtAnEarlierTimeHidesRecordsThePhoneAlreadyHas() {
+        let id = pair.startRound()
+        let now = Date()
+        pair.watch.record(locations(-10..<0, from: now))
+        XCTAssertEqual(pair.phoneStreams.count(for: id), 10)
+        let endedAt = now.addingTimeInterval(-5.5)
+
+        pair.watch.endRound(at: endedAt)
+
+        XCTAssertEqual(watchRound(id)?.lastSeq, 4)
+        XCTAssertEqual(phoneRound(id)?.status, .ended)
+        XCTAssertEqual(phoneRound(id)?.endedAt, endedAt)
+        XCTAssertEqual(pair.phoneStreams.points(for: id, until: endedAt).count, 5)
+        XCTAssertFalse(pair.watchStreams.hasStream(for: id))
+    }
+
     func testWatchEndWhilePhoneUnreachableIsSentOnReconnect() {
         let id = pair.startRound()
         pair.setReachable(false)
