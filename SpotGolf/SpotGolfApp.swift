@@ -6,6 +6,9 @@ import os
 @main
 struct SpotGolfApp: App {
     @State private var services: PhoneServices
+    /// The splash shows once, over the app, on a cold launch
+    @State private var showsSplash = SplashTimeline.shows(isUITesting: LaunchOptions.current.isUITesting,
+                                                          reducesMotion: UIAccessibility.isReduceMotionEnabled)
 
     init() {
         Log.rounds.notice("Phone app launched")
@@ -18,19 +21,31 @@ struct SpotGolfApp: App {
 
     var body: some Scene {
         WindowGroup {
-            PhoneRootView()
-                .transaction { transaction in
-                    if LaunchOptions.current.isUITesting {
-                        transaction.disablesAnimations = true
+            ZStack {
+                PhoneRootView()
+                    .transaction { transaction in
+                        if LaunchOptions.current.isUITesting {
+                            transaction.disablesAnimations = true
+                        }
                     }
-                }
-                .environment(services)
-                .modelContainer(services.container)
-                .onAppear {
-                    Task {
-                        await services.courseService.refreshIndex()
+                    .environment(services)
+                    .modelContainer(services.container)
+                    .onAppear {
+                        Task {
+                            await services.courseService.refreshIndex()
+                        }
                     }
+                if showsSplash {
+                    SplashView {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showsSplash = false
+                        }
+                    }
+                    .transition(.opacity)
+                    // Stays on top while it fades out
+                    .zIndex(1)
                 }
+            }
         }
     }
 }

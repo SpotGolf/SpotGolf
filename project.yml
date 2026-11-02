@@ -117,7 +117,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
           - UIInterfaceOrientationPortraitUpsideDown
         UILaunchScreen:
-          UIColorName: ""
+          UIColorName: LaunchBackground
 
   SpotGolfLiveActivity:
     type: app-extension
