@@ -41,7 +41,7 @@ struct RoundMapView: View {
     @State private var mapStyle = MapStyleChoice.standard
     @State private var showMapStyles = false
     @State private var greenView = GreenViewState()
-    /// The lines and distances between the shown hole's strokes, which the ruler button turns on and off.
+    /// The lines and distances between the shown hole's strokes, which the dot menu's Distances item turns on and off.
     @State private var showsStrokeLines = false
     /// The app went to the background, so the map shows the whole hole again when it returns.
     @State private var wasInBackground = false

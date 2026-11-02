@@ -1,25 +1,24 @@
 import XCTest
 
-/// Green View: the close-up of the green, opened from its button.
+/// Green View: the close-up of the green, opened from the dot menu.
 extension InRoundUITests {
     /// The middle of Broadlands hole 1's green.
     static let holeOneGreen = (latitude: 39.954997, longitude: -105.045790)
 
-    private var greenViewButton: XCUIElement { app.buttons["GreenView"] }
+    private var mapMenu: XCUIElement { app.buttons["MapMenu"] }
     private var closeGreenViewButton: XCUIElement { app.buttons["CloseGreenView"] }
     private var greenViewTitle: XCUIElement { element("GreenViewTitle") }
 
-    func testButtonOpensGreenViewAndXClosesIt() throws {
+    func testMenuOpensGreenViewAndXClosesIt() throws {
         app.goToHole(1)
-        XCTAssertTrue(greenViewButton.waitToExist(), "The Green View button should be with the map buttons")
         XCTAssertFalse(greenViewTitle.exists, "Green View should not show before it is opened")
 
-        greenViewButton.tap()
-        XCTAssertTrue(greenViewTitle.waitToExist(), "The button should open Green View")
+        tapMapMenuItem("GreenView")
+        XCTAssertTrue(greenViewTitle.waitToExist(), "The menu item should open Green View")
         XCTAssertTrue(closeGreenViewButton.exists, "Green View should have an X")
         XCTAssertFalse(app.buttons["MapStyle"].exists, "The map's buttons should be hidden in Green View")
         XCTAssertTrue(element("GreenViewPinDistance").exists, "The feet to the pin should show during a round")
-        XCTAssertFalse(greenViewButton.exists, "The Green View button should be hidden in Green View")
+        XCTAssertFalse(mapMenu.exists, "The dot menu should be hidden in Green View")
         XCTAssertTrue(app.buttons["TapIn"].exists, "Green View should have the Tap in button")
 
         // A tap on the ground drops no target, as it would on the map
@@ -28,14 +27,14 @@ extension InRoundUITests {
 
         closeGreenViewButton.tap()
         XCTAssertTrue(greenViewTitle.waitToVanish(), "X should close Green View")
-        XCTAssertTrue(greenViewButton.waitToExist(), "The map's buttons should come back")
+        XCTAssertTrue(mapMenu.waitToExist(), "The map's buttons should come back")
         XCTAssertTrue(app.maps.firstMatch.exists, "The map should show again")
         XCTAssertFalse(app.buttons["TapIn"].exists, "Tap in should be in Green View only")
     }
 
     func testSpotAddedInGreenViewShowsOnTheMap() throws {
         _ = freshHole()
-        greenViewButton.tap()
+        tapMapMenuItem("GreenView")
         let ground = element("GreenViewGround")
         XCTAssertTrue(ground.waitToExist(), "Green View should open")
         // Left of center, clear of the flag Green View centers on
@@ -54,7 +53,7 @@ extension InRoundUITests {
 
     func testTapInAddsAPuttWithoutOpeningIt() throws {
         _ = freshHole()
-        greenViewButton.tap()
+        tapMapMenuItem("GreenView")
         let ground = element("GreenViewGround")
         XCTAssertTrue(ground.waitToExist(), "Green View should open")
         ground.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55)).press(forDuration: 0.6)
@@ -76,6 +75,6 @@ extension InRoundUITests {
         // Set Pin shows once the app has the player on the green
         moveTo(latitude: Self.holeOneGreen.latitude, longitude: Self.holeOneGreen.longitude)
         XCTAssertTrue(app.buttons["SetPinLocation"].waitToExist(), "The app should see the player on the green")
-        XCTAssertFalse(greenViewTitle.exists, "Only the Green View button should open Green View")
+        XCTAssertFalse(greenViewTitle.exists, "Only the dot menu should open Green View")
     }
 }

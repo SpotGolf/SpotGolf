@@ -30,6 +30,17 @@ final class InRoundUITests: UITestGroup {
         return hole
     }
 
+    /// Opens the dot menu at the map's bottom left and taps the item with `identifier`.
+    func tapMapMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let menu = app.buttons["MapMenu"]
+        XCTAssertTrue(menu.waitToExist(), "The dot menu should be on the map", file: file, line: line)
+        menu.tap()
+        let item = app.buttons[identifier]
+        XCTAssertTrue(item.waitToExist(), "The dot menu should have \(identifier)", file: file, line: line)
+        item.tap()
+        XCTAssertTrue(item.waitToVanish(), "Picking an item should close the dot menu", file: file, line: line)
+    }
+
     /// Moves the simulator, and so the player, to a spot.
     func moveTo(latitude: Double, longitude: Double) {
         LocationTestHelper.setSimulatorLocation(latitude: latitude, longitude: longitude)

@@ -73,7 +73,7 @@ extension InRoundUITests {
         app.buttons["Cancel"].tap()
         XCTAssertTrue(bar.waitToVanish())
 
-        app.buttons["GreenView"].tap()
+        tapMapMenuItem("GreenView")
         let ground = element("GreenViewGround")
         XCTAssertTrue(ground.waitToExist(), "Green View should open")
         ground.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55)).press(forDuration: 0.6)

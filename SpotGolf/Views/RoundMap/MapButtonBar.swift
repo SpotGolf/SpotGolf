@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Green View over the ruler at the bottom left, the map buttons at the right, and in the middle
-/// the suggestion pins' legend, with setting the pin above it and, in Green View, the tap in above
-/// that. Green View hides both capsules, and its X closes it.
+/// The dot menu at the bottom left, the map buttons at the right, and in the middle the suggestion
+/// pins' legend, with setting the pin above it and, in Green View, the tap in above that. Green View
+/// hides the menu and the map buttons, and its X closes it.
 struct MapButtonBar: View {
     let round: Round
     let shownHoleIndex: Int
-    /// The ruler button: shows and hides the lines and distances between the hole's strokes.
+    /// The Distances item in the dot menu: shows and hides the lines and distances between the
+    /// hole's strokes.
     @Binding var showsStrokeLines: Bool
     let followsUserLocation: Bool
     /// The location button: the camera goes back to following the player.
@@ -16,7 +17,7 @@ struct MapButtonBar: View {
     let pickMapStyle: () -> Void
     /// Green View is showing in place of the map, so the map's own buttons are hidden.
     let showsGreenView: Bool
-    /// The Green View button. Nil when the hole has no green outline to draw.
+    /// The Green View item in the dot menu. Nil when the hole has no green outline to draw.
     let openGreenView: (() -> Void)?
     /// The Tap in button, which adds the hole's last putt. Nil outside Green View.
     let tapIn: (() -> Void)?
@@ -28,9 +29,9 @@ struct MapButtonBar: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            // One capsule, as the map buttons on the right. Not in Green View, which closes with its X.
+            // Not in Green View, which closes with its X
             if !showsGreenView {
-                leftCapsule
+                mapMenu
             }
 
             Spacer(minLength: 0)
@@ -48,35 +49,33 @@ struct MapButtonBar: View {
         .padding(.bottom, 32)
     }
 
-    /// Green View over the ruler, in one capsule.
-    private var leftCapsule: some View {
-        VStack(spacing: 0) {
+    /// A round dot button that opens a menu of the map's views, each with its icon and name.
+    private var mapMenu: some View {
+        Menu {
             if let openGreenView {
                 Button(action: openGreenView) {
-                    Image(systemName: "flag")
-                        .font(.title3)
-                        .foregroundStyle(.blue)
-                        .frame(width: Self.buttonSize, height: Self.buttonSize)
+                    Label("Green View", systemImage: "flag")
                 }
-                .accessibilityLabel("Green View")
                 .accessibilityIdentifier("GreenView")
             }
 
-            Button {
-                showsStrokeLines.toggle()
-            } label: {
-                Image(systemName: "ruler")
-                    .font(.title3)
-                    .foregroundStyle(showsStrokeLines ? Color.blue : Color.secondary)
-                    .frame(width: Self.buttonSize, height: Self.buttonSize)
+            Toggle(isOn: $showsStrokeLines) {
+                Label("Distances", systemImage: "ruler")
             }
-            .accessibilityLabel("Distances")
-            .accessibilityAddTraits(showsStrokeLines ? .isSelected : [])
             .accessibilityIdentifier("StrokeLines")
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.title3)
+                .foregroundStyle(.blue)
+                .frame(width: Self.buttonSize, height: Self.buttonSize)
+                .background(.thickMaterial)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
         }
-        .background(.thickMaterial)
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+        // The items read top to bottom as listed, wherever the menu opens
+        .menuOrder(.fixed)
+        .accessibilityLabel("Map options")
+        .accessibilityIdentifier("MapMenu")
     }
 
     /// In Green View only: adds a putt 2 ft past the pin, for a tap in the watch did not hear or

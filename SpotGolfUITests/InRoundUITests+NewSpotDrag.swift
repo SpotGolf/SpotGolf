@@ -44,7 +44,7 @@ extension InRoundUITests {
 
     func testNewSpotInGreenViewFollowsTheFingerUntilItLifts() throws {
         _ = freshHole()
-        app.buttons["GreenView"].tap()
+        tapMapMenuItem("GreenView")
         let ground = element("GreenViewGround")
         XCTAssertTrue(ground.waitToExist(), "Green View should open")
         let pin = element("GreenViewPin")
