@@ -51,6 +51,19 @@ struct MapCameraState {
     }
 }
 
+/// Where the player dragged the Caddie's cones to: a point on the ground, kept while the player
+/// walks. It is for one hole and its strokes, so a new hole or a stroke goes back to the Caddie's
+/// pick. See plans/2026-11-02-caddie-club-and-aim.md, section 1.
+struct CaddieAim {
+    var point: CLLocationCoordinate2D
+    var holeIndex: Int
+    var holeStrokes: Int
+
+    func isFor(_ round: Round, holeIndex: Int) -> Bool {
+        holeIndex == self.holeIndex && round.hole(at: holeIndex).strokes.count == holeStrokes
+    }
+}
+
 /// The spot being edited in the spot sheet.
 struct SpotSelection {
     var stroke: Stroke?

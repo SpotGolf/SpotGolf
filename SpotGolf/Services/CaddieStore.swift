@@ -10,6 +10,9 @@ import Observation
 final class CaddieStore {
     /// Each club's counted shots, in yards.
     private(set) var shots: [Club: [Double]] = [:]
+    /// The standard deviation of the player's miss angle, in degrees, from their average score.
+    /// See plans/2026-11-02-caddie-club-and-aim.md, section 2.
+    private(set) var missAngle = MissAngle.starting
 
     @ObservationIgnored private let rounds: RoundStore
     @ObservationIgnored private let golfBag: GolfBagStore
@@ -75,8 +78,8 @@ final class CaddieStore {
         return GolfBag(clubs: golfBag.bag.clubs, distances: averages)
     }
 
-    /// Lists the shots again when an ended round or the Green Zone setting changed. A change to
-    /// the round in progress changes nothing: its shots don't count yet.
+    /// Lists the shots and works out the miss angle again when an ended round or the Green Zone
+    /// setting changed. A change to the round in progress changes nothing: it doesn't count yet.
     private func listShots() {
         let ended = rounds.rounds.filter { $0.status == .ended }
         let source = Source(rounds: ended.map { RoundVersion(id: $0.id, changedAt: $0.changedAt, strokesVersion: $0.strokesVersion) },
@@ -84,5 +87,6 @@ final class CaddieStore {
         guard source != listedFrom else { return }
         listedFrom = source
         shots = ShotDistances.shots(in: ended, greenZone: source.greenZone)
+        missAngle = MissAngle.degrees(for: ended)
     }
 }

@@ -67,6 +67,21 @@ extension OutsideRoundUITests {
         closePastRound()
     }
 
+    func testPastRoundsMenuHasNoCaddie() throws {
+        ensurePastRound()
+        openPastRound()
+
+        app.buttons["MapMenu"].tap()
+        let distances = app.buttons["StrokeLines"]
+        XCTAssertTrue(distances.waitToExist(), "The dot menu should open")
+        XCTAssertFalse(app.buttons["CaddieAdvice"].exists, "The Caddie needs the player's location")
+        // Picking an item closes the menu
+        distances.tap()
+        XCTAssertTrue(distances.waitToVanish())
+
+        closePastRound()
+    }
+
     func testMapShowsTheWholeHoleAfterTheAppReturns() throws {
         ensurePastRound()
         openPastRound()
@@ -223,8 +238,16 @@ extension OutsideRoundUITests {
             defer { lastFrame = frame }
             return !frame.isEmpty && app.frame.contains(CGPoint(x: frame.midX, y: frame.midY)) && frame == lastFrame
         }, "Hole 2's column should settle in portrait")
-        hole2.tap()
-        XCTAssertTrue(total.waitToVanish(), "A tap on a hole should close the scorecard")
+        // Even then the turn can still be ending, and UIKit drops touches until it has, so a tap
+        // that leaves the scorecard open is made again
+        var taps = 0
+        XCTAssertTrue(UIWait.until(timeout: UIWait.slow) {
+            guard total.exists else { return true }
+            guard taps < 3 else { return false }
+            taps += 1
+            hole2.tap()
+            return total.waitToVanish()
+        }, "A tap on a hole should close the scorecard")
         XCTAssertTrue(app.waitForShownHole(2), "A tap on hole 2 should show hole 2")
 
         // Close goes back to the map

@@ -2,14 +2,19 @@ import MapKit
 import SwiftUI
 
 /// The map of the shown hole: the player, the pin, the spots, the GPS track, the tapped target
-/// and its lines, hazard distances, stroke suggestions, and the lines between the hole's strokes
-/// with the yards along each when they are turned on. Tapping a spot opens it, a long press adds
-/// a spot, and a long press on a spot holds it. A held spot, new or not, can be dragged into
-/// place before the finger lifts.
+/// and its lines, hazard distances, stroke suggestions, the lines between the hole's strokes
+/// with the yards along each when they are turned on, and the Caddie's club and aim with its shot
+/// pattern when that is turned on. Tapping a spot opens it, a long press adds a spot, and a long
+/// press on a spot holds it. A held spot, new or not, can be dragged into place before the finger
+/// lifts.
 struct RoundMapLayer: View {
     let round: Round
     let shownHoleIndex: Int
     let showsStrokeLines: Bool
+    /// The Caddie's club and aim, while the dot menu's Caddie item is on and there is one.
+    let caddieShot: CaddieShot?
+    /// A drag on the cones moves the aim to this point on the ground.
+    let moveCaddieAim: (CLLocationCoordinate2D) -> Void
     /// Set while a spot is held, so the map holds its hole.
     @Binding var isDraggingSpot: Bool
     /// The hole's track as the map draws it, and all of its fixes.
@@ -31,14 +36,17 @@ struct RoundMapLayer: View {
     @State private var newSpot: SpotDrag?
     /// A dragged spot lands this far above the finger, where a thumb does not hide it.
     private static let dropLift: CGFloat = 70
+    /// Where the aim point was when a drag on the cones started, until the finger lifts.
+    @State private var caddieDragAim: CGPoint?
 
     var body: some View {
         let strokesToShow = round.hole(at: shownHoleIndex).strokes
         MapReader { proxy in
             let targetLines = targetLines
             let strokeLines = showsStrokeLines ? MapGeometry.strokeLines(strokesToShow) : []
-            // The map holds still while a spot is held, or it would pan under the finger
-            Map(position: $camera.position, interactionModes: isHoldingSpot ? [] : .all) {
+            // The map holds still while a spot is held or the cones are dragged, or it would pan
+            // under the finger
+            Map(position: $camera.position, interactionModes: isHoldingSpot || caddieDragAim != nil ? [] : .all) {
                 if round.isActive {
                     UserAnnotation()
                 }
@@ -95,7 +103,13 @@ struct RoundMapLayer: View {
                 MapCompass()
             }
             .overlay {
+                caddiePattern(proxy: proxy)
+            }
+            .overlay {
                 hazardBubbles(proxy: proxy)
+            }
+            .overlay {
+                caddieAimMarker(proxy: proxy)
             }
             .overlay {
                 distanceLabels(strokeLines, proxy: proxy)
@@ -137,7 +151,35 @@ struct RoundMapLayer: View {
                     newSpot = nil
                 }
             )
+            .gesture(
+                CaddieDragGesture(space: .local, isOnCones: { isOnCaddieCones($0, proxy: proxy) }) { start, finger in
+                    guard let caddieShot,
+                          let aim = caddieDragAim ?? proxy.convert(caddieShot.aimCoordinate, to: .local) else { return }
+                    caddieDragAim = aim
+                    // The aim keeps its place under the finger
+                    let moved = CGPoint(x: aim.x + finger.x - start.x, y: aim.y + finger.y - start.y)
+                    if let coordinate = proxy.convert(moved, from: .local) {
+                        moveCaddieAim(coordinate)
+                    }
+                } ended: {
+                    caddieDragAim = nil
+                }
+            )
         }
+    }
+
+    /// True for a point on the Caddie's cones: inside the outer cone from the player to the far
+    /// edge of its trapezoid, or on the aim point's marker.
+    private func isOnCaddieCones(_ point: CGPoint, proxy: MapProxy) -> Bool {
+        guard let caddieShot,
+              let start = proxy.convert(caddieShot.startCoordinate, to: .local),
+              let aim = proxy.convert(caddieShot.aimCoordinate, to: .local) else { return false }
+        // The marker's ring, and its label to the right of it
+        let marker = CGRect(x: aim.x - 22, y: aim.y - 22, width: 110, height: 44)
+        if marker.contains(point) { return true }
+        let far = caddieShot.corners(k: 2).suffix(2).compactMap { proxy.convert($0, to: .local) }
+        guard far.count == 2 else { return false }
+        return Path { $0.addLines([start] + far); $0.closeSubpath() }.contains(point)
     }
 
     private var isHoldingSpot: Bool {
@@ -208,6 +250,127 @@ struct RoundMapLayer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .allowsHitTesting(false)
+    }
+
+    /// The Caddie's aim point, and the yards from it to the pin on the middle of the line between
+    /// them. Drawn over the map like the hazard bubbles so they do not block touches on the map
+    /// under them.
+    @ViewBuilder
+    private func caddieAimMarker(proxy: MapProxy) -> some View {
+        // Reading the counter redraws the marker as the camera moves
+        let _ = camera.changes
+        ZStack {
+            if let caddieShot, let point = proxy.convert(caddieShot.aimCoordinate, to: .local) {
+                CaddieAimMarker(club: caddieShot.club, yards: caddieShot.yards)
+                    .fixedSize()
+                    .position(point)
+                // On the middle of the line from the aim point to the pin, as Distances has them
+                if let pin = caddiePin(for: caddieShot), let pinPoint = proxy.convert(pin, to: .local),
+                   let toPin = yardsToPin(from: caddieShot.aimCoordinate) {
+                    DistanceLabel(value: toPin, unit: .yards, identifier: "CaddieToPin", background: .yellow)
+                        .fixedSize()
+                        .position(x: (point.x + pinPoint.x) / 2, y: (point.y + pinPoint.y) / 2)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    /// Where the Caddie's line on from the aim point goes: the shown hole's pin, or its green's
+    /// center without one. Nil when the aim point is on the green already.
+    private func caddiePin(for shot: CaddieShot) -> CLLocationCoordinate2D? {
+        guard !round.isOnGreen(shot.aimCoordinate, holeIndex: shownHoleIndex) else { return nil }
+        return round.targetCoordinate(holeIndex: shownHoleIndex)
+    }
+
+    /// Yards from `coordinate` to the shown hole's pin, or its green's center without one.
+    private func yardsToPin(from coordinate: CLLocationCoordinate2D) -> Int? {
+        HoleOverview.yardsToPin(round, holeIndex: shownHoleIndex,
+                                from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+    }
+
+    /// The Caddie's shot pattern: the 2σ trapezoid in purple and the 1σ one in blue inside it, each
+    /// with lines of its color from the player's dot to its near corners so its whole cone shows,
+    /// a dashed line from the player's dot to short of the aim point's ring, and a dotted line on
+    /// from the ring to the pin unless the aim point is on the green. Drawn over the map like
+    /// the hazard bubbles, because the map draws shapes it is handed after the advice is worked
+    /// out in the background only when something else makes it redraw, such as a touch or a
+    /// camera move. The fills are see-through, so spots and the flag show through.
+    @ViewBuilder
+    private func caddiePattern(proxy: MapProxy) -> some View {
+        // Reading the counter redraws the pattern as the camera moves
+        let _ = camera.changes
+        if let caddieShot {
+            let outer = caddieShot.corners(k: 2).compactMap { proxy.convert($0, to: .local) }
+            let inner = caddieShot.corners(k: 1).compactMap { proxy.convert($0, to: .local) }
+            let start = proxy.convert(caddieShot.startCoordinate, to: .local)
+            // Lines from the player start past their dot
+            let dotRadius: CGFloat = 12
+            ZStack {
+                // Round dots: a dash of almost nothing with round caps
+                let dotted = StrokeStyle(lineWidth: 2, lineCap: .round, dash: [0.1, 5])
+                if outer.count == 4 {
+                    Path { $0.addLines(outer); $0.closeSubpath() }
+                        .fill(Color.purple.opacity(0.15))
+                    Path { $0.addLines(outer); $0.closeSubpath() }
+                        .stroke(Color.purple, style: dotted)
+                    if let start {
+                        Self.coneSides(from: start, to: outer, dotRadius: dotRadius)
+                            .stroke(Color.purple, style: dotted)
+                    }
+                }
+                if inner.count == 4 {
+                    Path { $0.addLines(inner); $0.closeSubpath() }
+                        .fill(Color.blue.opacity(0.35))
+                    Path { $0.addLines(inner); $0.closeSubpath() }
+                        .stroke(Color.blue, style: dotted)
+                    if let start {
+                        Self.coneSides(from: start, to: inner, dotRadius: dotRadius)
+                            .stroke(Color.blue, style: dotted)
+                    }
+                }
+                if let aim = proxy.convert(caddieShot.aimCoordinate, to: .local) {
+                    let ringGap = CaddieAimMarker.ring / 2 + 4
+                    if let start, let line = Self.line(from: start, to: aim, startGap: dotRadius, endGap: ringGap) {
+                        Path { $0.addLines(line) }
+                            .stroke(Color.yellow, style: StrokeStyle(lineWidth: 1, lineCap: .butt, dash: [6, 4]))
+                    }
+                    // On from the aim point to the pin, with its yards on it
+                    if let pin = caddiePin(for: caddieShot).flatMap({ proxy.convert($0, to: .local) }),
+                       let line = Self.line(from: aim, to: pin, startGap: ringGap, endGap: 0) {
+                        Path { $0.addLines(line) }
+                            .stroke(Color.yellow, style: dotted)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// A cone's sides: from the player at `start` to a trapezoid's two near corners.
+    private static func coneSides(from start: CGPoint, to corners: [CGPoint], dotRadius: CGFloat) -> Path {
+        Path { path in
+            for corner in corners.prefix(2) {
+                if let line = line(from: start, to: corner, startGap: dotRadius, endGap: 0) {
+                    path.addLines(line)
+                }
+            }
+        }
+    }
+
+    /// The line from `start` to `end`, cut `startGap` and `endGap` points short at each end. Nil
+    /// when that leaves nothing.
+    private static func line(from start: CGPoint, to end: CGPoint, startGap: CGFloat, endGap: CGFloat) -> [CGPoint]? {
+        let length = hypot(end.x - start.x, end.y - start.y)
+        guard length > startGap + endGap else { return nil }
+        let (dx, dy) = ((end.x - start.x) / length, (end.y - start.y) / length)
+        return [CGPoint(x: start.x + dx * startGap, y: start.y + dy * startGap),
+                CGPoint(x: end.x - dx * endGap, y: end.y - dy * endGap)]
     }
 
     /// The yards along each stroke line, on its middle. Drawn over the map like the hazard

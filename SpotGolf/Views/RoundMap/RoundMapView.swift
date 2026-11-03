@@ -43,6 +43,15 @@ struct RoundMapView: View {
     @State private var greenView = GreenViewState()
     /// The lines and distances between the shown hole's strokes, which the dot menu's Distances item turns on and off.
     @State private var showsStrokeLines = false
+    /// The club and aim the Caddie picks, with its shot pattern, which the dot menu's Caddie item
+    /// turns on and off.
+    @State private var showsCaddie = false
+    @State private var caddieAdvice = ClubAdviceState()
+    @State private var clubAdviser = ClubAdviser()
+    /// Working out the Caddie's advice; a newer request cancels it.
+    @State private var caddieTask: Task<Void, Never>?
+    /// Where the player dragged the cones to, in place of the Caddie's pick.
+    @State private var caddieAim: CaddieAim?
     /// The app went to the background, so the map shows the whole hole again when it returns.
     @State private var wasInBackground = false
 
@@ -76,6 +85,10 @@ struct RoundMapView: View {
             } else if camera.followsUserLocation, round?.isActive == true, let location {
                 camera.follow(location, heading: shownHoleHeading)
             }
+            refreshCaddieAdvice()
+        }
+        .onChange(of: caddieInputs) {
+            refreshCaddieAdvice()
         }
         .onChange(of: services.roundStore.revision) {
             if round == nil {
@@ -96,6 +109,7 @@ struct RoundMapView: View {
         }
         .onChange(of: round.map(shownHoleIndex)) {
             target = nil
+            caddieAim = nil
             withAnimation(.easeInOut(duration: 0.2)) {
                 greenView.holeChanged()
             }
@@ -152,6 +166,11 @@ struct RoundMapView: View {
             RoundSyncBanner(round: round)
             ZStack(alignment: .top) {
                 RoundMapLayer(round: round, shownHoleIndex: holeIndex, showsStrokeLines: showsStrokeLines,
+                              caddieShot: caddieShot(round, holeIndex: holeIndex),
+                              moveCaddieAim: { point in
+                                  caddieAim = CaddieAim(point: point, holeIndex: holeIndex,
+                                                        holeStrokes: round.hole(at: holeIndex).strokes.count)
+                              },
                               isDraggingSpot: $isDraggingSpot, trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
                               suggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
                 if greenView.isShown {
@@ -171,6 +190,7 @@ struct RoundMapView: View {
                     }
                     Spacer()
                     MapButtonBar(round: round, shownHoleIndex: holeIndex, showsStrokeLines: $showsStrokeLines,
+                                 showsCaddie: $showsCaddie,
                                  followsUserLocation: camera.followsUserLocation,
                                  followUserLocation: followUserLocation,
                                  mapStyle: mapStyle, pickMapStyle: { showMapStyles = true },
@@ -183,6 +203,9 @@ struct RoundMapView: View {
                                  tapIn: !greenView.isShown ? nil : {
                                      SpotActions.addTapIn(round: round, holeIndex: holeIndex, startWindow: startWindow,
                                                           services: services)
+                                 },
+                                 resetCaddie: greenView.isShown || !isCaddieMoved(round, holeIndex: holeIndex) ? nil : {
+                                     caddieAim = nil
                                  })
                 }
             }
@@ -266,6 +289,57 @@ struct RoundMapView: View {
     private func panToHole() {
         guard let round, let holeCamera = MapGeometry.holeCamera(round, holeIndex: shownHoleIndex(round)) else { return }
         camera.show(holeCamera)
+    }
+
+    // MARK: - Caddie
+
+    /// What the Caddie's advice comes from, but the player's location. Nil while the dot menu's
+    /// Caddie item is off.
+    private var caddieInputs: ClubAdviceState.Inputs? {
+        guard showsCaddie, let round else { return nil }
+        return ClubAdviceState.Inputs(round: round, holeIndex: shownHoleIndex(round),
+                                      distances: services.caddie.distances, missAngle: services.caddie.missAngle,
+                                      greenZone: greenZone)
+    }
+
+    /// What the map draws for the Caddie: the club and aim it picked, or, once the player drags
+    /// the cones, the shot at where they dragged them, with the club whose average is nearest.
+    /// None while the Caddie has no advice to show, such as on the green.
+    private func caddieShot(_ round: Round, holeIndex: Int) -> CaddieShot? {
+        guard showsCaddie, let advice = caddieAdvice.advice else { return nil }
+        guard let caddieAim, caddieAim.isFor(round, holeIndex: holeIndex),
+              let location = services.locationManager.lastLocation?.coordinate else { return advice.shot }
+        let clubs = ClubAdvice.clubs(from: services.caddie.distances,
+                                     isTeeShot: round.hole(at: holeIndex).strokes.isEmpty)
+        return CaddieShot.aimed(at: caddieAim.point, from: location, clubs: clubs,
+                                missAngle: services.caddie.missAngle) ?? advice.shot
+    }
+
+    /// True while the map shows where the player dragged the cones rather than the Caddie's pick.
+    private func isCaddieMoved(_ round: Round, holeIndex: Int) -> Bool {
+        guard showsCaddie, caddieAdvice.advice != nil, let caddieAim else { return false }
+        return caddieAim.isFor(round, holeIndex: holeIndex)
+    }
+
+    /// Works the Caddie's advice out again, off the main thread, when what it comes from changed
+    /// or the player moved.
+    private func refreshCaddieAdvice() {
+        guard let inputs = caddieInputs, let round else {
+            caddieTask?.cancel()
+            caddieAdvice.clear()
+            caddieAim = nil
+            return
+        }
+        guard let request = caddieAdvice.update(inputs, round: round,
+                                                location: services.locationManager.lastLocation?.coordinate) else {
+            return
+        }
+        caddieTask?.cancel()
+        caddieTask = Task { [clubAdviser] in
+            let advice = await clubAdviser.advice(for: request)
+            guard !Task.isCancelled else { return }
+            caddieAdvice.finish(advice, generation: request.generation)
+        }
     }
 
     // MARK: - Track and suggestions

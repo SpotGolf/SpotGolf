@@ -72,6 +72,38 @@ struct TargetMarker: View {
     }
 }
 
+/// The Caddie's aim point: a small yellow ring centered on it, with the club's short name and
+/// the yards to it beside the ring, such as "7i 148".
+struct CaddieAimMarker: View {
+    /// The ring's diameter, in points.
+    static let ring: CGFloat = 14
+
+    let club: Club
+    let yards: Int
+
+    var body: some View {
+        Circle()
+            .stroke(.yellow, lineWidth: 2)
+            .frame(width: Self.ring, height: Self.ring)
+            // Beside the ring, so the ring alone is centered on the aim point
+            .overlay(alignment: .leading) {
+                Text(verbatim: "\(club.shortName) \(yards)")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.yellow, in: Capsule())
+                    .fixedSize()
+                    .offset(x: Self.ring + 4)
+            }
+            .shadow(color: .black.opacity(0.4), radius: 1, y: 0.5)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Caddie: \(club.name), \(yards) yards")
+            .accessibilityIdentifier("CaddieAim")
+    }
+}
+
 /// A small white bubble whose arrow tip sits on the start of the hazard.
 struct HazardBubble: View {
     let yards: Int
@@ -105,6 +137,8 @@ struct DistanceLabel: View {
     let value: Int
     let unit: Unit
     let identifier: String
+    /// Yellow for the Caddie's line to the pin.
+    var background: Color = .white
 
     var body: some View {
         Text(unit == .feet ? "\(value) ft" : "\(value)")
@@ -113,7 +147,7 @@ struct DistanceLabel: View {
             .foregroundStyle(.black)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .background(RoundedRectangle(cornerRadius: 5).fill(.white))
+            .background(RoundedRectangle(cornerRadius: 5).fill(background))
             .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(unit == .feet ? "\(value) feet" : "\(value) yards")

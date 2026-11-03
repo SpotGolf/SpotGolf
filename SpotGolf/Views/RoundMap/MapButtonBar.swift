@@ -9,6 +9,9 @@ struct MapButtonBar: View {
     /// The Distances item in the dot menu: shows and hides the lines and distances between the
     /// hole's strokes.
     @Binding var showsStrokeLines: Bool
+    /// The Caddie item in the dot menu, during an active round only: shows and hides the club and
+    /// aim the Caddie picks, with its shot pattern.
+    @Binding var showsCaddie: Bool
     let followsUserLocation: Bool
     /// The location button: the camera goes back to following the player.
     let followUserLocation: () -> Void
@@ -21,6 +24,9 @@ struct MapButtonBar: View {
     let openGreenView: (() -> Void)?
     /// The Tap in button, which adds the hole's last putt. Nil outside Green View.
     let tapIn: (() -> Void)?
+    /// The Reset Caddie button, which puts the Caddie's cones back on its own pick. Nil unless
+    /// the player has dragged them.
+    let resetCaddie: (() -> Void)?
 
     @Environment(PhoneServices.self) private var services
 
@@ -42,6 +48,7 @@ struct MapButtonBar: View {
             VStack(spacing: 10) {
                 tapInButton
                 setPinButton
+                resetCaddieButton
                 SuggestionLegend()
             }
         }
@@ -63,6 +70,18 @@ struct MapButtonBar: View {
                 Label("Distances", systemImage: "ruler")
             }
             .accessibilityIdentifier("StrokeLines")
+
+            // The advice comes from the player's location
+            if round.isActive {
+                Toggle(isOn: $showsCaddie) {
+                    Label {
+                        Text("Caddie")
+                    } icon: {
+                        Image("DriverHead")
+                    }
+                }
+                .accessibilityIdentifier("CaddieAdvice")
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.title3)
@@ -94,6 +113,25 @@ struct MapButtonBar: View {
                     .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
             .accessibilityIdentifier("TapIn")
+        }
+    }
+
+    /// Shown only once the player has dragged the Caddie's cones: puts them back on the Caddie's
+    /// own pick.
+    @ViewBuilder
+    private var resetCaddieButton: some View {
+        if let resetCaddie {
+            Button(action: resetCaddie) {
+                Label("Reset Caddie", systemImage: "arrow.uturn.backward")
+                    .font(.headline)
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(.thickMaterial)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            }
+            .accessibilityIdentifier("ResetCaddie")
         }
     }
 
