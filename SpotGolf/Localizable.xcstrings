@@ -88,6 +88,28 @@
         }
       }
     },
+    "%lld shots" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shot"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shots"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld strokes" : {
       "localizations" : {
         "en" : {
@@ -110,7 +132,9 @@
         }
       }
     },
+    "%lld to %lld yd" : {},
     "%lld yards" : {},
+    "%lld yd" : {},
     "%lld yds" : {},
     "%lld, %@" : {
       "localizations" : {
@@ -142,6 +166,7 @@
     "Active" : {},
     "Active Round" : {},
     "Add a penalty stroke" : {},
+    "Add clubs to your golf bag in Settings to see how far you hit each one." : {},
     "Add suggested putt" : {},
     "Add suggested stroke" : {},
     "Adds a round from a CSV export as the current round and works out its hole starts. Pick the course the round was played on, then the file. Only works when no round is in progress." : {},
@@ -153,6 +178,8 @@
     "Bad shot" : {},
     "Ball" : {},
     "Blade" : {},
+    "Built" : {},
+    "Caddie" : {},
     "Cancel" : {},
     "Checking the watch…" : {},
     "Claw" : {},
@@ -167,6 +194,7 @@
     "Could not open SpotGolf on the watch (%@). Open it on the watch, then tap Retry." : {},
     "Could not send the round to the watch." : {},
     "Cross-Handed" : {},
+    "Current Round" : {},
     "Debug" : {},
     "Delete" : {},
     "Delete \"%@\"? This cannot be undone." : {},
@@ -213,7 +241,6 @@
     "Hit" : {},
     "Hole" : {},
     "Hole %lld" : {},
-    "How far you hit each club, in yards, from 1 to %lld." : {},
     "How It Works" : {},
     "How long you must stand still on or near the green, with no swing, before a chip or putt is suggested, and how far from the green's edge still counts as on it. The watch listens for putts in the same zone; a change reaches it when you open the round." : {},
     "Hybrid" : {},
@@ -267,11 +294,13 @@
     "Nearby Courses" : {},
     "New Round" : {},
     "Next" : {},
+    "No Clubs" : {},
     "No GPS fix" : {},
     "No Handicap" : {},
     "No courses found" : {},
     "No courses nearby" : {},
     "No sessions yet" : {},
+    "No shots yet" : {},
     "Not Now" : {},
     "OK" : {},
     "Off the green: counts as a chip" : {},
@@ -321,6 +350,7 @@
     "Resume" : {},
     "Retry" : {},
     "Right" : {},
+    "Rounds" : {},
     "Sand Wedge" : {},
     "Satellite" : {},
     "Save" : {},
@@ -345,7 +375,6 @@
     "Spot %lld" : {},
     "Spot %lld, %@" : {},
     "Spot: %lld" : {},
-    "SpotGolf" : {},
     "SpotGolf needs these to record your round" : {},
     "Standard" : {},
     "Start on your watch, on the Putting Drills page. Read the instructions for each task on your watch, do the task, then tap Done." : {},
@@ -353,6 +382,7 @@
     "Starting" : {},
     "Starting hole" : {},
     "Starting on watch…" : {},
+    "Starts from your golf bag's distances and moves toward your own shots: each shot's spot to the next. The bar shows where about two in three shots land. Putts, thumbs-down shots, shots from the Green Zone and shots with penalty strokes are left out." : {},
     "Stationary Threshold" : {},
     "Stroke Suggestions" : {},
     "Swing" : {},
@@ -389,6 +419,7 @@
     "Wedges" : {},
     "What You Need" : {},
     "What the phone and watch apps recorded, for sending to SpotGolf support if something goes wrong." : {},
+    "Where each club starts, in yards, from 1 to %lld. The Caddie moves it toward your own shots as you play." : {},
     "Woods" : {},
     "Yards" : {},
     "You agreed to share" : {},

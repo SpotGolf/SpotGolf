@@ -20,6 +20,8 @@ final class PhoneServices {
     /// The app's log, with the watch's lines added as they arrive.
     let logFile: LogFile
     let golfBag: GolfBagStore
+    /// How far the player hits each club, for the Caddie screen and club guesses.
+    let caddie: CaddieStore
     let permissions: PermissionChecker
     let pinShare: PinShareCoordinator
     let cloudSync: CloudSync
@@ -58,6 +60,7 @@ final class PhoneServices {
         logFile = log
         let bag = GolfBagStore(context: container.mainContext)
         golfBag = bag
+        caddie = CaddieStore(rounds: rounds, golfBag: bag)
         courseService = CourseService()
 
         // Without a watch, rounds start and end on the phone alone

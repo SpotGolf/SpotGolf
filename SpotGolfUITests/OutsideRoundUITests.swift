@@ -1,11 +1,11 @@
 import XCTest
 
-/// Everything outside a round: the round list, Settings, Putt Data Sharing and past rounds. Each
-/// test starts on the round list, and leaves the app there.
+/// Everything outside a round: the tabs, the round list, the Caddie, Settings, Putt Data Sharing
+/// and past rounds. Each test starts on the round list, and leaves the app there.
 final class OutsideRoundUITests: UITestGroup {
     /// On the round list, with nothing over it.
     override func isAtGroupStart() -> Bool {
-        app.buttons["Settings"].exists
+        app.navigationBars["Rounds"].exists
     }
 
     /// Plays 3 strokes on hole 1 and 2 on hole 2 at Broadlands, then ends the round, unless the

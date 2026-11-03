@@ -5,7 +5,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            RoundListView(navigationPath: $navigationPath)
+            HomeView(navigationPath: $navigationPath)
                 .navigationDestination(for: UUID.self) { roundID in
                     RoundMapView(roundID: roundID)
                 }

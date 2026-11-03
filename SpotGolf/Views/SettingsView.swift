@@ -2,9 +2,9 @@ import SwiftUI
 import os
 import UniformTypeIdentifiers
 
+/// The Settings tab.
 struct SettingsView: View {
     @Environment(PhoneServices.self) private var services
-    @Environment(\.dismiss) private var dismiss
 
     #if DEBUG
     @State private var showImportCoursePicker = false
@@ -43,114 +43,107 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                UpdateNoticeSection()
-                Section {
-                    Picker("Stationary Threshold", selection: $stationaryThreshold) {
-                        ForEach(thresholdOptions, id: \.self) { seconds in
-                            Text("\(seconds)s").tag(TimeInterval(seconds))
+        Form {
+            UpdateNoticeSection()
+            Section {
+                Picker("Stationary Threshold", selection: $stationaryThreshold) {
+                    ForEach(thresholdOptions, id: \.self) { seconds in
+                        Text("\(seconds)s").tag(TimeInterval(seconds))
+                    }
+                }
+                Picker("Green Zone", selection: $greenZone) {
+                    ForEach(zoneOptions, id: \.self) { meters in
+                        Text("\(meters) m").tag(Double(meters))
+                    }
+                }
+                .accessibilityIdentifier("GreenZone")
+            } header: {
+                Text("Stroke Suggestions")
+            } footer: {
+                Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested, and how far from the green's edge still counts as on it. The watch listens for putts in the same zone; a change reaches it when you open the round.")
+            }
+            Section {
+                NavigationLink {
+                    GolfBagView()
+                } label: {
+                    LabeledContent("Golf Bag", value: "\(services.golfBag.bag.clubs.count) clubs")
+                }
+                .accessibilityIdentifier("OpenGolfBag")
+            } header: {
+                Text("Clubs")
+            } footer: {
+                Text("The clubs you carry, up to \(GolfBag.capacity).")
+            }
+            Section {
+                Toggle("Share Pin Locations", isOn: $sharePins)
+                    .accessibilityIdentifier("SharePinLocations")
+            } header: {
+                Text("Pins")
+            } footer: {
+                Text("Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts.")
+            }
+            Section {
+                Toggle("iCloud Sync", isOn: $iCloudSync)
+                    .accessibilityIdentifier("iCloudSync")
+            } header: {
+                Text("iCloud")
+            } footer: {
+                Text(iCloudFooter)
+            }
+            Section {
+                Button(action: shareLog) {
+                    HStack {
+                        Text("Share logs…")
+                        if isPreparingLog {
+                            Spacer()
+                            ProgressView()
                         }
                     }
-                    Picker("Green Zone", selection: $greenZone) {
-                        ForEach(zoneOptions, id: \.self) { meters in
-                            Text("\(meters) m").tag(Double(meters))
-                        }
-                    }
-                    .accessibilityIdentifier("GreenZone")
-                } header: {
-                    Text("Stroke Suggestions")
-                } footer: {
-                    Text("How long you must stand still on or near the green, with no swing, before a chip or putt is suggested, and how far from the green's edge still counts as on it. The watch listens for putts in the same zone; a change reaches it when you open the round.")
                 }
+                .disabled(isPreparingLog)
+                .accessibilityIdentifier("ShareLogs")
+            } header: {
+                Text("Log")
+            } footer: {
+                Text("What the phone and watch apps recorded, for sending to SpotGolf support if something goes wrong.")
+            }
+            #if DEBUG
+            ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
+            #endif
+            Section {
+                LabeledContent("Version", value: AppVersion.text())
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: versionTapped)
+                    .accessibilityIdentifier("AppVersion")
+                LabeledContent("Built", value: AppVersion.buildInstant())
+                    .accessibilityIdentifier("BuildInstant")
+            } header: {
+                Text("About")
+            }
+            if developerMode {
                 Section {
-                    NavigationLink {
-                        GolfBagView()
-                    } label: {
-                        LabeledContent("Golf Bag", value: "\(services.golfBag.bag.clubs.count) clubs")
-                    }
-                    .accessibilityIdentifier("OpenGolfBag")
+                    Toggle("Developer Mode", isOn: $developerMode)
+                        .accessibilityIdentifier("DeveloperMode")
                 } header: {
-                    Text("Clubs")
+                    Text("Developer")
                 } footer: {
-                    Text("The clubs you carry, up to \(GolfBag.capacity).")
-                }
-                Section {
-                    Toggle("Share Pin Locations", isOn: $sharePins)
-                        .accessibilityIdentifier("SharePinLocations")
-                } header: {
-                    Text("Pins")
-                } footer: {
-                    Text("Pins you set are shared with other SpotGolf golfers on the same course that day, and you see theirs. Needs an iCloud account. A change takes effect when the next round starts.")
-                }
-                Section {
-                    Toggle("iCloud Sync", isOn: $iCloudSync)
-                        .accessibilityIdentifier("iCloudSync")
-                } header: {
-                    Text("iCloud")
-                } footer: {
-                    Text(iCloudFooter)
-                }
-                Section {
-                    Button(action: shareLog) {
-                        HStack {
-                            Text("Share logs…")
-                            if isPreparingLog {
-                                Spacer()
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(isPreparingLog)
-                    .accessibilityIdentifier("ShareLogs")
-                } header: {
-                    Text("Log")
-                } footer: {
-                    Text("What the phone and watch apps recorded, for sending to SpotGolf support if something goes wrong.")
-                }
-                #if DEBUG
-                ImportRoundSection(showCoursePicker: $showImportCoursePicker, message: importMessage)
-                #endif
-                Section {
-                    LabeledContent("Version", value: AppVersion.text())
-                        .contentShape(Rectangle())
-                        .onTapGesture(perform: versionTapped)
-                        .accessibilityIdentifier("AppVersion")
-                    LabeledContent("Built", value: AppVersion.buildInstant())
-                        .accessibilityIdentifier("BuildInstant")
-                } header: {
-                    Text("About")
-                }
-                if developerMode {
-                    Section {
-                        Toggle("Developer Mode", isOn: $developerMode)
-                            .accessibilityIdentifier("DeveloperMode")
-                    } header: {
-                        Text("Developer")
-                    } footer: {
-                        Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Get them with Scripts/export-round.py. A change reaches the watch when you open the round.")
-                    }
+                    Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Get them with Scripts/export-round.py. A change reaches the watch when you open the round.")
                 }
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: iCloudSync) { _, enabled in
-                services.setCloudSync(enabled)
-            }
-            .alert("Developer Mode On", isPresented: $showsDeveloperModeOn) {
-                Button("OK") {}
-            }
-            .alert("Could Not Share Logs", isPresented: $logShareFailed) {
-                Button("OK") {}
-            }
-            .sheet(item: $sharedLog) { log in
-                ShareSheet(items: [log.url])
-            }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: iCloudSync) { _, enabled in
+            services.setCloudSync(enabled)
+        }
+        .alert("Developer Mode On", isPresented: $showsDeveloperModeOn) {
+            Button("OK") {}
+        }
+        .alert("Could Not Share Logs", isPresented: $logShareFailed) {
+            Button("OK") {}
+        }
+        .sheet(item: $sharedLog) { log in
+            ShareSheet(items: [log.url])
         }
         #if DEBUG
         .modifier(ImportRoundPickers(showCoursePicker: $showImportCoursePicker, message: $importMessage))

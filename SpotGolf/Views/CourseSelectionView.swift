@@ -3,7 +3,16 @@ import os
 import CoreLocation
 import CourseDataSwift
 
+/// The new round questions: course, nines and starting hole, tee. A sheet with its own Cancel,
+/// or with `isTab`, the New Round tab's screen, in the home screen's navigation stack.
 struct CourseSelectionView: View {
+    /// Shown in the New Round tab rather than a sheet: no navigation stack of its own and no
+    /// Cancel, since another tab leaves.
+    var isTab = false
+    /// The tab form's search text. Its field is in the tab bar, above the tab buttons.
+    var tabSearchText: Binding<String>?
+    /// The tab form sets this while it shows the course list, the step the search is for.
+    var showsCourseList: Binding<Bool>?
     var onRoundStarted: ((UUID) -> Void)?
     /// When set, picking a course calls this instead of starting a round.
     var onCourseSelected: ((CourseSelection) -> Void)?
@@ -11,7 +20,8 @@ struct CourseSelectionView: View {
     @Environment(PhoneServices.self) private var services
     @Environment(\.dismiss) private var dismiss
 
-    @State private var searchText = ""
+    /// The sheet form's search text, from its own search field.
+    @State private var sheetSearchText = ""
     @State private var selectedCourse: Course?
     @State private var selectedIndices: [Int] = []
     /// The hole a shotgun start begins on, 1-based in nine order.
@@ -22,43 +32,65 @@ struct CourseSelectionView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let nines {
-                    teeSelectionView(nines)
-                } else if let course = selectedCourse {
-                    subCourseSelectionView(course: course)
-                } else {
-                    courseListView
-                }
+        if isTab {
+            steps
+        } else {
+            NavigationStack {
+                steps
             }
-            .navigationTitle(nines != nil ? "Select Tee" : selectedCourse != nil ? "Select Nines" : "Select Course")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if nines != nil {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Back") {
-                            nines = nil
-                            // A course with one nine had no nines step
-                            if (selectedCourse?.subCourses.count ?? 0) <= 1 {
-                                selectedCourse = nil
-                                selectedIndices = []
-                            }
-                        }
-                    }
-                } else if selectedCourse != nil {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Back") {
+        }
+    }
+
+    private var searchText: String {
+        tabSearchText?.wrappedValue ?? sheetSearchText
+    }
+
+    private var isOnCourseList: Bool {
+        nines == nil && selectedCourse == nil
+    }
+
+    private var steps: some View {
+        Group {
+            if let nines {
+                teeSelectionView(nines)
+            } else if let course = selectedCourse {
+                subCourseSelectionView(course: course)
+            } else {
+                courseListView
+            }
+        }
+        .onChange(of: isOnCourseList, initial: true) { _, onList in
+            showsCourseList?.wrappedValue = onList
+        }
+        .onDisappear {
+            showsCourseList?.wrappedValue = false
+        }
+        .navigationTitle(nines != nil ? "Select Tee" : selectedCourse != nil ? "Select Nines" : "Select Course")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if nines != nil {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back") {
+                        nines = nil
+                        // A course with one nine had no nines step
+                        if (selectedCourse?.subCourses.count ?? 0) <= 1 {
                             selectedCourse = nil
                             selectedIndices = []
-                            errorMessage = nil
                         }
                     }
-                } else {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            dismiss()
-                        }
+                }
+            } else if selectedCourse != nil {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back") {
+                        selectedCourse = nil
+                        selectedIndices = []
+                        errorMessage = nil
+                    }
+                }
+            } else if !isTab {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
                     }
                 }
             }
@@ -128,7 +160,8 @@ struct CourseSelectionView: View {
                     .accessibilityIdentifier("CourseDataNote")
             }
         }
-        .searchable(text: $searchText, prompt: "Search courses")
+        .modifier(SheetSearch(isOn: !isTab, text: $sheetSearchText))
+        .scrollDismissesKeyboard(.immediately)
         .task {
             services.locationManager.startUpdating()
             await services.courseService.refreshIndex()
@@ -302,7 +335,9 @@ struct CourseSelectionView: View {
             return
         }
         let roundID = services.phoneSync.startRound(courseSelection: selection)
-        dismiss()
+        if !isTab {
+            dismiss()
+        }
         onRoundStarted?(roundID)
     }
 
@@ -330,5 +365,63 @@ struct CourseSelectionView: View {
 
         // Default to first 2
         return Array(0..<min(2, course.subCourses.count))
+    }
+}
+
+/// The system search field, for the sheet form only: the tab form's is in the tab bar.
+private struct SheetSearch: ViewModifier {
+    let isOn: Bool
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        if isOn {
+            content.searchable(text: $text, prompt: "Search courses")
+        } else {
+            content
+        }
+    }
+}
+
+/// The New Round tab's search field, at the top of the tab bar. Cancel empties it and puts the
+/// keyboard away.
+struct CourseSearchField: View {
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search courses", text: $text)
+                    .focused(isFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .onSubmit { isFocused.wrappedValue = false }
+                    .accessibilityIdentifier("CourseSearch")
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Clear")
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(Color(.tertiarySystemFill), in: Capsule())
+            if isFocused.wrappedValue {
+                Button("Cancel") {
+                    text = ""
+                    isFocused.wrappedValue = false
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
     }
 }

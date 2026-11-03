@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// How far the player hits each club in the bag, in yards. The putter has no distance, so it is
-/// left out. A field empties when it gets focus, with the saved distance as its placeholder, so
+/// How far the player hits each club in the bag, in yards: where the Caddie starts each club
+/// before moving it toward the player's shots. The putter has no distance, so it is left out. A field empties when it gets focus, with the saved distance as its placeholder, so
 /// typing replaces the distance. A distance is saved when its field loses focus and when the
 /// screen closes, not on every key, so iCloud gets one change per edit. See
 /// plans/2026-10-26-edit-club-distances.md.
@@ -39,7 +39,7 @@ struct ClubDistancesView: View {
                     }
                 }
             } footer: {
-                Text("How far you hit each club, in yards, from 1 to \(Self.maximum).")
+                Text("Where each club starts, in yards, from 1 to \(Self.maximum). The Caddie moves it toward your own shots as you play.")
             }
         }
         .navigationTitle("Club Distances")

@@ -5,61 +5,53 @@ import SwiftUI
 /// `plans/2026-10-27-putt-data-sharing.md`, section 1.
 struct PuttDataSharingView: View {
     @Environment(PhoneServices.self) private var services
-    @Environment(\.dismiss) private var dismiss
 
     @State private var confirmsDeleteAll = false
 
     var body: some View {
         @Bindable var sharing = services.puttSharing
-        NavigationStack {
-            Form {
-                Section("About") {
-                    Text("Help make putt detection work for every golfer. Your watch records wrist motion and sound while you do a set of putting drills, and one location when you start, to check you were on a putting green. The recordings are shared with the SpotGolf developers to improve putt detection and are not linked to your name or Apple Account.")
+        Form {
+            Section("About") {
+                Text("Help make putt detection work for every golfer. Your watch records wrist motion and sound while you do a set of putting drills, and one location when you start, to check you were on a putting green. The recordings are shared with the SpotGolf developers to improve putt detection and are not linked to your name or Apple Account.")
+            }
+            Section("What You Need") {
+                Text("You need a putter, 5 balls and an outdoor practice green. Each drill is 5 repeats of the same task, such as \"Hit a 3 foot putt\". After you complete the 5 tasks, the drill ends. Between drills you collect your balls and set up for the next drill.")
+            }
+            Section("How It Works") {
+                Text("Start on your watch, on the Putting Drills page. Read the instructions for each task on your watch, do the task, then tap Done.")
+            }
+            Section {
+                if sharing.hasConsent {
+                    Label("You agreed to share", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .accessibilityIdentifier("PuttSharingAgreed")
+                } else {
+                    Button("I Agree") { sharing.agree() }
+                        .accessibilityIdentifier("PuttSharingAgree")
                 }
-                Section("What You Need") {
-                    Text("You need a putter, 5 balls and an outdoor practice green. Each drill is 5 repeats of the same task, such as \"Hit a 3 foot putt\". After you complete the 5 tasks, the drill ends. Between drills you collect your balls and set up for the next drill.")
-                }
-                Section("How It Works") {
-                    Text("Start on your watch, on the Putting Drills page. Read the instructions for each task on your watch, do the task, then tap Done.")
-                }
+            } header: {
+                Text("Consent")
+            } footer: {
+                Text("The watch's microphone records during the drills, so speech nearby may be recorded. You can delete what you shared at any time.")
+            }
+            Group {
+                equipment(sharing)
                 Section {
-                    if sharing.hasConsent {
-                        Label("You agreed to share", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .accessibilityIdentifier("PuttSharingAgreed")
-                    } else {
-                        Button("I Agree") { sharing.agree() }
-                            .accessibilityIdentifier("PuttSharingAgree")
-                    }
-                } header: {
-                    Text("Consent")
+                    Toggle("Upload on Cellular", isOn: $sharing.uploadsOnCellular)
+                        .accessibilityIdentifier("PuttSharingCellular")
                 } footer: {
-                    Text("The watch's microphone records during the drills, so speech nearby may be recorded. You can delete what you shared at any time.")
+                    Text("A session is about 45 MB. Without this, sessions upload on Wi-Fi.")
                 }
-                Group {
-                    equipment(sharing)
-                    Section {
-                        Toggle("Upload on Cellular", isOn: $sharing.uploadsOnCellular)
-                            .accessibilityIdentifier("PuttSharingCellular")
-                    } footer: {
-                        Text("A session is about 45 MB. Without this, sessions upload on Wi-Fi.")
-                    }
-                    sessions(sharing)
-                }
-                .disabled(!sharing.hasConsent)
+                sessions(sharing)
             }
-            .navigationTitle("Putt Data Sharing")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .confirmationDialog("Delete All My Data", isPresented: $confirmsDeleteAll, titleVisibility: .visible) {
-                Button("Delete All", role: .destructive) { sharing.deleteAll() }
-            } message: {
-                Text("Deletes every session on this iPhone and in iCloud, and asks the developers to delete the ones they have.")
-            }
+            .disabled(!sharing.hasConsent)
+        }
+        .navigationTitle("Putt Data Sharing")
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Delete All My Data", isPresented: $confirmsDeleteAll, titleVisibility: .visible) {
+            Button("Delete All", role: .destructive) { sharing.deleteAll() }
+        } message: {
+            Text("Deletes every session on this iPhone and in iCloud, and asks the developers to delete the ones they have.")
         }
     }
 

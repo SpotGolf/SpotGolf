@@ -3,8 +3,7 @@ import XCTest
 /// Settings: Developer Mode, iCloud Sync, the update notice and the app's log.
 extension OutsideRoundUITests {
     private func closeSettings() {
-        app.navigationBars["Settings"].buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Settings"].waitToExist(), "Settings should close")
+        showRounds()
     }
 
     func testVersionTapsTurnDeveloperModeOnAndTheSwitchTurnsItOff() throws {

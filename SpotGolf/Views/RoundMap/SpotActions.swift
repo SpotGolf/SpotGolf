@@ -12,7 +12,7 @@ enum SpotActions {
         spot.newIndex = round.hole(at: holeIndex).strokes.count // capture before append
         var stroke = Stroke(coordinate: coordinate,
                             club: HoleOverview.guessedClub(round, holeIndex: holeIndex, strokeIndex: spot.newIndex,
-                                                           at: coordinate, bag: services.golfBag.bag))
+                                                           at: coordinate, bag: services.caddie.guessBag))
         stroke.hitAt = StrokeFinder.estimatedTime(of: stroke, in: startWindow)
         services.roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
         spot.stroke = stroke
@@ -36,7 +36,7 @@ enum SpotActions {
                                services: PhoneServices, spot: inout SpotSelection) {
         guard let stroke = services.roundStore.addSuggestedStroke(
             suggestion, holeIndex: holeIndex, roundID: round.id, holeTrack: holeTrack,
-            bag: services.golfBag.bag) else { return }
+            bag: services.caddie.guessBag) else { return }
         spot.newIndex = round.hole(at: holeIndex).strokes.firstIndex { $0.id == stroke.id } ?? 0
         spot.stroke = stroke
         spot.isNew = true

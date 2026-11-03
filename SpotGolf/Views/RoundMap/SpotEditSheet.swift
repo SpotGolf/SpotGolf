@@ -36,7 +36,7 @@ struct SpotEditSheet: View {
         let holeIndex = round.holeIndex(containing: stroke.id) ?? shownHoleIndex
         let strokeIndex = round.hole(at: holeIndex).strokes.firstIndex { $0.id == stroke.id } ?? spot.newIndex
         return HoleOverview.guessedClub(round, holeIndex: holeIndex, strokeIndex: strokeIndex, at: stroke.coordinate,
-                                        bag: services.golfBag.bag)
+                                        bag: services.caddie.guessBag)
     }
 
     /// With the putter picked, what the stroke counts as: a putt on the green, and a chip off it,

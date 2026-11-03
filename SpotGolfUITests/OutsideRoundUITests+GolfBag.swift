@@ -10,10 +10,9 @@ extension OutsideRoundUITests {
         return openBag
     }
 
-    /// Closes Settings, back on the round list.
+    /// Leaves Settings, back on the round list.
     private func closeSettings() {
-        app.navigationBars["Settings"].buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Settings"].waitToExist(), "Settings should close")
+        showRounds()
     }
 
     func testBagStartsStandardAndHoldsFourteen() throws {
@@ -43,6 +42,8 @@ extension OutsideRoundUITests {
         XCTAssertTrue(openBag.waitToExist(), "Settings should show again")
         XCTAssertTrue(openBag.label.contains("14 clubs"), "Settings should show the new count, not '\(openBag.label)'")
         closeSettings()
+        // The other tests expect the standard bag
+        resetGroup()
     }
 
     func testEditDistance() throws {
@@ -72,5 +73,7 @@ extension OutsideRoundUITests {
         app.navigationBars["Golf Bag"].buttons.firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitToExist())
         closeSettings()
+        // The other tests expect the standard bag
+        resetGroup()
     }
 }

@@ -2,14 +2,10 @@ import SwiftData
 import SwiftUI
 import os
 
+/// The Rounds tab: the round in progress and the past rounds, with their swipe actions.
 struct RoundListView: View {
     @Binding var navigationPath: NavigationPath
     @Environment(PhoneServices.self) private var services
-    @State private var showCourseSelection = false
-    @State private var showSettings = false
-    @State private var showPuttSharing = false
-    /// The golfer symbol is taller than the gear beside it; this is the gear's height.
-    @ScaledMetric(relativeTo: .body) private var toolbarIconHeight: CGFloat = 22
     @Query(sort: \Round.date, order: .reverse) private var rounds: [Round]
     /// Its ID and title, since the alert can still show while the deleted round goes away.
     @State private var roundToDelete: (id: UUID, title: String)?
@@ -63,46 +59,7 @@ struct RoundListView: View {
                 }
             }
         }
-        .navigationTitle("SpotGolf")
-        .modifier(UpdateNoticeAlert())
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("Settings")
-            }
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showPuttSharing = true
-                } label: {
-                    Image(systemName: "figure.golf")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: toolbarIconHeight)
-                }
-                .accessibilityLabel("Putt Data Sharing")
-            }
-            // A status, not a button, so it has no glass background of its own
-            watchStatusItem
-                .sharedBackgroundVisibility(.hidden)
-            ToolbarItem(placement: .primaryAction) {
-                if let current = services.roundStore.currentRound {
-                    if current.isActive {
-                        Button("End Round") {
-                            services.phoneSync.endRound(current.id)
-                        }
-                    }
-                } else {
-                    Button("New Round") {
-                        showCourseSelection = true
-                    }
-                    .disabled(!canStartRound)
-                }
-            }
-        }
+        .navigationTitle("Rounds")
         .alert("Delete Round", isPresented: Binding(
             get: { roundToDelete != nil },
             set: { if !$0 { roundToDelete = nil } }
@@ -115,43 +72,14 @@ struct RoundListView: View {
         } message: { round in
             Text("Delete \"\(round.title)\"? This cannot be undone.")
         }
-        .alert("Sync Error", isPresented: Binding(
-            get: { services.syncService.syncError != nil },
-            set: { if !$0 { services.syncService.syncError = nil } }
-        )) {
-            Button("OK") { services.syncService.syncError = nil }
-        } message: {
-            Text(services.syncService.syncError ?? "")
-        }
-        .sheet(isPresented: $showCourseSelection) {
-            CourseSelectionView(onRoundStarted: { roundID in
-                navigationPath.append(roundID)
-            })
-        }
-        .sheet(isPresented: $showPuttSharing) {
-            PuttDataSharingView()
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-        }
         .sheet(item: $export) { export in
             ShareSheet(items: [export.url])
                 .presentationDetents([.medium, .large])
         }
     }
 
-    /// The watch records all GPS, so a round needs a paired watch with the app installed.
-    /// It does not need to be reachable: starting a round launches the watch app.
-    /// UI tests run without a paired watch, so they are exempt.
-
-    /// Whether the watch is connected.
-    private var watchStatusItem: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Image(systemName: services.syncService.isConnected ? "applewatch.radiowaves.left.and.right" : "applewatch.slash")
-                .foregroundStyle(services.syncService.isConnected ? .green : .secondary)
-                .accessibilityLabel(services.syncService.isConnected ? "Watch connected" : "Watch not connected")
-        }
-    }
+    /// A resumed round needs the watch, as a new one does. UI tests run without a paired watch,
+    /// so they are exempt.
     private var canStartRound: Bool {
         !services.requiresWatch || services.syncService.hasCounterpart
     }

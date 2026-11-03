@@ -93,20 +93,36 @@ class UITestGroup: XCTestCase {
         app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Broadlands'")).firstMatch
     }
 
-    /// Opens Settings from the round list.
+    /// Opens the Settings tab.
     func openSettings(file: StaticString = #filePath, line: UInt = #line) {
         let settings = app.buttons["Settings"]
-        XCTAssertTrue(settings.waitToExist(), "The round list should have a Settings button", file: file, line: line)
+        XCTAssertTrue(settings.waitToExist(), "The tab bar should have a Settings button", file: file, line: line)
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitToExist(), "Settings should open", file: file, line: line)
     }
 
+    /// Taps the Rounds tab, back on the round list.
+    func showRounds(file: StaticString = #filePath, line: UInt = #line) {
+        let rounds = app.buttons["Rounds"]
+        XCTAssertTrue(rounds.waitToExist(), "The tab bar should have a Rounds button", file: file, line: line)
+        rounds.tap()
+        XCTAssertTrue(app.navigationBars["Rounds"].waitToExist(), "The round list should show", file: file, line: line)
+    }
+
     /// Scrolls until `element` can be tapped.
     func scrollTo(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        for _ in 0..<8 where !element.isHittable {
+        for _ in 0..<8 where !isClear(element) {
             app.swipeUp()
         }
-        XCTAssertTrue(element.isHittable, "\(element) should show", file: file, line: line)
+        XCTAssertTrue(isClear(element), "\(element) should show", file: file, line: line)
+    }
+
+    /// On screen and above the tab bar. XCUITest counts an element under the bar as hittable, but
+    /// a tap on it lands on the bar.
+    private func isClear(_ element: XCUIElement) -> Bool {
+        guard element.isHittable else { return false }
+        let bar = app.buttons["Rounds"]
+        return !bar.exists || element.frame.maxY <= bar.frame.minY
     }
 
     /// Leaves the round screen and ends the round, back on the round list.
