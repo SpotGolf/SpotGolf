@@ -18,40 +18,40 @@
 - [x] OpenStreetMap credit on the map and in Settings > About
 - [ ] You: confirm the [collected data table](#collected-data) lists everything the app sends you, and nothing more
 - [x] You: check the motion and microphone text in `project.yml`
-- [ ] Commit and merge `feat/app-store-readiness`
-- [ ] Release version 0.16.0
+- [x] Commit and merge `feat/app-store-readiness`
+- [x] Release version 0.16.0
 
 ### 3. Website
 
-- [ ] Claude: write the support page
-- [ ] Claude: write the privacy policy
-- [ ] You: put both pages live
+- [x] Claude: write the support page
+- [x] Claude: write the privacy policy
+- [x] You: put both pages live
 
 ### 4. CloudKit (you)
 
-- [ ] Deploy the schema to Production. [Details](#cloudkit-schema)
+- [x] Deploy the schema to Production. [Details](#cloudkit-schema)
 
 ### 5. App Store Connect: App Information (you)
 
-- [ ] Subtitle (Claude drafts)
-- [ ] Category: Sports, then Health & Fitness
-- [ ] Content Rights: Yes and Yes
-- [ ] Age Rating: No or None to every question (4+)
-- [ ] Save
+- [x] Subtitle (Claude drafts)
+- [x] Category: Sports, then Health & Fitness
+- [x] Content Rights: Yes and Yes
+- [x] Age Rating: No or None to every question (4+)
+- [x] Save
 
 ### 6. App Store Connect: Pricing and Availability (you)
 
-- [ ] Price: Free
-- [ ] Countries: all except China mainland (needs a Chinese government filing)
-- [ ] Mac with Apple silicon: Off
-- [ ] Apple Vision Pro: Off
+- [x] Price: Free
+- [x] Countries: all except China mainland (needs a Chinese government filing)
+- [x] Mac with Apple silicon: Off
+- [x] Apple Vision Pro: Off
 
 ### 7. App Store Connect: App Privacy (you)
 
-- [ ] Privacy Policy URL
-- [ ] "Yes, we collect data", then tick the 7 boxes in the [collected data table](#collected-data)
-- [ ] For each one: purposes from the table, linked to the user No, tracking No
-- [ ] Publish
+- [x] Privacy Policy URL
+- [x] "Yes, we collect data", then tick the 7 boxes in the [collected data table](#collected-data)
+- [x] For each one: purposes from the table, linked to the user No, tracking No
+- [x] Publish
 
 ### 8. Build and TestFlight (you)
 

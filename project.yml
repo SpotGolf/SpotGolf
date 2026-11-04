@@ -128,12 +128,11 @@ targets:
         # Shows the current hole on the Lock Screen during a round
         NSSupportsLiveActivities: true
         # Keeps the yards and hole changes going with the phone locked during a round, and lets
-        # iCloud sync's silent pushes wake the app. HealthKit hands the phone the watch's
-        # mirrored workout only with workout-processing
+        # iCloud sync's silent pushes wake the app. Not workout-processing: it is watchOS only,
+        # and App Store Connect refuses an iPhone app that has it
         UIBackgroundModes:
           - location
           - remote-notification
-          - workout-processing
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

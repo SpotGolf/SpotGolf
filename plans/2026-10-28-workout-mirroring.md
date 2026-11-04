@@ -18,6 +18,7 @@ A probe on the phone and watch (2026-10-28, 5.5 minutes) showed mirroring starti
 |---|---|
 | HealthKit launches the phone app in the background to hand it the mirrored session. `workoutSessionMirroringStartHandler` must be set at launch | Apple docs, WWDC23 10023 |
 | The phone app needs the `workout-processing` background mode. Without it HealthKit never hands it the mirrored session: on 2026-10-29 the watch's start succeeded and the phone's start handler never ran | Real devices, 2026-10-29 |
+| `workout-processing` is a watchOS mode only. App Store Connect refused the 0.16.0 upload for having it in the phone app, so it was removed. The 2026-10-29 failure may have been the stuck state below instead. Whether the phone still gets the mirrored session without it needs a real round | Apple's background modes table; upload, 2026-11-04 |
 | After a disconnect, the watch does not reconnect by itself. Calling `startMirroringToCompanionDevice` again on the same running session works: the phone's start handler is called with a new session, 12 to 41 s later | Real devices, 2026-10-29 |
 | The phone's mirrored session never carries data again once it ends or disconnects. Sends on it fail with "Workout session is not currently mirroring to the companion device" | Real devices, 2026-10-29 |
 | iOS can get stuck: the watch's start succeeds and the phone's start handler never runs, until both devices restart. Rounds then go over WatchConnectivity | Real devices, 2026-10-29; Developer Forums 782370, 804276 |
@@ -93,7 +94,7 @@ SyncService ──▶ RoutingTransport (SyncTransport)
 
 ### Phone
 
-- The phone app declares the `workout-processing` background mode (`UIBackgroundModes` in `project.yml`).
+- The phone app does not declare `workout-processing`: it is watchOS only, and App Store Connect refuses it (see the findings).
 - `PhoneServices.init` sets `workoutSessionMirroringStartHandler` on the shared `HKHealthStore` before anything else, since HealthKit may launch the app in the background for it (for example after iOS ends the app mid-round). Each call attaches the new session, replacing any old one.
 - When the phone's mirrored session ends or disconnects, `WorkoutSessionChannel` calls `MirrorChannel.onEnd`, and `MirrorTransport` detaches it, since it can never carry data again. That stops the hellos on it.
 - The phone never ends the mirrored session. The watch ends it.
