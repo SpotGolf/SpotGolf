@@ -20,6 +20,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>SpotGolf uses HealthKit to start your round on Apple Watch.</string>
 	<key>NSHealthUpdateUsageDescription</key>
@@ -29,7 +31,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SpotGolf needs your location to record where you hit the ball on the course.</string>
 	<key>NSMotionUsageDescription</key>
-	<string>SpotGolf uses wrist motion on your Apple Watch to detect your swings.</string>
+	<string>SpotGolf uses wrist motion on your Apple Watch to detect your swings and putts. With Putt Data Sharing on, it also records your putting drills to share with the SpotGolf developers.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

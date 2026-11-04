@@ -208,6 +208,8 @@ struct RoundMapView: View {
                                      caddieAim = nil
                                  })
                 }
+                // Over the Green View too, which draws course data of its own
+                MapCredit()
             }
             .ignoresSafeArea(edges: .bottom)
         }

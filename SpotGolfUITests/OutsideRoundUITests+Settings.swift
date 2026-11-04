@@ -1,9 +1,18 @@
 import XCTest
 
-/// Settings: Developer Mode, iCloud Sync, the update notice and the app's log.
+/// Settings: Developer Mode, iCloud Sync, the update notice, the app's log and the course data
+/// credit.
 extension OutsideRoundUITests {
     private func closeSettings() {
         showRounds()
+    }
+
+    func testAboutShowsTheCourseDataCredit() throws {
+        openSettings()
+        let credit = element("CourseDataCredit")
+        scrollTo(credit)
+        XCTAssertTrue(credit.exists, "The course data's license requires the OpenStreetMap credit")
+        closeSettings()
     }
 
     func testVersionTapsTurnDeveloperModeOnAndTheSwitchTurnsItOff() throws {

@@ -68,7 +68,11 @@ final class PhoneServices {
                               requiresWatch: !isUITesting) {
             Self.launchWatchApp(sync: sync)
         }
+        // App Store and TestFlight builds leave Developer Mode out (App Review guideline 2.3.1: no
+        // hidden features), so the watch is always told it is off
+        #if !APP_STORE
         phoneSync.developerMode = { UserDefaults.standard.bool(forKey: SettingsKey.developerMode) }
+        #endif
         phoneSync.greenZone = { UserDefaults.standard.double(forKey: SettingsKey.greenZone) }
 
         roundTracker = RoundTracker(rounds: rounds, location: location, showsActivity: !isUITesting)

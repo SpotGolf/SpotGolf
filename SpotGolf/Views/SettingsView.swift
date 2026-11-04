@@ -112,14 +112,23 @@ struct SettingsView: View {
             #endif
             Section {
                 LabeledContent("Version", value: AppVersion.text())
+                    #if !APP_STORE
                     .contentShape(Rectangle())
                     .onTapGesture(perform: versionTapped)
+                    #endif
                     .accessibilityIdentifier("AppVersion")
                 LabeledContent("Built", value: AppVersion.buildInstant())
                     .accessibilityIdentifier("BuildInstant")
             } header: {
                 Text("About")
+            } footer: {
+                // The course data's license (ODbL) requires this credit
+                Text("Course data [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright), under the Open Database License.")
+                    .accessibilityIdentifier("CourseDataCredit")
             }
+            // App Store and TestFlight builds leave Developer Mode out (App Review guideline
+            // 2.3.1: no hidden features)
+            #if !APP_STORE
             if developerMode {
                 Section {
                     Toggle("Developer Mode", isOn: $developerMode)
@@ -130,6 +139,7 @@ struct SettingsView: View {
                     Text("The watch records wrist motion and sound on each green, for working out how to detect putts. The recordings stay on the watch. Get them with Scripts/export-round.py. A change reaches the watch when you open the round.")
                 }
             }
+            #endif
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)

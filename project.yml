@@ -5,7 +5,16 @@ options:
     iOS: "27.0"
     watchOS: "27.0"
   xcodeVersion: "16.0"
+# AppStore is Release without Developer Mode, for App Store and TestFlight uploads. The
+# SpotGolf App Store scheme archives with it
+configs:
+  Debug: debug
+  Release: release
+  AppStore: release
 settings:
+  configs:
+    AppStore:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) APP_STORE
   base:
     # The app's version, shared by the phone app, the watch app, and the Live Activity.
     # SemVer; see Versioning in CLAUDE.md before changing it.
@@ -39,6 +48,16 @@ schemes:
         - SpotGolfTests
         - SpotGolfUITests
 
+  # Archive with this scheme for App Store and TestFlight uploads. It builds the AppStore
+  # configuration, which leaves Developer Mode out. The SpotGolf scheme archives with Release,
+  # for builds installed by hand on a phone
+  SpotGolf App Store:
+    build:
+      targets:
+        SpotGolf: all
+    archive:
+      config: AppStore
+
   SpotGolfWatch:
     build:
       targets:
@@ -62,6 +81,8 @@ targets:
       base:
         INFOPLIST_FILE: SpotGolf/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf
+        # iPhone only. iPad can be added in a later release, but once released it can't be removed
+        TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "6.0"
         DEVELOPMENT_TEAM: 5CRT56YETR
     # Every build gets a new build instant, so the installed build can be told apart from
@@ -101,7 +122,9 @@ targets:
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to start your round on Apple Watch."
         NSLocationAlwaysAndWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
         # Asked for on the phone; the watch app's swing detection uses the same permission
-        NSMotionUsageDescription: "SpotGolf uses wrist motion on your Apple Watch to detect your swings."
+        NSMotionUsageDescription: "SpotGolf uses wrist motion on your Apple Watch to detect your swings and putts. With Putt Data Sharing on, it also records your putting drills to share with the SpotGolf developers."
+        # Only Apple's encryption (HTTPS, iCloud), which is exempt from export rules
+        ITSAppUsesNonExemptEncryption: false
         # Shows the current hole on the Lock Screen during a round
         NSSupportsLiveActivities: true
         # Keeps the yards and hole changes going with the phone locked during a round, and lets
@@ -129,6 +152,7 @@ targets:
       base:
         INFOPLIST_FILE: SpotGolfLiveActivity/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: golf.spot.SpotGolf.LiveActivity
+        TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "6.0"
         DEVELOPMENT_TEAM: 5CRT56YETR
     dependencies:
@@ -170,9 +194,11 @@ targets:
         NSHealthShareUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSHealthUpdateUsageDescription: "SpotGolf uses HealthKit to keep the app active during your round."
         NSLocationWhenInUseUsageDescription: "SpotGolf needs your location to record where you hit the ball on the course."
-        NSMotionUsageDescription: "SpotGolf uses wrist motion to detect your swings."
-        # Putt detection listens for the click of the ball, to tell a putt from a practice stroke
-        NSMicrophoneUsageDescription: "SpotGolf listens for the sound of the ball being hit to find your putts."
+        NSMotionUsageDescription: "SpotGolf uses wrist motion to detect your swings and putts. With Putt Data Sharing on, it also records your putting drills to share with the SpotGolf developers."
+        # Putt detection listens for the click of the ball, to tell a putt from a practice stroke.
+        # Putt Data Sharing records the drills
+        NSMicrophoneUsageDescription: "SpotGolf listens for the sound of the ball being hit to find your putts. With Putt Data Sharing on, it also records your putting drills to share with the SpotGolf developers."
+        ITSAppUsesNonExemptEncryption: false
         WKBackgroundModes:
           - workout-processing
         UIBackgroundModes:

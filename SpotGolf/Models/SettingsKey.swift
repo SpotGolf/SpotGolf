@@ -7,7 +7,7 @@ enum SettingsKey {
     /// Uploads the pins the player sets, for other golfers on the same course.
     static let sharePins = "sharePins"
     /// The watch records raw sensor data on the greens during a round. Hidden in Settings until
-    /// unlocked by tapping the version.
+    /// unlocked by tapping the version. App Store and TestFlight builds leave it out.
     static let developerMode = "developerMode"
     /// Meters from the green's edge that count as on the green: where putts and chips are
     /// suggested and the watch listens for contacts.

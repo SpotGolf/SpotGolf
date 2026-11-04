@@ -65,6 +65,7 @@ The Xcode project is generated from `project.yml` with XcodeGen. Run `xcodegen g
   | `feat`                                                                                     | MINOR        | MINOR      |
   | `fix` and anything else                                                                    | PATCH        | PATCH      |
 
+- Archive App Store and TestFlight uploads with the `SpotGolf App Store` scheme. Its `AppStore` configuration leaves Developer Mode out. The `SpotGolf` scheme archives with Release, for builds installed by hand.
 - Each release is a git tag on `main`, pushed to `origin`. Tags follow SemVer and are the version alone, with no prefix (for example `0.1.0`, not `v0.1.0`).
 - The phone's Settings screen shows the version, so the installed build can be checked against `main`.
 - Every build, on any branch, gets a new build instant: the UTC time it was built, in ISO 8601 (for example `2026-10-29T23:10:05Z`). It is the `SpotGolfBuildInstant` Info.plist key of the phone and watch apps, set by the "Set the build instant" build script in `project.yml`. The phone's Settings screen shows it under the version, so two builds of the same version can be told apart.
