@@ -55,15 +55,15 @@
 
 ### 8. Build and TestFlight (you)
 
-- [ ] Archive and upload. [Details](#archive-and-upload)
-- [ ] TestFlight > Internal Testing: add a group with you in it, then add the build
-- [ ] Play a round with the TestFlight build on your phone and watch
+- [x] Archive and upload. [Details](#archive-and-upload)
+- [x] TestFlight > Internal Testing: add a group with you in it, then add the build
+- [x] Play a round with the TestFlight build on your phone and watch
 
 ### 9. Screenshots and video
 
-- [ ] iPhone screenshots, 6.9" (1320 × 2868)
-- [ ] Apple Watch screenshots, one size
-- [ ] Video of a round, for App Review
+- [x] iPhone screenshots, 6.9" (1320 × 2868)
+- [x] Apple Watch screenshots, one size
+- [x] Video of a round, for App Review
 
 ### 10. App Store Connect: iOS App > 1.0 Prepare for Submission (you)
 
