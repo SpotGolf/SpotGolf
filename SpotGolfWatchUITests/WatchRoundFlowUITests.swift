@@ -14,7 +14,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
     func testFullRoundFlow() throws {
         app.launchArguments.append("--start-round")
-        app.launch()
+        launchApp()
 
         let locations = LocationTestHelper.loadTestLocations()
         XCTAssertGreaterThanOrEqual(locations.count, 2, "Need at least 2 test locations")
@@ -75,7 +75,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
     func testArrowsChangeTheHoleShownWithNothingToConfirm() throws {
         app.launchArguments.append("--start-round")
-        app.launch()
+        launchApp()
         dismissHealthAccessAlerts()
         XCTAssertTrue(app.staticTexts["Hole 1"].waitToExist(), "Hole 1 label should be visible")
 
@@ -97,7 +97,7 @@ final class WatchRoundFlowUITests: XCTestCase {
     func testWorkoutRecoveredAfterAppQuits() throws {
         // ── Start a round, which starts the workout ──
         app.launchArguments.append("--start-round")
-        app.launch()
+        launchApp()
         dismissHealthAccessAlerts()
 
         let workoutStatus = app.staticTexts["workoutStatus"]
@@ -109,7 +109,7 @@ final class WatchRoundFlowUITests: XCTestCase {
         // ── Quit mid-round, then relaunch ──
         app.terminate()
         app.launchArguments = ["--ui-testing", "--keep-rounds"]
-        app.launch()
+        launchApp()
 
         // The round resumes and the running workout is taken over, not restarted
         XCTAssertTrue(app.staticTexts["Hole 1"].waitToExist(), "The round should resume on Hole 1")
@@ -124,7 +124,7 @@ final class WatchRoundFlowUITests: XCTestCase {
     func testDeveloperModePageShowsOnlyWithDeveloperModeOn() throws {
         // ── Developer Mode off, the default: the end page is the last ──
         app.launchArguments.append("--start-round")
-        app.launch()
+        launchApp()
         dismissHealthAccessAlerts()
         XCTAssertTrue(app.staticTexts["Hole 1"].waitToExist(), "The round should start on Hole 1")
         app.swipeLeft()
@@ -136,7 +136,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
         // ── Developer Mode on, as the phone's last round setting left it ──
         app.launchArguments = ["--ui-testing", "--start-round", "-developerMode", "YES"]
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.staticTexts["Hole 1"].waitToExist(), "The round should start on Hole 1")
         XCTAssertFalse(app.staticTexts["Developer Mode"].exists, "The round opens on its info page")
         app.swipeLeft()
@@ -151,7 +151,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
     func testPuttingDrillsShowOneTaskAtATimeAndSendTheSession() throws {
         // ── Without consent from the phone, the page says where to give it ──
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.staticTexts["No active round"].waitToExist())
         app.swipeLeft()
         XCTAssertTrue(app.staticTexts["Open Putt Data Sharing on your iPhone to start."].waitToExist())
@@ -160,7 +160,7 @@ final class WatchRoundFlowUITests: XCTestCase {
 
         // ── With consent: the start page, then the paused screen before the first drill ──
         app.launchArguments = ["--ui-testing", "--drill-consent"]
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.staticTexts["No active round"].waitToExist())
         app.swipeLeft()
         let start = app.buttons["StartDrills"]
@@ -203,6 +203,25 @@ final class WatchRoundFlowUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Launches the app and makes sure it is the test's own. Around the end of a round the
+    /// system can launch the app by itself, in the moment between the test quitting the last
+    /// app and launching this one, and the test then gets the system's app, which has none of
+    /// the launch arguments: no round started, and the last test's rounds still in its store.
+    /// Only an app launched for UI testing shows the workout status, so an app without it is
+    /// quit and launched again.
+    private func launchApp(file: StaticString = #filePath, line: UInt = #line) {
+        for attempt in 1...Self.launchAttempts {
+            app.launch()
+            if app.staticTexts["workoutStatus"].waitToExist() { return }
+            XCTContext.runActivity(named: "Launch \(attempt) was not the test's app; launching again") { _ in
+                app.terminate()
+            }
+        }
+        XCTFail("The app never launched with the test's arguments", file: file, line: line)
+    }
+
+    private static let launchAttempts = 4
 
     /// Ends the round from its last page and waits for the workout to be saved. Quitting
     /// before then makes the system relaunch the app, without the test's launch arguments,

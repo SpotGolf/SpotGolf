@@ -196,6 +196,77 @@ final class RoundStoreTests: XCTestCase {
         XCTAssertFalse(store.mergeDisplayHole(later, roundID: id))
     }
 
+    // MARK: - Tee
+
+    /// The test course with Blue and White tees and a Blue/White combo tee, Blue picked.
+    private var teeSelection: CourseSelection {
+        var course = CourseSelection.test.course
+        course.tees = [TeeDefinition(name: "Blue", color: "#0000FF"), TeeDefinition(name: "White", color: "#FFFFFF")]
+        course.comboTees = [ComboTeeDefinition(name: "Blue/White", tees: ["Blue", "White"])]
+        course.subCourses[0].holes[0].yardages = ["Blue": 400, "White": 350]
+        course.subCourses[0].holes[0].comboTees = ["Blue/White": "White"]
+        return CourseSelection(course: course, selectedSubCourseIndices: [0, 1], teeName: "Blue")
+    }
+
+    func testSetTeeChangesTheTeeAndItsYards() {
+        let id = store.startRound(courseSelection: teeSelection).id
+        let before = store.round(id)!.changedAt
+
+        store.setTee("White", roundID: id)
+
+        let round = store.round(id)!
+        XCTAssertEqual(round.courseSelection.teeName, "White")
+        XCTAssertEqual(round.courseSelection.yards(holeIndex: 0), 350)
+        XCTAssertGreaterThan(round.changedAt, before)
+    }
+
+    func testSetTeeTakesAComboTee() {
+        let id = store.startRound(courseSelection: teeSelection).id
+
+        store.setTee("Blue/White", roundID: id)
+
+        XCTAssertEqual(store.round(id)?.courseSelection.teeName, "Blue/White")
+        XCTAssertEqual(store.round(id)?.courseSelection.teeName(holeIndex: 0), "White")
+    }
+
+    func testSetTeeKeepsTheRestOfTheRound() {
+        let id = store.startRound(courseSelection: teeSelection).id
+        store.addStroke(to: id, holeIndex: 0, stroke: makeStroke())
+        let holes = store.round(id)!.holes
+
+        store.setTee("White", roundID: id)
+
+        XCTAssertEqual(store.round(id)?.holes, holes)
+        XCTAssertEqual(store.round(id)?.courseSelection.with(tee: "Blue"), teeSelection)
+    }
+
+    func testSetTeeTheCourseDoesNotHaveIsNoOp() {
+        let id = store.startRound(courseSelection: teeSelection).id
+        let before = store.round(id)!.changedAt
+
+        store.setTee("Red", roundID: id)
+
+        XCTAssertEqual(store.round(id)?.courseSelection.teeName, "Blue")
+        XCTAssertEqual(store.round(id)?.changedAt, before)
+    }
+
+    func testSetTheSameTeeIsNoOp() {
+        let id = store.startRound(courseSelection: teeSelection).id
+        let before = store.round(id)!.changedAt
+
+        store.setTee("Blue", roundID: id)
+
+        XCTAssertEqual(store.round(id)?.changedAt, before)
+    }
+
+    func testSetTeeChangesAnEndedRound() {
+        let id = store.startRound(courseSelection: teeSelection, status: .ended).id
+
+        store.setTee("White", roundID: id)
+
+        XCTAssertEqual(store.round(id)?.courseSelection.teeName, "White")
+    }
+
     // MARK: - Pins
 
     private func pathGreen(_ hole: Int) -> CLLocationCoordinate2D {

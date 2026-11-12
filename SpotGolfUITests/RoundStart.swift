@@ -19,6 +19,7 @@ extension XCUIApplication {
 
         let tee = buttons["Tee-Gold"]
         XCTAssertTrue(tee.waitToExist(), "The Gold tee should be listed", file: file, line: line)
+        XCTAssertTrue(staticTexts["TeeChangeNote"].exists, "The tee list should say the tee can be changed later", file: file, line: line)
         tee.tap()
 
         XCTAssertTrue(waitForShownHole(1), "The round should start on Hole 1", file: file, line: line)

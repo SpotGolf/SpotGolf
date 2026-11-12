@@ -82,6 +82,12 @@ struct MapButtonBar: View {
                 }
                 .accessibilityIdentifier("CaddieAdvice")
             }
+
+            // Not a view of the map, so under a line of its own
+            if !round.courseSelection.teeNames.isEmpty {
+                Divider()
+                teePicker
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.title3)
@@ -95,6 +101,28 @@ struct MapButtonBar: View {
         .menuOrder(.fixed)
         .accessibilityLabel("Map options")
         .accessibilityIdentifier("MapMenu")
+    }
+
+    /// The Tee item in the dot menu: opens the course's tees, with a check by the round's tee, and
+    /// picking another changes the round's tee.
+    private var teePicker: some View {
+        let tee = Binding<String?>(
+            get: { round.courseSelection.teeName },
+            set: { tee in
+                guard let tee else { return }
+                services.roundStore.setTee(tee, roundID: round.id)
+            }
+        )
+        return Picker(selection: tee) {
+            ForEach(round.courseSelection.teeNames, id: \.self) { name in
+                Text(name)
+                    .tag(name as String?)
+            }
+        } label: {
+            Label("Tee", systemImage: "figure.golf")
+        }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier("Tee")
     }
 
     /// In Green View only: adds a putt 2 ft past the pin, for a tap in the watch did not hear or

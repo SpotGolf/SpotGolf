@@ -68,32 +68,59 @@ struct CourseSelectionView: View {
         .navigationTitle(nines != nil ? "Select Tee" : selectedCourse != nil ? "Select Nines" : "Select Course")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if nines != nil {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Back") {
-                        nines = nil
-                        // A course with one nine had no nines step
-                        if (selectedCourse?.subCourses.count ?? 0) <= 1 {
-                            selectedCourse = nil
-                            selectedIndices = []
-                        }
-                    }
-                }
-            } else if selectedCourse != nil {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Back") {
-                        selectedCourse = nil
-                        selectedIndices = []
-                        errorMessage = nil
-                    }
-                }
-            } else if !isTab {
+            // Back is at the bottom of the nines and tee steps, where Next is
+            if isOnCourseList, !isTab {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
             }
+        }
+    }
+
+    /// Back at the bottom of a step's list, with `next` beside it on a step that has one.
+    private func stepButtons(back: @escaping () -> Void, next: (title: LocalizedStringKey, isDisabled: Bool, action: () -> Void)? = nil) -> some View {
+        Section {
+            HStack(spacing: 12) {
+                Button(action: back) {
+                    Text("Back")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                if let next {
+                    Button(action: next.action) {
+                        Text(next.title)
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(next.isDisabled)
+                }
+            }
+            .controlSize(.large)
+            // The buttons are the row: no row behind them, and each takes its own taps
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    /// From the nines back to the course list.
+    private func backToCourses() {
+        selectedCourse = nil
+        selectedIndices = []
+        errorMessage = nil
+    }
+
+    /// From the tees back to the nines, or to the course list for a course with one nine, which
+    /// had no nines step.
+    private func backFromTees() {
+        nines = nil
+        if (selectedCourse?.subCourses.count ?? 0) <= 1 {
+            selectedCourse = nil
+            selectedIndices = []
         }
     }
 
@@ -266,20 +293,13 @@ struct CourseSelectionView: View {
                 Text("For a shotgun start. Holes advance from the starting hole to the last one, then from hole 1.")
             }
 
-            Section {
-                Button {
-                    selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices,
-                                                startHoleIndex: startingHole - 1))
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text(!course.tees.isEmpty ? "Next" : onCourseSelected == nil ? "Start Round" : "Select")
-                            .fontWeight(.semibold)
-                        Spacer()
-                    }
-                }
-                .disabled(selectedIndices.isEmpty)
-            }
+            stepButtons(back: backToCourses,
+                        next: (title: !course.tees.isEmpty ? "Next" : onCourseSelected == nil ? "Start Round" : "Select",
+                               isDisabled: selectedIndices.isEmpty,
+                               action: {
+                                   selectNines(CourseSelection(course: course, selectedSubCourseIndices: selectedIndices,
+                                                               startHoleIndex: startingHole - 1))
+                               }))
         }
     }
 
@@ -287,28 +307,35 @@ struct CourseSelectionView: View {
 
     private func teeSelectionView(_ nines: CourseSelection) -> some View {
         List {
-            ForEach(nines.teeNames, id: \.self) { tee in
-                Button {
-                    select(nines.with(tee: tee))
-                } label: {
-                    HStack {
-                        Circle()
-                            .fill(Color(hex: nines.teeColor(tee)))
-                            .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 1))
-                            .frame(width: 20, height: 20)
-                        Text(tee)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if let yards = totalYards(nines, tee: tee) {
-                            Text("\(yards) yds")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+            Section {
+                ForEach(nines.teeNames, id: \.self) { tee in
+                    Button {
+                        select(nines.with(tee: tee))
+                    } label: {
+                        HStack {
+                            Circle()
+                                .fill(Color(hex: nines.teeColor(tee)))
+                                .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 1))
+                                .frame(width: 20, height: 20)
+                            Text(tee)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if let yards = totalYards(nines, tee: tee) {
+                                Text("\(yards) yds")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
+                    .accessibilityIdentifier("Tee-\(tee)")
                 }
-                .accessibilityIdentifier("Tee-\(tee)")
+            } footer: {
+                Text("You can change the tee later, from the menu on the map.")
+                    .accessibilityIdentifier("TeeChangeNote")
             }
+
+            stepButtons(back: backFromTees)
         }
     }
 

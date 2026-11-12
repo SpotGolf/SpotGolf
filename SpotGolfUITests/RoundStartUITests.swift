@@ -21,6 +21,20 @@ final class RoundStartUITests: UITestGroup {
         XCTAssertTrue(app.navigationBars["Select Nines"].waitToExist(), "Sub-course selection should appear")
         XCTAssertTrue(app.staticTexts["Front"].waitToExist(), "Front nine should be listed")
         XCTAssertTrue(app.staticTexts["Back"].exists, "Back nine should be listed")
+
+        // Back is beside Next at the bottom of the list, not in the navigation bar
+        let back = app.buttons["Back"]
+        let next = app.buttons["Next"]
+        XCTAssertFalse(app.navigationBars.buttons["Back"].exists, "Back should not be in the navigation bar")
+        XCTAssertEqual(back.frame.midY, next.frame.midY, accuracy: 1, "Back and Next should be side by side")
+        XCTAssertLessThan(back.frame.maxX, next.frame.minX, "Back should be left of Next")
+        next.tap()
+
+        // The tee step has Back alone in the same place, and it goes back to the nines
+        XCTAssertTrue(app.navigationBars["Select Tee"].waitToExist(), "Tee selection should appear")
+        XCTAssertFalse(app.navigationBars.buttons["Back"].exists, "Back should not be in the navigation bar")
+        app.buttons["Back"].tap()
+        XCTAssertTrue(app.navigationBars["Select Nines"].waitToExist(), "Back should show the nines again")
         app.buttons["Next"].tap()
 
         // Then the tee, which starts the round

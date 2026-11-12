@@ -111,6 +111,18 @@ class RoundStore {
         report(.roundDeleted(id))
     }
 
+    // MARK: - Tee
+
+    /// Picks another of the course's tees for a round, during it or after. The tee is only shown,
+    /// with its yards, so nothing else about the round changes. Does nothing for a tee the course
+    /// does not have, or the tee already picked.
+    func setTee(_ tee: String, roundID: UUID) {
+        guard let round = round(roundID), round.courseSelection.teeName != tee,
+              round.courseSelection.teeNames.contains(tee) else { return }
+        round.courseSelection = round.courseSelection.with(tee: tee)
+        changed(round)
+    }
+
     // MARK: - Display hole
 
     /// Shows a hole on both devices. The active round when `roundID` is nil. `holds` is for a

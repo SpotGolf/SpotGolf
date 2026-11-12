@@ -21,6 +21,34 @@ extension InRoundUITests {
         XCTAssertTrue(element("ElevationChange").exists, "Elevation change box should exist")
     }
 
+    func testDotMenuChangesTheTee() throws {
+        app.goToHole(1)
+        XCTAssertTrue(summary.waitToExist(), "Par and tee should appear under the hole circles")
+        XCTAssertEqual(summary.label, "Par 4 - Gold")
+
+        pickTee("Blue")
+        XCTAssertTrue(UIWait.until { summary.label == "Par 4 - Blue" }, "The header should show the new tee, not '\(summary.label)'")
+
+        // Back to the tee the other tests read
+        pickTee("Gold")
+        XCTAssertTrue(UIWait.until { summary.label == "Par 4 - Gold" }, "The header should show the tee again, not '\(summary.label)'")
+    }
+
+    /// Opens the dot menu's Tee item and picks `tee`.
+    private func pickTee(_ tee: String, file: StaticString = #filePath, line: UInt = #line) {
+        let menu = app.buttons["MapMenu"]
+        XCTAssertTrue(menu.waitToExist(), "The dot menu should be on the map", file: file, line: line)
+        menu.tap()
+        let teeItem = app.buttons["Tee"]
+        XCTAssertTrue(teeItem.waitToExist(), "The dot menu should have Tee", file: file, line: line)
+        teeItem.tap()
+        // A menu picker's items keep no identifier of their own, so by name
+        let item = app.buttons[tee]
+        XCTAssertTrue(item.waitToExist(), "The \(tee) tee should be listed", file: file, line: line)
+        item.tap()
+        XCTAssertTrue(item.waitToVanish(), "Picking a tee should close the dot menu", file: file, line: line)
+    }
+
     func testSelectingHoleShowsItWithNothingToConfirm() throws {
         app.goToHole(1)
 
