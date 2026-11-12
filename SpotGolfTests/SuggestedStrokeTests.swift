@@ -18,16 +18,6 @@ final class SuggestedStrokeTests: XCTestCase {
         try await super.tearDown()
     }
 
-    /// The player walks north along hole 1, one meter a second.
-    private var track: [TrackPoint] {
-        (0..<300).map { second in
-            let spot = PathCourse.coordinate(north: Double(second), east: 0)
-            return TrackPoint(location: CLLocation(coordinate: spot.clLocation.coordinate, altitude: 0,
-                                                   horizontalAccuracy: 5, verticalAccuracy: -1,
-                                                   timestamp: StreamFixtures.start.addingTimeInterval(TimeInterval(second))))
-        }
-    }
-
     private func stroke(north: Double) -> Stroke {
         Stroke(coordinate: PathCourse.coordinate(north: north, east: 0).clLocation.coordinate)
     }
@@ -37,25 +27,35 @@ final class SuggestedStrokeTests: XCTestCase {
                          coordinate: PathCourse.coordinate(north: north, east: 0).clLocation.coordinate)
     }
 
-    func testSuggestionGoesBeforeTheFirstStrokeHitLater() {
+    func testSuggestionGoesAfterStrokesFartherAlongTheHole() {
         let id = store.startRound(date: StreamFixtures.start, courseSelection: PathCourse.selection).id
         let first = stroke(north: 0)
-        let last = stroke(north: 200)
+        // Over the green, which is 300 m north of the tee
+        let over = stroke(north: 320)
         store.addStroke(to: id, holeIndex: 0, stroke: first)
-        store.addStroke(to: id, holeIndex: 0, stroke: last)
-        let middle = suggestion(north: 100, second: 100)
+        store.addStroke(to: id, holeIndex: 0, stroke: over)
+        // The chip went back over the green, towards the tee
+        let back = suggestion(north: 280, second: 400)
 
-        let added = store.addSuggestedStroke(middle, holeIndex: 0, roundID: id, holeTrack: track, bag: .standard)
+        let added = store.addSuggestedStroke(back, holeIndex: 0, roundID: id, bag: .standard)
 
         let strokes = store.round(id)?.hole(at: 0).strokes ?? []
-        XCTAssertEqual(strokes.count, 3)
-        XCTAssertEqual(strokes.first?.id, first.id)
-        XCTAssertEqual(strokes.last?.id, last.id)
-        XCTAssertEqual(strokes[1].id, added?.id)
-        XCTAssertEqual(strokes[1].club?.id, "3w", "200 m to the green as the second stroke: the 3 wood, not the driver")
-        XCTAssertEqual(strokes[1].origin, .suggestion(id: middle.id))
-        XCTAssertEqual(strokes[1].hitAt, middle.timestamp)
-        XCTAssertEqual(store.round(id)?.takenSuggestionIDs, [middle.id])
+        XCTAssertEqual(strokes.map(\.id), [first.id, over.id] + [added?.id].compactMap { $0 })
+        XCTAssertEqual(strokes[2].origin, .suggestion(id: back.id))
+        XCTAssertEqual(strokes[2].hitAt, back.timestamp)
+        XCTAssertEqual(store.round(id)?.takenSuggestionIDs, [back.id])
+    }
+
+    func testSuggestionHitBeforeAStrokeStillGoesLast() {
+        let id = store.startRound(date: StreamFixtures.start, courseSelection: PathCourse.selection).id
+        var later = stroke(north: 200)
+        later.hitAt = StreamFixtures.start.addingTimeInterval(200)
+        store.addStroke(to: id, holeIndex: 0, stroke: later)
+
+        let added = store.addSuggestedStroke(suggestion(north: 100, second: 100), holeIndex: 0, roundID: id, bag: .standard)
+
+        // Taken out of order: the spot sheet's selector puts it right
+        XCTAssertEqual(store.round(id)?.hole(at: 0).strokes.map(\.id), [later.id] + [added?.id].compactMap { $0 })
     }
 
     func testSuggestionHitAfterEveryStrokeGoesLast() {
@@ -63,7 +63,7 @@ final class SuggestedStrokeTests: XCTestCase {
         let first = stroke(north: 0)
         store.addStroke(to: id, holeIndex: 0, stroke: first)
 
-        store.addSuggestedStroke(suggestion(north: 250, second: 250), holeIndex: 0, roundID: id, holeTrack: track, bag: .standard)
+        store.addSuggestedStroke(suggestion(north: 250, second: 250), holeIndex: 0, roundID: id, bag: .standard)
 
         XCTAssertEqual(store.round(id)?.hole(at: 0).strokes.first?.id, first.id)
         XCTAssertEqual(store.round(id)?.hole(at: 0).strokes.count, 2)

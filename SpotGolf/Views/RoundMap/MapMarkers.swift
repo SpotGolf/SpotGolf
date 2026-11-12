@@ -168,6 +168,11 @@ struct MapPin<Content: View>: View {
     var lift: CGFloat = 0
     var headScale: CGFloat = 1
     var shadow: Color = .black.opacity(0.25)
+    /// Clear space above and beside the head that still takes a tap.
+    var tapPadding: CGFloat = PinMetrics.tapPadding
+    /// Clear space under the dot that still takes a tap. The dot's center is this far above the
+    /// pin's bottom edge, so whoever places the pin has to allow for it.
+    var tapBelow: CGFloat = 0
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -198,8 +203,9 @@ struct MapPin<Content: View>: View {
                 .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
         }
         // A larger tap area around the head, so a tap that just misses it does not fall through
-        // to the map. None below, so the dot stays on the coordinate.
-        .padding([.top, .horizontal], PinMetrics.tapPadding)
+        // to the map. None below unless asked for, so the dot stays on the coordinate.
+        .padding([.top, .horizontal], tapPadding)
+        .padding(.bottom, tapBelow)
         .contentShape(Rectangle())
         // Puts the dot's center, not its bottom, on the coordinate
         .offset(y: PinMetrics.dot / 2)
@@ -283,15 +289,24 @@ enum SuggestionStyle: CaseIterable {
 }
 
 /// A pin in the suggestion's color with a plus sign, or a flag for a putt the watch heard, its
-/// dot on the spot the watch found. Tapping turns the suggestion into a real stroke.
+/// dot on the spot the watch found. Tapping turns the suggestion into a real stroke. The clear
+/// space around it that takes a tap is larger than a spot's and runs under the dot too, as a
+/// suggestion is tapped once, on the move.
 struct SuggestionPin: View {
+    /// Clear space on every side of the pin that still takes a tap.
+    static let tapPadding: CGFloat = 16
+    /// Where the dot's center is in the pin's frame: the map anchors the pin there.
+    static let anchor = UnitPoint(
+        x: 0.5,
+        y: 1 - tapPadding / (tapPadding + PinMetrics.head + PinMetrics.tip + PinMetrics.gap + PinMetrics.dot + tapPadding))
+
     let kind: StrokeSuggestion.Kind
     let action: () -> Void
 
     var body: some View {
         let style = SuggestionStyle(kind)
         Button(action: action) {
-            MapPin(color: style.color) {
+            MapPin(color: style.color, tapPadding: Self.tapPadding, tapBelow: Self.tapPadding) {
                 Image(systemName: style.symbolName)
                     .font(.caption)
                     .fontWeight(.bold)
@@ -404,6 +419,11 @@ extension View {
         fixedSize()
             .frame(width: 0, height: 0, alignment: .bottom)
             .position(point)
+    }
+
+    /// Stands a suggestion pin on `point`, with its tap space under the dot below the point.
+    func standingSuggestion(at point: CGPoint) -> some View {
+        standing(at: CGPoint(x: point.x, y: point.y + SuggestionPin.tapPadding))
     }
 }
 

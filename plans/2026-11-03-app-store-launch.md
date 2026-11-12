@@ -67,20 +67,20 @@
 
 ### 10. App Store Connect: iOS App > 1.0 Prepare for Submission (you)
 
-- [ ] iPhone and Apple Watch screenshots
-- [ ] Promotional Text, Description, Keywords (Claude drafts)
-- [ ] Support URL
-- [ ] Version (under General App Information): the build's version
-- [ ] Copyright: 2026 and your name or company
-- [ ] Build: pick the TestFlight build
-- [ ] App Review Information: Sign-in required Off, your contact info, notes (Claude drafts), the video as the attachment
-- [ ] Version Release: Manually release this version
-- [ ] Save
+- [x] iPhone and Apple Watch screenshots
+- [x] Promotional Text, Description, Keywords (Claude drafts)
+- [x] Support URL
+- [x] Version (under General App Information): the build's version
+- [x] Copyright: 2026 and your name or company
+- [x] Build: pick the TestFlight build
+- [x] App Review Information: Sign-in required Off, your contact info, notes (Claude drafts), the video as the attachment
+- [x] Version Release: Manually release this version
+- [x] Save
 
 ### 11. Submit (you)
 
-- [ ] Add for Review, then Submit to App Review
-- [ ] After approval: Release This Version
+- [x] Add for Review, then Submit to App Review
+- [x] After approval: Release This Version
 
 ## Details
 

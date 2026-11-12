@@ -171,12 +171,12 @@ struct RoundMapView: View {
                                   caddieAim = CaddieAim(point: point, holeIndex: holeIndex,
                                                         holeStrokes: round.hole(at: holeIndex).strokes.count)
                               },
-                              isDraggingSpot: $isDraggingSpot, trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
+                              isDraggingSpot: $isDraggingSpot, trackLine: trackLine, startWindow: startWindow,
                               suggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
                 if greenView.isShown {
                     // Over the map rather than in place of it, so the map keeps its camera
                     GreenView(round: round, shownHoleIndex: holeIndex,
-                              trackLine: trackLine, holeTrack: holeTrack, startWindow: startWindow,
+                              trackLine: trackLine, startWindow: startWindow,
                               suggestions: suggestions, spot: $spot) {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             greenView.close()

@@ -11,7 +11,6 @@ struct GreenView: View {
     let round: Round
     let shownHoleIndex: Int
     let trackLine: [CLLocationCoordinate2D]
-    let holeTrack: [TrackPoint]
     /// The fixes where the hole could start, for the time of a spot placed by hand.
     let startWindow: [TrackPoint]
     let suggestions: [StrokeSuggestion]
@@ -197,9 +196,9 @@ struct GreenView: View {
                 if let coordinate = suggestion.coordinate {
                     SuggestionPin(kind: suggestion.kind) {
                         SpotActions.takeSuggestion(suggestion, round: round, holeIndex: shownHoleIndex,
-                                                   holeTrack: holeTrack, services: services, spot: &spot)
+                                                   services: services, spot: &spot)
                     }
-                    .standing(at: projection.point(for: coordinate))
+                    .standingSuggestion(at: projection.point(for: coordinate))
                 }
             }
             ForEach(Array(strokes.enumerated()), id: \.element.id) { index, stroke in

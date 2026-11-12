@@ -19,7 +19,6 @@ struct RoundMapLayer: View {
     @Binding var isDraggingSpot: Bool
     /// The hole's track as the map draws it, and all of its fixes.
     let trackLine: [CLLocationCoordinate2D]
-    let holeTrack: [TrackPoint]
     /// The fixes where the hole could start, for the time of a spot placed by hand.
     let startWindow: [TrackPoint]
     let suggestions: [StrokeSuggestion]
@@ -72,10 +71,10 @@ struct RoundMapLayer: View {
                 // order they were hit, then the flag
                 ForEach(MapGeometry.stacked(suggestions)) { suggestion in
                     if let coordinate = suggestion.coordinate {
-                        Annotation("", coordinate: coordinate, anchor: .bottom) {
+                        Annotation("", coordinate: coordinate, anchor: SuggestionPin.anchor) {
                             SuggestionPin(kind: suggestion.kind) {
                                 SpotActions.takeSuggestion(suggestion, round: round, holeIndex: shownHoleIndex,
-                                                           holeTrack: holeTrack, services: services, spot: &spot)
+                                                           services: services, spot: &spot)
                             }
                         }
                     }
@@ -231,7 +230,9 @@ struct RoundMapLayer: View {
     }
 
     /// The bubbles are drawn over the map rather than as map annotations, because an annotation
-    /// swallows touches and would block a long press that adds a stroke underneath it.
+    /// swallows touches and would block a long press that adds a stroke underneath it. That puts
+    /// them over the map's pins, so the shape of every pin is cut out of them and the pin under
+    /// a bubble shows through, as if it stood on top.
     private func hazardBubbles(proxy: MapProxy) -> some View {
         // Reading the counter redraws the bubbles as the camera moves
         _ = camera.changes
@@ -246,10 +247,70 @@ struct RoundMapLayer: View {
                         .position(point)
                 }
             }
+            if !hazards.isEmpty {
+                pinCutouts(proxy: proxy)
+                    .blendMode(.destinationOut)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Keeps the cut to the bubbles: without it the pins' shapes would be cut out of the map
+        .compositingGroup()
         .clipped()
         .allowsHitTesting(false)
+    }
+
+    /// The map's suggestion pins, spot pins and flag, each drawn again where the map has it. Only
+    /// their shapes are used, to cut them out of the hazard bubbles. They are drawn on a canvas,
+    /// so they are not a second set of pins to VoiceOver or to a touch.
+    private func pinCutouts(proxy: MapProxy) -> some View {
+        let strokes = round.hole(at: shownHoleIndex).strokes
+        let pin = round.pin(onHole: shownHoleIndex)
+        // Room under a pin for its dot, and around the flag for its larger sizes: a canvas cuts
+        // a symbol off at its edges
+        let pinRoom: CGFloat = 8
+        let flagRoom: CGFloat = 24
+        return Canvas { context, _ in
+            for suggestion in suggestions {
+                if let point = suggestion.coordinate.flatMap({ proxy.convert($0, to: .local) }),
+                   let symbol = context.resolveSymbol(id: suggestion.id) {
+                    context.draw(symbol, at: CGPoint(x: point.x, y: point.y + pinRoom + SuggestionPin.tapPadding),
+                                 anchor: .bottom)
+                }
+            }
+            for stroke in strokes {
+                if let point = proxy.convert(stroke.coordinate, to: .local), let symbol = context.resolveSymbol(id: stroke.id) {
+                    let offset = draggingStroke?.id == stroke.id ? dragOffset(of: stroke, proxy: proxy) : .zero
+                    context.draw(symbol, at: CGPoint(x: point.x + offset.width, y: point.y + offset.height + pinRoom),
+                                 anchor: .bottom)
+                }
+            }
+            if let pin, let point = proxy.convert(pin.coordinate, to: .local), let symbol = context.resolveSymbol(id: "flag") {
+                // The base of the pole on the pin, as the map has it
+                context.draw(symbol, at: CGPoint(x: point.x - PinFlag.poleWidth / 2 - flagRoom, y: point.y + flagRoom),
+                             anchor: .bottomLeading)
+            }
+        } symbols: {
+            ForEach(suggestions) { suggestion in
+                SuggestionPin(kind: suggestion.kind) {}
+                    .fixedSize()
+                    .padding(.bottom, pinRoom)
+                    .tag(suggestion.id)
+            }
+            ForEach(Array(strokes.enumerated()), id: \.element.id) { index, stroke in
+                SpotPin(number: index + 1, stroke: stroke, isDragging: draggingStroke?.id == stroke.id) {}
+                    .fixedSize()
+                    .padding(.bottom, pinRoom)
+                    .tag(stroke.id)
+            }
+            if let pin {
+                PinFlag(source: pin.source, scale: MapGeometry.flagScale(metersPerPoint: camera.metersPerPoint),
+                        raised: MapGeometry.hasPinsOnGreen(round, holeIndex: shownHoleIndex, suggestions: suggestions))
+                    .fixedSize()
+                    .padding(flagRoom)
+                    .tag("flag")
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     /// The Caddie's aim point, and the yards from it to the pin on the middle of the line between

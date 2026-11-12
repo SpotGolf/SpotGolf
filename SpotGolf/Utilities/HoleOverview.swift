@@ -34,15 +34,23 @@ enum HoleOverview {
     }
 
     /// Strokes over (+) or under (-) par on the finished holes, or nil when none are finished
-    /// or one has no par. The display hole of an active round is not finished.
+    /// or one has no par. The hole in play of an active round is not finished. The hole shown
+    /// has no say in it.
     static func toPar(_ round: Round) -> Int? {
         // Every played hole of a past round is finished
-        let finished = round.holes.indices.filter {
-            (!round.isActive || $0 != round.displayHoleIndex) && !round.holes[$0].strokes.isEmpty
-        }
+        let inPlay = round.isActive ? holeInPlay(round) : nil
+        let finished = round.holes.indices.filter { $0 != inPlay && !round.holes[$0].strokes.isEmpty }
         let pars = finished.compactMap { round.courseHole(at: $0)?.par }
         guard pars.count == finished.count, !finished.isEmpty else { return nil }
         return finished.reduce(0) { $0 + round.holes[$1].strokeCount } - pars.reduce(0, +)
+    }
+
+    /// The hole with the round's latest stroke, or nil before the first stroke. Between strokes
+    /// with no time, the later hole wins.
+    static func holeInPlay(_ round: Round) -> Int? {
+        let played = round.holes.indices.filter { !round.holes[$0].strokes.isEmpty }
+        let lastHit = { (index: Int) in round.holes[index].strokes.compactMap(\.hitAt).max() ?? .distantPast }
+        return played.max { (lastHit($0), $0) < (lastHit($1), $1) }
     }
 
     /// "E", "+2", or "-1".

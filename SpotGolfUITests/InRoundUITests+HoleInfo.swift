@@ -61,4 +61,25 @@ extension InRoundUITests {
         let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Hazard in '")).firstMatch
         XCTAssertTrue(bubble.waitToExist(), "Hazard bubbles should appear for hole 2")
     }
+
+    func testSpotOnAHazardBubbleCanBeAddedAndOpened() throws {
+        app.goToHole(2)
+        moveTo(latitude: Self.holeTwoTee.latitude, longitude: Self.holeTwoTee.longitude)
+        let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Hazard in '")).firstMatch
+        XCTAssertTrue(bubble.waitToExist(), "Hazard bubbles should appear for hole 2")
+        let before = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'Stroke_'")).count
+
+        // A long press on a bubble goes through it to the map and adds a spot, whose pin stands
+        // over the bubble
+        let frame = bubble.frame
+        let onBubble = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.maxY))
+        onBubble.press(forDuration: 1.0)
+        XCTAssertTrue(app.navigationBars["Edit Spot"].waitToExist(), "A long press on a bubble should add a spot")
+        saveInSheet()
+
+        // The bubble does not cover the pin, and its cut-out copy of the pin is not a second spot
+        let spots = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'Stroke_'"))
+        XCTAssertTrue(UIWait.until { spots.count == before + 1 }, "One spot should be added, not \(spots.count - before)")
+        XCTAssertTrue(bubble.exists, "The bubble should still be there")
+    }
 }

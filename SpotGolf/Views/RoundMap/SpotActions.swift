@@ -31,13 +31,14 @@ enum SpotActions {
         services.roundStore.addStroke(to: round.id, holeIndex: holeIndex, stroke: stroke)
     }
 
-    /// Turns a suggestion into a real stroke and opens it in the spot sheet.
-    static func takeSuggestion(_ suggestion: StrokeSuggestion, round: Round, holeIndex: Int, holeTrack: [TrackPoint],
-                               services: PhoneServices, spot: inout SpotSelection) {
+    /// Turns a suggestion into a real stroke, after the hole's other strokes, and opens it in the
+    /// spot sheet.
+    static func takeSuggestion(_ suggestion: StrokeSuggestion, round: Round, holeIndex: Int, services: PhoneServices,
+                               spot: inout SpotSelection) {
+        let newIndex = round.hole(at: holeIndex).strokes.count // capture before append
         guard let stroke = services.roundStore.addSuggestedStroke(
-            suggestion, holeIndex: holeIndex, roundID: round.id, holeTrack: holeTrack,
-            bag: services.caddie.guessBag) else { return }
-        spot.newIndex = round.hole(at: holeIndex).strokes.firstIndex { $0.id == stroke.id } ?? 0
+            suggestion, holeIndex: holeIndex, roundID: round.id, bag: services.caddie.guessBag) else { return }
+        spot.newIndex = newIndex
         spot.stroke = stroke
         spot.isNew = true
     }
