@@ -45,8 +45,8 @@ final class ClubAdviceRealCourseTests: XCTestCase {
     }
 
     /// The share of the pattern's spots in `lie`.
-    private func share(_ pattern: ShotPattern, _ lie: Lie, lies: LieGrid) -> Double {
-        let spots = pattern.spots
+    private func share(_ spots: ShotSpots, _ lie: Lie, lies: LieGrid) -> Double {
+        let spots = spots.points
         return Double(spots.filter { lies.lie(at: $0) == lie }.count) / Double(spots.count)
     }
 
@@ -64,16 +64,16 @@ final class ClubAdviceRealCourseTests: XCTestCase {
             let secondRun = Date().timeIntervalSince(again)
 
             let distance = try XCTUnwrap(clubs.first { $0.club == advice.club }).distance
-            let straight = ShotPattern(start: tee.start, heading: tee.start.heading(to: tee.pin), distance: distance,
-                                       missAngle: 6.4)
-            let water = share(advice.pattern, .water, lies: tee.lies)
+            let straight = ShotSpots(CaddieShot.params(advice.club, distance: distance, missAngle: 6.4, lie: advice.startLie),
+                                     start: tee.start, heading: tee.start.heading(to: tee.pin))
+            let water = share(advice.shot.spots, .water, lies: tee.lies)
             let straightWater = share(straight, .water, lies: tee.lies)
             XCTAssertLessThanOrEqual(water, straightWater + 1e-9,
                                      "\(tee.name): aiming at the pin should not be drier than the advice")
             if straightWater > water { steered += 1 }
             print(String(format: "%@: %@ %+d°, %.2f strokes, water %.0f%% (straight %.0f%%), sand %.0f%% (straight %.0f%%), %.0f ms then %.0f ms",
                          tee.name, advice.club.shortName, advice.aimOffset, advice.expectedStrokes, water * 100,
-                         straightWater * 100, share(advice.pattern, .sand, lies: tee.lies) * 100,
+                         straightWater * 100, share(advice.shot.spots, .sand, lies: tee.lies) * 100,
                          share(straight, .sand, lies: tee.lies) * 100, firstRun * 1000, secondRun * 1000))
         }
         print("Steered away from water on \(steered) of \(tees.count) holes")

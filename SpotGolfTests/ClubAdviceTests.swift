@@ -23,13 +23,17 @@ final class ClubAdviceTests: XCTestCase {
     private let fairway: (FeatureType, [Coordinate]) = (.fairway, PlayCourse.rectangle(north: 20...140, east: -20...20))
 
     func testOpenGroundAimsAtThePinWithTheClubThatReachesIt() throws {
-        // 164 yards to the pin
-        let advice = try best(PlayCourse.selection(greenNorth: 150, features: [fairway]), greenNorth: 150,
+        // 164 yards to the pin, with fairway under the player and all around the green, so short
+        // and long cost the same
+        let open: (FeatureType, [Coordinate]) = (.fairway, PlayCourse.rectangle(north: -10...300, east: -60...60))
+        let advice = try best(PlayCourse.selection(greenNorth: 150, features: [open]), greenNorth: 150,
                               clubs: clubs(irons))
 
         XCTAssertEqual(advice.club.id, "5i")
-        XCTAssertEqual(advice.aimOffset, 0, "Either side scores the same, and the tie goes to the pin line")
+        // The spots are few enough that a degree either way scores about the same
+        XCTAssertLessThanOrEqual(abs(advice.aimOffset), 1)
         XCTAssertEqual(advice.yards, 165)
+        XCTAssertEqual(advice.startLie, .fairway)
     }
 
     func testWaterLeftOfTheGreenMovesTheAimRight() throws {
@@ -116,7 +120,49 @@ final class ClubAdviceTests: XCTestCase {
         XCTAssertEqual(LocalDistance.meters(fromLat: start.latitude, lon: start.longitude,
                                             toLat: advice.aimCoordinate.latitude, lon: advice.aimCoordinate.longitude),
                        230 * 0.9144, accuracy: 0.01)
-        XCTAssertEqual(advice.corners(k: 2).count, 4)
+    }
+
+    func testTheAdviceHasItsShapeItsChancesAndTheHazardsInReach() async throws {
+        let water: (FeatureType, [Coordinate]) = (.water, PlayCourse.rectangle(north: 150...250, east: 30...90))
+        let far: (FeatureType, [Coordinate]) = (.bunker, PlayCourse.rectangle(north: 900...920, east: 0...20))
+        let advice = try await advice(round(PlayCourse.selection(greenNorth: 400, features: [water, far])))
+
+        XCTAssertEqual(advice.shot.shape?.regions.map(\.share), [0.5, 0.8, 0.95])
+        XCTAssertEqual(Set(advice.shapes.keys.map(\.id)), ["dr", "3w", "5i"], "A shape for each club to drag to")
+        XCTAssertEqual(advice.shot.shape, advice.shapes[advice.club])
+        XCTAssertEqual(advice.startLie, .rough)
+        let outcomes = try XCTUnwrap(advice.outcomes)
+        XCTAssertEqual(outcomes.fairway + outcomes.rough + outcomes.sand + outcomes.water + outcomes.green, 1, accuracy: 1e-9)
+        XCTAssertEqual(advice.hazards.count, 1, "The bunker 900 m away is out of reach")
+    }
+
+    func testAShapesOutlineIsOnTheGroundAlongTheAim() async throws {
+        let advice = try await advice(round(longHole))
+        let outer = try XCTUnwrap(advice.shot.shape?.outer)
+        let outline = advice.shot.outline(outer)
+        let start = PlayCourse.point(north: 0)
+
+        // Aimed north: the outline is north of the player, and as far east as west
+        XCTAssertEqual(outline.count, outer.ring.count)
+        XCTAssertTrue(outline.allSatisfy { $0.latitude > start.latitude })
+        let east = outline.map { $0.longitude - start.longitude }
+        XCTAssertEqual(east.max() ?? 0, -(east.min() ?? 0), accuracy: 1e-4)
+    }
+
+    func testADraggedShotsChancesComeFromTheHolesLies() async throws {
+        let water: (FeatureType, [Coordinate]) = (.water, PlayCourse.rectangle(north: 100...200, east: -40...40))
+        let round = round(PlayCourse.selection(greenNorth: 400, features: [water]))
+        let adviser = ClubAdviser()
+        let advice = await adviser.advice(for: try XCTUnwrap(request(round)))
+        let shot = try XCTUnwrap(CaddieShot.aimed(at: PlayCourse.point(north: 150), from: PlayCourse.point(north: 0),
+                                                  clubs: clubs(irons), missAngle: 6.4, lie: .rough,
+                                                  shapes: try XCTUnwrap(advice).shapes))
+        let hole = ClubAdvice.HoleKey(roundID: round.id, holeIndex: 0)
+
+        let outcomes = await adviser.outcomes(of: shot, hole: hole)
+        XCTAssertGreaterThan(try XCTUnwrap(outcomes).water, 0.5, "Aimed into the middle of the water")
+        let other = await adviser.outcomes(of: shot, hole: ClubAdvice.HoleKey(roundID: round.id, holeIndex: 1))
+        XCTAssertNil(other, "Another hole's lies are not kept")
     }
 
     // MARK: - The player's own aim

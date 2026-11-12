@@ -2,7 +2,7 @@ import CourseDataSwift
 import Foundation
 
 /// Where a ball lies, for the strokes it takes to hole out from there.
-enum Lie: Equatable {
+enum Lie: Equatable, Sendable {
     case fairway, rough, sand, green, water
 }
 
@@ -40,6 +40,11 @@ final class LieGrid {
     convenience init?(round: Round, holeIndex index: Int) {
         guard let hole = round.courseHole(at: index), let green = round.green(holeIndex: index) else { return nil }
         self.init(course: round.course, hole: hole, plane: GroundPlane(origin: green.center))
+    }
+
+    /// The water and sand shapes within `reach` meters of `point`, for the map to mark.
+    func hazards(near point: GroundPoint, reach: Double) -> [[GroundPoint]] {
+        (water + sand).filter { $0.isNear(point, reach: reach) }.map(\.points)
     }
 
     func lie(at point: GroundPoint) -> Lie {
@@ -98,6 +103,11 @@ struct GroundPolygon {
         maxX = points.map(\.x).max()!
         minY = points.map(\.y).min()!
         maxY = points.map(\.y).max()!
+    }
+
+    /// True when the shape's bounding box comes within `reach` of `point`.
+    func isNear(_ point: GroundPoint, reach: Double) -> Bool {
+        point.x >= minX - reach && point.x <= maxX + reach && point.y >= minY - reach && point.y <= maxY + reach
     }
 
     /// By the even-odd rule, as `PolygonGeometry.contains` does.

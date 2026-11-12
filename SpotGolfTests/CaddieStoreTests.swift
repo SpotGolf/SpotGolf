@@ -60,6 +60,19 @@ final class CaddieStoreTests: XCTestCase {
         return round
     }
 
+    func testTheSkillComesFromThePickedScoresAndIsKept() {
+        XCTAssertEqual(caddie.skillSource, .myScores)
+        XCTAssertEqual(caddie.missAngle, 6.4, "No ended rounds")
+
+        caddie.skillSource = .high
+        XCTAssertEqual(caddie.missAngle, 8.1)
+        XCTAssertEqual(CaddieStore(rounds: rounds, golfBag: golfBag, defaults: defaults).missAngle, 8.1,
+                       "Kept in the settings")
+
+        caddie.skillSource = .myScores
+        XCTAssertEqual(caddie.missAngle, 6.4)
+    }
+
     func testClubsStartAtTheirBagDistances() {
         XCTAssertEqual(caddie.guessBag, golfBag.bag, "With no shots, guesses use the bag's distances")
         XCTAssertNil(caddie.guessBag.distance(of: putter))

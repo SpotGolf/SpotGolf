@@ -51,7 +51,7 @@ struct MapCameraState {
     }
 }
 
-/// Where the player dragged the Caddie's cones to: a point on the ground, kept while the player
+/// Where the player dragged the Caddie's shot pattern to: a point on the ground, kept while the player
 /// walks. It is for one hole and its strokes, so a new hole or a stroke goes back to the Caddie's
 /// pick. See plans/2026-11-02-caddie-club-and-aim.md, section 1.
 struct CaddieAim {

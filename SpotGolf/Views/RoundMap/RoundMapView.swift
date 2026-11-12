@@ -50,8 +50,12 @@ struct RoundMapView: View {
     @State private var clubAdviser = ClubAdviser()
     /// Working out the Caddie's advice; a newer request cancels it.
     @State private var caddieTask: Task<Void, Never>?
-    /// Where the player dragged the cones to, in place of the Caddie's pick.
+    /// Where the player dragged the shot pattern to, in place of the Caddie's pick.
     @State private var caddieAim: CaddieAim?
+    /// The chances of the shot the player dragged, worked out once the drag rests.
+    @State private var draggedOutcomes: DispersionOutcomes?
+    @State private var outcomesTask: Task<Void, Never>?
+    @State private var showCaddieStats = false
     /// The app went to the background, so the map shows the whole hole again when it returns.
     @State private var wasInBackground = false
 
@@ -109,7 +113,7 @@ struct RoundMapView: View {
         }
         .onChange(of: round.map(shownHoleIndex)) {
             target = nil
-            caddieAim = nil
+            clearCaddieAim()
             withAnimation(.easeInOut(duration: 0.2)) {
                 greenView.holeChanged()
             }
@@ -167,9 +171,11 @@ struct RoundMapView: View {
             ZStack(alignment: .top) {
                 RoundMapLayer(round: round, shownHoleIndex: holeIndex, showsStrokeLines: showsStrokeLines,
                               caddieShot: caddieShot(round, holeIndex: holeIndex),
+                              caddieHazards: showsCaddie ? caddieAdvice.advice?.hazards ?? [] : [],
                               moveCaddieAim: { point in
                                   caddieAim = CaddieAim(point: point, holeIndex: holeIndex,
                                                         holeStrokes: round.hole(at: holeIndex).strokes.count)
+                                  refreshDraggedOutcomes(after: Self.outcomesWait)
                               },
                               isDraggingSpot: $isDraggingSpot, trackLine: trackLine, startWindow: startWindow,
                               suggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
@@ -205,13 +211,20 @@ struct RoundMapView: View {
                                                           services: services)
                                  },
                                  resetCaddie: greenView.isShown || !isCaddieMoved(round, holeIndex: holeIndex) ? nil : {
-                                     caddieAim = nil
-                                 })
+                                     clearCaddieAim()
+                                 },
+                                 caddieStats: caddieStats(round, holeIndex: holeIndex),
+                                 openCaddieStats: { showCaddieStats = true })
                 }
                 // Over the Green View too, which draws course data of its own
                 MapCredit()
             }
             .ignoresSafeArea(edges: .bottom)
+        }
+        .sheet(isPresented: $showCaddieStats) {
+            @Bindable var caddie = services.caddie
+            CaddieStatsSheet(stats: caddieStats(round, holeIndex: holeIndex),
+                             skill: $caddie.skillSource)
         }
         .sheet(isPresented: $showMapStyles) {
             MapStyleSheet(selected: mapStyle, center: previewCenter(round, holeIndex: holeIndex), select: selectMapStyle)
@@ -305,7 +318,7 @@ struct RoundMapView: View {
     }
 
     /// What the map draws for the Caddie: the club and aim it picked, or, once the player drags
-    /// the cones, the shot at where they dragged them, with the club whose average is nearest.
+    /// the pattern, the shot at where they dragged it, with the club whose average is nearest.
     /// None while the Caddie has no advice to show, such as on the green.
     private func caddieShot(_ round: Round, holeIndex: Int) -> CaddieShot? {
         guard showsCaddie, let advice = caddieAdvice.advice else { return nil }
@@ -314,10 +327,46 @@ struct RoundMapView: View {
         let clubs = ClubAdvice.clubs(from: services.caddie.distances,
                                      isTeeShot: round.hole(at: holeIndex).strokes.isEmpty)
         return CaddieShot.aimed(at: caddieAim.point, from: location, clubs: clubs,
-                                missAngle: services.caddie.missAngle) ?? advice.shot
+                                missAngle: services.caddie.missAngle, lie: advice.startLie,
+                                shapes: advice.shapes) ?? advice.shot
     }
 
-    /// True while the map shows where the player dragged the cones rather than the Caddie's pick.
+    /// What the outcome capsule and the stats sheet say about the shot on the map. Nil while the
+    /// map shows no pattern, and for a dragged shot until its chances are first worked out.
+    private func caddieStats(_ round: Round, holeIndex: Int) -> CaddieStats? {
+        guard let shot = caddieShot(round, holeIndex: holeIndex),
+              let outcomes = isCaddieMoved(round, holeIndex: holeIndex) ? draggedOutcomes : caddieAdvice.advice?.outcomes
+        else { return nil }
+        return CaddieStats(shot: shot, outcomes: outcomes,
+                           aimsAtGreen: round.isOnGreen(shot.aimCoordinate, holeIndex: holeIndex))
+    }
+
+    /// A dragged shot's chances are worked out this long after the finger last moved.
+    private static let outcomesWait = Duration.milliseconds(150)
+
+    /// Works out the chances of the shot the player dragged, off the main thread, once `wait`
+    /// has passed without another call.
+    private func refreshDraggedOutcomes(after wait: Duration = .zero) {
+        outcomesTask?.cancel()
+        outcomesTask = Task { [clubAdviser] in
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled, let round, isCaddieMoved(round, holeIndex: shownHoleIndex(round)),
+                  let shot = caddieShot(round, holeIndex: shownHoleIndex(round)) else { return }
+            let hole = ClubAdvice.HoleKey(roundID: round.id, holeIndex: shownHoleIndex(round))
+            let outcomes = await clubAdviser.outcomes(of: shot, hole: hole)
+            guard !Task.isCancelled else { return }
+            draggedOutcomes = outcomes
+        }
+    }
+
+    /// Back to the Caddie's own pick.
+    private func clearCaddieAim() {
+        outcomesTask?.cancel()
+        caddieAim = nil
+        draggedOutcomes = nil
+    }
+
+    /// True while the map shows where the player dragged the pattern rather than the Caddie's pick.
     private func isCaddieMoved(_ round: Round, holeIndex: Int) -> Bool {
         guard showsCaddie, caddieAdvice.advice != nil, let caddieAim else { return false }
         return caddieAim.isFor(round, holeIndex: holeIndex)
@@ -329,7 +378,7 @@ struct RoundMapView: View {
         guard let inputs = caddieInputs, let round else {
             caddieTask?.cancel()
             caddieAdvice.clear()
-            caddieAim = nil
+            clearCaddieAim()
             return
         }
         guard let request = caddieAdvice.update(inputs, round: round,
@@ -341,6 +390,8 @@ struct RoundMapView: View {
             let advice = await clubAdviser.advice(for: request)
             guard !Task.isCancelled else { return }
             caddieAdvice.finish(advice, generation: request.generation)
+            // The player moved, or their skill changed, under a shot they dragged
+            refreshDraggedOutcomes()
         }
     }
 

@@ -1,5 +1,7 @@
 # Caddie: Club and Aim
 
+> Sections 1 (what it draws) and 2 (shot pattern) are replaced by plans/2026-11-11-shot-dispersion.md.
+
 The second part of the caddie. From the player's location during a round, it picks the club and the aim point with the lowest expected score for the hole, and draws the club's shot pattern on the map. The pattern comes from the club's distance range in the Caddie (plans/2026-11-02-caddie-club-distances.md) and a miss angle from published data for golfers of the player's average score. The player never says where they aimed.
 
 Phone map only. Nothing changes on the watch.

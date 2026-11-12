@@ -17,6 +17,13 @@ final class MissAngleTests: XCTestCase {
         return round
     }
 
+    func testEachGroupHasItsAngle() {
+        XCTAssertNil(MissAngle.Source.myScores.degrees, "The player's own scores")
+        XCTAssertEqual(MissAngle.Source.low.degrees, 5.4)
+        XCTAssertEqual(MissAngle.Source.mid.degrees, 6.4)
+        XCTAssertEqual(MissAngle.Source.high.degrees, 8.1)
+    }
+
     func testNoRoundsGiveTheStartingAngle() {
         XCTAssertEqual(MissAngle.degrees(for: []), 6.4)
         XCTAssertEqual(MissAngle.degrees(averageScore: nil), 6.4)

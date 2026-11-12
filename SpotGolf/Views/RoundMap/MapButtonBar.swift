@@ -24,9 +24,13 @@ struct MapButtonBar: View {
     let openGreenView: (() -> Void)?
     /// The Tap in button, which adds the hole's last putt. Nil outside Green View.
     let tapIn: (() -> Void)?
-    /// The Reset Caddie button, which puts the Caddie's cones back on its own pick. Nil unless
-    /// the player has dragged them.
+    /// The Reset Caddie button, which puts the Caddie's shot pattern back on its own pick. Nil
+    /// unless the player has dragged it.
     let resetCaddie: (() -> Void)?
+    /// The chances of the Caddie's shot, for the capsule that opens the stats sheet. Nil while
+    /// the map shows no pattern.
+    let caddieStats: CaddieStats?
+    let openCaddieStats: () -> Void
 
     @Environment(PhoneServices.self) private var services
 
@@ -49,6 +53,7 @@ struct MapButtonBar: View {
                 tapInButton
                 setPinButton
                 resetCaddieButton
+                caddieOutcomeButton
                 SuggestionLegend()
             }
         }
@@ -144,8 +149,28 @@ struct MapButtonBar: View {
         }
     }
 
-    /// Shown only once the player has dragged the Caddie's cones: puts them back on the Caddie's
-    /// own pick.
+    /// The chances of the Caddie's shot, such as "52% fairway · 6% hazard". Opens the stats
+    /// sheet. White on a dark capsule, for contrast over any map.
+    @ViewBuilder
+    private var caddieOutcomeButton: some View {
+        if let caddieStats, !showsGreenView {
+            Button(action: openCaddieStats) {
+                Text(verbatim: caddieStats.summary)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.8), in: Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            }
+            .accessibilityLabel(Text(verbatim: caddieStats.spokenSummary))
+            .accessibilityIdentifier("CaddieOutcome")
+        }
+    }
+
+    /// Shown only once the player has dragged the Caddie's shot pattern: puts it back on the
+    /// Caddie's own pick.
     @ViewBuilder
     private var resetCaddieButton: some View {
         if let resetCaddie {

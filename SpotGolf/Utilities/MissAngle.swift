@@ -1,19 +1,37 @@
 import Foundation
 
-/// How far the player's shots turn off the line to the target: the standard deviation of the
-/// angle, in degrees, from published data for golfers of the player's average score. See
-/// plans/2026-11-02-caddie-club-and-aim.md, section 2.
+/// The player's skill, as the shot model takes it: how far their drives turn off the line to
+/// the target. It is the standard deviation of the angle, in degrees, from published data for
+/// golfers of the player's average score. Every club's pattern comes from it. The numbers are in
+/// `DispersionConstants`. See plans/2026-11-11-shot-dispersion.md, section 3.
 enum MissAngle {
     /// Before any ended rounds: Broadie's golfers scoring 84 to 97.
-    static let starting = 6.4
+    static let starting = DispersionConstants.startingAngle
     /// The range the published amateur data covers.
-    static let lowest = 5.4
-    static let highest = 8.1
+    static let lowest = DispersionConstants.skillAngles[0]
+    static let highest = DispersionConstants.skillAngles[2]
+
+    /// Whose scores the skill comes from: the player's own, or one of Broadie's three groups.
+    /// The Caddie's stats sheet picks it.
+    enum Source: String, CaseIterable, Sendable {
+        case myScores, low, mid, high
+
+        /// The group's angle. Nil for the player's own scores.
+        var degrees: Double? {
+            switch self {
+            case .myScores: nil
+            case .low: DispersionConstants.skillAngles[0]
+            case .mid: DispersionConstants.skillAngles[1]
+            case .high: DispersionConstants.skillAngles[2]
+            }
+        }
+    }
 
     /// Through Broadie and Ko's 80 golfers at 5.5° and 100 golfers at 7.9°.
     static func degrees(averageScore: Double?) -> Double {
         guard let averageScore else { return starting }
-        return min(max(5.5 + 0.12 * (averageScore - 80), lowest), highest)
+        let angle = DispersionConstants.angleAtEighty + DispersionConstants.anglePerStroke * (averageScore - 80)
+        return min(max(angle, lowest), highest)
     }
 
     static func degrees(for rounds: [Round]) -> Double {

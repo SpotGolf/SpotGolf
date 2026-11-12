@@ -12,6 +12,8 @@ enum SettingsKey {
     /// Meters from the green's edge that count as on the green: where putts and chips are
     /// suggested and the watch listens for contacts.
     static let greenZone = "greenZone"
+    /// Whose scores the Caddie's shot pattern comes from, a `MissAngle.Source` raw value.
+    static let caddieSkill = "caddieSkill"
     /// How the round map draws the ground, a `MapStyleChoice` raw value.
     static let mapStyle = "mapStyle"
     /// Set once `GolfBagStore` has put the standard bag in the store.

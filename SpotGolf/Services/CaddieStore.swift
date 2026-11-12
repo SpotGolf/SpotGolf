@@ -10,9 +10,19 @@ import Observation
 final class CaddieStore {
     /// Each club's counted shots, in yards.
     private(set) var shots: [Club: [Double]] = [:]
-    /// The standard deviation of the player's miss angle, in degrees, from their average score.
-    /// See plans/2026-11-02-caddie-club-and-aim.md, section 2.
+    /// The player's skill, as the shot model takes it: the angle from `skillSource`. See
+    /// plans/2026-11-11-shot-dispersion.md, section 3.
     private(set) var missAngle = MissAngle.starting
+    /// Whose scores the skill comes from, which the Caddie's stats sheet picks. Kept in the
+    /// settings.
+    var skillSource: MissAngle.Source {
+        didSet {
+            defaults.set(skillSource.rawValue, forKey: SettingsKey.caddieSkill)
+            missAngle = skillSource.degrees ?? scoreAngle
+        }
+    }
+    /// The angle from the player's own average score.
+    @ObservationIgnored private var scoreAngle = MissAngle.starting
 
     @ObservationIgnored private let rounds: RoundStore
     @ObservationIgnored private let golfBag: GolfBagStore
@@ -37,6 +47,7 @@ final class CaddieStore {
         self.rounds = rounds
         self.golfBag = golfBag
         self.defaults = defaults
+        skillSource = defaults.string(forKey: SettingsKey.caddieSkill).flatMap(MissAngle.Source.init) ?? .myScores
         listShots()
         rounds.addListener { [weak self] event in
             if case .roundsChanged = event {
@@ -87,6 +98,7 @@ final class CaddieStore {
         guard source != listedFrom else { return }
         listedFrom = source
         shots = ShotDistances.shots(in: ended, greenZone: source.greenZone)
-        missAngle = MissAngle.degrees(for: ended)
+        scoreAngle = MissAngle.degrees(for: ended)
+        missAngle = skillSource.degrees ?? scoreAngle
     }
 }

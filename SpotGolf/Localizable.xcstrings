@@ -26,6 +26,16 @@
       }
     },
     "%@ sent no data" : {},
+    "%@, %lld yards" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld yards"
+          }
+        }
+      }
+    },
     "%lld" : {},
     "%lld drills · %@ · %@" : {},
     "%lld Hybrid" : {},
@@ -136,6 +146,27 @@
     "%lld yards" : {},
     "%lld yd" : {},
     "%lld yds" : {},
+    "%lld%%" : {},
+    "%lld%% fairway · %lld%% hazard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% fairway · %2$lld%% hazard"
+          }
+        }
+      }
+    },
+    "%lld%% green · %lld%% hazard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% green · %2$lld%% hazard"
+          }
+        }
+      }
+    },
     "%lld, %@" : {
       "localizations" : {
         "en" : {
@@ -159,6 +190,16 @@
     "%llds" : {},
     "%llds stop" : {},
     "%lld° Wedge" : {},
+    "%lld–%lld yards" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld–%2$lld yards"
+          }
+        }
+      }
+    },
     "10 to 20" : {},
     "A session is about 45 MB. Without this, sessions upload on Wi-Fi." : {},
     "About" : {},
@@ -181,6 +222,26 @@
     "Built" : {},
     "Caddie" : {},
     "Caddie: %@, %lld yards" : {},
+    "Caddie: %@, %lld%% fairway or green, %lld%% hazard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Caddie: %1$@, %2$lld%% fairway or green, %3$lld%% hazard"
+          }
+        }
+      }
+    },
+    "Caddie: %@, %lld%% green, %lld%% hazard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Caddie: %1$@, %2$lld%% green, %3$lld%% hazard"
+          }
+        }
+      }
+    },
     "Cancel" : {},
     "Checking the watch…" : {},
     "Claw" : {},
@@ -188,6 +249,7 @@
     "Clear target" : {},
     "Close" : {},
     "Close Green View" : {},
+    "Club" : {},
     "Club Distances" : {},
     "Clubs" : {},
     "Consent" : {},
@@ -222,6 +284,7 @@
     "Export" : {},
     "Failed to load course: %@" : {},
     "Fairway" : {},
+    "Fairway or green" : {},
     "Firm (Two-Piece)" : {},
     "Follow location" : {},
     "For a shotgun start. Holes advance from the starting hole to the last one, then from hole 1." : {},
@@ -240,6 +303,7 @@
     "Hazard in %lld yards" : {},
     "Health" : {},
     "Help make putt detection work for every golfer. Your watch records wrist motion and sound while you do a set of putting drills, and one location when you start, to check you were on a putting green. The recordings are shared with the SpotGolf developers to improve putt detection and are not linked to your name or Apple Account." : {},
+    "High scores" : {},
     "Hit" : {},
     "Hole" : {},
     "Hole %lld" : {},
@@ -277,6 +341,7 @@
     },
     "Irons" : {},
     "Left" : {},
+    "Left to right" : {},
     "Loading course..." : {},
     "Lob Wedge" : {},
     "Location" : {},
@@ -284,15 +349,18 @@
     "Location: yes" : {},
     "Log" : {},
     "Long or Broomstick" : {},
+    "Low scores" : {},
     "Mallet" : {},
     "Map Style" : {},
     "Map options" : {},
     "Map style" : {},
     "Microphone" : {},
+    "Mid scores" : {},
     "Milled or Metal" : {},
     "Missed" : {},
     "Motion & Fitness" : {},
     "My Setup" : {},
+    "My scores" : {},
     "Nearby Courses" : {},
     "New Round" : {},
     "Next" : {},
@@ -353,7 +421,9 @@
     "Resume" : {},
     "Retry" : {},
     "Right" : {},
+    "Rough" : {},
     "Rounds" : {},
+    "Sand" : {},
     "Sand Wedge" : {},
     "Satellite" : {},
     "Save" : {},
@@ -370,15 +440,18 @@
     "Settings" : {},
     "Share Pin Locations" : {},
     "Share logs…" : {},
+    "Short to long" : {},
     "Shot quality" : {},
     "Sign in to iCloud in the Settings app to upload sessions." : {},
     "Sign in to iCloud in the Settings app to use it." : {},
+    "Skill" : {},
     "Soft (Urethane)" : {},
     "Spot" : {},
     "Spot %lld" : {},
     "Spot %lld, %@" : {},
     "Spot: %lld" : {},
     "SpotGolf needs these to record your round" : {},
+    "Spread" : {},
     "Standard" : {},
     "Start on your watch, on the Putting Drills page. Read the instructions for each task on your watch, do the task, then tap Done." : {},
     "Start Round" : {},
@@ -396,6 +469,7 @@
     "Target" : {},
     "Tee" : {},
     "The clubs you carry, up to %lld." : {},
+    "The pattern comes from published shots of golfers with these scores. Low is 70 to 83, mid is 84 to 97 and high is 98 to 120." : {},
     "The watch can't record the round:" : {},
     "The watch did not respond." : {},
     "The watch has not responded yet. Still trying." : {},
@@ -420,10 +494,13 @@
     "WARNING: SpotGolf uses open source data built using [CourseBuilder](https://github.com/SpotGolf/CourseBuilder) and stored in [CourseData](https://github.com/SpotGolf/CourseData). If you don't see the course you want, feel free to submit a PR with your course JSON file." : {},
     "Watch connected" : {},
     "Watch not connected" : {},
+    "Water" : {},
     "Wedges" : {},
     "What You Need" : {},
     "What the phone and watch apps recorded, for sending to SpotGolf support if something goes wrong." : {},
+    "Where 95 of 100 shots stop." : {},
     "Where each club starts, in yards, from 1 to %lld. The Caddie moves it toward your own shots as you play." : {},
+    "Where shots stop" : {},
     "Woods" : {},
     "Yards" : {},
     "You agreed to share" : {},
@@ -445,6 +522,7 @@
     "yd" : {},
     "yds to center" : {},
     "yds to pin" : {},
+    "±%lld yards" : {},
     "·" : {}
   },
   "version" : "1.0"

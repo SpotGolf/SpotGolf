@@ -1,14 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// A one-finger drag that starts on the Caddie's cones and moves them. A drag that starts
-/// anywhere else fails at once, so the map pans as before, and taps and long presses on the cones
+/// A one-finger drag that starts on the Caddie's shot pattern and moves it. A drag that starts
+/// anywhere else fails at once, so the map pans as before, and taps and long presses on the pattern
 /// still go to the map. See plans/2026-11-02-caddie-club-and-aim.md, section 1.
 struct CaddieDragGesture<Space: CoordinateSpaceProtocol>: UIGestureRecognizerRepresentable {
     /// The space the points are in.
     let space: Space
-    /// True for a point on the cones.
-    let isOnCones: (CGPoint) -> Bool
+    /// True for a point on the pattern.
+    let isOnPattern: (CGPoint) -> Bool
     /// The finger went down at the first point and is now at the second.
     let changed: (_ start: CGPoint, _ finger: CGPoint) -> Void
     /// The finger lifted, or the system cancelled the drag.
@@ -27,7 +27,7 @@ struct CaddieDragGesture<Space: CoordinateSpaceProtocol>: UIGestureRecognizerRep
     }
 
     func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
-        context.coordinator.isOnCones = isOnCones
+        context.coordinator.isOnPattern = isOnPattern
         context.coordinator.space = space
     }
 
@@ -50,7 +50,7 @@ struct CaddieDragGesture<Space: CoordinateSpaceProtocol>: UIGestureRecognizerRep
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         let converter: CoordinateSpaceConverter
-        var isOnCones: (CGPoint) -> Bool = { _ in false }
+        var isOnPattern: (CGPoint) -> Bool = { _ in false }
         var space: Space?
         /// Where the finger went down, for the drag under way.
         var startPoint: CGPoint?
@@ -67,10 +67,10 @@ struct CaddieDragGesture<Space: CoordinateSpaceProtocol>: UIGestureRecognizerRep
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let space else { return false }
-            return isOnCones(start(of: converter.location(in: space)))
+            return isOnPattern(start(of: converter.location(in: space)))
         }
 
-        /// The map's own pan waits for this one to fail, so a drag on the cones never pans it.
+        /// The map's own pan waits for this one to fail, so a drag on the pattern never pans it.
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             otherGestureRecognizer is UIPanGestureRecognizer && otherGestureRecognizer !== gestureRecognizer
