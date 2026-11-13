@@ -53,7 +53,8 @@ final class CloudSync {
     @ObservationIgnored private let makeEngine: (Data?, CloudSync) -> CloudSyncEngine
     @ObservationIgnored private var engine: CloudSyncEngine?
     @ObservationIgnored private var state: SavedState
-    @ObservationIgnored private var scanTask: Task<Void, Never>?
+    /// The latest scan waiting out the delay. Tests wait on it.
+    @ObservationIgnored private(set) var scanTask: Task<Void, Never>?
     /// The latest fetch this phone asked for. Tests wait on it.
     @ObservationIgnored private(set) var fetchTask: Task<Void, Never>?
     /// What each round was when its record was built, until the save is confirmed.

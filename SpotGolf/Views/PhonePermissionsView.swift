@@ -31,6 +31,20 @@ struct PhonePermissionsView: View {
                         row(permission)
                     }
                 }
+
+                // The microphone is asked for on the watch, and the system restarts this app
+                // when it is allowed there
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.title)
+                        .foregroundStyle(.yellow)
+                    Text("You will also need to allow Microphone on your watch. This app will restart after you do.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("WatchMicrophoneWarning")
             }
             .padding(32)
             .frame(maxWidth: .infinity)

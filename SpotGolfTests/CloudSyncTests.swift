@@ -180,7 +180,8 @@ final class CloudSyncTests: XCTestCase {
         for quality in [ShotQuality.okay, .good, .bad] {
             rounds.setShotQuality(quality, strokeID: round.holes[0].strokes[1].id, in: round.id)
         }
-        try await Task.sleep(for: .milliseconds(300))
+        // Each edit cancels the scan before it, so the last one is the only scan that runs
+        await sync.scanTask?.value
 
         XCTAssertEqual(engine.saves, [recordID(round)])
     }
