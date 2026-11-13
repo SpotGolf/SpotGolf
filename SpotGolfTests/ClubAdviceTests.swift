@@ -54,6 +54,28 @@ final class ClubAdviceTests: XCTestCase {
         XCTAssertLessThan(Double(advice.yards) * 0.9144, 150, "\(advice.club.name) should stop short of the water")
     }
 
+    func testTheAimPointIsOnTheFairwayEvenWhenTheRoughIsCloserToThePin() throws {
+        // A dog-leg: the fairway is far left, and open rough runs straight at the green, 350 m away
+        let leftFairway: (FeatureType, [Coordinate]) = (.fairway, PlayCourse.rectangle(north: 150...260, east: -160...(-100)))
+        let selection = PlayCourse.selection(greenNorth: 350, features: [leftFairway])
+        let advice = try best(selection, greenNorth: 350, clubs: clubs(irons))
+
+        XCTAssertTrue(PlayCourse.lies(selection).isLanding(advice.shot.aimPoint),
+                      "\(advice.club.name) \(advice.aimOffset)° should land on the fairway")
+        XCTAssertLessThan(advice.aimOffset, 0)
+    }
+
+    func testWithoutAFairwayOrGreenInReachTheAimStaysNearTheCenterline() throws {
+        // No fairway, a green 400 m away, and a centerline that bends left
+        let centerline = [PathCourse.coordinate(north: 0, east: 0), PathCourse.coordinate(north: 200, east: -100),
+                          PathCourse.coordinate(north: 400, east: 0)]
+        let selection = PlayCourse.selection(greenNorth: 400, centerline: centerline)
+        let advice = try best(selection, greenNorth: 400, clubs: clubs(irons))
+
+        XCTAssertTrue(PlayCourse.lies(selection).isNearCenterline(advice.shot.aimPoint, within: ClubAdvice.centerlineHalfWidth),
+                      "\(advice.club.name) \(advice.aimOffset)° should stay within 20 yards of the centerline")
+    }
+
     func testTheExpectedScoreCountsTheShot() throws {
         // A 50-yard pitch can't hole out in less than 2
         let advice = try best(PlayCourse.selection(greenNorth: 46), greenNorth: 46, clubs: clubs([("lw", 50)]))

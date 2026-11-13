@@ -19,6 +19,10 @@ final class LieGrid {
     private let sand: [GroundPolygon]
     private let green: [GroundPolygon]
     private let fairway: [GroundPolygon]
+    /// The hole's own fairways and green, where the Caddie's aim point must be.
+    private let landing: [GroundPolygon]
+    /// The hole's centerline, from the tee to the green. Empty when the hole has none.
+    private let centerline: [GroundPoint]
     private var cells: [Int: Lie] = [:]
 
     /// The squares worked out so far.
@@ -34,6 +38,30 @@ final class LieGrid {
         sand = polygons(course.features.filter { $0.type == .bunker })
         green = polygons(own.filter { $0.type == .green })
         fairway = polygons(own.filter { $0.type == .fairway || $0.type == .tee })
+        landing = polygons(own.filter { $0.type == .fairway || $0.type == .green })
+        centerline = hole.centerline(from: course.features)?.polygon.map(plane.point) ?? []
+    }
+
+    /// True when the hole has a centerline.
+    var hasCenterline: Bool { centerline.count >= 2 }
+
+    /// True when `point` is on the hole's own fairway or green, and not in water or sand there.
+    func isLanding(_ point: GroundPoint) -> Bool {
+        guard landing.contains(where: { $0.contains(point) }) else { return false }
+        let lie = lie(at: point)
+        return lie == .fairway || lie == .green
+    }
+
+    /// True when `point` is within `meters` of the hole's centerline. False without one.
+    func isNearCenterline(_ point: GroundPoint, within meters: Double) -> Bool {
+        guard hasCenterline else { return false }
+        return zip(centerline, centerline.dropFirst()).contains { a, b in
+            let segment = b - a
+            let lengthSquared = segment.x * segment.x + segment.y * segment.y
+            let t = lengthSquared > 0
+                ? max(0, min(1, ((point.x - a.x) * segment.x + (point.y - a.y) * segment.y) / lengthSquared)) : 0
+            return point.distance(to: a + segment * t) <= meters
+        }
     }
 
     /// Hole `index` of the round, flattened around its green's center. Nil without a green.

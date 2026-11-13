@@ -21,10 +21,11 @@ enum PlayCourse {
     /// The plane the tests measure in: meters east (`x`) and north (`y`) of hole 1's tee.
     static let plane = GroundPlane(origin: PathCourse.coordinate(north: 0, east: 0))
 
-    /// Hole 1, with its green centered `greenNorth` meters north of the tee, and `features`.
+    /// Hole 1, with its green centered `greenNorth` meters north of the tee, `features` and
+    /// `centerline`.
     /// Hole 2 has `otherHole`, and a green of its own 200 m east.
     static func selection(greenNorth: Double, features: [(FeatureType, [Coordinate])] = [],
-                          otherHole: [(FeatureType, [Coordinate])] = []) -> CourseSelection {
+                          otherHole: [(FeatureType, [Coordinate])] = [], centerline: [Coordinate]? = nil) -> CourseSelection {
         var all: [Feature] = []
         func add(_ type: FeatureType, _ polygon: [Coordinate]) -> Int {
             let feature = Feature(id: all.count + 1, type: type, polygon: CoordinatePath(polygon))
@@ -33,6 +34,7 @@ enum PlayCourse {
         }
         let holeOne = [add(.green, PathCourse.square(north: greenNorth, east: 0, half: 15))]
             + features.map { add($0.0, $0.1) }
+        let centerlineID = centerline.map { add(.centerline, $0) }
         let holeTwo = [add(.green, PathCourse.square(north: greenNorth, east: 200, half: 15))]
             + otherHole.map { add($0.0, $0.1) }
         return CourseSelection(
@@ -40,7 +42,7 @@ enum PlayCourse {
                            location: CourseLocation(address: "", city: "", state: "", country: "US",
                                                     coordinate: PathCourse.coordinate(north: 0, east: 0)),
                            features: all,
-                           subCourses: [SubCourse(name: "Front", holes: [Hole(number: 1, par: 4, features: holeOne),
+                           subCourses: [SubCourse(name: "Front", holes: [Hole(number: 1, par: 4, features: holeOne, centerline: centerlineID),
                                                                        Hole(number: 2, par: 4, features: holeTwo)])]),
             selectedSubCourseIndices: [0])
     }

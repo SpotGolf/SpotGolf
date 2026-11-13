@@ -228,7 +228,10 @@ On the green, by feet to the pin:
 | Topic | Decision |
 |---|---|
 | Expected score of a choice | 1 + the average of its 121 spots' strokes to hole out |
-| Pick | The club and aim with the lowest expected score |
+| Where the aim point may be | The aim point is where the club's average distance lands along the aim. It must be on this hole's fairway or green, and not in water or sand there. Off the hole, the lie grid counts houses and out of bounds as rough, so without this a dogleg's shortcut over houses scores best (Broadlands front 3) |
+| No aim on fairway or green | When no club and aim lands there (no fairway, green out of reach), aim points within 20 yards either side of the hole's centerline count |
+| Neither | Without a centerline, or with the player too far off the hole for any aim to land within 20 yards of it, any aim counts |
+| Pick | The club and aim with the lowest expected score, among the aims that count |
 | Ties | Within 0.005 strokes, the aim nearer the line to the pin |
 
 ## 4. When it is worked out

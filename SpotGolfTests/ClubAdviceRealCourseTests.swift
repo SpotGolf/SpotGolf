@@ -50,6 +50,29 @@ final class ClubAdviceRealCourseTests: XCTestCase {
         return Double(spots.filter { lies.lie(at: $0) == lie }.count) / Double(spots.count)
     }
 
+    func testEveryTeeShotLandsOnTheFairwayOrGreen() throws {
+        for tee in tees {
+            let advice = try XCTUnwrap(ClubAdvice.best(from: tee.start, pin: tee.pin, clubs: clubs, missAngle: 6.4,
+                                                       lies: tee.lies))
+            XCTAssertTrue(tee.lies.isLanding(advice.shot.aimPoint),
+                          "\(tee.name): \(advice.club.shortName) \(advice.aimOffset)° lands off the fairway and green")
+        }
+    }
+
+    func testTheThirdHoleFollowsTheDogLeg() throws {
+        // Front 3 bends left around houses. Straight at the pin lands in the houses.
+        let hole = try XCTUnwrap(course.hole(subCourseIndex: 0, number: 3))
+        let green = try XCTUnwrap(hole.green(from: course.features))
+        let lies = LieGrid(course: course, hole: hole, plane: GroundPlane(origin: green.center))
+        for box in hole.teeBoxes(from: course.features) {
+            let start = lies.plane.point(box.center)
+            let advice = try XCTUnwrap(ClubAdvice.best(from: start, pin: lies.plane.point(green.center), clubs: clubs,
+                                                       missAngle: 6.4, lies: lies))
+            XCTAssertTrue(lies.isLanding(advice.shot.aimPoint), "\(advice.club.shortName) \(advice.aimOffset)°")
+            XCTAssertLessThan(advice.aimOffset, 0, "the aim should be left of the pin")
+        }
+    }
+
     func testTheAdviceSteersAwayFromWaterAndIsQuick() throws {
         let tees = tees
         XCTAssertGreaterThanOrEqual(tees.count, 18)

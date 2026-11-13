@@ -15,20 +15,22 @@ final class HoleOverviewTests: XCTestCase {
         }
     }
 
-    func testToParIsNilWithNoFinishedHoles() {
+    func testToParIsNilWithNoStrokes() {
         var round = Round(courseSelection: .test)
-        round.holes = [RoundHole(strokes: strokes(3))]
+        round.holes = [RoundHole(strokes: [])]
 
-        // The only played hole is the one in play
         XCTAssertNil(HoleOverview.toPar(round))
     }
 
-    func testToParLeavesOutTheHoleInPlayOfAnActiveRound() {
+    func testToParCountsTheHoleBeingPlayedOfAnActiveRound() {
         var round = Round(courseSelection: .test)
-        round.holes = [RoundHole(strokes: strokes(5)), RoundHole(strokes: strokes(3)), RoundHole(strokes: strokes(2))]
+        // The third hole is the one being played, as after holing out before the next tee shot
+        round.holes = [RoundHole(strokes: strokes(3)), RoundHole(strokes: strokes(5)), RoundHole(strokes: strokes(4))]
 
-        // 5 + 3 on two par 4s
+        // 3 + 5 + 4 on three par 4s
         XCTAssertEqual(HoleOverview.toPar(round), 0)
+        round.holes[2].strokes = strokes(3)
+        XCTAssertEqual(HoleOverview.toPar(round), -1)
     }
 
     func testToParIsTheSameForEveryDisplayHole() {
@@ -37,23 +39,9 @@ final class HoleOverviewTests: XCTestCase {
 
         for index in 0..<4 {
             round.setDisplayHole(index, at: Date())
-            // 5 + 6 on two par 4s
-            XCTAssertEqual(HoleOverview.toPar(round), 3, "Showing hole \(index + 1)")
+            // 5 + 6 + 2 on three par 4s
+            XCTAssertEqual(HoleOverview.toPar(round), 1, "Showing hole \(index + 1)")
         }
-    }
-
-    func testHoleInPlayHasTheLatestStroke() {
-        let start = Date()
-        var round = Round(courseSelection: .test)
-        XCTAssertNil(HoleOverview.holeInPlay(round))
-
-        // A round that started on the second hole and is now on the first
-        round.holes = [RoundHole(strokes: strokes(2, hitAt: start.addingTimeInterval(600))),
-                       RoundHole(strokes: strokes(5, hitAt: start))]
-
-        XCTAssertEqual(HoleOverview.holeInPlay(round), 0)
-        // 5 on a par 4
-        XCTAssertEqual(HoleOverview.toPar(round), 1)
     }
 
     func testToParCountsEveryPlayedHoleOfAnEndedRound() {

@@ -4,8 +4,10 @@ import simd
 
 /// The club and aim with the lowest expected score from where the player stands: each club's
 /// pattern is tried at aims up to 45° either side of the line to the pin, and its spots scored by
-/// the strokes to hole out from where they stop. See plans/2026-11-02-caddie-club-and-aim.md,
-/// section 3, and plans/2026-11-11-shot-dispersion.md for the pattern.
+/// the strokes to hole out from where they stop. Only aims whose aim point is on the hole's
+/// fairway or green count; when none is, aims within 20 yards of the centerline. See
+/// plans/2026-11-02-caddie-club-and-aim.md, section 3, and plans/2026-11-11-shot-dispersion.md
+/// for the pattern.
 struct ClubAdvice {
     /// How far either side of the line to the pin the aims go, in whole degrees.
     static let maxAimOffset = 45
@@ -15,6 +17,27 @@ struct ClubAdvice {
     static let fineSpan = 2
     /// Expected scores this close are a tie, which goes to the aim nearer the line to the pin.
     static let tieMargin = 0.005
+    /// When no aim point is on the fairway or green, aim points this far either side of the
+    /// centerline count: 20 yards, in meters.
+    static let centerlineHalfWidth = 20 * 0.9144
+
+    /// Which aim points count, tried in order until one gives advice.
+    enum AimRule: CaseIterable {
+        /// On the hole's fairway or green.
+        case landing
+        /// Within `centerlineHalfWidth` of the hole's centerline.
+        case centerline
+        /// Any, for a hole with neither, or a player too far off the hole for the others.
+        case any
+
+        func allows(_ point: GroundPoint, lies: LieGrid) -> Bool {
+            switch self {
+            case .landing: lies.isLanding(point)
+            case .centerline: lies.isNearCenterline(point, within: ClubAdvice.centerlineHalfWidth)
+            case .any: true
+            }
+        }
+    }
 
     let club: Club
     /// The club's Caddie average: the yards to the aim point.
@@ -93,6 +116,18 @@ struct ClubAdvice {
     /// gives it. Nil without clubs, or when the task it runs in is cancelled.
     static func best(from start: GroundPoint, pin: GroundPoint, clubs: [(club: Club, distance: ClubDistance)],
                      missAngle: Double, lies: LieGrid) -> ClubAdvice? {
+        for rule in AimRule.allCases {
+            if Task.isCancelled { return nil }
+            if let advice = best(from: start, pin: pin, clubs: clubs, missAngle: missAngle, lies: lies, rule: rule) {
+                return advice
+            }
+        }
+        return nil
+    }
+
+    /// The best of `clubs` whose aim point `rule` allows. Nil when it allows none.
+    static func best(from start: GroundPoint, pin: GroundPoint, clubs: [(club: Club, distance: ClubDistance)],
+                     missAngle: Double, lies: LieGrid, rule: AimRule) -> ClubAdvice? {
         let toPin = start.heading(to: pin)
         let lie = lies.lie(at: start)
         // Nearest the line to the pin first, so a near tie keeps the aim nearer it
@@ -105,7 +140,9 @@ struct ClubAdvice {
             var clubBest: ClubAdvice?
             func consider(_ offset: Int) {
                 // Right of the line is clockwise
-                let spots = straight.turned(to: toPin - Double(offset) * .pi / 180)
+                let heading = toPin - Double(offset) * .pi / 180
+                guard rule.allows(start.moved(Double(distance.average) * 0.9144, heading: heading), lies: lies) else { return }
+                let spots = straight.turned(to: heading)
                 let strokes = expectedStrokes(of: spots, pin: pin, lies: lies)
                 if let current = clubBest, !isBetter(strokes, offset: offset, than: current) { return }
                 clubBest = ClubAdvice(club: club, yards: distance.average,
