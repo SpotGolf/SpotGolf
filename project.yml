@@ -30,7 +30,7 @@ fileGroups:
 packages:
   CourseDataSwift:
     url: https://github.com/SpotGolf/CourseDataSwift
-    exactVersion: "0.7.0"
+    exactVersion: "0.8.0"
   # The watch's sensor sources, live and mock
   SensorSources:
     url: https://github.com/SpotGolf/SensorSources

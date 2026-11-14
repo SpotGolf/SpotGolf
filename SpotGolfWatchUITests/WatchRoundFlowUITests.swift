@@ -231,8 +231,10 @@ final class WatchRoundFlowUITests: XCTestCase {
         let endRoundButton = app.buttons["End Round"]
         XCTAssertTrue(endRoundButton.waitToExist(), "End Round button should exist on last page")
         endRoundButton.tap()
-        XCTAssertTrue(app.staticTexts["No active round"].waitToExist(),
-                      "No active round should show after ending round")
+        // No phone takes the round in these tests, so it stays waiting to be sent
+        XCTAssertTrue(app.staticTexts["Round ended"].waitToExist(),
+                      "Round ended should show after ending round")
+        XCTAssertFalse(app.staticTexts["No active round"].exists)
         let workoutStatus = app.staticTexts["workoutStatus"]
         XCTAssertTrue(waitForLabel(of: workoutStatus, in: ["ended"]),
                       "The workout should be saved, but was \(workoutStatus.label)")

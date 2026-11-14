@@ -283,6 +283,9 @@
     "Recording is off for this round. It starts again next round while Developer Mode is on." : {
 
     },
+    "Round ended" : {
+
+    },
     "Sand Wedge" : {
 
     },
@@ -347,6 +350,9 @@
 
     },
     "Waiting to send earlier sessions to your iPhone" : {
+
+    },
+    "Waiting for your iPhone" : {
 
     },
     "Water" : {

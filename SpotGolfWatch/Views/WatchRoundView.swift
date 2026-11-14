@@ -88,24 +88,54 @@ struct WatchRoundView: View {
 
     private var noRoundHome: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 4) {
-                Image(systemName: services.syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
-                    .font(.system(size: 10))
-                    .foregroundStyle(services.syncService.isConnected ? .green : .secondary)
-                Text("No active round")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            }
+            if services.watchSync.unsentRound != nil {
+                roundSending
+            } else {
+                HStack(spacing: 4) {
+                    connectionIcon
+                    Text("No active round")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
 
-            // A round needs a course, and courses are picked on the phone
-            Text("Start a round on your iPhone")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                // A round needs a course, and courses are picked on the phone
+                Text("Start a round on your iPhone")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
             workoutStatus
         }
         .padding()
+    }
+
+    private var connectionIcon: some View {
+        Image(systemName: services.syncService.isConnected ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+            .font(.system(size: 10))
+            .foregroundStyle(services.syncService.isConnected ? .green : .secondary)
+    }
+
+    /// Shown after a round ends until the phone has all of it, so the player knows it is still
+    /// being sent, or is waiting for the phone.
+    @ViewBuilder
+    private var roundSending: some View {
+        HStack(spacing: 4) {
+            connectionIcon
+            Text("Round ended")
+                .font(.headline)
+        }
+        if services.syncService.isConnected {
+            ProgressView()
+            Text("Sending to your iPhone…")
+                .font(.caption)
+                .multilineTextAlignment(.center)
+        } else {
+            Text("Waiting for your iPhone")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
     }
 
     // MARK: - Info Page

@@ -1000,6 +1000,21 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertFalse(pair.watchStreams.hasStream(for: id))
     }
 
+    func testEndedRoundIsUnsentUntilThePhoneHasAllOfIt() {
+        let id = pair.startRound()
+        XCTAssertNil(pair.watch.unsentRound)
+        pair.setReachable(false)
+        pair.watch.record(locations(0..<3))
+
+        pair.watch.endRound()
+
+        XCTAssertEqual(pair.watch.unsentRound?.id, id)
+
+        pair.setReachable(true)
+
+        XCTAssertNil(pair.watch.unsentRound)
+    }
+
     func testWatchEndWhilePhoneUnreachableIsSentOnReconnect() {
         let id = pair.startRound()
         pair.setReachable(false)

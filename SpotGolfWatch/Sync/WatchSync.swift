@@ -184,6 +184,17 @@ final class WatchSync {
         })
     }
 
+    /// The ended round the phone does not have all of yet: its end is not confirmed, or part of
+    /// its stream is still on the watch. The newest, when there are several.
+    var unsentRound: Round? {
+        // Read so views update: the stream's counts are not observed, and a round's own fields may not be
+        _ = streams.revision
+        _ = rounds.revision
+        return rounds.rounds
+            .filter { $0.status == .ended && (!$0.endConfirmed || streams.hasStream(for: $0.id)) }
+            .max { $0.date < $1.date }
+    }
+
     // MARK: - Receive
 
     private func handle(_ message: SyncMessage) -> SyncMessage? {
