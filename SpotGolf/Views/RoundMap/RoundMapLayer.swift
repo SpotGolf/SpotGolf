@@ -24,7 +24,8 @@ struct RoundMapLayer: View {
     let trackLine: [CLLocationCoordinate2D]
     /// The fixes where the hole could start, for the time of a spot placed by hand.
     let startWindow: [TrackPoint]
-    let suggestions: [StrokeSuggestion]
+    /// Every suggestion on the hole. The map shows `shownSuggestions`.
+    let allSuggestions: [StrokeSuggestion]
     let mapStyle: MapStyleChoice
     @Binding var camera: MapCameraState
     @Binding var target: CLLocationCoordinate2D?
@@ -45,6 +46,7 @@ struct RoundMapLayer: View {
         let strokesToShow = round.hole(at: shownHoleIndex).strokes
         MapReader { proxy in
             let targetLines = targetLines
+            let suggestions = suggestions
             let strokeLines = showsStrokeLines ? MapGeometry.strokeLines(strokesToShow) : []
             // The map holds still while a spot is held or the pattern is dragged, or it would pan
             // under the finger
@@ -189,6 +191,13 @@ struct RoundMapLayer: View {
         return Self.closedPath([start, ring[left], ring[right]]).contains(point)
     }
 
+    /// The suggestions with room next to the hole's strokes at the map's zoom, so a suggestion
+    /// does not cover a stroke when zoomed out.
+    private var suggestions: [StrokeSuggestion] {
+        MapGeometry.suggestionsWithRoom(allSuggestions, strokes: round.hole(at: shownHoleIndex).strokes,
+                                        metersPerPoint: camera.metersPerPoint)
+    }
+
     private var isHoldingSpot: Bool {
         draggingStroke != nil || newSpot != nil
     }
@@ -273,6 +282,7 @@ struct RoundMapLayer: View {
     private func pinCutouts(proxy: MapProxy) -> some View {
         let strokes = round.hole(at: shownHoleIndex).strokes
         let pin = round.pin(onHole: shownHoleIndex)
+        let suggestions = suggestions
         // Room under a pin for its dot, and around the flag for its larger sizes: a canvas cuts
         // a symbol off at its edges
         let pinRoom: CGFloat = 8

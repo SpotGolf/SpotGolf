@@ -178,7 +178,7 @@ struct RoundMapView: View {
                                   refreshDraggedOutcomes(after: Self.outcomesWait)
                               },
                               isDraggingSpot: $isDraggingSpot, trackLine: trackLine, startWindow: startWindow,
-                              suggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
+                              allSuggestions: suggestions, mapStyle: mapStyle, camera: $camera, target: $target, spot: $spot)
                 if greenView.isShown {
                     // Over the map rather than in place of it, so the map keeps its camera
                     GreenView(round: round, shownHoleIndex: holeIndex,

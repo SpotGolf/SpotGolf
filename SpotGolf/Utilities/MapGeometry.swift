@@ -181,6 +181,27 @@ enum MapGeometry {
             || suggestions.contains { $0.coordinate.map { round.isOnGreen($0, holeIndex: index) } ?? false }
     }
 
+    /// A suggestion whose dot is closer than this to a stroke's dot on the map, in points, is
+    /// left off it: the two pins would stand on each other. The width of a pin's head
+    /// (`PinMetrics.head`).
+    static let suggestionRoomPoints = 28.0
+
+    /// The `suggestions` the map shows at its zoom: those with room next to every one of
+    /// `strokes`. Zoomed out, a suggestion next to a stroke would cover it, so it is left off.
+    /// Zoomed in, the two stand apart and it shows again, as it may be a stroke of its own, such
+    /// as a second ball from the tee. A suggestion with no location is left off.
+    static func suggestionsWithRoom(_ suggestions: [StrokeSuggestion], strokes: [Stroke],
+                                    metersPerPoint: Double) -> [StrokeSuggestion] {
+        let room = suggestionRoomPoints * metersPerPoint
+        return suggestions.filter { suggestion in
+            guard let coordinate = suggestion.coordinate else { return false }
+            return !strokes.contains {
+                LocalDistance.meters(fromLat: coordinate.latitude, lon: coordinate.longitude,
+                                     toLat: $0.coordinate.latitude, lon: $0.coordinate.longitude) < room
+            }
+        }
+    }
+
     /// `suggestions` in the order the map draws them, back to front: stops, then swings, then
     /// putts, each oldest first, so the newest of a kind is on top. Strokes go over all of them.
     static func stacked(_ suggestions: [StrokeSuggestion]) -> [StrokeSuggestion] {

@@ -192,6 +192,25 @@ final class MapGeometryTests: XCTestCase {
                        [stop1, stop2, swing1, swing2, putt1, putt2])
     }
 
+    func testSuggestionsNextToAStrokeAreLeftOffUntilTheMapZoomsIn() {
+        let start = StreamFixtures.start
+        let tee = Stroke(coordinate: PathCourse.coordinate(north: 0, east: 0).clLocation.coordinate)
+        // 5 m from the tee stroke: a second ball from the tee
+        let reTee = StrokeSuggestion(timestamp: start, kind: .swing(peakG: 20),
+                                     coordinate: PathCourse.coordinate(north: 0, east: 5).clLocation.coordinate)
+        let fairway = StrokeSuggestion(timestamp: start.addingTimeInterval(60), kind: .swing(peakG: 20),
+                                       coordinate: PathCourse.coordinate(north: 200, east: 0).clLocation.coordinate)
+        let unplaced = StrokeSuggestion.swing(at: start.addingTimeInterval(120), peakG: 20)
+        let all = [reTee, fairway, unplaced]
+
+        // Zoomed out, 5 m is 10 points: less than the width of a pin's head
+        XCTAssertEqual(MapGeometry.suggestionsWithRoom(all, strokes: [tee], metersPerPoint: 0.5), [fairway])
+        // Zoomed in, it is 50 points
+        XCTAssertEqual(MapGeometry.suggestionsWithRoom(all, strokes: [tee], metersPerPoint: 0.1), [reTee, fairway])
+        // With no stroke, nothing is covered
+        XCTAssertEqual(MapGeometry.suggestionsWithRoom(all, strokes: [], metersPerPoint: 0.5), [reTee, fairway])
+    }
+
     func testHoleTrackKeepsTheFixesOnTheHole() {
         let round = Round(date: StreamFixtures.start, courseSelection: PathCourse.selection)
         round.addStroke(Stroke(coordinate: StreamFixtures.location(300).coordinate,
