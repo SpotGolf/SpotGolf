@@ -3,7 +3,7 @@ import CoreLocation
 import SwiftUI
 
 /// The shown hole's green, drawn by the app so it can zoom in past the map's limit, for putts:
-/// the green and the bunkers and water near it, the GPS track, the spots, the pin and the player,
+/// the green with its slope heat map, the bunkers and water near it, the GPS track, the spots, the pin and the player,
 /// with feet between the strokes. The spots are added, moved and opened here, and the pin can be
 /// dragged. Unlike the map, a tap does not drop a target.
 /// See plans/2026-10-17-green-view.md.
@@ -22,6 +22,9 @@ struct GreenView: View {
     @State private var projection: GreenProjection?
     /// Bunkers and water near the green.
     @State private var hazards: [Feature] = []
+    /// The green's slopes and their picture, made once. Nil for a green without elevation data.
+    @State private var heatMap: GreenHeatMap?
+    @State private var heatMapImage: CGImage?
     /// The pinch's last magnification and the pan's last translation, to apply each change once.
     @State private var lastMagnification: CGFloat = 1
     @State private var lastPan: CGSize = .zero
@@ -58,7 +61,10 @@ struct GreenView: View {
                     pinDistance
                 }
         }
-        .onAppear(perform: loadHazards)
+        .onAppear {
+            loadHazards()
+            loadHeatMap()
+        }
     }
 
     // MARK: - Top bar
@@ -155,6 +161,13 @@ struct GreenView: View {
         }
     }
 
+    private func loadHeatMap() {
+        guard let green = round.green(holeIndex: shownHoleIndex), let surface = green.surface else { return }
+        let heatMap = GreenHeatMap(surface: surface, polygon: green.polygon)
+        self.heatMap = heatMap
+        heatMapImage = heatMap.makeImage()
+    }
+
     /// The hazards, the green, the track, and the lines between strokes.
     private func drawGround(in context: inout GraphicsContext, _ projection: GreenProjection) {
         func path(_ coordinates: [CLLocationCoordinate2D], closed: Bool) -> Path {
@@ -171,6 +184,9 @@ struct GreenView: View {
         if let green = round.green(holeIndex: shownHoleIndex) {
             let outline = path(green.polygon.map(\.clCoordinate), closed: true)
             context.fill(outline, with: .color(Self.greenFill))
+            if let heatMap, let heatMapImage {
+                drawHeatMap(heatMap, image: heatMapImage, clippedTo: outline, in: &context, projection)
+            }
             context.stroke(outline, with: .color(.white.opacity(0.8)), lineWidth: 1)
         }
         if trackLine.count >= 2 {
@@ -181,6 +197,56 @@ struct GreenView: View {
             context.stroke(path(line.coordinates, closed: false), with: .color(.white), lineWidth: 1)
         }
     }
+
+    /// The slope colors as a smooth picture, cut to the green's outline, with downhill arrows.
+    private func drawHeatMap(_ heatMap: GreenHeatMap, image: CGImage, clippedTo outline: Path,
+                             in context: inout GraphicsContext, _ projection: GreenProjection) {
+        func point(column: Double, row: Double) -> CGPoint {
+            projection.point(for: heatMap.coordinate(column: column, row: row).clCoordinate)
+        }
+
+        // The picture covers every cell, from the outer edge of the first to that of the last.
+        // Its corners place it, so it turns with the hole's direction of play.
+        let topLeft = point(column: -0.5, row: Double(heatMap.rows) - 0.5)
+        let topRight = point(column: Double(heatMap.columns) - 0.5, row: Double(heatMap.rows) - 0.5)
+        let bottomLeft = point(column: -0.5, row: -0.5)
+        var picture = context
+        picture.clip(to: outline)
+        picture.concatenate(CGAffineTransform(a: topRight.x - topLeft.x, b: topRight.y - topLeft.y,
+                                              c: bottomLeft.x - topLeft.x, d: bottomLeft.y - topLeft.y,
+                                              tx: topLeft.x, ty: topLeft.y))
+        picture.draw(Image(decorative: image, scale: 1).interpolation(.high), in: CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        // An arrow on every second cell, and on every cell once they are far enough apart
+        let cellPoints = projection.pointsPerMeter * heatMap.spacing
+        let step = cellPoints >= Self.arrowSpread ? 1 : 2
+        let unit = min(cellPoints, Self.arrowSpread)
+        let radians = projection.heading * .pi / 180
+        var arrows = Path()
+        for cell in heatMap.cells
+        where cell.isOnGreen && cell.column % step == 0 && cell.row % step == 0 && cell.slopePercent >= 0.5 {
+            let center = point(column: Double(cell.column), row: Double(cell.row))
+            // 0.5 cells long at 1%, up to 1.6 cells at 4% and more
+            let length = unit * min(1.6, 0.4 * cell.slopePercent + 0.1)
+            // Turned as the ground is. Up on the screen is negative y.
+            let dx = cell.downhillEast * cos(radians) - cell.downhillNorth * sin(radians)
+            let dy = -(cell.downhillEast * sin(radians) + cell.downhillNorth * cos(radians))
+            let tail = CGPoint(x: center.x - dx * length / 2, y: center.y - dy * length / 2)
+            let tip = CGPoint(x: center.x + dx * length / 2, y: center.y + dy * length / 2)
+            let head = min(length * 0.45, unit * 0.45)
+            arrows.move(to: tail)
+            arrows.addLine(to: tip)
+            for turn in [2.6, -2.6] {
+                let angle = atan2(dy, dx) + turn
+                arrows.move(to: tip)
+                arrows.addLine(to: CGPoint(x: tip.x + cos(angle) * head, y: tip.y + sin(angle) * head))
+            }
+        }
+        context.stroke(arrows, with: .color(.black.opacity(0.75)), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+    }
+
+    /// Cells this many points apart each get an arrow, and arrows grow no further.
+    private static let arrowSpread: Double = 28
 
     private var strokeLines: [StrokeLine] {
         MapGeometry.strokeLines(strokes)
