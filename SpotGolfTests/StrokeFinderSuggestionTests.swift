@@ -245,6 +245,132 @@ final class StrokeFinderSuggestionTests: XCTestCase {
         XCTAssertEqual(suggestions(track, [chip]).map(\.timestamp), [chip.timestamp])
     }
 
+    // MARK: - Wide shots
+
+    /// A track that starts with a tee shot on hole 1.
+    private func teedOff() -> (track: Track, teeShot: StrokeSuggestion) {
+        var track = Track()
+        track.stand(20)
+        let teeShot = track.swing()
+        track.stand(5)
+        return (track, teeShot)
+    }
+
+    /// Walks to a spot 100 m east of the centerline and makes a full swing there.
+    private func wideShot(_ track: inout Track) -> StrokeSuggestion {
+        track.walk(north: 150, east: 100)
+        track.stand(20)
+        let shot = track.swing()
+        track.stand(5)
+        return shot
+    }
+
+    func testWideShotAfterTheTeeShotIsAStroke() {
+        var (track, teeShot) = teedOff()
+        let wide = wideShot(&track)
+        track.walk(north: 300)
+
+        XCTAssertEqual(suggestions(track, [teeShot, wide]).map(\.timestamp), [teeShot.timestamp, wide.timestamp])
+    }
+
+    func testWideSwingAfterTheGreenIsNotAStroke() {
+        var (track, teeShot) = teedOff()
+        track.walk(north: 300)
+        track.stand(20)
+        let wide = wideShot(&track)
+
+        XCTAssertFalse(suggestions(track, [teeShot, wide]).map(\.timestamp).contains(wide.timestamp))
+    }
+
+    func testWideSwingAfterWalkingPastTheGreenIsNotAStroke() {
+        var (track, teeShot) = teedOff()
+        // The ball was holed from the fairway: on past the green without stopping at it
+        track.walk(north: 340)
+        track.stand(20)
+        let wide = wideShot(&track)
+
+        XCTAssertEqual(suggestions(track, [teeShot, wide]).map(\.timestamp), [teeShot.timestamp])
+    }
+
+    func testWideSwingAfterTheNextTeeIsNotAStroke() {
+        // The next tee is beside this hole's fairway, so the player never passes the green
+        let next = HoleShape(tees: [PathCourse.square(north: 150, east: 40, half: 5)])
+        var (track, teeShot) = teedOff()
+        track.walk(north: 150, east: 40)
+        track.stand(20)
+        let wide = wideShot(&track)
+
+        let found = StrokeFinder.suggestions(on: hole, next: next, points: track.points, swings: [teeShot, wide], minStop: 30)
+        XCTAssertEqual(found.map(\.timestamp), [teeShot.timestamp])
+    }
+
+    func testWideSwingAfterTheNextTeeIsNotAStrokeInARound() {
+        var (track, teeShot) = teedOff()
+        track.walk(north: 300, east: 60) // hole 2's tee
+        track.stand(20)
+        let wide = wideShot(&track)
+        let round = Round(date: Self.start, courseSelection: PathCourse.selection)
+
+        let found = StrokeFinder.suggestions(in: round, holeIndex: 0, points: track.points, swings: [teeShot, wide], minStop: 30)
+        XCTAssertEqual(found.map(\.timestamp), [teeShot.timestamp])
+    }
+
+    func testChipFromOverTheGreenIsAStroke() {
+        var (track, teeShot) = teedOff()
+        track.walk(north: 345) // 30 m past the green's edge
+        track.stand(20)
+        let chip = track.swing()
+        track.stand(5)
+        track.walk(north: 300)
+
+        XCTAssertEqual(suggestions(track, [teeShot, chip]).map(\.timestamp), [teeShot.timestamp, chip.timestamp])
+    }
+
+    func testWideSwingOnAHoleWithNoTeeBoxesIsNotAStroke() {
+        let noTees = HoleShape(green: hole.green, centerline: hole.centerline)
+        var (track, teeShot) = teedOff()
+        let wide = wideShot(&track)
+
+        let found = StrokeFinder.suggestions(on: noTees, points: track.points, swings: [teeShot, wide], minStop: 30)
+        XCTAssertEqual(found.map(\.timestamp), [teeShot.timestamp])
+    }
+
+    /// Hole 2 with hole 1 before it: the player leaves a cart at hole 2's tee, then goes back.
+    private func cartAtHoleTwosTee(teeOff: Bool) -> [Date] {
+        let holes = PathCourse.selection.orderedHoles
+        let holeOne = HoleShape(hole: holes[0], course: PathCourse.selection.course)
+        let holeTwo = HoleShape(hole: holes[1], course: PathCourse.selection.course)
+        var track = Track()
+        track.walk(north: 300, east: 60)
+        track.stand(20)
+        var swings: [StrokeSuggestion] = []
+        if teeOff { swings.append(track.swing()) }
+        track.stand(5)
+        // 5 m off hole 1's green, 80 m from hole 2's centerline
+        track.walk(north: 300, east: -20)
+        track.stand(20)
+        swings.append(track.swing())
+        track.stand(5)
+        return StrokeFinder.suggestions(on: holeTwo, previous: holeOne, points: track.points, swings: swings, minStop: 30)
+            .map(\.timestamp)
+    }
+
+    func testGoingBackToThePreviousGreenUndoesEnteringTheHole() {
+        XCTAssertTrue(cartAtHoleTwosTee(teeOff: false).isEmpty)
+    }
+
+    func testTeeShotKeepsTheHoleEnteredNearThePreviousGreen() {
+        XCTAssertEqual(cartAtHoleTwosTee(teeOff: true).count, 2)
+    }
+
+    func testPastGreenIsBeyondTheCenterlinesEnd() {
+        XCTAssertTrue(hole.isPastGreen(PathCourse.coordinate(north: 340, east: 0)))
+        XCTAssertTrue(hole.isPastGreen(PathCourse.coordinate(north: 301, east: 80)))
+        XCTAssertFalse(hole.isPastGreen(PathCourse.coordinate(north: 299, east: 80)))
+        XCTAssertFalse(hole.isPastGreen(PathCourse.coordinate(north: -20, east: 0)))
+        XCTAssertFalse(HoleShape().isPastGreen(PathCourse.coordinate(north: 340, east: 0)))
+    }
+
     // MARK: - Putts and chips
 
     func testContactOnTheGreenIsAPutt() {

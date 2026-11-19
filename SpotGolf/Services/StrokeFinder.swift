@@ -43,7 +43,8 @@ enum StrokeFinder {
     /// A swing this close to one of the hole's tee boxes is on the hole, even where the centerline
     /// starts past the tee.
     static let teeShotRadius: CLLocationDistance = 10
-    /// A stop farther than this from the hole's centerline is off the hole (the turn, the parking lot).
+    /// A stop farther than this from the hole's centerline is off the hole (the turn, the parking
+    /// lot), unless the player was playing the hole then; see `playedStops`.
     static let maxCenterlineDistance: Double = 60
     /// Contacts, and stops with no contact, count only on the green or this close to its edge:
     /// putts, and chips the watch barely felt. The watch listens in the same zone. The default
@@ -74,6 +75,8 @@ enum StrokeFinder {
     /// playing when they walked away from it: a stop picks up a few fixes as the player slows
     /// down, so its start can fall just before the hole does. A hole with no start yet (no stroke
     /// on it) is also offered the stops after the last hole that has one; see `HoleTimeline.possibleHoles`.
+    /// The holes before and after it in playing order say when the player was playing the hole;
+    /// see `playedStops`.
     /// `minStop` is the shortest stop with no swing that is offered; `zoneMargin` is how far from
     /// the green's edge still counts as on it; `hidden` holds the IDs of the suggestions turned
     /// into strokes.
@@ -81,7 +84,9 @@ enum StrokeFinder {
                             contacts: [ContactEvent] = [], events: [StreamEvent] = [], minStop: TimeInterval,
                             zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = []) -> [StrokeSuggestion] {
         let shape = HoleShape(hole: round.courseHole(at: holeIndex), course: round.course)
-        return suggestions(on: shape, points: points, swings: swings, contacts: contacts, events: events, minStop: minStop,
+        let previous = round.courseHole(at: holeIndex - 1).map { HoleShape(hole: $0, course: round.course) }
+        let next = round.courseHole(at: holeIndex + 1).map { HoleShape(hole: $0, course: round.course) }
+        return suggestions(on: shape, previous: previous, next: next, points: points, swings: swings, contacts: contacts, events: events, minStop: minStop,
                            zoneMargin: zoneMargin, hidden: hidden) {
             round.possibleHoles(at: $0.end).contains(holeIndex)
         }
@@ -90,7 +95,10 @@ enum StrokeFinder {
     /// The stroke suggestions among the stops that `isOnHole` accepts by their start and end, in
     /// time order.
     ///
-    /// A full swing made while stopped is a stroke. Full swings at one spot within `sameShotWindow`
+    /// A full swing made while stopped is a stroke. One made while the player was playing the hole
+    /// counts however far it is from the centerline: a shot from another fairway. `previous` and
+    /// `next` are the holes before and after this one in playing order, which say when that was;
+    /// see `playedStops`. Full swings at one spot within `sameShotWindow`
     /// are one stroke, the strongest of them: practice swings come before the shot. On or near
     /// the green, each contact of `puttScore` or more is a putt, the first later contact of
     /// `tapInScore` or more after it is the tap-in, and a stop with no contact may be a putt or
@@ -104,7 +112,8 @@ enum StrokeFinder {
     ///
     /// A full swing on the green is never offered: it is a knock or a shake, so the green has
     /// only putts and stops.
-    static func suggestions(on hole: HoleShape, points: [TrackPoint], swings: [StrokeSuggestion],
+    static func suggestions(on hole: HoleShape, previous: HoleShape? = nil, next: HoleShape? = nil,
+                            points: [TrackPoint], swings: [StrokeSuggestion],
                             contacts: [ContactEvent] = [], events: [StreamEvent] = [], minStop: TimeInterval,
                             zoneMargin: CLLocationDistance = chipZoneMargin, hidden: Set<UUID> = [],
                             isOnHole: (_ stop: (start: Date, end: Date)) -> Bool = { _ in true }) -> [StrokeSuggestion] {
@@ -118,18 +127,26 @@ enum StrokeFinder {
         }
 
         let stops = stops(in: points).filter { isOnHole(($0.start, $0.end)) }
+        // A swing while walking, or as the player arrived, is not a stroke
+        let inStops: [(swing: StrokeSuggestion, peakG: Float, stopIndex: Int)] = swings
+            .sorted { $0.timestamp < $1.timestamp }
+            .compactMap { swing in
+                guard let peakG = swing.peakG,
+                      let stopIndex = stops.firstIndex(where: { $0.contains(swing.timestamp, slack: stopSlack) }),
+                      swing.timestamp >= stops[stopIndex].start else { return nil }
+                return (swing, peakG, stopIndex)
+            }
+        let played = playedStops(stops, on: hole, previous: previous, next: next, zoneMargin: zoneMargin,
+                                 fullSwingStops: Set(inStops.filter { $0.peakG >= fullSwingPeak }.map(\.stopIndex)))
         var placed: [Placed] = []
-        for swing in swings.sorted(by: { $0.timestamp < $1.timestamp }) {
-            // A swing while walking, or as the player arrived, is not a stroke
-            guard let peakG = swing.peakG,
-                  let stopIndex = stops.firstIndex(where: { $0.contains(swing.timestamp, slack: stopSlack) }),
-                  swing.timestamp >= stops[stopIndex].start else { continue }
+        for (swing, peakG, stopIndex) in inStops {
             let stop = stops[stopIndex]
             let spot = nearestFix(to: swing.timestamp, in: points)
                 .map { Coordinate(lat: $0.latitude, lon: $0.longitude) } ?? stop.center
-            // Off the hole: the turn, the parking lot. A tee box is on the hole.
+            // Off the hole: the turn, the parking lot. A tee box is on the hole, and so is
+            // anywhere the player hit from while playing it.
             let atTee = hole.metersToTee(spot).map { $0 <= teeShotRadius } ?? false
-            if !atTee, let off = hole.metersToCenterline(stop.center), off > maxCenterlineDistance { continue }
+            if !atTee, !played.contains(stopIndex), let off = hole.metersToCenterline(stop.center), off > maxCenterlineDistance { continue }
             placed.append(Placed(swing: swing, peakG: peakG, stopIndex: stopIndex, spot: spot))
         }
 
@@ -353,6 +370,47 @@ enum StrokeFinder {
         func contains(_ date: Date, slack: TimeInterval = 0) -> Bool {
             date >= start.addingTimeInterval(-slack) && date <= end.addingTimeInterval(slack)
         }
+    }
+
+    /// The stops during which the player was playing the hole, as a range of indexes into
+    /// `stops`: from entering it at its tee until leaving it. Empty when they never entered.
+    ///
+    /// Golf is linear: the player enters a hole at its tee and leaves it going forward to the
+    /// next one, so every full swing in between is on the hole, however wide. See
+    /// plans/2026-11-19-wide-shot-suggestions.md.
+    ///
+    /// The player enters at the first stop at one of the hole's tee boxes. Until a full swing
+    /// is made at the tee (`fullSwingStops`), a stop at the previous hole's green undoes that:
+    /// they left a cart at this tee and went back to putt. They leave at the first stop after
+    /// the tee that is at the green, past it (beyond the centerline's end and outside the green
+    /// zone, for a ball holed from off the green), or at the next hole's tee.
+    private static func playedStops(_ stops: [Stop], on hole: HoleShape, previous: HoleShape?, next: HoleShape?,
+                                    zoneMargin: CLLocationDistance, fullSwingStops: Set<Int>) -> Range<Int> {
+        func atTee(_ shape: HoleShape?, _ stop: Stop) -> Bool {
+            shape?.metersToTee(stop.center).map { $0 <= teeShotRadius } ?? false
+        }
+        func atGreen(_ shape: HoleShape?, _ stop: Stop) -> Bool {
+            shape?.metersToGreen(stop.center).map { $0 <= zoneMargin } ?? false
+        }
+
+        var entered: Int?
+        var teedOff = false
+        for (index, stop) in stops.enumerated() {
+            if atTee(hole, stop) {
+                entered = entered ?? index
+                teedOff = teedOff || fullSwingStops.contains(index)
+                continue
+            }
+            guard let start = entered else { continue }
+            if !teedOff, atGreen(previous, stop) {
+                entered = nil
+                continue
+            }
+            if atGreen(hole, stop) || hole.isPastGreen(stop.center) || atTee(next, stop) {
+                return start..<index
+            }
+        }
+        return entered.map { $0..<stops.count } ?? 0..<0
     }
 
     /// The stops in `points`, in time order. `points` must be in time order.

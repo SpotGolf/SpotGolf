@@ -39,7 +39,7 @@ One full swing had no strong peak: the hole 4 six iron, at best 8.6 g at 09:00:0
 | 5 | Full swings are never cut by the cap of 10; putts and chips fill the rest in time order | `maxPerHole` |
 | 6 | Watch: a swing's peak is the highest reading in the 3 s after its start, not in the first 0.5 s | `SwingPeakFinder.cooldown` |
 
-Kept: a swing must fall in a stop (8 s within 5 m); a stop more than 60 m from the centerline is off the hole unless it is at a tee.
+Kept: a swing must fall in a stop (8 s within 5 m); a stop more than 60 m from the centerline is off the hole unless it is at a tee. Since 2026-11-19 that rule is skipped while the player is playing the hole; see `plans/2026-11-19-wide-shot-suggestions.md`.
 
 Removed: the tee practice window, "the last swing in a stop wins", "a new stop must be closer to the green".
 

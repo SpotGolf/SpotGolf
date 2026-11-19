@@ -40,6 +40,13 @@ struct HoleShape {
                              toPolyline: centerline.map { ($0.lat, $0.lon) })
     }
 
+    /// True when the point is beyond the green end of the centerline: the nearest point of the
+    /// centerline is its last point. False with no centerline.
+    func isPastGreen(_ point: Coordinate) -> Bool {
+        LocalDistance.nearest(fromLat: point.lat, lon: point.lon,
+                              onPolyline: centerline.map { ($0.lat, $0.lon) })?.isLineEnd ?? false
+    }
+
     /// Meters from a point to a polygon's nearest edge: zero inside it.
     static func distance(from point: Coordinate, to polygon: [Coordinate]) -> CLLocationDistance {
         guard !polygon.isEmpty else { return .infinity }
