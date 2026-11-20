@@ -35,7 +35,7 @@ final class WatchServices {
     /// Shows the workout's status, which UI tests read to check recovery after a relaunch.
     let showsWorkoutStatus: Bool
     @ObservationIgnored private let swingDetector: SwingDetector
-    @ObservationIgnored private var holeAdvancer = HoleAdvancer()
+    @ObservationIgnored private var holeAdvancer = HoleAdvancer(moving: .playingHole)
     /// Asks the player to end the active round once they have left its final green.
     @ObservationIgnored private var roundEndPrompter: RoundEndPrompter?
     /// Checks the prompter's waits while no fixes come in.
@@ -46,8 +46,8 @@ final class WatchServices {
     // The last values acted on, so only changes are acted on. Swing detection starts off.
     @ObservationIgnored private var hasLaunched = false
     @ObservationIgnored private var activeRoundID: UUID?
-    /// The display hole last written to Developer Mode's events.
-    @ObservationIgnored private var recordedDisplayHole: Int?
+    /// The playing hole last written to Developer Mode's events.
+    @ObservationIgnored private var recordedPlayingHole: Int?
     @ObservationIgnored private var detectsSwings = false
     /// The Developer Mode setting the active round runs with, so only a change starts or stops
     /// the capture. The round shows the Developer Mode page while it is on.
@@ -173,7 +173,7 @@ final class WatchServices {
         contactMonitor.recordsCandidates = { [weak self] in self?.puttCapture.recordsRound ?? false }
         let monitor = contactMonitor
         puttCapture.greenZone = { monitor.zoneMargin }
-        // Developer Mode's events: taps, haptics, swings, display hole changes and the stream's events
+        // Developer Mode's events: taps, haptics, swings, playing hole changes and the stream's events
         sensors.onGuarded = { [weak self] in self?.puttCapture.record(event: $0, value: $1) }
         // Settings changed on the phone mid-round take effect at once
         sync.onSettings = { [weak self] in self?.applyRoundSettings($0) }
@@ -205,11 +205,11 @@ final class WatchServices {
         roundStore.addListener { [weak self] event in
             guard case .roundsChanged = event, let self else { return }
             self.recordingInputsChanged()
-            // Developer Mode's events: the display hole, however it changed
-            let hole = self.roundStore.activeRound?.displayHoleNumber
-            if hole != self.recordedDisplayHole {
-                self.recordedDisplayHole = hole
-                if let hole { self.puttCapture.record(event: "displayHole", value: Double(hole)) }
+            // Developer Mode's events: the playing hole, however it changed
+            let hole = self.roundStore.activeRound?.playingHoleNumber
+            if hole != self.recordedPlayingHole {
+                self.recordedPlayingHole = hole
+                if let hole { self.puttCapture.record(event: "playingHole", value: Double(hole)) }
             }
         }
         workoutManager.addRunningListener { [weak self] _ in self?.recordingInputsChanged() }
@@ -231,16 +231,17 @@ final class WatchServices {
         }
     }
 
-    /// Runs here rather than in a view, so it works while watchOS runs the app in the
-    /// background and no view is on screen. Only the display hole moves; the timeline is set
-    /// by the strokes added on the phone. While the user holds the hole, the advancer still sees
-    /// every fix, but its move is dropped.
+    /// Moves the playing hole on once the player has walked to the next tee. Runs here rather
+    /// than in a view, so it works while watchOS runs the app in the background and no view is on
+    /// screen. Nothing holds it back: a hole picked with the arrows is the hole the player is on,
+    /// and it moves on from there like any other. The timeline is set by the strokes added on
+    /// the phone.
     private func advanceHole(_ location: CLLocation) {
         guard let round = roundStore.activeRound,
               let next = holeAdvancer.advance(location: location, courseSelection: round.courseSelection,
-                                              displayHoleIndex: round.displayHoleIndex),
-              !round.isDisplayHoleHeld(at: location.timestamp) else { return }
-        roundStore.setDisplayHole(next)
+                                              holeIndex: round.playingHoleIndex) else { return }
+        Log.rounds.notice("Round \(round.id): the player walked to hole \(round.holeNumber(at: next))")
+        roundStore.setPlayingHole(next)
     }
 
     /// How often the end round prompt's waits are checked without fixes.
@@ -351,6 +352,8 @@ final class WatchServices {
     private func activeRoundChanged(_ isActive: Bool, endedRoundID: UUID?) {
         Log.rounds.notice("Active round: \(isActive)")
         if isActive, let round = roundStore.activeRound {
+            // What it saw of the last round's holes says nothing about this one's
+            holeAdvancer = HoleAdvancer(moving: .playingHole)
             contactMonitor.zoneMargin = WatchSync.greenZone
             // A round takes the workout and the sensors from a drill session, which ends and is sent
             drills.stop()

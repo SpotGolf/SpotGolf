@@ -34,9 +34,14 @@ struct GreenExit {
         return toGreen
     }
 
+    /// Enough fixes on the green for the player to have played it.
+    var hasBeenOnGreen: Bool {
+        greenFixes >= Self.minGreenFixes
+    }
+
     /// Enough fixes on the green, and the latest one far enough from it.
     var hasLeft: Bool {
-        guard greenFixes >= Self.minGreenFixes, let toGreen else { return false }
+        guard hasBeenOnGreen, let toGreen else { return false }
         return toGreen >= Self.exitDistance
     }
 }

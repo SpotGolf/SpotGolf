@@ -13,7 +13,7 @@ extension InRoundUITests {
 
         // Under the hole circles: par, then the tee picked
         XCTAssertTrue(summary.waitToExist(), "Par and tee should appear under the hole circles")
-        XCTAssertEqual(summary.label, "Par 4 - Gold")
+        XCTAssertEqual(summary.label, "Par 4 - Gold tees")
 
         // Key information boxes on the right of the map, once the location is in
         XCTAssertTrue(UIWait.until { distanceToCenter.exists && distanceToCenter.label.first?.isNumber == true },
@@ -24,14 +24,14 @@ extension InRoundUITests {
     func testDotMenuChangesTheTee() throws {
         app.goToHole(1)
         XCTAssertTrue(summary.waitToExist(), "Par and tee should appear under the hole circles")
-        XCTAssertEqual(summary.label, "Par 4 - Gold")
+        XCTAssertEqual(summary.label, "Par 4 - Gold tees")
 
         pickTee("Blue")
-        XCTAssertTrue(UIWait.until { summary.label == "Par 4 - Blue" }, "The header should show the new tee, not '\(summary.label)'")
+        XCTAssertTrue(UIWait.until { summary.label == "Par 4 - Blue tees" }, "The header should show the new tee, not '\(summary.label)'")
 
         // Back to the tee the other tests read
         pickTee("Gold")
-        XCTAssertTrue(UIWait.until { summary.label == "Par 4 - Gold" }, "The header should show the tee again, not '\(summary.label)'")
+        XCTAssertTrue(UIWait.until { summary.label == "Par 4 - Gold tees" }, "The header should show the tee again, not '\(summary.label)'")
     }
 
     /// Opens the dot menu's Tee item and picks `tee`.
@@ -76,14 +76,14 @@ extension InRoundUITests {
     func testHeaderAndHazardsUpdateOnHoleChange() throws {
         app.goToHole(1)
         XCTAssertTrue(summary.waitToExist(), "Par and tee should appear for hole 1")
-        XCTAssertEqual(summary.label, "Par 4 - Gold")
+        XCTAssertEqual(summary.label, "Par 4 - Gold tees")
 
         // Show hole 2, then move the location to its tee so distances update
         app.goToHole(2)
         moveTo(latitude: Self.holeTwoTee.latitude, longitude: Self.holeTwoTee.longitude)
 
         // Hole 2 is also par 4 from the Gold tee
-        XCTAssertEqual(summary.label, "Par 4 - Gold")
+        XCTAssertEqual(summary.label, "Par 4 - Gold tees")
 
         // Hole 2 has bunkers between the tee and the green: each gets a yardage bubble on the map
         let bubble = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Hazard in '")).firstMatch

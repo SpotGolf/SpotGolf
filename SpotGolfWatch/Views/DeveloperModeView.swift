@@ -51,7 +51,7 @@ struct DeveloperModeView: View {
     /// Between greens.
     private var waiting: some View {
         VStack(spacing: 8) {
-            Text("Hole \(services.roundStore.activeRound?.displayHoleNumber ?? 0)")
+            Text("Hole \(services.roundStore.activeRound?.playingHoleNumber ?? 0)")
                 .font(.caption)
                 .fontWeight(.semibold)
             Text("Waiting for a green")

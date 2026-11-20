@@ -3,7 +3,8 @@ import Observation
 import os
 
 /// The phone's side of the messaging: starting and ending rounds with the watch, receiving
-/// the watch's stream, and keeping the timeline and strokes in step.
+/// the watch's stream, and keeping the pins and strokes in step. The hole each device shows is
+/// never sent: the phone moves its own on from the stream's fixes (`DisplayHoleAdvance`).
 @MainActor
 @Observable
 final class PhoneSync {
@@ -48,6 +49,8 @@ final class PhoneSync {
     let streams: StreamStore
     let receiver: StreamReceiver
     let snapshots: SnapshotSync
+    /// Moves the display hole on as the watch's fixes arrive.
+    let holeAdvance: DisplayHoleAdvance
 
     /// False only for UI tests, which run without a watch: rounds start and end on the phone alone.
     private let requiresWatch: Bool
@@ -76,6 +79,9 @@ final class PhoneSync {
         self.retryDelay = retryDelay
         self.launchWatchApp = launchWatchApp
         receiver = StreamReceiver(rounds: rounds, streams: streams)
+        let advance = DisplayHoleAdvance(rounds: rounds)
+        holeAdvance = advance
+        receiver.onFixes = { advance.received($0, roundID: $1) }
         snapshots = SnapshotSync(sync: sync, rounds: rounds, sendsStrokes: true)
         snapshots.roundSettings = { [weak self] round in self?.roundSettings(for: round) }
 
@@ -89,7 +95,6 @@ final class PhoneSync {
         }
     }
 
-    /// Sends changes made on the phone to the watch.
     /// The settings the watch follows, as they stand now.
     private func roundSettings(for round: Round) -> RoundSettingsMessage {
         RoundSettingsMessage(roundID: round.id, developerMode: developerMode(),
@@ -103,9 +108,9 @@ final class PhoneSync {
         snapshots.sendSettings(round)
     }
 
+    /// Sends changes made on the phone to the watch.
     private func roundChanged(_ event: RoundEvent) {
         switch event {
-        case .displayHoleChanged(let round): snapshots.sendDisplayHole(round)
         case .pinsChanged(let round): snapshots.sendPins(round)
         case .strokesChanged(let round): snapshots.sendStrokes(round)
         case .roundDeleted(let id):
@@ -206,7 +211,7 @@ final class PhoneSync {
             return
         }
         let start = StartRound(roundID: round.id, date: round.date, course: course,
-                               displayHole: round.displayHole, pins: round.pins,
+                               pins: round.pins,
                                strokes: round.strokesSnapshot,
                                streamBase: receiver.have(for: round.id),
                                version: version,
@@ -396,9 +401,6 @@ final class PhoneSync {
             let ack = receiver.receive(batch)
             finishIfComplete(batch.roundID)
             return .streamAck(ack)
-        case .displayHole(let displayHole):
-            snapshots.apply(displayHole)
-            return nil
         case .pins(let pins):
             snapshots.apply(pins)
             return nil

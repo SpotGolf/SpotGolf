@@ -3,7 +3,7 @@ import CourseDataSwift
 
 /// Asks the player to end the round once they have left the final green, and ends it when they
 /// don't answer. The final hole is the last in playing order, and leaving its green is found by
-/// GPS alone: strokes, swings and the display hole play no part. Times are the fixes' own, or
+/// GPS alone: strokes, swings and the playing hole play no part. Times are the fixes' own, or
 /// the clock's for `check(at:)`. See plans/2026-11-02-end-round-prompt.md.
 struct RoundEndPrompter {
     /// How long after leaving the final green the watch asks.

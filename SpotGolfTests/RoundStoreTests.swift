@@ -9,7 +9,6 @@ final class RoundStoreTests: XCTestCase {
 
     private var container: ModelContainer!
     private var store: RoundStore!
-    private var displayHoleChanges: [Round]!
     private var strokeChanges: [Round]!
     /// The round's strokes version when each stroke change was reported.
     private var strokeVersions: [Int]!
@@ -18,12 +17,10 @@ final class RoundStoreTests: XCTestCase {
         try await super.setUp()
         container = Storage.inMemoryContainer()
         store = RoundStore(context: ModelContext(container))
-        displayHoleChanges = []
         strokeChanges = []
         strokeVersions = []
         store.addListener { [weak self] event in
             switch event {
-            case .displayHoleChanged(let round): self?.displayHoleChanges.append(round)
             case .strokesChanged(let round):
                 self?.strokeChanges.append(round)
                 self?.strokeVersions.append(round.strokesVersion)
@@ -34,7 +31,6 @@ final class RoundStoreTests: XCTestCase {
 
     override func tearDown() async throws {
         store = nil
-        displayHoleChanges = nil
         strokeChanges = nil
         strokeVersions = nil
         container = nil
@@ -149,15 +145,28 @@ final class RoundStoreTests: XCTestCase {
 
     // MARK: - Display hole
 
-    func testSetDisplayHoleReportsChangeAndLeavesTheTimelineAlone() {
+    func testSetDisplayHoleLeavesTheTimelineAlone() {
         let id = startRound()
 
         store.setDisplayHole(2)
 
         XCTAssertEqual(store.round(id)?.displayHoleIndex, 2)
-        XCTAssertEqual(displayHoleChanges.count, 1)
-        XCTAssertEqual(displayHoleChanges[0].displayHoleIndex, 2)
         XCTAssertEqual(store.round(id)?.startedHoles, [0])
+    }
+
+    /// Nothing is sent to the other device for the hole a device shows.
+    func testAHoleChangeIsOnlyRoundsChanged() {
+        startRound()
+        var events: [RoundEvent] = []
+        store.addListener { events.append($0) }
+
+        store.setDisplayHole(2, holds: true)
+        store.setPlayingHole(1)
+
+        XCTAssertEqual(events.count, 2)
+        for event in events {
+            guard case .roundsChanged = event else { return XCTFail("Expected roundsChanged, got \(event)") }
+        }
     }
 
     func testSetDisplayHoleByRoundID() {
@@ -175,25 +184,49 @@ final class RoundStoreTests: XCTestCase {
         store.setDisplayHole(0)
 
         XCTAssertEqual(store.round(id)?.displayHoleIndex, 0)
-        XCTAssertTrue(displayHoleChanges.isEmpty)
     }
 
     func testSetDisplayHoleWithoutActiveRoundIsNoOp() {
         store.setDisplayHole(1)
 
         XCTAssertTrue(store.rounds.isEmpty)
-        XCTAssertTrue(displayHoleChanges.isEmpty)
     }
 
-    func testMergeDisplayHoleDoesNotReportChange() {
+    func testHoldDisplayHoleKeepsTheHoleAndHoldsIt() {
         let id = startRound()
-        let later = DisplayHole(holeIndex: 4, changedAt: Date().addingTimeInterval(1))
+        let now = Date()
 
-        XCTAssertTrue(store.mergeDisplayHole(later, roundID: id))
+        store.holdDisplayHole(roundID: id, at: now)
 
-        XCTAssertEqual(store.round(id)?.displayHoleIndex, 4)
-        XCTAssertTrue(displayHoleChanges.isEmpty)
-        XCTAssertFalse(store.mergeDisplayHole(later, roundID: id))
+        XCTAssertEqual(store.round(id)?.displayHoleIndex, 0)
+        XCTAssertEqual(store.round(id)?.isDisplayHoleHeld(at: now.addingTimeInterval(DisplayHole.holdTime - 1)), true)
+    }
+
+    // MARK: - Playing hole
+
+    func testSetPlayingHoleLeavesTheDisplayHoleAndTheTimelineAlone() {
+        let id = startRound()
+
+        store.setPlayingHole(2)
+
+        XCTAssertEqual(store.round(id)?.playingHoleIndex, 2)
+        XCTAssertEqual(store.round(id)?.displayHoleIndex, 0)
+        XCTAssertEqual(store.round(id)?.startedHoles, [0])
+    }
+
+    func testSetPlayingHoleWithoutActiveRoundIsNoOp() {
+        store.setPlayingHole(1)
+
+        XCTAssertTrue(store.rounds.isEmpty)
+    }
+
+    func testPlayingHoleSurvivesNewStoreInstance() {
+        let id = startRound()
+        store.setPlayingHole(6)
+
+        let reloaded = RoundStore(context: ModelContext(container))
+
+        XCTAssertEqual(reloaded.round(id)?.playingHoleIndex, 6)
     }
 
     // MARK: - Tee

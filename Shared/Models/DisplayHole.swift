@@ -1,20 +1,15 @@
 import Foundation
 
-/// The hole both devices show: its distances, strokes and map. The watch's GPS moves it to the
-/// next hole, and the user can pick any hole on either device. It says nothing about when holes
-/// were played; that is the hole timeline.
+/// The hole the phone shows: its distances, strokes and map. During a round the watch's GPS
+/// moves it to the next hole as its fixes arrive, and the user can pick any hole. It says nothing
+/// about when holes were played (that is the hole timeline) or about the hole the watch shows
+/// (`Round.playingHoleIndex`).
 struct DisplayHole: Codable, Equatable {
-    /// How long the watch's GPS leaves the hole alone after the user picks a hole or edits a spot.
-    /// The hold is kept beside the display hole, in `Round.displayHoleHeldUntil`.
+    /// How long the hole stays after the user picks a hole or edits a spot, before the watch's
+    /// GPS can move it on. The hold is kept beside the display hole, in `Round.displayHoleHeldUntil`.
     static let holdTime: TimeInterval = 30
 
     var holeIndex: Int
-    /// When it was last set. When both devices set it, the later one wins.
+    /// When it was last set.
     var changedAt: Date
-
-    /// True when `other` was set later, so it should replace this one. At the same time the
-    /// higher hole wins, so both devices pick the same one.
-    func isOlder(than other: DisplayHole) -> Bool {
-        changedAt < other.changedAt || (changedAt == other.changedAt && holeIndex < other.holeIndex)
-    }
 }

@@ -40,12 +40,17 @@ final class Round {
     /// When play moved to each hole, or nil for a hole with no start yet. Hole 0 starts with the
     /// round. Only the phone changes it. See `HoleTimeline`.
     var holeStarts: [Date?]
-    /// The hole both devices show. Separate from the timeline: see plans/2026-10-04-display-hole.md.
+    /// Phone only: the hole the phone shows. The watch shows `playingHoleIndex`, and neither is
+    /// sent to the other device. Separate from the timeline: see plans/2026-10-04-display-hole.md.
     var displayHole: DisplayHole
-    /// Until when the watch's GPS does not move the display hole on, after the user picked a hole
-    /// or edited a spot. The distant past when not held. Its own attribute with a default, so
-    /// rounds saved before it existed still open.
+    /// Phone only: until when the display hole does not move on by itself, after the user picked
+    /// a hole or edited a spot. The distant past when not held. Its own attribute with a default,
+    /// so rounds saved before it existed still open.
     var displayHoleHeldUntil: Date = Date.distantPast
+    /// Watch only: the hole the watch thinks the player is on, which is the hole it shows. The
+    /// watch's GPS moves it on (`HoleAdvancer`) and the watch's arrows set it. Its own attribute
+    /// with a default, so rounds saved before it existed still open.
+    var playingHoleIndex: Int = 0
     /// Stored as one encoded column: `Course` comes from CourseDataSwift and has optional values,
     /// and SwiftData crashes reading change history (which `@Query` does) for an optional value
     /// inside a struct it splits into columns. See plans/2026-10-19-swiftdata-models.md.
@@ -136,7 +141,7 @@ final class Round {
         courseSelection.course
     }
 
-    /// The hole both devices show.
+    /// The hole the phone shows.
     var displayHoleIndex: Int {
         displayHole.holeIndex
     }
@@ -160,22 +165,21 @@ final class Round {
         hole(at: displayHoleIndex).strokes
     }
 
-    /// Shows hole `index` from `date` on. Returns false when it is shown already or is not on the
-    /// course. A time before the last change (the two devices' clocks differ slightly) is moved just after it.
-    /// `holds` is for a hole the user picked: the watch's GPS then leaves it alone for `DisplayHole.holdTime`.
+    /// Shows hole `index` on the phone from `date` on. Returns false when it is shown already or
+    /// is not on the course. `holds` is for a hole the user picked: it then stays for
+    /// `DisplayHole.holdTime` before the watch's GPS can move it on.
     @discardableResult
     func setDisplayHole(_ index: Int, at date: Date, holds: Bool = false) -> Bool {
         guard index != displayHoleIndex, index >= 0, index <= lastHoleIndex else { return false }
-        let changedAt = date > displayHole.changedAt ? date : displayHole.changedAt.addingTimeInterval(0.001)
-        displayHole = DisplayHole(holeIndex: index, changedAt: changedAt)
+        displayHole = DisplayHole(holeIndex: index, changedAt: date)
         if holds {
             holdDisplayHole(at: date)
         }
         return true
     }
 
-    /// Keeps the watch's GPS from moving the display hole on for `DisplayHole.holdTime` from
-    /// `date`. Returns false when it is held that long already.
+    /// Keeps the display hole from moving on by itself for `DisplayHole.holdTime` from `date`.
+    /// Returns false when it is held that long already.
     @discardableResult
     func holdDisplayHole(at date: Date) -> Bool {
         let until = date.addingTimeInterval(DisplayHole.holdTime)
@@ -184,27 +188,32 @@ final class Round {
         return true
     }
 
-    /// True while the watch's GPS must not move the display hole on.
+    /// True while the display hole must not move on by itself.
     func isDisplayHoleHeld(at date: Date) -> Bool {
         date < displayHoleHeldUntil
     }
 
-    /// Takes the other device's display hole when it was set later, and its hold when that
-    /// lasts longer. Returns true if either changed.
+    /// The playing hole's number, as `displayHoleNumber` is the display hole's.
+    var playingHoleNumber: Int {
+        holeNumber(at: playingHoleIndex)
+    }
+
+    var playingCourseHole: Hole? {
+        courseHole(at: playingHoleIndex)
+    }
+
+    /// Strokes on the playing hole.
+    var playingHoleStrokes: [Stroke] {
+        hole(at: playingHoleIndex).strokes
+    }
+
+    /// Puts the player on hole `index`, on the watch. Returns false when they are on it already
+    /// or it is not on the course.
     @discardableResult
-    func mergeDisplayHole(_ other: DisplayHole, heldUntil: Date = .distantPast) -> Bool {
-        guard other.holeIndex >= 0, other.holeIndex <= lastHoleIndex else { return false }
-        var changed = false
-        if displayHole.isOlder(than: other) {
-            displayHole = other
-            changed = true
-        }
-        // A hold sent with an older hole still counts, so it never moves the hole back
-        if heldUntil > displayHoleHeldUntil {
-            displayHoleHeldUntil = heldUntil
-            changed = true
-        }
-        return changed
+    func setPlayingHole(_ index: Int) -> Bool {
+        guard index != playingHoleIndex, index >= 0, index <= lastHoleIndex else { return false }
+        playingHoleIndex = index
+        return true
     }
 
     /// The pin on hole `index`, if it has been set.

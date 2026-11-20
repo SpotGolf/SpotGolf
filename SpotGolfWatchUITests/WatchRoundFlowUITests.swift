@@ -73,17 +73,19 @@ final class WatchRoundFlowUITests: XCTestCase {
         endRound()
     }
 
-    func testArrowsChangeTheHoleShownWithNothingToConfirm() throws {
+    func testArrowsChangeTheHolePlayedWithNothingToConfirm() throws {
         app.launchArguments.append("--start-round")
         launchApp()
         dismissHealthAccessAlerts()
         XCTAssertTrue(app.staticTexts["Hole 1"].waitToExist(), "Hole 1 label should be visible")
+        XCTAssertTrue(app.staticTexts["Playing"].exists, "The hole is labelled as the one being played")
 
-        // The arrow shows hole 2; there is nothing to confirm or go back to
+        // The arrow puts the player on hole 2; there is nothing to confirm or go back to
         app.buttons["Next hole"].tap()
         XCTAssertTrue(app.staticTexts["Hole 2"].waitToExist(), "Hole 2 should be shown")
+        XCTAssertTrue(app.staticTexts["Playing"].exists, "The hole is labelled as the one being played")
         XCTAssertFalse(app.buttons["Resume round"].exists, "There is no round position to go back to")
-        XCTAssertFalse(app.buttons["Play this hole"].exists, "Showing a hole is all there is to do")
+        XCTAssertFalse(app.buttons["Play this hole"].exists, "Picking a hole is all there is to do")
 
         // And back to hole 1
         app.buttons["Previous hole"].tap()

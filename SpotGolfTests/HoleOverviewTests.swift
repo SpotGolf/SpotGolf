@@ -135,11 +135,28 @@ final class HoleOverviewTests: XCTestCase {
         let par = { (index: Int) in CourseSelection.test.orderedHoles[index].par }
 
         let combo = Round(courseSelection: CourseSelection(course: course, selectedSubCourseIndices: [0, 1], teeName: "Blue/White"))
-        XCTAssertEqual(HoleOverview.summary(combo, holeIndex: 0), "Par \(par(0)) - White")
-        XCTAssertEqual(HoleOverview.summary(combo, holeIndex: 1), "Par \(par(1)) - Blue")
+        XCTAssertEqual(HoleOverview.summary(combo, holeIndex: 0), "Par \(par(0)) - White tees")
+        XCTAssertEqual(HoleOverview.summary(combo, holeIndex: 1), "Par \(par(1)) - Blue tees")
 
         let blue = Round(courseSelection: CourseSelection(course: course, selectedSubCourseIndices: [0, 1], teeName: "Blue"))
-        XCTAssertEqual(HoleOverview.summary(blue, holeIndex: 0), "Par \(par(0)) - Blue")
+        XCTAssertEqual(HoleOverview.summary(blue, holeIndex: 0), "Par \(par(0)) - Blue tees")
+    }
+
+    /// A tee named by a number alone would read as a count: "Par 4 - 2".
+    func testSummaryGivesANumberedTeeANumberSign() {
+        var course = CourseSelection.test.course
+        course.tees = ["2", "10", "Tee 3", "2nd"].map { TeeDefinition(name: $0, color: "#0000FF") }
+        let par = CourseSelection.test.orderedHoles[0].par
+        let summary = { (tee: String) in
+            HoleOverview.summary(Round(courseSelection: CourseSelection(course: course, selectedSubCourseIndices: [0, 1], teeName: tee)),
+                                 holeIndex: 0)
+        }
+
+        XCTAssertEqual(summary("2"), "Par \(par) - #2 tees")
+        XCTAssertEqual(summary("10"), "Par \(par) - #10 tees")
+        // Only a name that is all digits
+        XCTAssertEqual(summary("Tee 3"), "Par \(par) - Tee 3 tees")
+        XCTAssertEqual(summary("2nd"), "Par \(par) - 2nd tees")
     }
 
     func testSummaryWithoutATeeIsParOnly() {

@@ -3,7 +3,8 @@ import SwiftUI
 
 /// A round's holes on the map: the header of holes, the map, the distances over it, and the
 /// buttons under it. An active round shows its display hole and follows the player; a past
-/// round shows any hole picked in the header.
+/// round shows any hole picked in the header. The display hole is the phone's own: the watch
+/// shows the hole it thinks is being played.
 struct RoundMapView: View {
     let roundID: UUID
     @Environment(PhoneServices.self) private var services
@@ -19,7 +20,7 @@ struct RoundMapView: View {
     @State private var camera = MapCameraState()
     @State private var spot = SpotSelection()
     /// The hole shown in a past round. An active round shows its display hole, which the watch's
-    /// GPS and the user move.
+    /// GPS and the user move on this phone.
     @State private var pastHoleIndex = 0
     /// Keeps an active round's map on its hole while a spot is edited.
     @State private var hold = HoleHold()
@@ -106,7 +107,7 @@ struct RoundMapView: View {
             hold.editChanged(isEditing: editing, shownHoleIndex: shownHoleIndex(round))
         }
         .onChange(of: isEditingSpot) {
-            // Starting and ending a spot edit each give the player time before the watch moves on
+            // Starting and ending a spot edit each give the player time before the hole moves on
             if let round, round.isActive {
                 services.roundStore.holdDisplayHole(roundID: round.id)
             }
@@ -140,8 +141,8 @@ struct RoundMapView: View {
         }
     }
 
-    /// The hole the map, header, and distances describe: an active round's display hole, which
-    /// the watch shows too, or the hole `hold` keeps. A past round opens on its first hole.
+    /// The hole the map, header, and distances describe: an active round's display hole, or the
+    /// hole `hold` keeps. A past round opens on its first hole.
     private func shownHoleIndex(_ round: Round) -> Int {
         guard round.isActive else { return pastHoleIndex }
         return hold.holeIndex(lastHoleIndex: round.lastHoleIndex) ?? round.displayHoleIndex
@@ -258,8 +259,9 @@ struct RoundMapView: View {
         }
     }
 
-    /// Shows a hole. During a round the watch shows it too, and its GPS moves on from there.
-    /// The timeline does not change: a hole starts with its first stroke.
+    /// Shows a hole. During a round it stays for `DisplayHole.holdTime`, then the watch's GPS
+    /// moves on from there. The watch's own hole and the timeline do not change: a hole starts
+    /// with its first stroke.
     private func selectHole(_ index: Int, _ round: Round) {
         if index == shownHoleIndex(round) {
             panToHole()

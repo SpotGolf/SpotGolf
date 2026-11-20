@@ -1,8 +1,8 @@
 import Foundation
 
-/// Keeps the display hole, pins and strokes the same on both devices. Every change sends the full
-/// state, so a lost message is fixed by the next one, and a late or repeated one does no harm: the
-/// later display hole and pins win, and strokes keep the highest version.
+/// Keeps the pins and strokes the same on both devices. Every change sends the full state, so a
+/// lost message is fixed by the next one, and a late or repeated one does no harm: the later pins
+/// win, and strokes keep the highest version. The hole each device shows is never sent.
 @MainActor
 final class SnapshotSync {
     private let sync: SyncService
@@ -16,12 +16,6 @@ final class SnapshotSync {
         self.sync = sync
         self.rounds = rounds
         self.sendsStrokes = sendsStrokes
-    }
-
-    func sendDisplayHole(_ round: Round) {
-        guard round.isActive else { return }
-        sync.send(.displayHole(DisplayHoleMessage(round: round)))
-        updateContext(round)
     }
 
     func sendPins(_ round: Round) {
@@ -47,17 +41,10 @@ final class SnapshotSync {
     func updateContext(_ round: Round) {
         guard round.isActive else { return }
         sync.updateContext(SyncContext(
-            displayHole: DisplayHoleMessage(round: round),
             pins: PinsMessage(roundID: round.id, pins: round.pins),
             strokes: sendsStrokes ? round.strokesSnapshot : nil,
             settings: roundSettings(round)
         ))
-    }
-
-    /// Returns true if the display hole changed.
-    @discardableResult
-    func apply(_ message: DisplayHoleMessage) -> Bool {
-        rounds.mergeDisplayHole(message.displayHole, heldUntil: message.heldUntil, roundID: message.roundID)
     }
 
     /// Returns true if any pin changed.
@@ -75,9 +62,6 @@ final class SnapshotSync {
     func apply(_ context: SyncContext) {
         if let strokes = context.strokes {
             apply(strokes)
-        }
-        if let displayHole = context.displayHole {
-            apply(displayHole)
         }
         if let pins = context.pins {
             apply(pins)

@@ -97,7 +97,7 @@ final class PuttCaptureRecorderTests: XCTestCase {
         recorder.sessionChanged(.started(hole: 5))
         let segment = try XCTUnwrap(captureFolders.first).appendingPathComponent("001-hole5")
 
-        recorder.record(event: "displayHole", value: 6)
+        recorder.record(event: "playingHole", value: 6)
         recorder.record(StreamEvent(code: .microphoneRestart, value: 2))
         recorder.detectorCandidate(ContactDetector.Judged(time: Uptime.now, burst: 0.3, click: 20, onset: 9, score: 6, features: nil))
         recorder.record([CLLocation(latitude: 39.25, longitude: -104.5)])
@@ -110,7 +110,7 @@ final class PuttCaptureRecorderTests: XCTestCase {
         XCTAssertNotNil(meta.crownOrientation)
         let events = try String(contentsOf: segment.appendingPathComponent(PuttCapture.eventsFile), encoding: .utf8)
             .split(separator: "\n").dropFirst().map { $0.split(separator: ",")[1] }
-        XCTAssertEqual(events, ["displayHole", "microphoneRestart"])
+        XCTAssertEqual(events, ["playingHole", "microphoneRestart"])
         XCTAssertEqual(try String(contentsOf: segment.appendingPathComponent(PuttCapture.candidatesFile), encoding: .utf8)
             .split(separator: "\n").count, 2)
         XCTAssertEqual(try String(contentsOf: segment.appendingPathComponent(PuttCapture.locationsFile), encoding: .utf8)

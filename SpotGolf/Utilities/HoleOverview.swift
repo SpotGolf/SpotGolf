@@ -47,14 +47,18 @@ enum HoleOverview {
         diff == 0 ? String(localized: "E", comment: "Even par") : diff > 0 ? "+\(diff)" : "\(diff)"
     }
 
-    /// "Par 4 - Blue", with the tee played on the hole, or "Par 4" without a tee. Nil past the
-    /// course's last hole.
+    /// "Par 4 - Blue tees", with the tee played on the hole, or "Par 4" without a tee. A tee named
+    /// by a number alone gets a number sign, "Par 4 - #2 tees": a bare 2 reads as a count. Nil
+    /// past the course's last hole.
     static func summary(_ round: Round, holeIndex: Int) -> String? {
         guard let courseHole = round.courseHole(at: holeIndex) else { return nil }
         guard let tee = round.courseSelection.teeName(holeIndex: holeIndex) else {
             return String(localized: "Par \(courseHole.par)")
         }
-        return String(localized: "Par \(courseHole.par) - \(tee)")
+        let isNumber = !tee.isEmpty && tee.allSatisfy { $0.isASCII && $0.isNumber }
+        return isNumber
+            ? String(localized: "Par \(courseHole.par) - #\(tee) tees")
+            : String(localized: "Par \(courseHole.par) - \(tee) tees")
     }
 
     /// "3 strokes · 1 putt" for the hole's score so far, penalty strokes included, or nil before

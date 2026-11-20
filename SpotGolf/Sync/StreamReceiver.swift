@@ -7,6 +7,8 @@ import os
 final class StreamReceiver {
     private let rounds: RoundStore
     private let streams: StreamStore
+    /// Called with the GPS fixes of each batch once they are stored, oldest first, with their round.
+    var onFixes: (([TrackPoint], UUID) -> Void)?
 
     init(rounds: RoundStore, streams: StreamStore) {
         self.rounds = rounds
@@ -48,5 +50,12 @@ final class StreamReceiver {
         let skip = (have - batch.from) * StreamRecord.size
         let fresh = batch.records.subdata(in: (batch.records.startIndex + skip)..<(batch.records.startIndex + count * StreamRecord.size))
         streams.appendData(fresh, roundID: round.id)
+        let fixes = StreamRecord.records(in: fresh).compactMap { record -> TrackPoint? in
+            if case .fix(let point) = record { return point }
+            return nil
+        }
+        if !fixes.isEmpty {
+            onFixes?(fixes, round.id)
+        }
     }
 }

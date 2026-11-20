@@ -5,7 +5,7 @@ import os
 
 /// Follows the active round on the phone, with the app open or in the background: keeps location
 /// updates on and shows the display hole in a Live Activity. The phone's GPS is only for showing
-/// yards; the watch's GPS changes the hole.
+/// yards; the watch's GPS moves the display hole on (`DisplayHoleAdvance`).
 @MainActor
 @Observable
 final class RoundTracker {

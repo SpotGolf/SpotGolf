@@ -144,26 +144,26 @@ struct WatchRoundView: View {
         ScrollView {
             VStack(spacing: 8) {
                 let course = round.courseSelection.course
-                if let courseHole = round.displayCourseHole,
+                if let courseHole = round.playingCourseHole,
                    let green = courseHole.green(from: course.features),
                    let location = services.locationManager.lastLocation {
                     let direction = courseDirection(hole: courseHole, green: green, location: location, course: course)
                     // Mid is to the pin once it is known; the center pin is the green's center
-                    let pin = round.targetCoordinate(holeIndex: round.displayHoleIndex)
+                    let pin = round.targetCoordinate(holeIndex: round.playingHoleIndex)
                         .map { Coordinate(lat: $0.latitude, lon: $0.longitude) }
                     let greenDist = DistanceCalculator.greenDistances(from: location, green: green, direction: direction, middle: pin)
 
                     // Numbered through the round, as the phone does: the first hole of a second
                     // nine is hole 10, not the nine's own hole 1
-                    holeTitle("Hole \(round.displayHoleNumber) · Par \(courseHole.par)", round)
+                    holeTitle("Hole \(round.playingHoleNumber) · Par \(courseHole.par)", round)
 
-                    if round.isOnGreen(location.coordinate, holeIndex: round.displayHoleIndex) {
+                    if round.isOnGreen(location.coordinate, holeIndex: round.playingHoleIndex) {
                         setPinButton(location, round)
                     }
 
                     Divider()
 
-                    greenDistancesView(greenDist, toPin: round.hasKnownPin(holeIndex: round.displayHoleIndex))
+                    greenDistancesView(greenDist, toPin: round.hasKnownPin(holeIndex: round.playingHoleIndex))
 
                     Divider()
 
@@ -180,7 +180,7 @@ struct WatchRoundView: View {
 
                     strokesView(round)
                 } else {
-                    holeTitle("Hole \(round.displayHoleNumber)", round)
+                    holeTitle("Hole \(round.playingHoleNumber)", round)
 
                     Divider()
 
@@ -194,24 +194,31 @@ struct WatchRoundView: View {
         }
     }
 
-    /// The hole's name between two small arrows that show the previous and next hole. They
-    /// change the display hole, which the phone shows too; the timeline is set by strokes.
+    /// The hole the watch thinks the player is on, under "Playing", between two small arrows.
+    /// The arrows put the player on the previous or next hole: the watch only ever shows the
+    /// hole being played, so there is no looking at another one. The phone's hole is its own,
+    /// and the timeline is set by strokes.
     private func holeTitle(_ title: LocalizedStringKey, _ round: Round) -> some View {
-        let shown = round.displayHoleIndex
+        let playing = round.playingHoleIndex
         return HStack(spacing: 4) {
-            holeArrow("chevron.left", label: "Previous hole", disabled: shown == 0) {
+            holeArrow("chevron.left", label: "Previous hole", disabled: playing == 0) {
                 services.sensors.tapped()
-                services.roundStore.setDisplayHole(shown - 1, holds: true)
+                services.roundStore.setPlayingHole(playing - 1)
             }
 
-            Text(title)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 0) {
+                Text("Playing")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            .frame(maxWidth: .infinity)
 
-            holeArrow("chevron.right", label: "Next hole", disabled: shown >= round.lastHoleIndex) {
+            holeArrow("chevron.right", label: "Next hole", disabled: playing >= round.lastHoleIndex) {
                 services.sensors.tapped()
-                services.roundStore.setDisplayHole(shown + 1, holds: true)
+                services.roundStore.setPlayingHole(playing + 1)
             }
         }
     }
@@ -230,12 +237,12 @@ struct WatchRoundView: View {
         .accessibilityLabel(label)
     }
 
-    /// Shown only on the green: saves where the player stands as the shown hole's pin. Red until
+    /// Shown only on the green: saves where the player stands as the playing hole's pin. Red until
     /// the player has set the pin, then blue and offering to update it.
     private func setPinButton(_ location: CLLocation, _ round: Round) -> some View {
-        let isSet = round.hasSetPin(holeIndex: round.displayHoleIndex)
+        let isSet = round.hasSetPin(holeIndex: round.playingHoleIndex)
         return Button {
-            services.roundStore.setPin(location.coordinate, holeIndex: round.displayHoleIndex)
+            services.roundStore.setPin(location.coordinate, holeIndex: round.playingHoleIndex)
             services.sensors.play(.success)
         } label: {
             Label(isSet ? "Update pin" : "Set pin location", systemImage: "flag.fill")
@@ -289,7 +296,7 @@ struct WatchRoundView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(liveDistance ?? previousDistance(strokes: round.displayHoleStrokes))
+            Text(liveDistance ?? previousDistance(strokes: round.playingHoleStrokes))
                 .font(.caption2)
                 .fontWeight(.semibold)
         }
@@ -301,7 +308,7 @@ struct WatchRoundView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text("\(round.displayHoleStrokes.count)")
+            Text("\(round.playingHoleStrokes.count)")
                 .font(.caption2)
                 .fontWeight(.semibold)
         }
@@ -362,7 +369,7 @@ struct WatchRoundView: View {
 
     private func updateLiveDistance(location: CLLocation?) {
         guard let location,
-              let lastStroke = services.roundStore.activeRound?.displayHoleStrokes.last else {
+              let lastStroke = services.roundStore.activeRound?.playingHoleStrokes.last else {
             liveDistance = nil
             return
         }

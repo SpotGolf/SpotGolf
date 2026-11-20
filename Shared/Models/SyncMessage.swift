@@ -16,12 +16,11 @@ enum SyncMessage: Codable, Equatable {
     case endAck(EndAck)
     case streamBatch(StreamBatch)
     case streamAck(StreamAck)
-    case displayHole(DisplayHoleMessage)
     case pins(PinsMessage)
     case strokes(StrokesSnapshot)
     /// Phone → watch: the settings the watch follows, sent when the round is opened on the phone.
     case settings(RoundSettingsMessage)
-    /// The latest display hole, pins, strokes and settings, sent as application context.
+    /// The latest pins, strokes and settings, sent as application context.
     case context(SyncContext)
     /// Part of a message too large for one send.
     case chunk(SyncChunk)
@@ -41,7 +40,6 @@ struct StartRound: Codable, Equatable {
     let date: Date
     /// `CourseSelection.trimmed`, JSON, gzipped.
     let course: Data
-    let displayHole: DisplayHole
     let pins: [PinLocation?]
     let strokes: StrokesSnapshot
     /// The first stream index for the round: nonzero when an ended round is resumed.
@@ -53,14 +51,13 @@ struct StartRound: Codable, Equatable {
     /// The phone's Green Zone setting: meters from the green's edge the watch listens for contacts in.
     let greenZone: Double
 
-    init(roundID: UUID, date: Date, course: Data, displayHole: DisplayHole,
+    init(roundID: UUID, date: Date, course: Data,
          pins: [PinLocation?], strokes: StrokesSnapshot, streamBase: Int, version: String,
          developerMode: Bool = false,
          greenZone: Double = HoleShape.chipZoneMargin) {
         self.roundID = roundID
         self.date = date
         self.course = course
-        self.displayHole = displayHole
         self.pins = pins
         self.strokes = strokes
         self.streamBase = streamBase
@@ -78,7 +75,6 @@ extension StartRound {
         roundID = try values.decode(UUID.self, forKey: .roundID)
         date = try values.decode(Date.self, forKey: .date)
         course = try values.decode(Data.self, forKey: .course)
-        displayHole = try values.decode(DisplayHole.self, forKey: .displayHole)
         pins = try values.decode([PinLocation?].self, forKey: .pins)
         strokes = try values.decode(StrokesSnapshot.self, forKey: .strokes)
         streamBase = try values.decode(Int.self, forKey: .streamBase)
@@ -199,20 +195,6 @@ struct StreamAck: Codable, Equatable {
     let have: Int?
 }
 
-/// Both ways. The hole both devices show; the later change wins. The longer hold wins.
-struct DisplayHoleMessage: Codable, Equatable {
-    let roundID: UUID
-    let displayHole: DisplayHole
-    /// See `Round.displayHoleHeldUntil`.
-    let heldUntil: Date
-
-    init(round: Round) {
-        roundID = round.id
-        displayHole = round.displayHole
-        heldUntil = round.displayHoleHeldUntil
-    }
-}
-
 /// Both ways. Each hole's pin by play index, as in `Round.pins`; per hole, `PinLocation.isReplaced(by:)` picks.
 struct PinsMessage: Codable, Equatable {
     let roundID: UUID
@@ -237,16 +219,15 @@ struct RoundSettingsMessage: Codable, Equatable {
     let greenZone: Double
 }
 
+/// The hole each device shows is its own and is never sent: see `Round.displayHole` and
+/// `Round.playingHoleIndex`.
 struct SyncContext: Codable, Equatable {
-    let displayHole: DisplayHoleMessage?
     let pins: PinsMessage?
     let strokes: StrokesSnapshot?
     /// Absent in contexts from before settings were sent.
     let settings: RoundSettingsMessage?
 
-    init(displayHole: DisplayHoleMessage?, pins: PinsMessage?, strokes: StrokesSnapshot?,
-         settings: RoundSettingsMessage? = nil) {
-        self.displayHole = displayHole
+    init(pins: PinsMessage?, strokes: StrokesSnapshot?, settings: RoundSettingsMessage? = nil) {
         self.pins = pins
         self.strokes = strokes
         self.settings = settings
@@ -275,7 +256,6 @@ extension SyncMessage {
         case .endAck: "endAck"
         case .streamBatch: "streamBatch"
         case .streamAck: "streamAck"
-        case .displayHole: "displayHole"
         case .pins: "pins"
         case .strokes: "strokes"
         case .settings: "settings"

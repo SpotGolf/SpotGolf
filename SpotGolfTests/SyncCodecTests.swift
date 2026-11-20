@@ -93,7 +93,6 @@ final class SyncCodecTests: XCTestCase {
 
     func testStartRoundWithNoDeveloperModeHasItOff() throws {
         let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
-                               displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
                                pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
                                streamBase: 0, version: "0.9.0", developerMode: true)
         var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])
@@ -110,7 +109,6 @@ final class SyncCodecTests: XCTestCase {
 
     func testStartRoundFromBeforeTheGreenZoneSettingHasTheDefault() throws {
         let start = StartRound(roundID: roundID, date: Date(timeIntervalSince1970: 1_700_000_000), course: Data([1]),
-                               displayHole: DisplayHole(holeIndex: 0, changedAt: Date(timeIntervalSince1970: 1_700_000_000)),
                                pins: [], strokes: StrokesSnapshot(roundID: roundID, version: 0, holes: []),
                                streamBase: 0, version: "0.9.0", greenZone: 25)
         var plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: try SyncCodec.encode(.startRound(start)), format: nil) as? [String: Any])

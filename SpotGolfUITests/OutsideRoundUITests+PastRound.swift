@@ -53,7 +53,7 @@ extension OutsideRoundUITests {
         // The par and tee show, and with no live location there are no distance boxes
         let summary = app.staticTexts["HoleSummary"]
         XCTAssertTrue(summary.waitToExist(), "Par should appear under the hole circles")
-        XCTAssertEqual(summary.label, "Par 4 - Gold")
+        XCTAssertEqual(summary.label, "Par 4 - Gold tees")
         XCTAssertFalse(element("DistanceToCenter").exists, "A past round has no distance to the green")
         XCTAssertFalse(element("ElevationChange").exists, "A past round has no elevation change")
 

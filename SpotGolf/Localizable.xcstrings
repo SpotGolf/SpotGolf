@@ -389,12 +389,22 @@
     "Over 20" : {},
     "Par" : {},
     "Par %lld" : {},
-    "Par %lld - %@" : {
+    "Par %lld - #%@ tees" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Par %1$lld - %2$@"
+            "value" : "Par %1$lld - #%2$@ tees"
+          }
+        }
+      }
+    },
+    "Par %lld - %@ tees" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Par %1$lld - %2$@ tees"
           }
         }
       }

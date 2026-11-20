@@ -148,37 +148,6 @@ final class RoundTests: XCTestCase {
         XCTAssertTrue(round.setDisplayHole(round.lastHoleIndex, at: round.date.addingTimeInterval(700)))
     }
 
-    func testSetDisplayHoleTimedBeforeTheLastChangeIsPlacedJustAfterIt() {
-        var round = Round(courseSelection: .test)
-        round.setDisplayHole(2, at: round.date.addingTimeInterval(600))
-
-        // The other device's clock runs a little ahead
-        XCTAssertTrue(round.setDisplayHole(1, at: round.date.addingTimeInterval(599)))
-        XCTAssertEqual(round.displayHoleIndex, 1)
-        XCTAssertGreaterThan(round.displayHole.changedAt, round.date.addingTimeInterval(600))
-    }
-
-    func testMergeDisplayHoleTakesTheLaterChangeOnly() {
-        var round = Round(courseSelection: .test)
-        round.setDisplayHole(2, at: round.date.addingTimeInterval(600))
-
-        XCTAssertFalse(round.mergeDisplayHole(DisplayHole(holeIndex: 4, changedAt: round.date.addingTimeInterval(500))))
-        XCTAssertEqual(round.displayHoleIndex, 2)
-        XCTAssertTrue(round.mergeDisplayHole(DisplayHole(holeIndex: 4, changedAt: round.date.addingTimeInterval(700))))
-        XCTAssertEqual(round.displayHoleIndex, 4)
-        XCTAssertFalse(round.mergeDisplayHole(round.displayHole))
-    }
-
-    func testMergeDisplayHoleAtTheSameTimeTakesTheHigherHole() {
-        var round = Round(courseSelection: .test)
-        let when = round.date.addingTimeInterval(600)
-        round.setDisplayHole(2, at: when)
-
-        XCTAssertFalse(round.mergeDisplayHole(DisplayHole(holeIndex: 1, changedAt: when)))
-        XCTAssertTrue(round.mergeDisplayHole(DisplayHole(holeIndex: 3, changedAt: when)))
-        XCTAssertEqual(round.displayHoleIndex, 3)
-    }
-
     func testPickedDisplayHoleIsHeldForTheHoldTime() {
         var round = Round(courseSelection: .test)
         let when = round.date.addingTimeInterval(600)
@@ -206,27 +175,6 @@ final class RoundTests: XCTestCase {
         XCTAssertFalse(round.holdDisplayHole(at: when))
     }
 
-    func testMergeDisplayHoleTakesTheLongerHoldWithoutMovingTheHoleBack() {
-        var round = Round(courseSelection: .test)
-        let when = round.date.addingTimeInterval(600)
-        round.setDisplayHole(3, at: when)
-        let held = when.addingTimeInterval(40)
-
-        // The other device held hole 2 before it heard of hole 3
-        XCTAssertTrue(round.mergeDisplayHole(DisplayHole(holeIndex: 2, changedAt: when.addingTimeInterval(-10)), heldUntil: held))
-
-        XCTAssertEqual(round.displayHoleIndex, 3)
-        XCTAssertEqual(round.displayHoleHeldUntil, held)
-        XCTAssertFalse(round.mergeDisplayHole(DisplayHole(holeIndex: 3, changedAt: when), heldUntil: when))
-        XCTAssertEqual(round.displayHoleHeldUntil, held)
-    }
-
-    func testMergeDisplayHoleIgnoresAHoleOffTheCourse() {
-        var round = Round(courseSelection: .test)
-
-        XCTAssertFalse(round.mergeDisplayHole(DisplayHole(holeIndex: 18, changedAt: round.date.addingTimeInterval(600))))
-    }
-
     func testDisplayHoleStrokes() {
         let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
         let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
@@ -237,6 +185,58 @@ final class RoundTests: XCTestCase {
         // A hole play has not reached has no strokes
         round.setDisplayHole(7, at: round.date.addingTimeInterval(700))
         XCTAssertTrue(round.displayHoleStrokes.isEmpty)
+    }
+
+    // MARK: - Playing hole
+
+    func testPlayingHoleStartsOnTheFirstHole() {
+        let round = Round(courseSelection: .test)
+
+        XCTAssertEqual(round.playingHoleIndex, 0)
+        XCTAssertEqual(round.playingHoleNumber, 1)
+    }
+
+    func testSetPlayingHoleLeavesTheDisplayHoleAndTheTimelineAlone() {
+        let round = Round(courseSelection: .test)
+
+        XCTAssertTrue(round.setPlayingHole(5))
+
+        XCTAssertEqual(round.playingHoleIndex, 5)
+        XCTAssertEqual(round.playingHoleNumber, 6)
+        XCTAssertEqual(round.displayHoleIndex, 0)
+        XCTAssertEqual(round.startedHoles, [0])
+        XCTAssertEqual(round.holes.count, 1)
+    }
+
+    func testSetDisplayHoleLeavesThePlayingHoleAlone() {
+        let round = Round(courseSelection: .test)
+
+        round.setDisplayHole(3, at: round.date.addingTimeInterval(600), holds: true)
+
+        XCTAssertEqual(round.playingHoleIndex, 0)
+    }
+
+    func testSetPlayingHoleIgnoresTheSameHoleAndHolesOffTheCourse() {
+        let round = Round(courseSelection: .test)
+        round.setPlayingHole(2)
+
+        XCTAssertFalse(round.setPlayingHole(2))
+        XCTAssertFalse(round.setPlayingHole(-1))
+        XCTAssertFalse(round.setPlayingHole(round.lastHoleIndex + 1))
+        XCTAssertTrue(round.setPlayingHole(round.lastHoleIndex))
+    }
+
+    func testPlayingHoleStrokesAndCourseHole() {
+        let stroke1 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 33.0, longitude: -112.0))
+        let stroke2 = Stroke(coordinate: CLLocationCoordinate2D(latitude: 34.0, longitude: -113.0))
+        let round = Round(holes: [RoundHole(strokes: [stroke1]), RoundHole(strokes: [stroke2])], courseSelection: .test)
+        round.setPlayingHole(1)
+
+        XCTAssertEqual(round.playingHoleStrokes.map(\.id), [stroke2.id])
+        XCTAssertEqual(round.playingCourseHole?.number, 2)
+        // A hole play has not reached has no strokes
+        round.setPlayingHole(7)
+        XCTAssertTrue(round.playingHoleStrokes.isEmpty)
     }
 
     // MARK: - Hole timeline
@@ -871,6 +871,7 @@ final class RoundTests: XCTestCase {
         XCTAssertEqual(a.holes, b.holes, file: file, line: line)
         XCTAssertEqual(a.holeStarts, b.holeStarts, file: file, line: line)
         XCTAssertEqual(a.displayHole, b.displayHole, file: file, line: line)
+        XCTAssertEqual(a.playingHoleIndex, b.playingHoleIndex, file: file, line: line)
         XCTAssertEqual(a.courseSelection, b.courseSelection, file: file, line: line)
         XCTAssertEqual(a.pins, b.pins, file: file, line: line)
     }

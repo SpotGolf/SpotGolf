@@ -42,7 +42,7 @@ final class SyncFlowTests: XCTestCase {
         let watch = try XCTUnwrap(watchRound(id))
         XCTAssertEqual(watch.status, .active)
         XCTAssertEqual(watch.course.name, "Test Course")
-        XCTAssertEqual(watch.displayHole, phoneRound(id)?.displayHole)
+        XCTAssertEqual(watch.playingHoleIndex, 0)
         XCTAssertEqual(pair.watchAppLaunches, 1)
     }
 
@@ -1173,7 +1173,7 @@ final class SyncFlowTests: XCTestCase {
 
         let watch = try XCTUnwrap(watchRound(id))
         XCTAssertEqual(watch.strokesVersion, 2)
-        XCTAssertEqual(watch.displayHoleStrokes.first?.latitude, 39.91)
+        XCTAssertEqual(watch.hole(at: 0).strokes.first?.latitude, 39.91)
     }
 
     func testDeleteBeforeAddCannotBringStrokeBack() {
@@ -1212,75 +1212,94 @@ final class SyncFlowTests: XCTestCase {
         XCTAssertEqual(watchRound(id)?.allStrokes.count, 1)
     }
 
-    // MARK: - Display hole
+    // MARK: - The hole each device shows
 
-    func testDisplayHoleChangeOnWatchReachesPhone() {
-        let id = pair.startRound()
-
-        pair.watchRounds.setDisplayHole(1)
-
-        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
-        XCTAssertEqual(phoneRound(id)?.displayHole, watchRound(id)?.displayHole)
-        // The timeline is set by strokes, not by the hole shown
-        XCTAssertEqual(phoneRound(id)?.startedHoles, [0])
+    /// How many messages the two devices have sent.
+    private func sentCount() -> Int {
+        pair.phoneTransport.sent.count + pair.watchTransport.sent.count
     }
 
-    func testDisplayHoleChangeOnPhoneReachesWatch() {
+    func testAHolePickedOnThePhoneDoesNotReachTheWatch() {
         let id = pair.startRound()
-
-        pair.phoneRounds.setDisplayHole(3, roundID: id)
-
-        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 3)
-    }
-
-    func testHoleHeldOnPhoneIsHeldOnWatch() {
-        let id = pair.startRound()
+        let before = sentCount()
         let now = Date()
 
         pair.phoneRounds.setDisplayHole(3, roundID: id, at: now, holds: true)
-        XCTAssertEqual(watchRound(id)?.displayHoleHeldUntil, now.addingTimeInterval(DisplayHole.holdTime))
-
         pair.phoneRounds.holdDisplayHole(roundID: id, at: now.addingTimeInterval(10))
-        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 3)
-        XCTAssertEqual(watchRound(id)?.displayHoleHeldUntil, now.addingTimeInterval(DisplayHole.holdTime + 10))
+        pair.phoneTransport.deliverContext()
+
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 3)
+        XCTAssertEqual(watchRound(id)?.playingHoleIndex, 0)
+        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 0)
+        XCTAssertEqual(watchRound(id)?.isDisplayHoleHeld(at: now), false)
+        XCTAssertEqual(sentCount(), before, "A hole change sends nothing")
     }
 
-    func testLaterDisplayHoleChangeWinsOnBoth() {
+    func testAHolePickedOnTheWatchDoesNotReachThePhone() {
         let id = pair.startRound()
-        let now = Date()
-        pair.phoneTransport.holdsSends = true
-        pair.watchTransport.holdsSends = true
+        let before = sentCount()
 
-        pair.phoneRounds.setDisplayHole(6, roundID: id, at: now)
-        pair.watchRounds.setDisplayHole(1, at: now.addingTimeInterval(1))
-        pair.phoneTransport.holdsSends = false
-        pair.watchTransport.holdsSends = false
-        pair.phoneTransport.releaseHeld()
-        pair.watchTransport.releaseHeld()
-
-        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
-        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 1)
-    }
-
-    func testDisplayHoleContextReachesPhone() {
-        let id = pair.startRound()
-        pair.setReachable(false)
-        pair.watchRounds.setDisplayHole(1)
-
+        pair.watchRounds.setPlayingHole(1)
         pair.watchTransport.deliverContext()
 
-        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
+        XCTAssertEqual(watchRound(id)?.playingHoleIndex, 1)
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 0)
+        XCTAssertEqual(phoneRound(id)?.playingHoleIndex, 0)
+        XCTAssertEqual(sentCount(), before, "A hole change sends nothing")
     }
 
-    func testResumedRoundShowsTheSameHoleOnTheWatch() {
+    func testAResumedRoundKeepsEachDevicesOwnHole() {
         let id = pair.startRound()
+        pair.watchRounds.setPlayingHole(6)
         pair.phone.endRound(id)
         pair.phoneRounds.setDisplayHole(4, roundID: id)
 
         pair.phone.resumeRound(id)
 
         XCTAssertEqual(phoneRound(id)?.status, .active)
-        XCTAssertEqual(watchRound(id)?.displayHoleIndex, 4)
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 4)
+        XCTAssertEqual(watchRound(id)?.status, .active)
+        XCTAssertEqual(watchRound(id)?.playingHoleIndex, 6)
+    }
+
+    /// A fix on hole `hole`'s tee, `second` seconds in.
+    private func onTee(_ hole: Int, second: TimeInterval) -> CLLocation {
+        let tee = PathCourse.coordinate(north: PathCourse.tees[hole].north, east: PathCourse.tees[hole].east)
+        return StreamFixtures.location(second, latitude: tee.lat, longitude: tee.lon)
+    }
+
+    func testTheWatchsFixesMoveThePhonesHoleOn() {
+        let id = pair.startRound(PathCourse.selection)
+
+        pair.watch.record([onTee(1, second: 0)])
+
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 1)
+        // The watch's hole is moved by the watch's own advancer, never by the phone's
+        XCTAssertEqual(watchRound(id)?.playingHoleIndex, 0)
+        // The timeline is set by strokes, not by the hole shown
+        XCTAssertEqual(phoneRound(id)?.startedHoles, [0])
+    }
+
+    func testFixesThatArriveLateStillMoveThePhonesHoleOn() {
+        let id = pair.startRound(PathCourse.selection)
+        pair.setReachable(false)
+        pair.watch.record([onTee(1, second: 0)])
+        pair.watch.record([onTee(2, second: 600)])
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 0)
+
+        pair.setReachable(true)
+
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 2)
+    }
+
+    func testAHeldHoleOnThePhoneStaysWhenTheWatchsFixesArrive() {
+        let id = pair.startRound(PathCourse.selection)
+
+        // As a spot edit does
+        pair.phoneRounds.holdDisplayHole(roundID: id)
+        pair.watch.record([onTee(1, second: 0)])
+
+        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 0)
     }
 
     // MARK: - Pins
@@ -1361,10 +1380,12 @@ final class SyncFlowTests: XCTestCase {
         pair.setReachable(false)
         pair.phoneRounds.removeStroke(stroke, from: id)
 
-        pair.watchRounds.setDisplayHole(2, roundID: id)
+        pair.watchRounds.setPlayingHole(2, roundID: id)
+        if let round = watchRound(id) {
+            pair.watch.snapshots.updateContext(round)
+        }
         pair.watchTransport.deliverContext()
 
-        XCTAssertEqual(phoneRound(id)?.displayHoleIndex, 2)
         XCTAssertEqual(phoneRound(id)?.startedHoles, [0])
     }
 
